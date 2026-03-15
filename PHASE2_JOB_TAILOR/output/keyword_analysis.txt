@@ -1,0 +1,207 @@
+KEYWORD EXTRACTION ANALYSIS
+==================================================
+
+COMPANY NAME: LEO_TECHNOLOGIES
+==================================================
+
+TECH SKILLS:
+• LLMs
+• Retrieval-Augmented Generation (RAG)
+• semantic search
+• Agentic AI
+• GraphRAG
+• AI solution lifecycle
+• architecture
+• design
+• prototyping
+• implementation
+• evaluation
+• productionization
+• Python
+• prompt engineering
+• model fine-tuning
+• model monitoring
+• data ingestion
+• retrieval pipelines
+• knowledge graphs
+• third-party APIs
+• prompt design
+• model alignment
+• safety and guardrails for AI
+• AI deployment
+• AI research
+• code documentation
+• peer code reviews
+• system scalability
+• system efficiency
+• system reliability
+• Bachelor's degree in Computer Science
+• Master's degree in Artificial Intelligence
+• Data Science
+• applied AI
+• NLP
+• ML engineering
+• vector databases
+• ElasticSearch
+• Pinecone
+• MCP
+• A2A protocol
+• ML frameworks
+• LangChain
+• LlamaIndex
+• PyTorch
+• HuggingFace Transformers
+• APIs
+• scalable backend services
+• AWS
+• Azure
+• cloud environments
+• AWS SageMaker
+• AWS Bedrock
+• AzureAI
+• load balancing LLMs
+• MLOps practices
+• CI/CD for AI
+• data versioning
+• continuous integration
+• data cleaning
+• feature engineering
+• data pipelines
+
+SOFT SKILLS:
+• willingness to learn
+• strong customer mindset
+• excellent problem-solving
+• collaboration
+• communication skills
+• work effectively across remote and distributed teams
+
+NEEDS:
+• leverage Large Language Models (LLMs)
+• apply expertise in LLMs
+• develop robust features
+• enable real-time decision-making
+• translate real-world problems into solutions
+• experiment with language modeling
+• collaborate with product, backend, and data engineering teams
+• define requirements
+• break down complex problems
+• deliver high-impact features
+• inform robust data ingestion and retrieval pipelines
+• integrate external data sources
+• evaluate and implement best practices
+• stay on top of emerging AI research
+• contribute to internal knowledge-sharing
+• participate in peer code reviews
+• identify bottlenecks
+• propose solutions
+
+RESULTS:
+• transformative solutions for public safety and intelligence workflows
+• high-impact features aligned with business objectives
+• enhance context-awareness and capabilities of LLM-based workflows
+• improved system scalability, efficiency, and reliability
+• shipping robust, high-impact AI solutions in fast-paced environments
+
+==================================================
+RAW ANALYSIS:
+{"company_name": "Leo Technologies", "job_title": "AI/NLP Engineer"}
+
+Tech Skills:
+- LLMs
+- Retrieval-Augmented Generation (RAG)
+- semantic search
+- Agentic AI
+- GraphRAG
+- AI solution lifecycle
+- architecture
+- design
+- prototyping
+- implementation
+- evaluation
+- productionization
+- Python
+- prompt engineering
+- model fine-tuning
+- model monitoring
+- data ingestion
+- retrieval pipelines
+- knowledge graphs
+- third-party APIs
+- prompt design
+- model alignment
+- safety and guardrails for AI
+- AI deployment
+- AI research
+- code documentation
+- peer code reviews
+- system scalability
+- system efficiency
+- system reliability
+- Bachelor's degree in Computer Science
+- Master's degree in Artificial Intelligence
+- Data Science
+- applied AI
+- NLP
+- ML engineering
+- vector databases
+- ElasticSearch
+- Pinecone
+- MCP
+- A2A protocol
+- ML frameworks
+- LangChain
+- LlamaIndex
+- PyTorch
+- HuggingFace Transformers
+- APIs
+- scalable backend services
+- AWS
+- Azure
+- cloud environments
+- AWS SageMaker
+- AWS Bedrock
+- AzureAI
+- load balancing LLMs
+- MLOps practices
+- CI/CD for AI
+- data versioning
+- continuous integration
+- data cleaning
+- feature engineering
+- data pipelines
+
+Soft Skills:
+- willingness to learn
+- strong customer mindset
+- excellent problem-solving
+- collaboration
+- communication skills
+- work effectively across remote and distributed teams
+
+Needs:
+- leverage Large Language Models (LLMs)
+- apply expertise in LLMs
+- develop robust features
+- enable real-time decision-making
+- translate real-world problems into solutions
+- experiment with language modeling
+- collaborate with product, backend, and data engineering teams
+- define requirements
+- break down complex problems
+- deliver high-impact features
+- inform robust data ingestion and retrieval pipelines
+- integrate external data sources
+- evaluate and implement best practices
+- stay on top of emerging AI research
+- contribute to internal knowledge-sharing
+- participate in peer code reviews
+- identify bottlenecks
+- propose solutions
+
+Results:
+- transformative solutions for public safety and intelligence workflows
+- high-impact features aligned with business objectives
+- enhance context-awareness and capabilities of LLM-based workflows
+- improved system scalability, efficiency, and reliability
+- shipping robust, high-impact AI solutions in fast-paced environments

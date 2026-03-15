@@ -1,0 +1,464 @@
+# PHASE1_JOB_SEARCH — Global Career Sites Registry
+# =================================================
+# Used by SmartExtract (Playwright + LLM) to discover jobs from any site.
+#
+# Each site has:
+#   name    : human-readable label
+#   url     : URL with optional placeholders:
+#               {query_encoded}    -> URL-encoded search term
+#               {query}            -> raw search term
+#               {location_encoded} -> URL-encoded location string
+#   type    : "search"  — URL accepts query/location params (one target per query)
+#             "static"  — scraped as-is, no query params (one target total)
+#   region  : "global" | "north_america" | "europe" | "asia_pacific" |
+#              "middle_east" | "latin_america" | "africa"
+#   country : optional ISO country name (omit for multi-country/global boards)
+#
+# UserPreferences.get_site_targets() filters this list automatically based
+# on the user's regions. Sites tagged region="global" are ALWAYS included.
+#
+# Manual-only ATS (unsolvable CAPTCHAs — flag as manual, do not automate):
+manual_ats:
+  - "ibegin.tcsapps.com"
+
+# Blocked sites — too anti-bot or unreliable for extraction:
+blocked:
+  - "glassdoor.com"
+  - "google.com/about/careers"
+  - "accenture.com"
+
+sites:
+
+  # =========================================================================
+  # GLOBAL / Remote-first  (always included regardless of user region)
+  # =========================================================================
+
+  - name: "RemoteOK"
+    url: "https://remoteok.com/remote-jobs?search={query_encoded}"
+    type: search
+    region: global
+
+  - name: "WeWorkRemotely"
+    url: "https://weworkremotely.com/remote-jobs/search?term={query_encoded}"
+    type: search
+    region: global
+
+  - name: "Remotive"
+    url: "https://remotive.com/remote-jobs?search={query_encoded}"
+    type: search
+    region: global
+
+  - name: "Himalayas"
+    url: "https://himalayas.app/jobs?q={query_encoded}"
+    type: search
+    region: global
+
+  - name: "Otta"
+    url: "https://app.otta.com/jobs/search?q={query_encoded}"
+    type: search
+    region: global
+
+  - name: "WelcomeToTheJungle"
+    url: "https://www.welcometothejungle.com/en/jobs?query={query_encoded}&refinementList%5Bremote%5D%5B%5D=fulltime"
+    type: search
+    region: global
+
+  - name: "Jobgether"
+    url: "https://jobgether.com/jobs?q={query_encoded}&remote=true"
+    type: search
+    region: global
+
+  - name: "PowerToFly"
+    url: "https://powertofly.com/jobs/?keywords={query_encoded}&remote=true"
+    type: search
+    region: global
+
+  - name: "Arc.dev"
+    url: "https://arc.dev/remote-jobs/{query_encoded}"
+    type: search
+    region: global
+
+  - name: "4DayWeek"
+    url: "https://4dayweek.io/remote-jobs/{query_encoded}"
+    type: search
+    region: global
+
+  - name: "Working Nomads"
+    url: "https://www.workingnomads.com/jobs?category={query_encoded}"
+    type: search
+    region: global
+
+  - name: "JustRemote"
+    url: "https://justremote.co/remote-{query_encoded}-jobs"
+    type: search
+    region: global
+
+  - name: "Hacker News Jobs"
+    url: "https://news.ycombinator.com/jobs"
+    type: static
+    region: global
+
+  - name: "Wellfound"
+    url: "https://wellfound.com/jobs?role={query_encoded}&remote=true"
+    type: search
+    region: global
+
+  - name: "Startup.jobs"
+    url: "https://startup.jobs/?q={query_encoded}&remote=true"
+    type: search
+    region: global
+
+  - name: "Nodesk"
+    url: "https://nodesk.co/remote-jobs/{query_encoded}"
+    type: search
+    region: global
+
+  - name: "Flexiple"
+    url: "https://flexiple.com/jobs/{query_encoded}"
+    type: search
+    region: global
+
+  - name: "Toptal"
+    url: "https://www.toptal.com/jobs"
+    type: static
+    region: global
+
+  # =========================================================================
+  # NORTH AMERICA
+  # =========================================================================
+
+  - name: "Dice"
+    url: "https://www.dice.com/jobs?q={query_encoded}&location={location_encoded}"
+    type: search
+    region: north_america
+    country: USA
+
+  - name: "SimplyHired"
+    url: "https://www.simplyhired.com/search?q={query_encoded}&l={location_encoded}"
+    type: search
+    region: north_america
+    country: USA
+
+  - name: "BuiltIn"
+    url: "https://builtin.com/jobs/dev-engineering?search={query_encoded}"
+    type: search
+    region: north_america
+    country: USA
+
+  - name: "Techstars Jobs"
+    url: "https://jobs.techstars.com/jobs?keywords={query_encoded}"
+    type: search
+    region: north_america
+    country: USA
+
+  - name: "FlexJobs"
+    url: "https://www.flexjobs.com/jobs/search?search={query_encoded}"
+    type: search
+    region: north_america
+    country: USA
+
+  - name: "Job Bank Canada"
+    url: "https://www.jobbank.gc.ca/jobsearch/jobsearch?searchstring={query_encoded}&fage=2&sort=D"
+    type: search
+    region: north_america
+    country: Canada
+
+  - name: "Eluta Canada"
+    url: "https://www.eluta.ca/search?q={query_encoded}&l={location_encoded}"
+    type: search
+    region: north_america
+    country: Canada
+
+  - name: "CareerJet Canada"
+    url: "https://www.careerjet.ca/search/jobs?s={query_encoded}&l={location_encoded}"
+    type: search
+    region: north_america
+    country: Canada
+
+  - name: "Randstad Canada"
+    url: "https://www.randstad.ca/jobs/?keywords={query_encoded}&location={location_encoded}"
+    type: search
+    region: north_america
+    country: Canada
+
+  - name: "Talent.com"
+    url: "https://www.talent.com/jobs?k={query_encoded}&l={location_encoded}"
+    type: search
+    region: north_america
+    country: Canada
+
+  # =========================================================================
+  # EUROPE
+  # =========================================================================
+
+  - name: "StepStone"
+    url: "https://www.stepstone.de/jobs/{query_encoded}/"
+    type: search
+    region: europe
+    country: Germany
+
+  - name: "Xing Jobs"
+    url: "https://www.xing.com/jobs/search?keywords={query_encoded}"
+    type: search
+    region: europe
+    country: Germany
+
+  - name: "reed.co.uk"
+    url: "https://www.reed.co.uk/jobs/{query_encoded}-jobs?locationName={location_encoded}"
+    type: search
+    region: europe
+    country: United Kingdom
+
+  - name: "Totaljobs"
+    url: "https://www.totaljobs.com/jobs/{query_encoded}?keywords={query_encoded}&location={location_encoded}"
+    type: search
+    region: europe
+    country: United Kingdom
+
+  - name: "CWJobs"
+    url: "https://www.cwjobs.co.uk/jobs/{query_encoded}?keywords={query_encoded}&location={location_encoded}"
+    type: search
+    region: europe
+    country: United Kingdom
+
+  - name: "Adzuna UK"
+    url: "https://www.adzuna.co.uk/jobs/search?q={query_encoded}&loc={location_encoded}"
+    type: search
+    region: europe
+    country: United Kingdom
+
+  - name: "InfoJobs"
+    url: "https://www.infojobs.net/ofertas-trabajo/{query_encoded}"
+    type: search
+    region: europe
+    country: Spain
+
+  - name: "Monster Germany"
+    url: "https://www.monster.de/jobs/suche/?q={query_encoded}&where={location_encoded}"
+    type: search
+    region: europe
+    country: Germany
+
+  - name: "Jobware"
+    url: "https://www.jobware.de/jobs/{query_encoded}/"
+    type: search
+    region: europe
+    country: Germany
+
+  - name: "Karriere.at"
+    url: "https://www.karriere.at/jobs/{query_encoded}"
+    type: search
+    region: europe
+    country: Austria
+
+  - name: "jobs.ch"
+    url: "https://www.jobs.ch/en/vacancies/?term={query_encoded}"
+    type: search
+    region: europe
+    country: Switzerland
+
+  - name: "Jobindex"
+    url: "https://www.jobindex.dk/jobsoegning?q={query_encoded}"
+    type: search
+    region: europe
+    country: Denmark
+
+  - name: "Finn.no Jobs"
+    url: "https://www.finn.no/job/fulltime/search.html?q={query_encoded}"
+    type: search
+    region: europe
+    country: Norway
+
+  - name: "Pracuj.pl"
+    url: "https://www.pracuj.pl/praca/{query_encoded}"
+    type: search
+    region: europe
+    country: Poland
+
+  - name: "Jobs.ie"
+    url: "https://www.jobs.ie/jobs/{query_encoded}/"
+    type: search
+    region: europe
+    country: Ireland
+
+  - name: "APEC France"
+    url: "https://www.apec.fr/candidat/recherche-emploi.html/emploi?motsCles={query_encoded}"
+    type: search
+    region: europe
+    country: France
+
+  - name: "EuroJobSites"
+    url: "https://www.eurojobsites.com/search/?q={query_encoded}"
+    type: search
+    region: europe
+
+  # =========================================================================
+  # ASIA-PACIFIC
+  # =========================================================================
+
+  - name: "Naukri"
+    url: "https://www.naukri.com/{query_encoded}-jobs"
+    type: search
+    region: asia_pacific
+    country: India
+
+  - name: "Shine"
+    url: "https://www.shine.com/job-search/{query_encoded}-jobs"
+    type: search
+    region: asia_pacific
+    country: India
+
+  - name: "TimesJobs"
+    url: "https://www.timesjobs.com/candidate/job-search.html?searchType=personalizedSearch&from=submit&searchTextSrc=&searchTextText=&txtKeywords={query_encoded}"
+    type: search
+    region: asia_pacific
+    country: India
+
+  - name: "Foundit"
+    url: "https://www.foundit.in/search/{query_encoded}-jobs"
+    type: search
+    region: asia_pacific
+    country: India
+
+  - name: "JobStreet"
+    url: "https://www.jobstreet.com.sg/en/job-search/{query_encoded}-jobs/"
+    type: search
+    region: asia_pacific
+    country: Singapore
+
+  - name: "JobsDB Singapore"
+    url: "https://sg.jobsdb.com/j?q={query_encoded}"
+    type: search
+    region: asia_pacific
+    country: Singapore
+
+  - name: "MyCareersFuture"
+    url: "https://www.mycareersfuture.gov.sg/search?search={query_encoded}&sortBy=new_posting_date"
+    type: search
+    region: asia_pacific
+    country: Singapore
+
+  - name: "Seek Australia"
+    url: "https://www.seek.com.au/{query_encoded}-jobs"
+    type: search
+    region: asia_pacific
+    country: Australia
+
+  - name: "Jora Australia"
+    url: "https://au.jora.com/j?q={query_encoded}&l={location_encoded}"
+    type: search
+    region: asia_pacific
+    country: Australia
+
+  - name: "Seek New Zealand"
+    url: "https://www.seek.co.nz/{query_encoded}-jobs"
+    type: search
+    region: asia_pacific
+    country: New Zealand
+
+  - name: "JobStreet Malaysia"
+    url: "https://www.jobstreet.com.my/en/job-search/{query_encoded}-jobs/"
+    type: search
+    region: asia_pacific
+    country: Malaysia
+
+  - name: "JobStreet Philippines"
+    url: "https://www.jobstreet.com.ph/en/job-search/{query_encoded}-jobs/"
+    type: search
+    region: asia_pacific
+    country: Philippines
+
+  - name: "Jobs in Japan"
+    url: "https://www.jobinjapan.com/jobs/{query_encoded}/"
+    type: search
+    region: asia_pacific
+    country: Japan
+
+  # =========================================================================
+  # MIDDLE EAST
+  # =========================================================================
+
+  - name: "Bayt"
+    url: "https://www.bayt.com/en/international/jobs/{query_encoded}-jobs/"
+    type: search
+    region: middle_east
+
+  - name: "GulfTalent"
+    url: "https://www.gulftalent.com/jobs?search={query_encoded}"
+    type: search
+    region: middle_east
+
+  - name: "Naukrigulf"
+    url: "https://www.naukrigulf.com/{query_encoded}-jobs"
+    type: search
+    region: middle_east
+
+  - name: "Dubizzle Jobs"
+    url: "https://www.dubizzle.com/jobs/?q={query_encoded}"
+    type: search
+    region: middle_east
+    country: UAE
+
+  - name: "GulfJob"
+    url: "https://www.gulfjob.com/search/?q={query_encoded}"
+    type: search
+    region: middle_east
+
+  # =========================================================================
+  # LATIN AMERICA
+  # =========================================================================
+
+  - name: "Bumeran"
+    url: "https://www.bumeran.com/empleos-busqueda-{query_encoded}.html"
+    type: search
+    region: latin_america
+
+  - name: "Computrabajo"
+    url: "https://www.computrabajo.com/trabajo-de-{query_encoded}"
+    type: search
+    region: latin_america
+
+  - name: "OCCMundial"
+    url: "https://www.occ.com.mx/empleos/de-{query_encoded}/"
+    type: search
+    region: latin_america
+    country: Mexico
+
+  - name: "Catho"
+    url: "https://www.catho.com.br/vagas/{query_encoded}/"
+    type: search
+    region: latin_america
+    country: Brazil
+
+  - name: "InfoJobs Brazil"
+    url: "https://www.infojobs.com.br/empregos.aspx?palavra={query_encoded}"
+    type: search
+    region: latin_america
+    country: Brazil
+
+  # =========================================================================
+  # AFRICA
+  # =========================================================================
+
+  - name: "Careers24"
+    url: "https://www.careers24.com/jobs/?Keywords={query_encoded}"
+    type: search
+    region: africa
+    country: South Africa
+
+  - name: "PNet"
+    url: "https://www.pnet.co.za/vacancies/{query_encoded}.html"
+    type: search
+    region: africa
+    country: South Africa
+
+  - name: "BrighterMonday"
+    url: "https://www.brightermonday.co.ke/listings?q={query_encoded}"
+    type: search
+    region: africa
+    country: Kenya
+
+  - name: "MyJobMag"
+    url: "https://www.myjobmag.com/jobs/{query_encoded}"
+    type: search
+    region: africa

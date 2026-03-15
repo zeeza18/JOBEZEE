@@ -1,0 +1,42 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# ── Backend secrets ───────────────────────────────────────────────────────────
+backend/.env
+*.env
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# ── Uploads (user resumes) ────────────────────────────────────────────────────
+uploads/
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+!frontend/.env.example
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Phase 1 cache / outputs ───────────────────────────────────────────────────
+PHASE1_JOB_SEARCH/__pycache__/
+*.xlsx
+*.csv
+data/

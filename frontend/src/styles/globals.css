@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
+body {
+  @apply bg-white text-slate-900 font-sans antialiased;
+}
+
+a {
+  @apply text-brand-dark hover:text-brand underline-offset-4 transition-colors;
+}
+
+.glass-card {
+  @apply bg-white border border-slate-200;
+}
+
+.section-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6;
+}
+
+input, textarea, select {
+  @apply focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}
+
+/* Landing page ticker scroll */
+@keyframes scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* Dark page overrides — don't apply bg-white to landing/auth */
+.page-dark {
+  background-color: #020817;
+  color: #ffffff;
+}
+.page-dark input,
+.page-dark select,
+.page-dark textarea {
+  @apply bg-white/5 border-white/10 text-white placeholder-slate-500;
+  @apply focus:ring-cyan-500/30 focus:border-cyan-500/50;
+}

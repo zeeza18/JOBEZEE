@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(ls:*)",
+      "Bash(npm run:*)",
+      "Bash(/c/Users/azeez/PROJECTS/RESUME-MAKER/res/Scripts/python.exe:*)",
+      "Bash(netstat:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(powershell:*)",
+      "Bash(xargs grep:*)",
+      "Bash(find:*)",
+      "Bash(python3:*)",
+      "Bash(grep:*)",
+      "Bash(cmd:*)",
+      "Bash(\"C:/Users/azeez/PROJECTS/RESUME-MAKER/res/Scripts/python.exe\":*)",
+      "Bash(printf 1\\\\nYES\\\\n:*)",
+      "Bash(PYTHONDONTWRITEBYTECODE=1 \"C:/Users/azeez/PROJECTS/RESUME-MAKER/res/Scripts/python.exe\":*)",
+      "Bash(curl:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pip show:*)",
+      "Bash(cd:*)"
+    ]
+  }
+}

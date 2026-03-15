@@ -1,0 +1,1256 @@
+/**
+ * Jobs page — Phase 1 pulled jobs with search, filter, tailor, and apply.
+ */
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  ArrowUpRight, Bookmark, BookmarkCheck, CheckCircle2, ChevronRight,
+  Download, Eye, EyeOff, FileText, Filter, Loader2, RefreshCw,
+  Search, Sparkles, X, Zap,
+} from 'lucide-react'
+import { jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
+import { useAppStore } from '../../store/useAppStore'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface TailorJobState {
+  tailorJobId : string
+  status      : 'tailoring' | 'done' | 'error'
+  score       : number | null
+  resumeText  : string
+  filename    : string | null
+  error       : string | null
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const JOB_TYPE_LABELS: Record<string, string> = {
+  full_time  : 'Full-time',
+  part_time  : 'Part-time',
+  contract   : 'Contract',
+  internship : 'Internship',
+  temporary  : 'Temporary',
+}
+
+const SOURCE_COLORS: Record<string, string> = {
+  indeed      : 'bg-blue-50 text-blue-600 border-blue-100',
+  linkedin    : 'bg-sky-50 text-sky-700 border-sky-100',
+  glassdoor   : 'bg-emerald-50 text-emerald-600 border-emerald-100',
+  workday     : 'bg-purple-50 text-purple-600 border-purple-100',
+  ziprecruiter: 'bg-orange-50 text-orange-600 border-orange-100',
+}
+
+function srcColor(src: string) {
+  return SOURCE_COLORS[src?.toLowerCase()] ?? 'bg-slate-100 text-slate-500 border-slate-200'
+}
+
+function fmtSalary(job: PulledJob): string {
+  if (job.salary_text) return job.salary_text
+  const sym = (job.salary_currency || 'USD') === 'USD' ? '$' : (job.salary_currency || '')
+  if (job.salary_min && job.salary_max)
+    return `${sym}${(job.salary_min / 1000).toFixed(0)}k – ${sym}${(job.salary_max / 1000).toFixed(0)}k`
+  if (job.salary_min) return `${sym}${(job.salary_min / 1000).toFixed(0)}k+`
+  if (job.salary_max) return `up to ${sym}${(job.salary_max / 1000).toFixed(0)}k`
+  return ''
+}
+
+function fmtPosted(posted: string | null | undefined): string {
+  if (!posted) return ''
+  const d = new Date(posted)
+  if (isNaN(d.getTime())) return posted
+  const h = (Date.now() - d.getTime()) / 3_600_000
+  if (h < 2)  return 'Just now'
+  if (h < 24) return `${Math.floor(h)}h ago`
+  const days = Math.floor(h / 24)
+  if (days === 1) return 'Yesterday'
+  if (days < 30) return `${days}d ago`
+  return `${Math.floor(days / 30)}mo ago`
+}
+
+/** Extract salary range from job description when structured fields are empty. */
+function extractDescSalary(desc: string): string {
+  if (!desc) return ''
+  // Matches: $150,000 - $175,000 | $150k-$175k | $120K–$150K
+  const m = desc.match(/\$[\d,]+\s*[kK]?\s*[-–—to]+\s*\$[\d,]+\s*[kK]?/)
+  if (m) return m[0].replace(/\s+/g, ' ').trim()
+  // Matches: $150k+ or $150,000+
+  const m2 = desc.match(/\$[\d,]+\s*[kK]?\+/)
+  if (m2) return m2[0].trim()
+  return ''
+}
+
+/** Extract minimum years of experience from job description. e.g. "4–7+ years" → "4+ yrs" */
+function extractExp(desc: string): string {
+  if (!desc) return ''
+  // Match patterns like "4-7+ years", "4–7 years", "5+ years", "3 to 5 years"
+  const m = desc.match(/(\d+)\s*[-–—to]+\s*(\d+)\+?\s*years?|\b(\d+)\+\s*years?/i)
+  if (!m) return ''
+  const min = m[1] ?? m[3]
+  if (!min) return ''
+  return `${min}+ yrs`
+}
+
+// ─── Preference-match scoring ─────────────────────────────────────────────────
+
+/** Parse salary numbers from description text. Returns [lo, hi] or null. */
+function parseDescSalaryNums(desc: string): [number, number] | null {
+  if (!desc) return null
+  const m = desc.match(/\$([\d,]+)\s*([kK])?\s*[-–—to]+\s*\$([\d,]+)\s*([kK])?/)
+  if (m) {
+    const lo = parseFloat(m[1].replace(/,/g, '')) * (m[2] ? 1000 : 1)
+    const hi = parseFloat(m[3].replace(/,/g, '')) * (m[4] ? 1000 : 1)
+    return [Math.min(lo, hi), Math.max(lo, hi)]
+  }
+  const m2 = desc.match(/\$([\d,]+)\s*([kK])?(?:\+|\/(?:yr|year|annual))?/i)
+  if (m2) {
+    const v = parseFloat(m2[1].replace(/,/g, '')) * (m2[2] ? 1000 : 1)
+    if (v > 0) return [v, v]
+  }
+  return null
+}
+
+/** Get [lo, hi] salary from job structured fields or description. */
+function jobSalaryRange(job: PulledJob): [number, number] | null {
+  const lo = job.salary_min ?? 0, hi = job.salary_max ?? 0
+  if (lo > 0 || hi > 0) return [lo > 0 ? lo : hi, hi > 0 ? hi : lo]
+  return parseDescSalaryNums(job.description || '')
+}
+
+/** 2 = in range, 1 = unknown (no salary info), 0 = clearly out of range. */
+function salaryScore(job: PulledJob, userMin: number, userMax: number): 0 | 1 | 2 {
+  if (!userMin && !userMax) return 2
+  const range = jobSalaryRange(job)
+  if (!range) return 1
+  const [jLo, jHi] = range
+  if (jHi > 0 && jHi < userMin) return 0
+  if (userMax > 0 && jLo > userMax) return 0
+  return 2
+}
+
+/** Parse minimum years of experience as a number from description. */
+function extractExpNum(desc: string): number | null {
+  if (!desc) return null
+  const m = desc.match(/(\d+)\s*[-–—to]+\s*(\d+)\+?\s*years?|\b(\d+)\+\s*years?/i)
+  if (!m) return null
+  const min = parseInt(m[1] ?? m[3] ?? '', 10)
+  return isNaN(min) ? null : min
+}
+
+/** Map experience_level label → approximate minimum years. */
+const EXP_LEVEL_YEARS: Record<string, number> = {
+  intern    : 0,
+  junior    : 1,
+  mid       : 3,
+  senior    : 5,
+  lead      : 7,
+  executive : 10,
+}
+
+/**
+ * Resolve user's experience as a year number.
+ * Uses experience_level label first (intern/junior/mid/senior/lead/executive),
+ * falls back to parsing years_experience text (e.g. "4", "3-5").
+ */
+function resolveUserYears(expLevel: string, yearsText: string): number {
+  const lvl = (expLevel || '').toLowerCase()
+  if (EXP_LEVEL_YEARS[lvl] !== undefined) return EXP_LEVEL_YEARS[lvl]
+  if (!yearsText) return 0
+  const m = yearsText.match(/(\d+)/)
+  return m ? parseInt(m[1], 10) : 0
+}
+
+/** 2 = user meets requirement, 1 = unknown requirement, 0 = user under-qualified. */
+function expMatchScore(job: PulledJob, userYears: number): 0 | 1 | 2 {
+  if (userYears === 0 && !job.description) return 2
+  const required = extractExpNum(job.description || '')
+  if (required === null) return 1
+  return userYears >= required ? 2 : 0
+}
+
+/** 2 = matches preferred location, 1 = no location info, 0 = doesn't match. */
+function locationMatchScore(job: PulledJob, prefLocs: string[]): 0 | 1 | 2 {
+  if (!prefLocs || prefLocs.length === 0) return 2
+  const loc = (job.location || '').toLowerCase()
+  if (!loc) return 1
+  const hasRemotePref = prefLocs.some(p => /remote/i.test(p))
+  if (hasRemotePref && /remote/i.test(loc)) return 2
+  if (prefLocs.some(p => loc.includes(p.toLowerCase()) || p.toLowerCase().includes(loc))) return 2
+  return 0
+}
+
+/**
+ * Count how many of (salary / location / experience) the job actually has info for.
+ * Used as the primary sort tier: more info = shown higher.
+ */
+function jobInfoCount(job: PulledJob): number {
+  let n = 0
+  if (jobSalaryRange(job))                          n++  // has salary
+  if ((job.location || '').trim())                  n++  // has location
+  if (extractExpNum(job.description || '') !== null) n++  // has exp requirement
+  return n
+}
+
+// ─── Lightweight markdown renderer ────────────────────────────────────────────
+
+function renderInline(text: string): React.ReactNode[] {
+  const unescaped = text.replace(/\\([*_`\-\.#\[\]()])/g, '$1')
+  const parts: React.ReactNode[] = []
+  const re = /(\*\*(.+?)\*\*|\*(.+?)\*|\[(.+?)\]\((.+?)\))/g
+  let last = 0, m: RegExpExecArray | null
+  while ((m = re.exec(unescaped)) !== null) {
+    if (m.index > last) parts.push(unescaped.slice(last, m.index))
+    if (m[0].startsWith('**'))     parts.push(<strong key={m.index}>{m[2]}</strong>)
+    else if (m[0].startsWith('*')) parts.push(<em key={m.index}>{m[3]}</em>)
+    else parts.push(<a key={m.index} href={m[5]} target="_blank" rel="noreferrer" className="text-brand underline">{m[4]}</a>)
+    last = m.index + m[0].length
+  }
+  if (last < unescaped.length) parts.push(unescaped.slice(last))
+  return parts
+}
+
+function JobDescription({ text }: { text: string }) {
+  if (!text) return <p className="text-sm text-slate-400 italic">No description available.</p>
+  const raw = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const blocks = raw.split(/\n{2,}/)
+  return (
+    <div className="space-y-3 text-sm leading-relaxed text-slate-700">
+      {blocks.map((block, bi) => {
+        const trimmed = block.trim()
+        if (!trimmed) return null
+        const hm = trimmed.match(/^(#{1,3})\s+(.+)/)
+        if (hm) {
+          const lvl = hm[1].length
+          const cls = lvl === 1 ? 'text-base font-bold text-slate-900' : lvl === 2 ? 'text-sm font-bold text-slate-800' : 'text-sm font-semibold text-slate-700'
+          return <p key={bi} className={cls}>{renderInline(hm[2])}</p>
+        }
+        const lines = trimmed.split('\n')
+        const isList = lines.every(l => /^\s*[-*•]\s/.test(l) || l.trim() === '')
+        if (isList) return (
+          <ul key={bi} className="list-disc list-outside ml-4 space-y-0.5">
+            {lines.filter(l => l.trim()).map((l, li) => <li key={li}>{renderInline(l.replace(/^\s*[-*•]\s*/, ''))}</li>)}
+          </ul>
+        )
+        const hasBullet = lines.some(l => /^\s*[-*•]\s/.test(l))
+        if (hasBullet) return (
+          <div key={bi} className="space-y-0.5">
+            {lines.filter(l => l.trim()).map((l, li) => {
+              const bm = l.match(/^\s*[-*•]\s*(.+)/)
+              return bm
+                ? <div key={li} className="flex gap-2"><span className="text-slate-400 mt-0.5">•</span><span>{renderInline(bm[1])}</span></div>
+                : <p key={li}>{renderInline(l)}</p>
+            })}
+          </div>
+        )
+        return <p key={bi}>{renderInline(lines.map(l => l.trim()).join(' '))}</p>
+      })}
+    </div>
+  )
+}
+
+// ─── Tailored Resume Modal ────────────────────────────────────────────────────
+
+function TailoredResumeModal({ state, onClose }: { state: TailorJobState; onClose: () => void }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
+  return createPortal(
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }} transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+        className="relative z-10 flex w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden max-h-[90vh]"
+      >
+        <div className="flex items-center justify-between gap-4 bg-gradient-to-br from-cyan-600 to-sky-700 px-6 py-4 flex-shrink-0">
+          <div>
+            <p className="text-sm font-semibold text-white/80">Tailored Resume</p>
+            {state.filename && <p className="text-xs text-white/60 mt-0.5">{state.filename}</p>}
+          </div>
+          <div className="flex items-center gap-3">
+            {state.score != null && (
+              <div className="rounded-xl bg-white/20 px-3 py-1.5 text-sm font-bold text-white">
+                ATS Score: {state.score}/100
+              </div>
+            )}
+            <button onClick={onClose} className="rounded-lg p-1.5 text-white/60 hover:bg-white/10 hover:text-white transition">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {state.resumeText
+            ? <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-700 bg-slate-50 rounded-xl p-4 border border-slate-100">{state.resumeText}</pre>
+            : <p className="text-sm text-slate-400 italic">No resume text available.</p>}
+        </div>
+        <div className="flex-shrink-0 border-t border-slate-100 bg-white px-6 py-4 flex flex-wrap items-center gap-3">
+          <a href={tailorApi.downloadPdfUrl(state.tailorJobId)} target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition">
+            <Download className="h-4 w-4" /> Download PDF
+          </a>
+          <a href={tailorApi.downloadTexUrl(state.tailorJobId)} target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 transition">
+            <Download className="h-4 w-4" /> Download .tex
+          </a>
+          <button onClick={onClose} className="ml-auto rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-500 hover:border-slate-300 transition">
+            Close
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body,
+  )
+}
+
+// ─── Job Detail Drawer ────────────────────────────────────────────────────────
+
+function JobDetailDrawer({
+  job, onClose, onStatusChange, tailorState, onTailor, onViewTailor,
+}: {
+  job            : PulledJob
+  onClose        : () => void
+  onStatusChange : (id: string, s: string) => void
+  tailorState?   : TailorJobState
+  onTailor       : (job: PulledJob) => void
+  onViewTailor   : (state: TailorJobState) => void
+}) {
+  const [updating, setUpdating]         = useState(false)
+  const [fullDesc, setFullDesc]         = useState<string | null>(null)
+  const [fetchingDesc, setFetchingDesc] = useState(false)
+  const isSaved = job.status === 'saved' || job.status === 'favourite'
+
+  // Auto-fetch full description when drawer opens
+  useEffect(() => {
+    setFullDesc(null)
+    setFetchingDesc(true)
+    jobsApi.fullDescription(job.id)
+      .then(r => setFullDesc(r.description))
+      .catch(() => {})
+      .finally(() => setFetchingDesc(false))
+  }, [job.id])
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
+  const update = async (status: string) => {
+    setUpdating(true)
+    await jobsApi.setStatus(job.id, status).catch(() => {})
+    onStatusChange(job.id, status)
+    setUpdating(false)
+  }
+
+  const META = [
+    { label: 'Source',     value: job.site || job.source || '—' },
+    { label: 'Job Type',   value: (JOB_TYPE_LABELS[job.job_type] ?? job.job_type) || '—' },
+    { label: 'Posted',     value: job.posted_at || '—' },
+    { label: 'Pulled',     value: job.pulled_at ? new Date(job.pulled_at).toLocaleDateString() : '—' },
+    { label: 'Salary',     value: fmtSalary(job) || '—' },
+    { label: 'Status',     value: job.status },
+  ]
+
+  return createPortal(
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-start justify-end">
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+        transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+        className="relative z-10 flex h-full w-full max-w-xl flex-col bg-white shadow-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-br from-cyan-600 to-sky-700 p-6 pb-5 flex-shrink-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <span className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${srcColor(job.site || job.source)}`}>
+                  {job.site || job.source}
+                </span>
+                {job.job_type && (
+                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs text-white/80">
+                    {JOB_TYPE_LABELS[job.job_type] ?? job.job_type}
+                  </span>
+                )}
+              </div>
+              <h2 className="text-xl font-bold text-white leading-snug">{job.title}</h2>
+              <p className="mt-1 text-sm text-white/75">
+                {job.company}{job.location && <><span className="mx-1.5 opacity-50">·</span>{job.location}</>}
+              </p>
+            </div>
+            <button onClick={onClose} className="flex-shrink-0 rounded-lg p-1.5 text-white/60 hover:bg-white/10 hover:text-white transition">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          {fmtSalary(job) && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white/15 px-3 py-1.5 text-sm font-semibold text-white">
+              {fmtSalary(job)}
+            </div>
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Details</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              {META.map(({ label, value }) => (
+                <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
+                  <p className="mt-0.5 text-sm font-medium text-slate-800 capitalize truncate">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {job.skills && job.skills.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Skills</p>
+              <div className="flex flex-wrap gap-1.5">
+                {job.skills.map((s) => (
+                  <span key={s} className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-xs text-cyan-700">{s}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {job.url && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Job URL</p>
+              <a href={job.url} target="_blank" rel="noreferrer"
+                className="flex items-start gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-700 hover:bg-cyan-100 transition break-all">
+                <ArrowUpRight className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                {job.url}
+              </a>
+            </div>
+          )}
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Description</p>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              {fetchingDesc
+                ? <div className="flex items-center gap-2 text-xs text-slate-400 py-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading full description…</div>
+                : <JobDescription text={fullDesc ?? job.description} />
+              }
+              {job.url && (
+                <p className="mt-3 text-xs text-slate-400 italic">
+                  <a href={job.url} target="_blank" rel="noreferrer" className="text-brand underline">View full posting ↗</a>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer actions */}
+        <div className="flex-shrink-0 border-t border-slate-100 bg-white p-4">
+          {updating
+            ? <div className="flex items-center gap-2 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Updating…</div>
+            : (
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={() => update(isSaved ? 'new' : 'saved')}
+                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                    isSaved ? 'border-cyan-300 bg-cyan-50 text-cyan-700 hover:bg-cyan-100' : 'border-slate-200 text-slate-600 hover:border-cyan-300 hover:text-cyan-700'
+                  }`}>
+                  {isSaved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+                  {isSaved ? 'Saved' : 'Save'}
+                </button>
+
+                {job.status === 'hidden' ? (
+                  <button onClick={() => update('new')}
+                    className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:border-cyan-300 hover:text-cyan-700 transition">
+                    <Eye className="h-4 w-4" /> Unhide
+                  </button>
+                ) : (
+                  <button onClick={() => { update('hidden'); onClose() }}
+                    className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:border-red-300 hover:text-red-500 transition">
+                    <EyeOff className="h-4 w-4" /> Hide
+                  </button>
+                )}
+
+                {job.status === 'applied' && (
+                  <span className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                    <CheckCircle2 className="h-4 w-4" /> Applied
+                  </span>
+                )}
+
+                {tailorState?.status === 'tailoring' ? (
+                  <button disabled className="flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-500 opacity-70 cursor-not-allowed">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Tailoring…
+                  </button>
+                ) : tailorState?.status === 'done' ? (
+                  <button onClick={() => onViewTailor(tailorState)}
+                    className="flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-100 transition">
+                    <FileText className="h-4 w-4" /> View Resume {tailorState.score != null && <span className="ml-1 opacity-60 text-xs">{tailorState.score}</span>}
+                  </button>
+                ) : job.status !== 'applied' ? (
+                  <button onClick={() => onTailor(job)}
+                    className="flex items-center gap-1.5 rounded-xl bg-cyan-600 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-700 transition">
+                    <Sparkles className="h-4 w-4" /> Tailor
+                  </button>
+                ) : null}
+
+                {job.url && job.status !== 'applied' && (
+                  <a href={job.url} target="_blank" rel="noreferrer"
+                    onClick={async () => { await jobsApi.setStatus(job.id, 'applied').catch(() => {}); onStatusChange(job.id, 'applied'); onClose() }}
+                    className="ml-auto flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition">
+                    <ArrowUpRight className="h-4 w-4" /> Apply
+                  </a>
+                )}
+                {job.url && job.status === 'applied' && (
+                  <a href={job.url} target="_blank" rel="noreferrer"
+                    className="ml-auto flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">
+                    <ArrowUpRight className="h-4 w-4" /> View Job
+                  </a>
+                )}
+              </div>
+            )}
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body,
+  )
+}
+
+// ─── Job Card ─────────────────────────────────────────────────────────────────
+
+function JobCard({
+  job, tailorState, onStatusChange, onOpenDrawer, onTailor, onViewTailor,
+}: {
+  job            : PulledJob
+  tailorState?   : TailorJobState
+  onStatusChange : (id: string, s: string) => void
+  onOpenDrawer   : (job: PulledJob) => void
+  onTailor       : (job: PulledJob) => void
+  onViewTailor   : (state: TailorJobState) => void
+}) {
+  const [updating, setUpdating] = useState(false)
+  const isSaved = job.status === 'saved' || job.status === 'favourite'
+  const salary = fmtSalary(job) || extractDescSalary(job.description || '')
+  const exp    = extractExp(job.description || '')
+  const posted = fmtPosted(job.posted_at)
+  const source = job.site || job.source || ''
+  const typeLabel = JOB_TYPE_LABELS[job.job_type] || job.job_type || ''
+
+  const setStatus = async (e: React.MouseEvent, status: string) => {
+    e.stopPropagation()
+    setUpdating(true)
+    await jobsApi.setStatus(job.id, status).catch(() => {})
+    onStatusChange(job.id, status)
+    setUpdating(false)
+  }
+
+  return (
+    <div
+      className="group rounded-xl border border-slate-100 bg-white shadow-sm hover:shadow-md hover:border-slate-200 transition-all cursor-pointer"
+      onClick={() => onOpenDrawer(job)}
+    >
+      {/* Main content */}
+      <div className="p-4 pb-3">
+        {/* Row 1: company + source + actions */}
+        <div className="flex items-center justify-between gap-3 mb-1.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-semibold text-slate-500 truncate">{job.company}</span>
+            {source && (
+              <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${srcColor(source)}`}>
+                {source}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {job.url && (
+              <a href={job.url} target="_blank" rel="noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 transition"
+                title="Open job posting">
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
+            )}
+            <button onClick={e => { e.stopPropagation(); onOpenDrawer(job) }}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 transition">
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: title */}
+        <h3 className="font-semibold text-slate-900 text-[14px] leading-snug mb-2 line-clamp-2">
+          {job.title}
+        </h3>
+
+        {/* Row 3: meta */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+          {job.location && <span>{job.location}</span>}
+          {typeLabel && <><span className="text-slate-300">·</span><span>{typeLabel}</span></>}
+          {salary && <><span className="text-slate-300">·</span><span className="font-medium text-slate-700">{salary}</span></>}
+          {exp && <><span className="text-slate-300">·</span><span className="text-slate-500">{exp}</span></>}
+        </div>
+
+        {posted && <p className="text-[11px] text-slate-400 mt-1">{posted}</p>}
+      </div>
+
+      {/* Action footer */}
+      <div className="border-t border-slate-50 px-4 py-2.5 flex items-center justify-between gap-2">
+        {/* Icon actions */}
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={e => setStatus(e, isSaved ? 'new' : 'saved')}
+            disabled={updating}
+            title={isSaved ? 'Remove from saved' : 'Save job'}
+            className={`p-1.5 rounded-lg transition ${isSaved ? 'text-cyan-600 hover:text-cyan-700' : 'text-slate-400 hover:text-cyan-500'}`}
+          >
+            {isSaved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={e => setStatus(e, job.status === 'hidden' ? 'new' : 'hidden')}
+            disabled={updating}
+            title={job.status === 'hidden' ? 'Unhide job' : 'Hide job'}
+            className={`p-1.5 rounded-lg transition ${job.status === 'hidden' ? 'text-cyan-500 hover:text-cyan-700' : 'text-slate-400 hover:text-red-400'}`}
+          >
+            {job.status === 'hidden' ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+          </button>
+        </div>
+
+        {/* Tailor + Apply buttons */}
+        <div className="flex items-center gap-2">
+          {/* Applied badge */}
+          {job.status === 'applied' && (
+            <span className="flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Applied
+            </span>
+          )}
+
+          {tailorState?.status === 'tailoring' ? (
+            <button disabled
+              className="flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-500 cursor-not-allowed">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Tailoring…
+            </button>
+          ) : tailorState?.status === 'done' ? (
+            <button onClick={e => { e.stopPropagation(); onViewTailor(tailorState) }}
+              className="flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition">
+              <FileText className="h-3.5 w-3.5" />
+              View Resume {tailorState.score != null && <span className="ml-1 opacity-70">{tailorState.score}</span>}
+            </button>
+          ) : job.status !== 'applied' ? (
+            <button onClick={e => { e.stopPropagation(); onTailor(job) }}
+              className="flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700 transition">
+              <Sparkles className="h-3.5 w-3.5" /> Tailor
+            </button>
+          ) : null}
+
+          {job.status !== 'applied' && (
+            job.url ? (
+              <a href={job.url} target="_blank" rel="noreferrer"
+                onClick={async e => { e.stopPropagation(); await jobsApi.setStatus(job.id, 'applied').catch(() => {}); onStatusChange(job.id, 'applied') }}
+                className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition">
+                Apply <ArrowUpRight className="h-3 w-3" />
+              </a>
+            ) : (
+              <button disabled title="No link available"
+                className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-400 cursor-not-allowed">
+                Apply
+              </button>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Filter Panel ─────────────────────────────────────────────────────────────
+
+interface Filters {
+  location      : string
+  jobType       : string
+  salaryMin     : number
+  hoursOld      : number
+  source        : string
+  workdayInSearch: boolean
+}
+
+const EMPTY_FILTERS: Filters = {
+  location: '', jobType: '', salaryMin: 0, hoursOld: 0, source: '', workdayInSearch: false,
+}
+
+function FilterPanel({
+  open, filters, allLocations, onApply, onClose,
+}: {
+  open        : boolean
+  filters     : Filters
+  allLocations: string[]
+  onApply     : (f: Filters) => void
+  onClose     : () => void
+}) {
+  const [local, setLocal] = useState<Filters>(filters)
+  useEffect(() => { setLocal(filters) }, [filters, open])
+
+  const set = <K extends keyof Filters>(k: K, v: Filters[K]) =>
+    setLocal(prev => ({ ...prev, [k]: v }))
+
+  const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-200'
+  const selectCls = `${inputCls} appearance-none`
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}
+          className="border-b border-slate-100 bg-slate-50/80 px-4 py-4"
+        >
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {/* Location */}
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Location</label>
+              <select value={local.location} onChange={e => set('location', e.target.value)} className={selectCls}>
+                <option value="">Any location</option>
+                {allLocations.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+
+            {/* Job type */}
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Job type</label>
+              <select value={local.jobType} onChange={e => set('jobType', e.target.value)} className={selectCls}>
+                <option value="">Any type</option>
+                {Object.entries(JOB_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+
+            {/* Salary min */}
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Min salary</label>
+              <select value={local.salaryMin} onChange={e => set('salaryMin', Number(e.target.value))} className={selectCls}>
+                {[0, 50000, 80000, 100000, 120000, 150000, 200000].map(v => (
+                  <option key={v} value={v}>{v === 0 ? 'Any' : `$${(v/1000).toFixed(0)}k+`}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Posted within */}
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Posted within</label>
+              <select value={local.hoursOld} onChange={e => set('hoursOld', Number(e.target.value))} className={selectCls}>
+                <option value={0}>Any time</option>
+                <option value={24}>Last 24h</option>
+                <option value={72}>Last 3 days</option>
+                <option value={168}>Last 7 days</option>
+                <option value={720}>Last 30 days</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Workday toggle + actions */}
+          <div className="mt-3 flex items-center justify-between gap-4 flex-wrap">
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <div
+                onClick={() => set('workdayInSearch', !local.workdayInSearch)}
+                className={`relative h-5 w-9 rounded-full transition ${local.workdayInSearch ? 'bg-cyan-500' : 'bg-slate-300'}`}
+              >
+                <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${local.workdayInSearch ? 'left-4' : 'left-0.5'}`} />
+              </div>
+              <span className="text-xs text-slate-600">
+                Include Workday in search
+                <span className="ml-1 text-slate-400">(slower)</span>
+              </span>
+            </label>
+
+            <div className="flex items-center gap-2">
+              <button onClick={() => { setLocal(EMPTY_FILTERS); onApply(EMPTY_FILTERS) }}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:border-slate-300 transition">
+                Reset
+              </button>
+              <button onClick={() => { onApply(local); onClose() }}
+                className="rounded-lg bg-cyan-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700 transition">
+                Apply
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+const THREE_HOURS = 3 * 60 * 60 * 1000
+
+export default function PulledJobsPage() {
+  const { pushToast } = useAppStore()
+
+  // ── Data state ───────────────────────────────────────────────────────────────
+  const [jobs, setJobs]               = useState<PulledJob[]>([])
+  const [stats, setStats]             = useState<JobStats | null>(null)
+  const [loading, setLoading]         = useState(false)
+  const [searching, setSearching]     = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+
+  useEffect(() => { profileApi.get().then(setUserProfile).catch(() => {}) }, [])
+
+  // ── UI state ─────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab]       = useState<'all' | 'new' | 'saved' | 'hidden' | 'applied' | 'tailored'>('all')
+  const [search, setSearch]             = useState('')
+  const [filterOpen, setFilterOpen]     = useState(false)
+  const [filters, setFilters]           = useState<Filters>(EMPTY_FILTERS)
+  const [selectedJob, setSelectedJob]   = useState<PulledJob | null>(null)
+  const [viewingTailor, setViewingTailor] = useState<TailorJobState | null>(null)
+  const [tailorJobs, setTailorJobs]     = useState<Map<string, TailorJobState>>(new Map())
+
+  // ── Search session polling ────────────────────────────────────────────────────
+  const [sessionId, setSessionId] = useState('')
+  const [polling, setPolling]     = useState(false)
+
+  const pollTimer          = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sessionJobsCount   = useRef(0)   // jobs found in the current search session only
+  const esSources          = useRef<Map<string, EventSource>>(new Map())
+
+  // ── Load jobs + stats ────────────────────────────────────────────────────────
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    try {
+      const [jobData, statsData] = await Promise.all([
+        jobsApi.list({ limit: 500 }),
+        jobsApi.stats(),
+      ])
+      setJobs(jobData)
+      setStats(statsData)
+    } catch {
+      if (!silent) pushToast({ title: 'Could not load jobs', type: 'error' })
+    } finally {
+      if (!silent) setLoading(false)
+    }
+  }, [pushToast])
+
+  useEffect(() => { load() }, [load])
+
+  // ── Auto-refresh every 3 hours (silent background re-fetch) ─────────────────
+  useEffect(() => {
+    const id = setInterval(() => load(true), THREE_HOURS)
+    return () => clearInterval(id)
+  }, [load])
+
+
+  // ── Incremental poll during search ───────────────────────────────────────────
+  // New jobs land at position 0 (ordered by pulled_at desc), so offset-based
+  // incremental fetching won't work. Instead: on each new batch detected, do a
+  // silent full reload so the UI always reflects the DB state.
+  const fetchNewBatch = useCallback(async (sid: string) => {
+    try {
+      const st = await searchApi.status(sid)
+      if (st.jobs_found > sessionJobsCount.current) {
+        sessionJobsCount.current = st.jobs_found
+        await load(true)   // full reload — new jobs are at the top of the list
+      }
+      if (st.status !== 'running') {
+        setPolling(false)
+        if (pollTimer.current) clearInterval(pollTimer.current)
+        await load(true)   // final sync
+      }
+    } catch {
+      setPolling(false)
+      if (pollTimer.current) clearInterval(pollTimer.current)
+    }
+  }, [load])
+
+  useEffect(() => {
+    if (!polling || !sessionId) return
+    if (pollTimer.current) clearInterval(pollTimer.current)
+    pollTimer.current = setInterval(() => fetchNewBatch(sessionId), 5000)
+    return () => { if (pollTimer.current) clearInterval(pollTimer.current) }
+  }, [polling, sessionId, fetchNewBatch])
+
+  // ── Trigger Phase 1 search ────────────────────────────────────────────────────
+  const triggerSearch = useCallback(async () => {
+    setSearching(true)
+    try {
+      const res = await searchApi.trigger({ include_workday: filters.workdayInSearch })
+      const roleLabel = res.roles?.slice(0, 2).join(', ') || 'your roles'
+      const locLabel  = res.locations?.slice(0, 2).join(', ') || 'your locations'
+      // Reset counters so incremental polling works regardless of prior loaded state
+      sessionJobsCount.current = 0
+      setSessionId(res.session_id)
+      setPolling(true)
+      pushToast({ title: `Searching for ${roleLabel}`, description: `in ${locLabel}`, type: 'success' })
+    } catch (e: unknown) {
+      const msg = String(e)
+      const friendly = msg.includes('409') ? 'A search is already running — wait for it to finish.' : msg
+      pushToast({ title: 'Search failed', description: friendly, type: 'error' })
+    } finally { setSearching(false) }
+  }, [pushToast, filters.workdayInSearch])
+
+  // ── Status change ─────────────────────────────────────────────────────────────
+  const handleStatusChange = (id: string, newStatus: string) => {
+    const oldStatus = jobs.find(j => j.id === id)?.status
+    setJobs(prev => prev.map(j => j.id === id ? { ...j, status: newStatus } : j))
+    setSelectedJob(prev => prev?.id === id ? { ...prev, status: newStatus } : prev)
+    if (oldStatus && oldStatus !== newStatus) {
+      setStats(s => {
+        if (!s) return s
+        const n = { ...s }
+        if (oldStatus === 'new')                                      n.new     = Math.max(0, n.new - 1)
+        else if (oldStatus === 'saved' || oldStatus === 'favourite')  n.saved   = Math.max(0, n.saved - 1)
+        else if (oldStatus === 'hidden')                              n.hidden  = Math.max(0, (n.hidden || 0) - 1)
+        else if (oldStatus === 'applied')                             n.applied = Math.max(0, (n.applied || 0) - 1)
+        if (newStatus === 'new')       n.new++
+        else if (newStatus === 'saved')    n.saved++
+        else if (newStatus === 'hidden')   n.hidden  = (n.hidden  || 0) + 1
+        else if (newStatus === 'applied')  n.applied = (n.applied || 0) + 1
+        return n
+      })
+    }
+  }
+
+  // ── Tailor SSE ────────────────────────────────────────────────────────────────
+  const handleTailor = useCallback(async (job: PulledJob) => {
+    const existing = tailorJobs.get(job.id)
+    if (existing?.status === 'tailoring') return
+    try {
+      const res = await tailorApi.runForJob(job.id)
+      const tailorJobId = res.job_id
+      setTailorJobs(prev => {
+        const next = new Map(prev)
+        next.set(job.id, { tailorJobId, status: 'tailoring', score: null, resumeText: '', filename: null, error: null })
+        return next
+      })
+      const es = new EventSource(tailorApi.streamUrl(tailorJobId))
+      esSources.current.set(tailorJobId, es)
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.event === 'done') {
+            es.close()
+            esSources.current.delete(tailorJobId)
+            if (data.status === 'complete') {
+              const fetchResume = () =>
+                tailorApi.getResume(tailorJobId).then(r => {
+                  setTailorJobs(prev => {
+                    const next = new Map(prev)
+                    next.set(job.id, { tailorJobId, status: 'done', score: r.score, resumeText: r.resume ?? '', filename: r.filename, error: null })
+                    return next
+                  })
+                  pushToast({ title: `Resume tailored for ${job.company}`, type: 'success' })
+                })
+              fetchResume().catch(() => setTimeout(() => fetchResume().catch(() => {
+                setTailorJobs(prev => {
+                  const next = new Map(prev)
+                  next.set(job.id, { tailorJobId, status: 'error', score: data.score, resumeText: '', filename: data.filename, error: 'Could not fetch resume text' })
+                  return next
+                })
+              }), 2000))
+            } else {
+              setTailorJobs(prev => {
+                const next = new Map(prev)
+                next.set(job.id, { tailorJobId, status: 'error', score: null, resumeText: '', filename: null, error: data.error || 'Tailoring failed' })
+                return next
+              })
+              pushToast({ title: `Tailoring failed for ${job.company}`, description: data.error, type: 'error' })
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      es.onerror = () => {
+        es.close()
+        esSources.current.delete(tailorJobId)
+        setTailorJobs(prev => {
+          const next = new Map(prev)
+          const cur = next.get(job.id)
+          if (cur?.status === 'tailoring') next.set(job.id, { ...cur, status: 'error', error: 'Connection error' })
+          return next
+        })
+      }
+    } catch (e: unknown) {
+      pushToast({ title: 'Could not start tailoring', description: e instanceof Error ? e.message : 'Tailoring failed', type: 'error' })
+    }
+  }, [tailorJobs, pushToast])
+
+  // ── Derived data ─────────────────────────────────────────────────────────────
+  const allLocations = useMemo(
+    () => [...new Set(jobs.map(j => j.location).filter(Boolean))].sort(),
+    [jobs],
+  )
+
+  const visible = useMemo(() => {
+    const q          = search.toLowerCase()
+    const userMin    = userProfile?.salary_min ?? 0
+    const userMax    = userProfile?.salary_max ?? 0
+    const userYears  = resolveUserYears(userProfile?.experience_level ?? '', userProfile?.years_experience ?? '')
+    const prefLocs   = userProfile?.preferred_locations ?? []
+
+    return jobs.filter(j => {
+      // Tab filter
+      if (activeTab === 'new')      return j.status === 'new'
+      if (activeTab === 'saved')    return j.status === 'saved' || j.status === 'favourite'
+      if (activeTab === 'hidden')   return j.status === 'hidden'
+      if (activeTab === 'applied')  return j.status === 'applied'
+      if (activeTab === 'tailored') return tailorJobs.get(j.id)?.status === 'done' || j.status === 'applied'
+      // ALL: exclude hidden
+      if (j.status === 'hidden') return false
+
+      // Text search
+      if (q && !j.title.toLowerCase().includes(q) && !j.company.toLowerCase().includes(q)) return false
+
+      // Panel filters
+      if (filters.location && j.location !== filters.location) return false
+      if (filters.jobType  && j.job_type !== filters.jobType)  return false
+      if (filters.salaryMin > 0) {
+        const lo = j.salary_min ?? 0, hi = j.salary_max ?? 0
+        if (lo < filters.salaryMin && hi < filters.salaryMin) return false
+      }
+      if (filters.hoursOld > 0 && j.posted_at) {
+        const age = (Date.now() - new Date(j.posted_at).getTime()) / 3_600_000
+        if (!isNaN(age) && age > filters.hoursOld) return false
+      }
+
+      return true
+    }).sort((a, b) => {
+      // Saved float to top in ALL
+      if (activeTab === 'all') {
+        const aS = a.status === 'saved' || a.status === 'favourite' ? 1 : 0
+        const bS = b.status === 'saved' || b.status === 'favourite' ? 1 : 0
+        if (aS !== bS) return bS - aS
+      }
+      // Tailored tab: tailored-first (done), applied-last
+      if (activeTab === 'tailored') {
+        const aDone = tailorJobs.get(a.id)?.status === 'done' ? 1 : 0
+        const bDone = tailorJobs.get(b.id)?.status === 'done' ? 1 : 0
+        if (aDone !== bDone) return bDone - aDone
+        const aApp = a.status === 'applied' ? 0 : 1
+        const bApp = b.status === 'applied' ? 0 : 1
+        if (aApp !== bApp) return bApp - aApp
+      }
+      // Primary tier: how many of (salary / location / exp) the job actually has info for.
+      // Tier 3 (all 3 present) → Tier 2 → Tier 1 → Tier 0 (nothing mentioned).
+      const aInfo = jobInfoCount(a), bInfo = jobInfoCount(b)
+      if (bInfo !== aInfo) return bInfo - aInfo
+
+      // Within same info tier: jobs matching user preferences rank higher.
+      const scoreA = salaryScore(a, userMin, userMax) + locationMatchScore(a, prefLocs) + expMatchScore(a, userYears)
+      const scoreB = salaryScore(b, userMin, userMax) + locationMatchScore(b, prefLocs) + expMatchScore(b, userYears)
+      return scoreB - scoreA
+    })
+  }, [jobs, activeTab, search, filters, userProfile])
+
+  // ── Tab counts ───────────────────────────────────────────────────────────────
+  const allCount      = stats ? (stats.total - (stats.hidden || 0)) : 0
+  const newCount      = stats?.new ?? 0
+  const savedCount    = stats ? ((stats.saved || 0) + (stats.favourite || 0)) : 0
+  const hiddenCount   = stats?.hidden ?? 0
+  const appliedCount  = stats?.applied ?? 0
+  const tailoredCount = useMemo(
+    () => jobs.filter(j => tailorJobs.get(j.id)?.status === 'done' || j.status === 'applied').length,
+    [jobs, tailorJobs],
+  )
+
+  const TABS = [
+    { key: 'all'      as const, label: 'ALL',      count: allCount      },
+    { key: 'new'      as const, label: 'NEW',       count: newCount      },
+    { key: 'saved'    as const, label: 'SAVED',     count: savedCount    },
+    { key: 'tailored' as const, label: 'TAILORED',  count: tailoredCount },
+    { key: 'applied'  as const, label: 'APPLIED',   count: appliedCount  },
+    { key: 'hidden'   as const, label: 'HIDDEN',    count: hiddenCount   },
+  ]
+
+  const hasActiveFilters = Object.entries(filters).some(([k, v]) => k !== 'workdayInSearch' && v !== (EMPTY_FILTERS as unknown as Record<string, unknown>)[k])
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+  return (
+    <div className="flex flex-col h-full min-h-screen bg-slate-50">
+
+      {/* ── Top bar ── */}
+      <div className="bg-white border-b border-slate-100 px-4 py-3">
+        <div className="max-w-5xl mx-auto flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <h1 className="text-lg font-bold text-slate-900">Jobs</h1>
+            {polling && (
+              <span className="flex items-center gap-1 rounded-full bg-cyan-50 border border-cyan-200 px-2 py-0.5 text-xs text-cyan-600">
+                <Loader2 className="h-3 w-3 animate-spin" /> Searching…
+              </span>
+            )}
+          </div>
+
+          {/* Search input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by title or company…"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-cyan-400 focus:bg-white focus:ring-1 focus:ring-cyan-200 transition"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter icon */}
+          <button
+            onClick={() => setFilterOpen(o => !o)}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
+              filterOpen || hasActiveFilters
+                ? 'border-cyan-400 bg-cyan-50 text-cyan-700'
+                : 'border-slate-200 text-slate-600 hover:border-slate-300'
+            }`}
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filters
+            {hasActiveFilters && <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-cyan-500" />}
+          </button>
+
+          {/* Refresh / search trigger */}
+          <button
+            onClick={() => triggerSearch()}
+            disabled={searching || polling}
+            title="Trigger new job search"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:border-slate-300 transition disabled:opacity-50"
+          >
+            {searching || polling
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <Zap className="h-3.5 w-3.5" />}
+            Search
+          </button>
+
+          {/* Refresh list */}
+          <button onClick={() => load()} disabled={loading} title="Refresh job list"
+            className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-300 transition disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* ── Filter panel ── */}
+      <div className="bg-white border-b border-slate-100">
+        <div className="max-w-5xl mx-auto">
+          <FilterPanel
+            open={filterOpen}
+            filters={filters}
+            allLocations={allLocations}
+            onApply={setFilters}
+            onClose={() => setFilterOpen(false)}
+          />
+        </div>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div className="bg-white border-b border-slate-100 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="flex items-center gap-1">
+            {TABS.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold tracking-wide border-b-2 transition-colors ${
+                  activeTab === tab.key
+                    ? 'border-cyan-500 text-cyan-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {tab.label}
+                {tab.count > 0 && (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    activeTab === tab.key ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Job list ── */}
+      <div className="flex-1 max-w-5xl mx-auto w-full px-4 py-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-brand" />
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="rounded-2xl border border-slate-100 bg-white p-10 shadow-sm max-w-sm">
+              <p className="text-3xl mb-3">🔍</p>
+              <p className="font-semibold text-slate-800 mb-1">
+                {activeTab === 'new'      ? 'No new jobs yet'
+                 : activeTab === 'saved'  ? 'Nothing saved yet'
+                 : activeTab === 'hidden' ? 'No hidden jobs'
+                 : activeTab === 'applied'  ? 'No applications yet'
+                 : activeTab === 'tailored' ? 'No tailored resumes yet'
+                 : 'No jobs found'}
+              </p>
+              <p className="text-sm text-slate-500 mb-4">
+                {activeTab === 'all' && stats?.total === 0
+                  ? 'Click Search to pull jobs from your profile preferences.'
+                  : activeTab === 'applied'
+                  ? 'Jobs you apply to will appear here.'
+                  : activeTab === 'tailored'
+                  ? 'Tailor a resume for a job and it will appear here.'
+                  : 'Try adjusting filters or running a new search.'}
+              </p>
+              {(activeTab === 'all' || activeTab === 'new') && (
+                <button onClick={() => triggerSearch()} disabled={searching || polling}
+                  className="flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50 transition mx-auto">
+                  <Zap className="h-4 w-4" />
+                  {searching || polling ? 'Searching…' : 'Search Now'}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-slate-400 mb-3">{visible.length} job{visible.length !== 1 ? 's' : ''}</p>
+            <div className="grid grid-cols-1 gap-3">
+              <AnimatePresence initial={false}>
+                {visible.map(job => (
+                  <motion.div key={job.id}
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <JobCard
+                      job={job}
+                      tailorState={tailorJobs.get(job.id)}
+                      onStatusChange={handleStatusChange}
+                      onOpenDrawer={setSelectedJob}
+                      onTailor={handleTailor}
+                      onViewTailor={setViewingTailor}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Modals / drawers ── */}
+      <AnimatePresence>
+        {selectedJob && (
+          <JobDetailDrawer
+            key={selectedJob.id}
+            job={selectedJob}
+            onClose={() => setSelectedJob(null)}
+            onStatusChange={handleStatusChange}
+            tailorState={tailorJobs.get(selectedJob.id)}
+            onTailor={handleTailor}
+            onViewTailor={setViewingTailor}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {viewingTailor && (
+          <TailoredResumeModal
+            key={viewingTailor.tailorJobId}
+            state={viewingTailor}
+            onClose={() => setViewingTailor(null)}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

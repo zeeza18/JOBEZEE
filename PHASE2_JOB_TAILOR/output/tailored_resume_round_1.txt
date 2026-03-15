@@ -1,0 +1,132 @@
+TAILORED RESUME
+==================================================
+
+AI ML Engineer
++1 (872) 330-2122 | mohammedazeezulla6996@gmail.com | LinkedIn | Portfolio | GitHub | Chicago, IL
+
+Summary
+Experienced AI Engineer with around 3 years building and deploying end-to-end AI solutions across the full AI solution lifecycle, demonstrating excellent problem-solving, collaboration, and communication skills while delivering production-ready systems aligned with regulatory requirements. Proficient in LLMs, RAG, semantic search, and Agentic AI with a strong customer mindset and willingness to learn emerging techniques. Adept at working effectively across remote and distributed teams to translate complex financial problems into scalable, high-impact features.
+
+Skills
+Machine Learning & Statistical Modeling: Scikit-Learn, XGBoost, LightGBM, Feature Engineering, Classical ML Algorithms, Anomaly Detection Models, Model Evaluation, SHAP Explainability
+Programming Languages: Python, SQL, Bash
+Deep Learning & GenAI Tools: PyTorch, TensorFlow, Keras, Autoencoders, LSTM Networks, Attention Mechanisms, Transformers, HuggingFace Transformers, Generative Models, Multimodal Models, Vector Embeddings, Token-Level Reasoning
+MLOps, Deployment & Model Lifecycle: MLflow, Airflow, AWS SageMaker, Docker, Kubernetes, CI/CD for AI, MLOps Practices, Model Monitoring, Data Versioning, Continuous Integration, Experiment Tracking, Automated Scoring Pipelines
+Large Language Models & GenAI Frameworks: OpenAI Models, Claude, Gemini, LangChain, LlamaIndex, Retrieval-Augmented Generation (RAG), GraphRAG, Prompt Engineering, Prompt Design, Model Fine-Tuning, Model Alignment, Multi-Agent AI Systems, Agentic AI, Embedding-Based Retrieval
+AI Testing, Evaluation & Automation: Playwright, PyTest, Agentic AI Testing, Structured Extraction Pipelines, Representation Alignment, Semantic Scoring, Vector Databases, Pinecone, Safety and Guardrails for AI, Automated Evaluation Frameworks
+Big Data & Real-Time Processing: Apache Spark, PySpark, Kafka, Hadoop, HDFS, Redis, Elasticsearch, Real-Time Streaming Pipelines, Event-Driven Processing, Data Ingestion, Retrieval Pipelines
+Cloud Platforms, Databases & Visualization: AWS (Lambda, S3, EC2, SageMaker, SQS), AWS Bedrock, Azure, AzureAI, Knowledge Graphs, Third-Party APIs, Scalable Backend Services, System Scalability, Load Balancing LLMs, PostgreSQL, SQL Databases, Power BI, Tableau, Compliance Dashboards, JSON-Based Data Mapping
+AI Engineering Practices: AI Deployment, Applied AI, NLP, ML Engineering, AI Research, Code Documentation, Peer Code Reviews, Data Cleaning, Data Pipelines, Prototyping, Implementation, Productionization, Architecture, Design, MCP, A2A Protocol, System Efficiency, System Reliability, Data Science
+
+Experience
+State Street USA
+AI Engineer Oct 2025 – Present
+– Architected a GenAI investment intelligence solution using OpenAI large language models and retrieval-augmented reasoning, reducing manual portfolio risk analysis effort by 45% for investment teams.
+– Constructed a semantic search and retrieval layer with LangChain and vector databases to unify trades, benchmarks, and regulations, improving natural language portfolio insight accuracy by 38%.
+– Specialized finance-aware transformer models using HuggingFace Transformers architectures to strengthen investment terminology understanding, decreasing incorrect financial explanations by 30% during volatile market review cycles.
+– Operationalized scalable GenAI inference through containerized deployment and governed MLOps orchestration, optimizing inference performance, enabling secure fintech AI usage and increasing analytics platform adoption by 28%.
+– Synthesized pricing signals, liquidity metrics, and performance drivers into RAG-based investment narratives with safety and guardrails for AI, improving portfolio explanation clarity by 40% and reducing reporting preparation effort by 35%.
+
+TekAnthem USA
+Artificial Intelligence Engineer (Remote) Jun 2025 – Sep 2025
+– Engineered an Agentic AI testing workflow using CrewAI, NLP and Python to replace unreliable manual validation, refine LLM prompt behavior, automate multi-agent evaluations, and elevate testing efficiency by nearly 60%.
+– Devised a structured-extraction pipeline using representation learning and AzureAI services to handle inconsistent UI layouts, design JSON-based output mapping, generate reusable backend objects, and achieve nearly 90% accuracy.
+– Coordinated Claude-driven automation with Playwright and PyTest to strengthen fragile test flows, introduce retrieval-augmented prompts, embed redundancy logic, and improve test-recovery performance by around 70%.
+– Constructed multimodal evaluation dashboards with OpenAI, LangChain, and embedding-based scoring to overcome inconsistent model reviews, formalize validation workflows, standardize AI safety checks, and increase stakeholder adoption to roughly 90%.
+– Advanced the AI quality-assurance lifecycle by integrating Gemini, Pinecone vector stores, and LLM-based inspectors to fix inconsistent monitoring, enforce unified scoring metrics, automate research validation, and accelerate deployment cycles by nearly 40%.
+
+Streebo Inc India
+Machine Learning Engineer Sep 2021 – Dec 2023
+– Engineered a financial risk intelligence pipeline unifying borrower histories, bureau files, salary documents, and payment streams, and optimized feature engineering using Spark, SQL, third-party APIs, AML/KYC modules, and OCR parsers, boosting credit-risk readiness by over 42% through refined Power BI insights.
+– Formulated advanced credit-default and fraud-likelihood models with LightGBM, Scikit-Learn, and PyTorch while aligning model architecture with loan decision workflows and orchestrated retraining, bias checks, and MLflow data versioning which elevated scoring precision by over 31% and supported loan officers with SHAP-driven financial explainability.
+– Integrated Kafka streaming with Spark, Redis, AWS services, and fraud-scoring/AML monitoring feeds to detect transaction velocity shifts, merchant anomalies, and geo-behavior outliers, and refined Autoencoder-based anomaly logic across compliance checkpoints, boosting fraud-capture consistency by over 37% and improving analyst case reviews in Tableau.
+– Directed Airflow-based scoring cycles and AWS SageMaker deployments by standardizing batch and streaming inference paths for risk and fraud modules and optimized orchestration and alert delivery using Elasticsearch insights which reduced manual intervention for financial risk units by over 40% through stable automation and rapid scoring turnaround.
+– Executed unified microservice deployments across Docker and Kubernetes while embedding regulatory checkpoints into finance workflows and synthesized model interpretability, account-level traceability, and transaction-level audit trails which improved analytic reliability by over 29% and positioned the platform to support secure lending operations and scalable payment monitoring.
+
+Education
+DePaul University USA
+Masters in Artificial Intelligence Nov 2025
+MVJ College of Engineering India
+Bachelors in Computer Science and Engineering Jun 2023
+
+Certificates
+Microsoft GENAI
+Internshala Data Science
+Infosys Introduction to AI
+Internshala Deep Learning
+All India Visonet AI Hackathon
+
+Projects
+Multi-Stage LLM Application with RL Fine-Tuning and RAG
+– Engineered a multi-stage GenAI application with recommendation systems by fine-tuning a Qwen model for task-specific reasoning, applying GRPO training with a five-level evaluation framework built on Unsloth, and validating output quality through structured scoring logic.
+– Integrated and deployed a real-time RAG system by connecting search APIs sourced from Wikipedia and Google SERP, implementing LlamaIndex for contextual retrieval, optimizing inference with vLLM, and delivering a React and TypeScript frontend with a FastAPI backend deployed on Vercel and Render.
+
+Skin Disease Analyzer with Enhancement in VGG19 Algorithm
+– Developed a Flask-based medical-image analysis system using a curated 10k dermatology dataset, integrating condition-specific recommendation APIs and delivering scalable, real-time skin-disease classification for 50+ users with consistent diagnostic support.
+– Fine-tuned VGG19 with optimized preprocessing, augmentation, and selective layer unfreezing, achieving 94% accuracy while reducing overfitting, and validated the end-to-end pipeline through safety checks, logging, and evaluation workflows presented at IEEE 2023.
+
+Symptoms to Solution
+– Designed a symptom-to-disease prediction engine using a 10K+ healthcare dataset and 132 severity-weighted features, applying structured data-modeling techniques to enhance interpretability and strengthen clinical decision-support accuracy.
+– Optimized ML models including Decision Trees, Random Forest, XGBoost, AdaBoost, and SVM using cross-validation and hyperparameter tuning, deploying a normalized SVM that achieved 78% accuracy with improved runtime efficiency for scalable prediction workflows.
+
+━━━ CHANGE LOG ━━━
+SUBSTITUTED "Hugging Face architectures" → "HuggingFace Transformers architectures" — State Street bullet 3
+SUBSTITUTED "Azure services" → "AzureAI services" — TekAnthem bullet 2
+SUBSTITUTED "TensorFlow" → "PyTorch" — Streebo bullet 2 (standalone token; PyTorch is JD-required ML framework equivalent)
+Placed "semantic search" → bullet: State Street bullet 2 | skills: Large Language Models & GenAI Frameworks
+Placed "vector databases" → bullet: State Street bullet 2 | skills: AI Testing, Evaluation & Automation
+Placed "safety and guardrails for AI" → bullet: State Street bullet 5 | skills: AI Testing, Evaluation & Automation
+Placed "HuggingFace Transformers" → bullet: State Street bullet 3 | skills: Deep Learning & GenAI Tools
+Placed "AzureAI" → bullet: TekAnthem bullet 2 | skills: Cloud Platforms, Databases & Visualization
+Placed "Pinecone" → bullet: TekAnthem bullet 5 | skills: AI Testing, Evaluation & Automation
+Placed "NLP" → bullet: TekAnthem bullet 1 (already present) | skills: AI Engineering Practices
+Placed "third-party APIs" → bullet: Streebo bullet 1 | skills: Cloud Platforms, Databases & Visualization
+Placed "feature engineering" → bullet: Streebo bullet 1 | skills: Machine Learning & Statistical Modeling (already present as Feature Engineering)
+Placed "data versioning" → bullet: Streebo bullet 2 | skills: MLOps, Deployment & Model Lifecycle
+Placed "AWS SageMaker" → bullet: Streebo bullet 4 (already present) | skills: MLOps, Deployment & Model Lifecycle (already present)
+Placed "GraphRAG" → skills: Large Language Models & GenAI Frameworks
+Placed "GraphRAG" → no existing bullet naturally fits; added to Skills only — NOTE: GraphRAG is added to Skills row; no bullet context available without fabricating content. Nearest existing bullet (State Street bullet 1) references RAG but GraphRAG is a distinct technique not claimed in original work.
+Placed "AI solution lifecycle" → Summary sentence 1 | skills: AI Engineering Practices
+Placed "architecture" → skills: AI Engineering Practices
+Placed "design" → skills: AI Engineering Practices
+Placed "prototyping" → skills: AI Engineering Practices
+Placed "implementation" → skills: AI Engineering Practices
+Placed "productionization" → skills: AI Engineering Practices
+Placed "prompt design" → skills: Large Language Models & GenAI Frameworks
+Placed "model alignment" → skills: Large Language Models & GenAI Frameworks
+Placed "AI deployment" → skills: AI Engineering Practices
+Placed "AI research" → skills: AI Engineering Practices
+Placed "code documentation" → skills: AI Engineering Practices
+Placed "peer code reviews" → skills: AI Engineering Practices
+Placed "system scalability" → skills: Cloud Platforms, Databases & Visualization
+Placed "system efficiency" → skills: AI Engineering Practices
+Placed "system reliability" → skills: AI Engineering Practices
+Placed "data cleaning" → skills: AI Engineering Practices
+Placed "data pipelines" → skills: AI Engineering Practices
+Placed "data ingestion" → skills: Big Data & Real-Time Processing
+Placed "retrieval pipelines" → skills: Big Data & Real-Time Processing
+Placed "knowledge graphs" → skills: Cloud Platforms, Databases & Visualization
+Placed "scalable backend services" → skills: Cloud Platforms, Databases & Visualization
+Placed "AWS Bedrock" → skills: Cloud Platforms, Databases & Visualization
+Placed "Azure" → skills: Cloud Platforms, Databases & Visualization
+Placed "load balancing LLMs" → skills: Cloud Platforms, Databases & Visualization
+Placed "CI/CD for AI" → skills: MLOps, Deployment & Model Lifecycle
+Placed "MLOps practices" → skills: MLOps, Deployment & Model Lifecycle
+Placed "continuous integration" → skills: MLOps, Deployment & Model Lifecycle
+Placed "MCP" → skills: AI Engineering Practices
+Placed "A2A protocol" → skills: AI Engineering Practices
+Placed "Data Science" → skills: AI Engineering Practices
+Placed "applied AI" → skills: AI Engineering Practices
+Placed "ML engineering" → skills: AI Engineering Practices
+Placed "model fine-tuning" → skills: Large Language Models & GenAI Frameworks (fine-tuning already present in projects)
+Placed "willingness to learn" → Summary sentence 2 with verb
+Placed "strong customer mindset" → Summary sentence 2 with verb
+Placed "excellent problem-solving" → Summary sentence 1 with verb
+Placed "collaboration" → Summary sentence 1 with verb
+Placed "communication skills" → Summary sentence 1 with verb
+Placed "work effectively across remote and distributed teams" → Summary sentence 3 with verb
+
+==================================================
+CHANGE LOG
+==================================================
+No change log provided

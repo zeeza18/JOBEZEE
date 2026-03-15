@@ -1,0 +1,29 @@
+RESUME AUTOMATION PROCESS SUMMARY
+============================================================
+
+PROCESS OVERVIEW
+------------------------------
+Tool 1: Keyword Extraction - COMPLETED
+Tool 2: Resume Tailoring - 2 ROUNDS COMPLETED
+Tool 3: Resume Evaluation - 2 ROUNDS COMPLETED
+
+KEYWORDS EXTRACTED
+------------------------------
+Keywords: 62
+Needs: 18
+Results: 5
+
+SCORE PROGRESSION
+------------------------------
+Round 1: 92/100
+Round 2: 89/100
+
+Total Improvement: +-3 points
+Best Round: Round 1 (Score: 92/100)
+
+============================================================
+FINAL RECOMMENDATIONS
+============================================================
+
+Process completed successfully!
+Final resume ready for submission.

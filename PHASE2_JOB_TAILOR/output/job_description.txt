@@ -1,0 +1,29 @@
+hackajob
+is collaborating with
+Leo Technologies
+to connect them with exceptional professionals for this role.
+As an AI/NLP Engineer on our Data Science team, you will be at the forefront of leveraging Large Language Models (LLMs) and cutting-edge AI techniques to create transformative solutions for public safety and intelligence workflows. You will apply your expertise in LLMs, Retrieval-Augmented Generation (RAG), semantic search, Agentic AI, GraphRAG, and other advanced AI solutions to develop, enhance, and deploy robust features that enable real-time decision-making for our end users. You will work closely with product, engineering, and data science teams to translate real-world problems into scalable, production-grade solutions. This is an individual contributor (IC) role that emphasizes technical depth, experimentation, and hands-on engineering. You will participate in all phases of the AI solution lifecycle, from architecture and design through prototyping, implementation, evaluation, productionization and continuous improvement.
+  
+  
+
+ Design, build, and optimize AI-powered solutions using LLMs, RAG pipelines, semantic search, GraphRAG, and Agentic AI architectures.
+ Implement and experiment with the latest advancements in large-scale language modeling, including prompt engineering, model fine-tuning, evaluation, and monitoring.
+ Collaborate with product, backend, and data engineering teams to define requirements, break down complex problems, and deliver high-impact features aligned with business objectives.
+ Inform robust data ingestion and retrieval pipelines that power real-time and batch AI applications using open-source and proprietary tools.
+ Integrate external data sources (e.g., knowledge graphs, internal databases, third-party APIs) to enhance the context-awareness and capabilities of LLM-based workflows.
+ Evaluate and implement best practices for prompt design, model alignment, safety, and guardrails for responsible AI deployment.
+ Stay on top of emerging AI research and contribute to internal knowledge-sharing, tech talks, and proof-of-concept projects.
+ Author clean, well-documented, and testable code; participate in peer code reviews and engineering design discussions.
+ Proactively identify bottlenecks and propose solutions to improve system scalability, efficiency, and reliability.
+ Bachelor's or Master's degree in Computer Science, Artificial Intelligence, Data Science, or a related field.
+ 5+ years of hands-on experience in applied AI, NLP, or ML engineering (with at least 2 years working directly with LLMs, RAG, semantic search and Agentic AI).
+ Deep familiarity with LLMs (e.g. OpenAI, Claude, Gemini), prompt engineering, and responsible deployment in production settings.
+ Experience designing, building, and optimizing RAG pipelines, semantic search, vector databases (e.g. ElasticSearch, Pinecone), and Agentic or multi-agent AI workflows in in large scale production setup. Exposure to MCP and A2A protocol is a plus.
+ Exposure to GraphRAG or graph-based knowledge retrieval techniques is a strong plus.
+ Strong proficiency with modern ML frameworks and libraries (e.g. LangChain, LlamaIndex, PyTorch, HuggingFace Transformers).
+ Ability to design APIs and scalable backend services, with hands-on experience in Python.
+ Experience building, deploying, and monitoring AI/ML workloads in cloud environments (AWS, Azure) using services like AWS SageMaker, AWS Bedrock, AzureAI, etc. Experience with tools to load balance different LLMs providers is a plus.
+ Familiarity with MLOps practices, CI/CD for AI, model monitoring, data versioning, and continuous integration.
+ Demonstrated ability to work with large, complex datasets, perform data cleaning, feature engineering, and develop scalable data pipelines.
+ Excellent problem-solving, collaboration, and communication skills; able to work effectively across remote and distributed teams.
+ Proven record of shipping robust, high-impact AI solutions, ideally in fast-paced or regulated environments.
