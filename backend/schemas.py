@@ -97,6 +97,36 @@ class UserProfileResponse(UserProfileBase):
 
 
 # ---------------------------------------------------------------------------
+# PortfolioConfig
+# ---------------------------------------------------------------------------
+
+class PortfolioConfigBase(BaseModel):
+    template_id   : str  = "ModernDev"
+    category      : str  = "tech"
+    primary_color : str  = "#06b6d4"
+    accent_color  : str  = "#0ea5e9"
+    is_published  : bool = False
+    custom_bio    : str  = ""
+    show_sections : dict = {
+        "about": True, "skills": True, "experience": True,
+        "projects": True, "education": True, "contact": True,
+    }
+
+
+class PortfolioConfigUpdate(PortfolioConfigBase):
+    pass
+
+
+class PortfolioConfigResponse(PortfolioConfigBase):
+    id         : UUID
+    user_id    : str
+    created_at : datetime
+    updated_at : datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
 # PulledJob
 # ---------------------------------------------------------------------------
 

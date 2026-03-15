@@ -8,8 +8,9 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -19,6 +20,7 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..models import PulledJob, UserProfile
 from ..services.tailor_service import (
+    _extract_resume_text,
     create_job,
     get_job,
     start_tailor_job,
@@ -210,3 +212,67 @@ async def download_tex(job_id: str, _user=Depends(get_current_user)):
         media_type="application/x-tex",
         filename=filename,
     )
+
+
+# ── Extract text from uploaded resume file ────────────────────────────────────
+
+@router.post("/extract-resume-text")
+async def extract_resume_text(
+    file: UploadFile = File(...),
+    _user=Depends(get_current_user),
+) -> dict:
+    """Accept a .pdf / .docx / .txt file and return extracted plain text."""
+    import tempfile, shutil
+    suffix = Path(file.filename or "").suffix.lower() or ".tmp"
+    allowed = {".pdf", ".docx", ".doc", ".txt"}
+    if suffix not in allowed:
+        raise HTTPException(400, f"Unsupported file type '{suffix}'. Use PDF, DOCX, or TXT.")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = Path(tmp.name)
+    try:
+        if suffix == ".txt":
+            text = tmp_path.read_text(errors="replace")
+        else:
+            text = _extract_resume_text(tmp_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    if not text.strip():
+        raise HTTPException(422, "Could not extract text from the file.")
+    return {"text": text}
+
+
+# ── Load resume text from user profile ───────────────────────────────────────
+
+@router.get("/profile-resume-text")
+async def profile_resume_text(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return extracted text from the resume stored in the user's profile."""
+    from ..config import get_settings
+    cfg = get_settings()
+    pid = uuid.UUID(current_user.id)
+    result = await db.execute(select(UserProfile).where(UserProfile.id == pid))
+    profile = result.scalar_one_or_none()
+    resume_url = (profile.resume_url if profile else "") or ""
+    if not resume_url:
+        raise HTTPException(404, "No resume on file. Upload one via Profile → Resume.")
+    # resume_url is like /uploads/resumes/<filename>
+    # Resolve UPLOAD_DIR relative to JOBEZEE root (parent of backend package)
+    jobezee_root = Path(__file__).resolve().parent.parent.parent
+    upload_root = jobezee_root / cfg.UPLOAD_DIR
+    # Strip the leading /uploads/ URL prefix to get path within UPLOAD_DIR
+    rel = resume_url.lstrip("/")          # "uploads/resumes/<filename>"
+    rel = rel[len("uploads/"):]           # "resumes/<filename>"
+    file_path = upload_root / rel
+    if not file_path.exists():
+        raise HTTPException(404, f"Resume file not found on server ({file_path.name}).")
+    suffix = file_path.suffix.lower()
+    if suffix == ".txt":
+        text = file_path.read_text(errors="replace")
+    else:
+        text = _extract_resume_text(file_path)
+    if not text.strip():
+        raise HTTPException(422, "Could not extract text from the stored resume.")
+    return {"text": text, "filename": profile.resume_filename or file_path.name}

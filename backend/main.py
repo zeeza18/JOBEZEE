@@ -25,7 +25,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .database import create_tables, run_column_migrations
-from .routers import auth, jobs, profile, search, tailor
+from .routers import auth, jobs, portfolio, profile, search, tailor
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -117,7 +117,8 @@ app.include_router(auth.router,    prefix="/api/auth",    tags=["auth"])
 app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 app.include_router(jobs.router,    prefix="/api/jobs",    tags=["jobs"])
 app.include_router(search.router,  prefix="/api/search",  tags=["search"])
-app.include_router(tailor.router,  prefix="/api/tailor",  tags=["tailor"])
+app.include_router(tailor.router,     prefix="/api/tailor",     tags=["tailor"])
+app.include_router(portfolio.router,  prefix="/api/portfolio",  tags=["portfolio"])
 
 # ── Static files (uploaded resumes) ──────────────────────────────────────────
 

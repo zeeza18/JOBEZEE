@@ -10,6 +10,9 @@ import TailorPage from '../features/tailor/TailorPage'
 import ApplyPage from '../features/apply/ApplyPage'
 import InterviewPage from '../features/interview/InterviewPage'
 import ApplicationsPage from '../features/applications/ApplicationsPage'
+import PortfolioPage   from '../features/portfolio/PortfolioPage'
+import PortfolioPublic from '../features/portfolio/PortfolioPublic'
+import ConnectorsPage from '../features/connectors/ConnectorsPage'
 import ProfilePage from '../features/profile/ProfilePage'
 import SettingsPage from '../pages/SettingsPage'
 import NotFoundPage from '../pages/NotFoundPage'
@@ -45,10 +48,14 @@ const AppRoutes = () => {
         <Route path="/app/tailor"         element={<TailorPage />} />
         <Route path="/app/apply"          element={<ApplyPage />} />
         <Route path="/app/interview"      element={<InterviewPage />} />
+        <Route path="/app/portfolio"      element={<PortfolioPage />} />
+        <Route path="/app/connectors"     element={<ConnectorsPage />} />
         <Route path="/app/applications"   element={<ApplicationsPage />} />
         <Route path="/app/profile"        element={<ProfilePage />} />
         <Route path="/app/settings"       element={<SettingsPage />} />
       </Route>
+
+      <Route path="/portfolio/:username" element={<PortfolioPublic />} />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

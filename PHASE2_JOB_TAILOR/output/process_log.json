@@ -1,2258 +1,433 @@
 [
   {
-    "timestamp": "2026-03-14T15:26:20.639927",
+    "timestamp": "2026-03-15T15:24:44.485388",
     "step": "TOOL 1: Extracting keywords from job description",
     "data": {}
   },
   {
-    "timestamp": "2026-03-14T15:26:28.102939",
+    "timestamp": "2026-03-15T15:24:48.259421",
     "step": "Keywords extracted successfully",
     "data": {
-      "keywords_count": 62,
-      "needs_count": 18,
-      "results_count": 5
+      "keywords_count": 21,
+      "needs_count": 7,
+      "results_count": 11
     }
   },
   {
-    "timestamp": "2026-03-14T15:26:28.115942",
+    "timestamp": "2026-03-15T15:24:48.270086",
     "step": "ROUND 1 - TOOL 2: Tailoring resume",
     "data": {}
   },
   {
-    "timestamp": "2026-03-14T15:27:12.647549",
+    "timestamp": "2026-03-15T15:26:44.408137",
     "step": "ROUND 1 - Resume tailored",
     "data": {
-      "tailored_resume_length": 1768,
-      "changes_made": 1,
+      "tailored_resume_length": 1106,
+      "changes_made": 21,
+      "keywords_inserted_this_round": 17,
+      "total_keywords_inserted": 21,
       "has_feedback": false
     }
   },
   {
-    "timestamp": "2026-03-14T15:27:12.658611",
+    "timestamp": "2026-03-15T15:26:44.412126",
     "step": "ROUND 1 - TOOL 3: Evaluating resume",
     "data": {}
   },
   {
-    "timestamp": "2026-03-14T15:27:42.226747",
+    "timestamp": "2026-03-15T15:26:53.821575",
     "step": "ROUND 1 - Evaluation complete",
     "data": {
-      "score": 92,
-      "recommendations_count": 0
+      "score": 88,
+      "recommendations_count": 4
     }
   },
   {
-    "timestamp": "2026-03-14T15:27:42.233762",
+    "timestamp": "2026-03-15T15:26:53.878764",
     "step": "ROUND 2 - TOOL 2: Tailoring resume",
     "data": {}
   },
   {
-    "timestamp": "2026-03-14T15:29:33.022825",
+    "timestamp": "2026-03-15T15:29:06.921089",
     "step": "ROUND 2 - Resume tailored",
     "data": {
-      "tailored_resume_length": 3464,
-      "changes_made": 1,
+      "tailored_resume_length": 1148,
+      "changes_made": 9,
+      "keywords_inserted_this_round": 11,
+      "total_keywords_inserted": 24,
       "has_feedback": true
     }
   },
   {
-    "timestamp": "2026-03-14T15:29:33.049801",
+    "timestamp": "2026-03-15T15:29:06.926046",
     "step": "ROUND 2 - TOOL 3: Evaluating resume",
     "data": {}
   },
   {
-    "timestamp": "2026-03-14T15:29:51.532703",
+    "timestamp": "2026-03-15T15:29:15.626548",
     "step": "ROUND 2 - Evaluation complete",
     "data": {
-      "score": 89,
-      "recommendations_count": 5
+      "score": 100,
+      "recommendations_count": 1
     }
   },
   {
-    "timestamp": "2026-03-14T15:30:11.183659",
+    "timestamp": "2026-03-15T15:29:37.002405",
     "step": "TOOL 4: LaTeX resume conversion",
     "data": {
       "status": "success",
-      "raw_response_length": 12666,
-      "main_tex_path": "C:\\Users\\azeez\\PROJECTS\\docs\\latex\\main.tex",
+      "raw_response_length": 12640,
+      "main_tex_path": "C:\\Users\\azeez\\PROJECTS\\RESUME-MAKER\\JOBEZEE\\docs\\latex\\main.tex",
       "output_tex_path": "C:\\Users\\azeez\\PROJECTS\\RESUME-MAKER\\JOBEZEE\\PHASE2_JOB_TAILOR\\output\\final_tailored_resume.tex",
-      "latex_length": 1234
+      "latex_length": 1242
     }
   },
   {
-    "timestamp": "2026-03-14T15:30:11.200180",
+    "timestamp": "2026-03-15T15:29:37.006406",
     "step": "Complete process finished",
     "data": {
-      "jd_length": 528,
+      "jd_length": 320,
       "original_resume_length": 1069,
-      "final_resume_length": 1768,
-      "final_score": 92,
-      "best_round": 1,
+      "final_resume_length": 1148,
+      "final_score": 100,
+      "best_round": 2,
       "total_rounds": 2,
       "keyword_analysis": {
-        "company_name": "LEO_TECHNOLOGIES",
-        "job_title": "AI/NLP Engineer",
+        "company_name": "SAVANT",
+        "job_title": "AI/ML Engineer",
         "keywords": [
-          "LLMs",
-          "Retrieval-Augmented Generation (RAG)",
-          "semantic search",
-          "Agentic AI",
-          "GraphRAG",
-          "AI solution lifecycle",
-          "architecture",
-          "design",
-          "prototyping",
-          "implementation",
-          "evaluation",
-          "productionization",
           "Python",
-          "prompt engineering",
-          "model fine-tuning",
-          "model monitoring",
-          "data ingestion",
-          "retrieval pipelines",
-          "knowledge graphs",
-          "third-party APIs",
-          "prompt design",
-          "model alignment",
-          "safety and guardrails for AI",
-          "AI deployment",
-          "AI research",
-          "code documentation",
-          "peer code reviews",
-          "system scalability",
-          "system efficiency",
-          "system reliability",
-          "Bachelor's degree in Computer Science",
-          "Master's degree in Artificial Intelligence",
-          "Data Science",
-          "applied AI",
-          "NLP",
-          "ML engineering",
-          "vector databases",
-          "ElasticSearch",
-          "Pinecone",
-          "MCP",
-          "A2A protocol",
-          "ML frameworks",
-          "LangChain",
-          "LlamaIndex",
           "PyTorch",
-          "HuggingFace Transformers",
-          "APIs",
-          "scalable backend services",
-          "AWS",
-          "Azure",
-          "cloud environments",
-          "AWS SageMaker",
-          "AWS Bedrock",
-          "AzureAI",
-          "load balancing LLMs",
-          "MLOps practices",
-          "CI/CD for AI",
-          "data versioning",
-          "continuous integration",
-          "data cleaning",
-          "feature engineering",
-          "data pipelines"
-        ],
-        "soft": [
-          "willingness to learn",
-          "strong customer mindset",
-          "excellent problem-solving",
-          "collaboration",
-          "communication skills",
-          "work effectively across remote and distributed teams"
+          "Hugging Face",
+          "spaCy",
+          "LLMs",
+          "prompt engineering",
+          "evaluation",
+          "fine-tuning",
+          "observability",
+          "ML pipelines",
+          "information extraction",
+          "entity resolution",
+          "data normalization",
+          "QA",
+          "model inference",
+          "production code",
+          "clinical data",
+          "healthcare data",
+          "EMRs",
+          "HIPAA",
+          "de-ID workflows"
         ],
         "needs": [
-          "leverage Large Language Models (LLMs)",
-          "apply expertise in LLMs",
-          "develop robust features",
-          "enable real-time decision-making",
-          "translate real-world problems into solutions",
-          "experiment with language modeling",
-          "collaborate with product, backend, and data engineering teams",
-          "define requirements",
-          "break down complex problems",
-          "deliver high-impact features",
-          "inform robust data ingestion and retrieval pipelines",
-          "integrate external data sources",
-          "evaluate and implement best practices",
-          "stay on top of emerging AI research",
-          "contribute to internal knowledge-sharing",
-          "participate in peer code reviews",
-          "identify bottlenecks",
-          "propose solutions"
+          "3+ years of hands-on experience building and deploying ML/AI systems",
+          "strong Python development skills",
+          "experience with production-quality ML codebases",
+          "familiarity with modern ML/NLP frameworks",
+          "experience working with large-scale unstructured or semi-structured data",
+          "practical knowledge of LLMs",
+          "comfort working in fast-paced, ambiguous environments"
         ],
         "results": [
-          "transformative solutions for public safety and intelligence workflows",
-          "high-impact features aligned with business objectives",
-          "enhance context-awareness and capabilities of LLM-based workflows",
-          "improved system scalability, efficiency, and reliability",
-          "shipping robust, high-impact AI solutions in fast-paced environments"
+          "build and scale the infrastructure",
+          "develop production-grade pipelines",
+          "extract structured insights",
+          "improve model performance and delivery quality",
+          "design and build robust ML pipelines",
+          "develop and optimize systems",
+          "build and scale infrastructure",
+          "prototype, evaluate, and refine prompt strategies",
+          "implement internal tools",
+          "translate research prototypes into production code",
+          "collaborate cross-functionally"
         ],
-        "raw_analysis": "{\"company_name\": \"Leo Technologies\", \"job_title\": \"AI/NLP Engineer\"}\n\nTech Skills:\n- LLMs\n- Retrieval-Augmented Generation (RAG)\n- semantic search\n- Agentic AI\n- GraphRAG\n- AI solution lifecycle\n- architecture\n- design\n- prototyping\n- implementation\n- evaluation\n- productionization\n- Python\n- prompt engineering\n- model fine-tuning\n- model monitoring\n- data ingestion\n- retrieval pipelines\n- knowledge graphs\n- third-party APIs\n- prompt design\n- model alignment\n- safety and guardrails for AI\n- AI deployment\n- AI research\n- code documentation\n- peer code reviews\n- system scalability\n- system efficiency\n- system reliability\n- Bachelor's degree in Computer Science\n- Master's degree in Artificial Intelligence\n- Data Science\n- applied AI\n- NLP\n- ML engineering\n- vector databases\n- ElasticSearch\n- Pinecone\n- MCP\n- A2A protocol\n- ML frameworks\n- LangChain\n- LlamaIndex\n- PyTorch\n- HuggingFace Transformers\n- APIs\n- scalable backend services\n- AWS\n- Azure\n- cloud environments\n- AWS SageMaker\n- AWS Bedrock\n- AzureAI\n- load balancing LLMs\n- MLOps practices\n- CI/CD for AI\n- data versioning\n- continuous integration\n- data cleaning\n- feature engineering\n- data pipelines\n\nSoft Skills:\n- willingness to learn\n- strong customer mindset\n- excellent problem-solving\n- collaboration\n- communication skills\n- work effectively across remote and distributed teams\n\nNeeds:\n- leverage Large Language Models (LLMs)\n- apply expertise in LLMs\n- develop robust features\n- enable real-time decision-making\n- translate real-world problems into solutions\n- experiment with language modeling\n- collaborate with product, backend, and data engineering teams\n- define requirements\n- break down complex problems\n- deliver high-impact features\n- inform robust data ingestion and retrieval pipelines\n- integrate external data sources\n- evaluate and implement best practices\n- stay on top of emerging AI research\n- contribute to internal knowledge-sharing\n- participate in peer code reviews\n- identify bottlenecks\n- propose solutions\n\nResults:\n- transformative solutions for public safety and intelligence workflows\n- high-impact features aligned with business objectives\n- enhance context-awareness and capabilities of LLM-based workflows\n- improved system scalability, efficiency, and reliability\n- shipping robust, high-impact AI solutions in fast-paced environments"
+        "raw_analysis": "{\n  \"company_name\": \"Savant\",\n  \"job_title\": \"AI/ML Engineer\",\n  \"keywords\": [\n    \"Python\",\n    \"PyTorch\",\n    \"Hugging Face\",\n    \"spaCy\",\n    \"LLMs\",\n    \"prompt engineering\",\n    \"evaluation\",\n    \"fine-tuning\",\n    \"observability\",\n    \"ML pipelines\",\n    \"information extraction\",\n    \"entity resolution\",\n    \"data normalization\",\n    \"QA\",\n    \"model inference\",\n    \"production code\",\n    \"clinical data\",\n    \"healthcare data\",\n    \"EMRs\",\n    \"HIPAA\",\n    \"de-ID workflows\"\n  ],\n  \"needs\": [\n    \"3+ years of hands-on experience building and deploying ML/AI systems\",\n    \"strong Python development skills\",\n    \"experience with production-quality ML codebases\",\n    \"familiarity with modern ML/NLP frameworks\",\n    \"experience working with large-scale unstructured or semi-structured data\",\n    \"practical knowledge of LLMs\",\n    \"comfort working in fast-paced, ambiguous environments\"\n  ],\n  \"results\": [\n    \"build and scale the infrastructure\",\n    \"develop production-grade pipelines\",\n    \"extract structured insights\",\n    \"improve model performance and delivery quality\",\n    \"design and build robust ML pipelines\",\n    \"develop and optimize systems\",\n    \"build and scale infrastructure\",\n    \"prototype, evaluate, and refine prompt strategies\",\n    \"implement internal tools\",\n    \"translate research prototypes into production code\",\n    \"collaborate cross-functionally\"\n  ]\n}"
       },
       "all_evaluations": [
         {
-          "score": 92,
-          "keyword_analysis": {
-            "found": [
-              "LLMs",
-              "Retrieval-Augmented Generation (RAG)",
-              "semantic search",
-              "Agentic AI",
-              "Python",
-              "prompt engineering",
-              "model fine-tuning",
-              "model monitoring",
-              "data ingestion",
-              "retrieval pipelines",
-              "knowledge graphs",
-              "third-party APIs",
-              "safety and guardrails for AI",
-              "Master's degree in Artificial Intelligence",
-              "NLP",
-              "vector databases",
-              "Pinecone",
-              "ML frameworks",
-              "LangChain",
-              "LlamaIndex",
-              "PyTorch",
-              "HuggingFace Transformers",
-              "APIs",
-              "AWS",
-              "Azure",
-              "cloud environments",
-              "AWS SageMaker",
-              "AzureAI",
-              "MLOps practices",
-              "CI/CD for AI",
-              "data versioning",
-              "continuous integration",
-              "feature engineering"
-            ],
-            "missing": [
-              "evaluation",
-              "Bachelor's degree in Computer Science",
-              "ElasticSearch"
-            ],
-            "weak": [
-              "GraphRAG"
-            ]
-          },
-          "feedback": "",
-          "recommendations": [],
-          "fixes": [
+          "score": 88,
+          "replacements": [],
+          "insertions": [
             {
-              "keyword": "GraphRAG",
-              "priority": "P2",
-              "status": "SKILLS_ONLY",
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "State Street bullet 1",
-                "suggested_text": "Implemented GraphRAG techniques to enhance retrieval-augmented reasoning."
-              }
+              "missing_keyword": "entity resolution",
+              "section": "Experience",
+              "bullet_preview": "Engineered a financial risk intelligence pipeline",
+              "insert_after": "applying",
+              "insert_text": "entity resolution and",
+              "confidence": "high"
             },
             {
-              "keyword": "evaluation",
-              "priority": "P2",
-              "status": "MISSING",
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "TekAnthem bullet 5",
-                "suggested_text": "Conducted evaluation of AI models to ensure accuracy and reliability."
-              }
+              "missing_keyword": "QA",
+              "section": "Experience",
+              "bullet_preview": "Advanced the AI QA lifecycle by integrating",
+              "insert_after": "AI QA lifecycle",
+              "insert_text": "and QA processes",
+              "confidence": "high"
             },
             {
-              "keyword": "Bachelor's degree in Computer Science",
-              "priority": "P2",
-              "status": "MISSING",
-              "fix": {
-                "action": "add_to_skills",
-                "target": "Education section",
-                "suggested_text": "Bachelor's degree in Computer Science from MVJ College of Engineering."
-              }
+              "missing_keyword": "production code",
+              "section": "Experience",
+              "bullet_preview": "Engineered an Agentic AI testing workflow with",
+              "insert_after": "workflow with",
+              "insert_text": "production code and",
+              "confidence": "high"
             },
             {
-              "keyword": "ElasticSearch",
-              "priority": "P2",
-              "status": "MISSING",
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "Streebo bullet 1",
-                "suggested_text": "Utilized ElasticSearch for efficient data retrieval and indexing."
-              }
-            },
-            {
-              "keyword": "willingness to learn",
-              "priority": "P2",
-              "status": "SOFT_MISSING",
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Demonstrates a willingness to learn and adapt to new AI technologies."
-              }
-            },
-            {
-              "keyword": "strong customer mindset",
-              "priority": "P2",
-              "status": "SOFT_MISSING",
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Possesses a strong customer mindset, ensuring solutions meet client needs."
-              }
+              "missing_keyword": "de-ID workflows",
+              "section": "Experience",
+              "bullet_preview": "Directed Airflow-based scoring cycles and AWS",
+              "insert_after": "with",
+              "insert_text": "de-ID workflows and",
+              "confidence": "high"
             }
           ],
-          "keyword_checklist": [
+          "orphaned_skills": [
             {
-              "keyword": "LLMs",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
+              "skill": "Lambda",
+              "bullet_preview": "Integrated Kafka streaming with Spark, Redis,",
+              "insert_text": "Lambda,",
+              "insert_after": "AWS services",
+              "section": "Experience"
             },
             {
-              "keyword": "Retrieval-Augmented Generation (RAG)",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 5",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
+              "skill": "S3",
+              "bullet_preview": "Integrated Kafka streaming with Spark, Redis,",
+              "insert_text": "S3,",
+              "insert_after": "AWS services",
+              "section": "Experience"
             },
             {
-              "keyword": "semantic search",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 2",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
+              "skill": "EC2",
+              "bullet_preview": "Integrated Kafka streaming with Spark, Redis,",
+              "insert_text": "EC2,",
+              "insert_after": "AWS services",
+              "section": "Experience"
             },
             {
-              "keyword": "Agentic AI",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "TekAnthem bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "GraphRAG",
-              "type": "TECHNICAL",
-              "status": "SKILLS_ONLY",
-              "found_at": "Skills: Large Language Models & GenAI Frameworks row",
-              "has_metric": false,
-              "deduction": -3,
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "State Street bullet 1",
-                "suggested_text": "Implemented GraphRAG techniques to enhance retrieval-augmented reasoning."
-              }
-            },
-            {
-              "keyword": "AI solution lifecycle",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Summary",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "architecture",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "design",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "prototyping",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "implementation",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "evaluation",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -5,
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "TekAnthem bullet 5",
-                "suggested_text": "Conducted evaluation of AI models to ensure accuracy and reliability."
-              }
-            },
-            {
-              "keyword": "productionization",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "Python",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "TekAnthem bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "prompt engineering",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "TekAnthem bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "model fine-tuning",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Projects: Multi-Stage LLM Application",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "model monitoring",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 4",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "data ingestion",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "retrieval pipelines",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "knowledge graphs",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "third-party APIs",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "prompt design",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: Large Language Models & GenAI Frameworks row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "model alignment",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: Large Language Models & GenAI Frameworks row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "safety and guardrails for AI",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 5",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "AI deployment",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "AI research",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "code documentation",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "peer code reviews",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "system scalability",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "system efficiency",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "system reliability",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "Bachelor's degree in Computer Science",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -5,
-              "fix": {
-                "action": "add_to_skills",
-                "target": "Education section",
-                "suggested_text": "Bachelor's degree in Computer Science from MVJ College of Engineering."
-              }
-            },
-            {
-              "keyword": "Master's degree in Artificial Intelligence",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Education section",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "Data Science",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "applied AI",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "NLP",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "TekAnthem bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "ML engineering",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "vector databases",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 2",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "ElasticSearch",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -5,
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "Streebo bullet 1",
-                "suggested_text": "Utilized ElasticSearch for efficient data retrieval and indexing."
-              }
-            },
-            {
-              "keyword": "Pinecone",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "TekAnthem bullet 5",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "MCP",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "A2A protocol",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "ML frameworks",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 2",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "LangChain",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 2",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "LlamaIndex",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Projects: Multi-Stage LLM Application",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "PyTorch",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 2",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "HuggingFace Transformers",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 3",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "APIs",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "scalable backend services",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "AWS",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 4",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "Azure",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "TekAnthem bullet 2",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "cloud environments",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 4",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "AWS SageMaker",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 4",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "AWS Bedrock",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "AzureAI",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "TekAnthem bullet 2",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "load balancing LLMs",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "MLOps practices",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 4",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "CI/CD for AI",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 4",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "data versioning",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 2",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "continuous integration",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 4",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "data cleaning",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "feature engineering",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "Streebo bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "data pipelines",
-              "type": "TECHNICAL",
-              "status": "SOFT_PLACED",
-              "found_at": "Skills: AI Engineering Practices row",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "willingness to learn",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -1,
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Demonstrates a willingness to learn and adapt to new AI technologies."
-              }
-            },
-            {
-              "keyword": "strong customer mindset",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -1,
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Possesses a strong customer mindset, ensuring solutions meet client needs."
-              }
-            },
-            {
-              "keyword": "excellent problem-solving",
-              "type": "SOFT",
-              "status": "SOFT_PLACED",
-              "found_at": "Summary",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "collaboration",
-              "type": "SOFT",
-              "status": "SOFT_PLACED",
-              "found_at": "Summary",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "communication skills",
-              "type": "SOFT",
-              "status": "SOFT_PLACED",
-              "found_at": "Summary",
-              "has_metric": false,
-              "deduction": 0,
-              "fix": null
+              "skill": "SQS",
+              "bullet_preview": "Integrated Kafka streaming with Spark, Redis,",
+              "insert_text": "SQS,",
+              "insert_after": "AWS services",
+              "section": "Experience"
             }
           ],
-          "score_breakdown": {
-            "start": 100,
-            "deductions": [
-              {
-                "keyword": "GraphRAG",
-                "type": "TECHNICAL",
-                "status": "SKILLS_ONLY",
-                "points": -3
-              },
-              {
-                "keyword": "evaluation",
-                "type": "TECHNICAL",
-                "status": "MISSING",
-                "points": -5
-              },
-              {
-                "keyword": "Bachelor's degree in Computer Science",
-                "type": "TECHNICAL",
-                "status": "MISSING",
-                "points": -5
-              },
-              {
-                "keyword": "ElasticSearch",
-                "type": "TECHNICAL",
-                "status": "MISSING",
-                "points": -5
-              },
-              {
-                "keyword": "willingness to learn",
-                "type": "SOFT",
-                "status": "SOFT_MISSING",
-                "points": -1
-              },
-              {
-                "keyword": "strong customer mindset",
-                "type": "SOFT",
-                "status": "SOFT_MISSING",
-                "points": -1
-              }
-            ],
-            "total_deducted": -20,
-            "bonuses": [
-              {
-                "reason": "Each OPTIMIZED keyword (bullet with metric/context + Skills)",
-                "points": 4
-              },
-              {
-                "reason": "All technical keywords have bullet presence (zero SKILLS_ONLY)",
-                "points": 2
-              },
-              {
-                "reason": "Zero bad insertions",
-                "points": 1
-              },
-              {
-                "reason": "Summary clean (≤80 words, 3-4 sentences)",
-                "points": 1
-              }
-            ],
-            "total_bonus": 8,
-            "final": 92
-          },
-          "formatting_check": {},
+          "weak_bullets": [
+            {
+              "bullet_preview": "Engineered a financial risk intelligence pipeline",
+              "section": "Experience",
+              "issue": "no_metric",
+              "old_start": "Engineered a financial risk intelligence pipeline",
+              "new_start": "Engineered a financial risk intelligence pipeline achieving a 42% boost"
+            }
+          ],
+          "formatting_issues": [
+            {
+              "issue": "Resume title does not match JD title",
+              "fix": "Change title to AI/ML Engineer"
+            }
+          ],
           "genuine_gaps": [],
-          "summary_counts": {},
-          "optimized_count": 0,
-          "strong_count": 0,
-          "weak_count": 0,
-          "missing_count": 0,
-          "raw_evaluation": "{\n  \"score\": 92,\n  \"score_breakdown\": {\n    \"start\": 100,\n    \"deductions\": [\n      {\"keyword\": \"GraphRAG\", \"type\": \"TECHNICAL\", \"status\": \"SKILLS_ONLY\", \"points\": -3},\n      {\"keyword\": \"evaluation\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5},\n      {\"keyword\": \"Bachelor's degree in Computer Science\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5},\n      {\"keyword\": \"ElasticSearch\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5},\n      {\"keyword\": \"willingness to learn\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1},\n      {\"keyword\": \"strong customer mindset\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1}\n    ],\n    \"total_deducted\": -20,\n    \"bonuses\": [\n      {\"reason\": \"Each OPTIMIZED keyword (bullet with metric/context + Skills)\", \"points\": 4},\n      {\"reason\": \"All technical keywords have bullet presence (zero SKILLS_ONLY)\", \"points\": 2},\n      {\"reason\": \"Zero bad insertions\", \"points\": 1},\n      {\"reason\": \"Summary clean (≤80 words, 3-4 sentences)\", \"points\": 1}\n    ],\n    \"total_bonus\": 8,\n    \"final\": 92\n  },\n  \"keyword_checklist\": [\n    {\n      \"keyword\": \"LLMs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Retrieval-Augmented Generation (RAG)\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 5\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"semantic search\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Agentic AI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"GraphRAG\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SKILLS_ONLY\",\n      \"found_at\": \"Skills: Large Language Models & GenAI Frameworks row\",\n      \"has_metric\": false,\n      \"deduction\": -3,\n      \"fix\": {\n        \"action\": \"add_to_bullet\",\n        \"target\": \"State Street bullet 1\",\n        \"suggested_text\": \"Implemented GraphRAG techniques to enhance retrieval-augmented reasoning.\"\n      }\n    },\n    {\n      \"keyword\": \"AI solution lifecycle\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"architecture\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"design\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"prototyping\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"implementation\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"evaluation\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_bullet\",\n        \"target\": \"TekAnthem bullet 5\",\n        \"suggested_text\": \"Conducted evaluation of AI models to ensure accuracy and reliability.\"\n      }\n    },\n    {\n      \"keyword\": \"productionization\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Python\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"prompt engineering\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"model fine-tuning\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Projects: Multi-Stage LLM Application\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"model monitoring\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"data ingestion\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"retrieval pipelines\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"knowledge graphs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"third-party APIs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"prompt design\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Large Language Models & GenAI Frameworks row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"model alignment\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Large Language Models & GenAI Frameworks row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"safety and guardrails for AI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 5\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AI deployment\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AI research\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"code documentation\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"peer code reviews\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"system scalability\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"system efficiency\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"system reliability\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Bachelor's degree in Computer Science\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_skills\",\n        \"target\": \"Education section\",\n        \"suggested_text\": \"Bachelor's degree in Computer Science from MVJ College of Engineering.\"\n      }\n    },\n    {\n      \"keyword\": \"Master's degree in Artificial Intelligence\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Education section\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Data Science\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"applied AI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"NLP\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"ML engineering\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"vector databases\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"ElasticSearch\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_bullet\",\n        \"target\": \"Streebo bullet 1\",\n        \"suggested_text\": \"Utilized ElasticSearch for efficient data retrieval and indexing.\"\n      }\n    },\n    {\n      \"keyword\": \"Pinecone\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 5\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"MCP\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"A2A protocol\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"ML frameworks\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"LangChain\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"LlamaIndex\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Projects: Multi-Stage LLM Application\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"PyTorch\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"HuggingFace Transformers\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 3\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"APIs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"scalable backend services\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AWS\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Azure\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"cloud environments\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AWS SageMaker\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AWS Bedrock\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AzureAI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"load balancing LLMs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"MLOps practices\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"CI/CD for AI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"data versioning\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"continuous integration\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"data cleaning\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"feature engineering\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"data pipelines\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"willingness to learn\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Demonstrates a willingness to learn and adapt to new AI technologies.\"\n      }\n    },\n    {\n      \"keyword\": \"strong customer mindset\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Possesses a strong customer mindset, ensuring solutions meet client needs.\"\n      }\n    },\n    {\n      \"keyword\": \"excellent problem-solving\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"collaboration\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"communication skills\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"work effectively across remote and distributed teams\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\":"
-        },
-        {
-          "score": 89,
+          "action_items": [
+            {
+              "priority": 3,
+              "type": "insertion",
+              "bullet_preview": "Engineered a financial risk intelligence pipeline",
+              "old": "applying",
+              "new": "applying entity resolution and"
+            },
+            {
+              "priority": 5,
+              "type": "insertion",
+              "bullet_preview": "Advanced the AI QA lifecycle by integrating",
+              "old": "AI QA lifecycle",
+              "new": "AI QA lifecycle and QA processes"
+            },
+            {
+              "priority": 6,
+              "type": "insertion",
+              "bullet_preview": "Engineered an Agentic AI testing workflow with",
+              "old": "workflow with",
+              "new": "workflow with production code and"
+            },
+            {
+              "priority": 7,
+              "type": "orphan_fix",
+              "bullet_preview": "Integrated Kafka streaming with Spark, Redis,",
+              "old": "AWS services",
+              "new": "AWS services, Lambda,"
+            }
+          ],
           "keyword_analysis": {
-            "found": [
-              "LLMs",
-              "Retrieval-Augmented Generation (RAG)",
-              "semantic search",
-              "Agentic AI"
-            ],
+            "found": [],
             "missing": [
-              "evaluation",
-              "ElasticSearch",
-              "Bachelor's degree in Computer Science",
-              "Master's degree in Artificial Intelligence"
+              "entity resolution",
+              "QA",
+              "production code",
+              "de-ID workflows"
             ],
             "weak": [
-              "GraphRAG"
+              "Engineered a financial risk intelligence pipeline"
+            ],
+            "orphaned": [
+              "Lambda",
+              "S3",
+              "EC2",
+              "SQS"
             ]
           },
           "feedback": "",
           "recommendations": [
-            "GraphRAG - GraphRAG is only in Skills, not in any bullet. -> Add GraphRAG to State Street bullet 1 with context and metric.",
-            "evaluation - Evaluation is missing from the resume. -> Add evaluation to TekAnthem bullet 5 with context and metric.",
-            "ElasticSearch - ElasticSearch is missing from the resume. -> Add ElasticSearch to Streebo bullet 1 with context and metric.",
-            "willingness to learn - Willingness to learn is missing from the summary. -> Add willingness to learn to the summary with a verb.",
-            "strong customer mindset - Strong customer mindset is missing from the summary. -> Add strong customer mindset to the summary with a verb."
+            "INSERT: In bullet 'Engineered a financial risk intelligence pipeline...' → change 'applying' to 'applying entity resolution and'",
+            "INSERT: In bullet 'Advanced the AI QA lifecycle by integrating...' → change 'AI QA lifecycle' to 'AI QA lifecycle and QA processes'",
+            "INSERT: In bullet 'Engineered an Agentic AI testing workflow with...' → change 'workflow with' to 'workflow with production code and'",
+            "ORPHAN FIX: In bullet 'Integrated Kafka streaming with Spark, Redis,...' → change 'AWS services' to 'AWS services, Lambda,'"
           ],
-          "fixes": [
+          "raw_evaluation": "{\n  \"score\": 82,\n  \"replacements\": [],\n  \"insertions\": [\n    {\n      \"missing_keyword\": \"clinical data\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Developed a Flask-based medical-image analysis\",\n      \"insert_after\": \"using healthcare data\",\n      \"insert_text\": \"and clinical data\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"entity resolution\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Engineered a financial risk intelligence pipeline\",\n      \"insert_after\": \"applying\",\n      \"insert_text\": \"entity resolution and\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"data normalization\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Formulated advanced credit-default and fraud-likelihood\",\n      \"insert_after\": \"applying\",\n      \"insert_text\": \"data normalization and\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"QA\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Advanced the AI QA lifecycle by integrating\",\n      \"insert_after\": \"AI QA lifecycle\",\n      \"insert_text\": \"and QA processes\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"production code\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Engineered an Agentic AI testing workflow with\",\n      \"insert_after\": \"workflow with\",\n      \"insert_text\": \"production code and\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"HIPAA\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Executed unified microservice deployments across Docker\",\n      \"insert_after\": \"embedding\",\n      \"insert_text\": \"HIPAA-aligned\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"de-ID workflows\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Directed Airflow-based scoring cycles and AWS\",\n      \"insert_after\": \"with\",\n      \"insert_text\": \"de-ID workflows and\",\n      \"confidence\": \"high\"\n    }\n  ],\n  \"orphaned_skills\": [\n    {\n      \"skill\": \"Lambda\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"Lambda,\",\n      \"insert_after\": \"AWS services\",\n      \"section\": \"Experience\"\n    },\n    {\n      \"skill\": \"S3\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"S3,\",\n      \"insert_after\": \"AWS services\",\n      \"section\": \"Experience\"\n    },\n    {\n      \"skill\": \"EC2\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"EC2,\",\n      \"insert_after\": \"AWS services\",\n      \"section\": \"Experience\"\n    },\n    {\n      \"skill\": \"SQS\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"SQS,\",\n      \"insert_after\": \"AWS services\",\n      \"section\": \"Experience\"\n    }\n  ],\n  \"weak_bullets\": [\n    {\n      \"bullet_preview\": \"Engineered a financial risk intelligence pipeline\",\n      \"section\": \"Experience\",\n      \"issue\": \"no_metric\",\n      \"old_start\": \"Engineered a financial risk intelligence pipeline\",\n      \"new_start\": \"Engineered a financial risk intelligence pipeline achieving a 42% boost\"\n    }\n  ],\n  \"formatting_issues\": [\n    {\n      \"issue\": \"Resume title does not match JD title\",\n      \"fix\": \"Change title to AI/ML Engineer\"\n    }\n  ],\n  \"genuine_gaps\": [],\n  \"action_items\": [\n    {\n      \"priority\": 1,\n      \"type\": \"format_fix\",\n      \"bullet_preview\": \"AI/ML Engineer\",\n      \"old\": \"AI/ML Engineer\",\n      \"new\": \"AI/ML Engineer\"\n    },\n    {\n      \"priority\": 2,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Developed a Flask-based medical-image analysis\",\n      \"old\": \"using healthcare data\",\n      \"new\": \"using healthcare data and clinical data\"\n    },\n    {\n      \"priority\": 3,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Engineered a financial risk intelligence pipeline\",\n      \"old\": \"applying\",\n      \"new\": \"applying entity resolution and\"\n    },\n    {\n      \"priority\": 4,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Formulated advanced credit-default and fraud-likelihood\",\n      \"old\": \"applying\",\n      \"new\": \"applying data normalization and\"\n    },\n    {\n      \"priority\": 5,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Advanced the AI QA lifecycle by integrating\",\n      \"old\": \"AI QA lifecycle\",\n      \"new\": \"AI QA lifecycle and QA processes\"\n    },\n    {\n      \"priority\": 6,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Engineered an Agentic AI testing workflow with\",\n      \"old\": \"workflow with\",\n      \"new\": \"workflow with production code and\"\n    },\n    {\n      \"priority\": 7,\n      \"type\": \"orphan_fix\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"old\": \"AWS services\",\n      \"new\": \"AWS services, Lambda,\"\n    }\n  ]\n}"
+        },
+        {
+          "score": 100,
+          "replacements": [],
+          "insertions": [
             {
-              "keyword": "GraphRAG",
-              "priority": "P2",
-              "status": "SKILLS_ONLY",
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "State Street bullet 1",
-                "suggested_text": "Architected a GenAI investment intelligence solution using OpenAI LLMs and GraphRAG-enhanced retrieval-augmented reasoning, cutting manual portfolio risk analysis by 45%."
-              }
-            },
-            {
-              "keyword": "evaluation",
-              "priority": "P2",
-              "status": "MISSING",
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "TekAnthem bullet 5",
-                "suggested_text": "Integrated Gemini, Pinecone vector stores, and LLM-based inspectors to enforce scoring metrics, automate model evaluation, and accelerate deployments by nearly 40%."
-              }
-            },
-            {
-              "keyword": "ElasticSearch",
-              "priority": "P2",
-              "status": "MISSING",
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "Streebo bullet 1",
-                "suggested_text": "Built a financial risk pipeline using Spark, SQL, Elasticsearch, and third-party APIs; applied feature engineering, boosting credit-risk readiness by 42%."
-              }
-            },
-            {
-              "keyword": "willingness to learn",
-              "priority": "P2",
-              "status": "SOFT_MISSING",
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Demonstrates a willingness to learn emerging AI techniques and adapt to new challenges."
-              }
-            },
-            {
-              "keyword": "strong customer mindset",
-              "priority": "P2",
-              "status": "SOFT_MISSING",
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Possesses a strong customer mindset, ensuring solutions meet user needs."
-              }
-            },
-            {
-              "keyword": "excellent problem-solving",
-              "priority": "P2",
-              "status": "SOFT_MISSING",
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Exhibits excellent problem-solving skills to tackle complex AI challenges."
-              }
-            },
-            {
-              "keyword": "collaboration",
-              "priority": "P2",
-              "status": "SOFT_MISSING",
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Collaborates effectively with cross-functional teams to deliver AI solutions."
-              }
-            },
-            {
-              "keyword": "communication skills",
-              "priority": "P2",
-              "status": "SOFT_MISSING",
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Strong communication skills to articulate complex AI concepts clearly."
-              }
-            },
-            {
-              "keyword": "work effectively across remote and distributed teams",
-              "priority": "P2",
-              "status": "SOFT_MISSING",
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Proven ability to work effectively across remote and distributed teams."
-              }
-            },
-            {
-              "keyword": "Bachelor's degree in Computer Science",
-              "priority": "P2",
-              "status": "MISSING",
-              "fix": {
-                "action": "add_to_skills",
-                "target": "Education section",
-                "suggested_text": "Bachelor's degree in Computer Science and Engineering."
-              }
-            },
-            {
-              "keyword": "Master's degree in Artificial Intelligence",
-              "priority": "P2",
-              "status": "MISSING",
-              "fix": {
-                "action": "add_to_skills",
-                "target": "Education section",
-                "suggested_text": "Master's degree in Artificial Intelligence."
-              }
+              "missing_keyword": "clinical data",
+              "section": "Experience",
+              "bullet_preview": "Developed a Flask-based medical-image analysis",
+              "insert_after": "using healthcare data",
+              "insert_text": "including clinical data",
+              "confidence": "high"
             }
           ],
-          "keyword_checklist": [
+          "orphaned_skills": [],
+          "weak_bullets": [
             {
-              "keyword": "LLMs",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "Retrieval-Augmented Generation (RAG)",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 5",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "semantic search",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "State Street bullet 2",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "Agentic AI",
-              "type": "TECHNICAL",
-              "status": "OPTIMIZED",
-              "found_at": "TekAnthem bullet 1",
-              "has_metric": true,
-              "deduction": 0,
-              "fix": null
-            },
-            {
-              "keyword": "GraphRAG",
-              "type": "TECHNICAL",
-              "status": "SKILLS_ONLY",
-              "found_at": "Skills section",
-              "has_metric": false,
-              "deduction": -3,
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "State Street bullet 1",
-                "suggested_text": "Architected a GenAI investment intelligence solution using OpenAI LLMs and GraphRAG-enhanced retrieval-augmented reasoning, cutting manual portfolio risk analysis by 45%."
-              }
-            },
-            {
-              "keyword": "evaluation",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -5,
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "TekAnthem bullet 5",
-                "suggested_text": "Integrated Gemini, Pinecone vector stores, and LLM-based inspectors to enforce scoring metrics, automate model evaluation, and accelerate deployments by nearly 40%."
-              }
-            },
-            {
-              "keyword": "ElasticSearch",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -5,
-              "fix": {
-                "action": "add_to_bullet",
-                "target": "Streebo bullet 1",
-                "suggested_text": "Built a financial risk pipeline using Spark, SQL, Elasticsearch, and third-party APIs; applied feature engineering, boosting credit-risk readiness by 42%."
-              }
-            },
-            {
-              "keyword": "willingness to learn",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -1,
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Demonstrates a willingness to learn emerging AI techniques and adapt to new challenges."
-              }
-            },
-            {
-              "keyword": "strong customer mindset",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -1,
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Possesses a strong customer mindset, ensuring solutions meet user needs."
-              }
-            },
-            {
-              "keyword": "excellent problem-solving",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -1,
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Exhibits excellent problem-solving skills to tackle complex AI challenges."
-              }
-            },
-            {
-              "keyword": "collaboration",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -1,
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Collaborates effectively with cross-functional teams to deliver AI solutions."
-              }
-            },
-            {
-              "keyword": "communication skills",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -1,
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Strong communication skills to articulate complex AI concepts clearly."
-              }
-            },
-            {
-              "keyword": "work effectively across remote and distributed teams",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -1,
-              "fix": {
-                "action": "add_to_summary",
-                "target": "Summary",
-                "suggested_text": "Proven ability to work effectively across remote and distributed teams."
-              }
-            },
-            {
-              "keyword": "Bachelor's degree in Computer Science",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -5,
-              "fix": {
-                "action": "add_to_skills",
-                "target": "Education section",
-                "suggested_text": "Bachelor's degree in Computer Science and Engineering."
-              }
-            },
-            {
-              "keyword": "Master's degree in Artificial Intelligence",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "found_at": null,
-              "has_metric": false,
-              "deduction": -5,
-              "fix": {
-                "action": "add_to_skills",
-                "target": "Education section",
-                "suggested_text": "Master's degree in Artificial Intelligence."
-              }
+              "bullet_preview": "Engineered a financial risk intelligence pipeline",
+              "section": "Experience",
+              "issue": "no_metric",
+              "old_start": "Engineered a financial risk intelligence pipeline",
+              "new_start": "Engineered a financial risk intelligence pipeline, boosting credit-risk readiness by over 42%"
             }
           ],
-          "score_breakdown": {
-            "start": 100,
-            "deductions": [
-              {
-                "keyword": "GraphRAG",
-                "type": "TECHNICAL",
-                "status": "SKILLS_ONLY",
-                "points": -3
-              },
-              {
-                "keyword": "evaluation",
-                "type": "TECHNICAL",
-                "status": "MISSING",
-                "points": -5
-              },
-              {
-                "keyword": "ElasticSearch",
-                "type": "TECHNICAL",
-                "status": "MISSING",
-                "points": -5
-              },
-              {
-                "keyword": "willingness to learn",
-                "type": "SOFT",
-                "status": "SOFT_MISSING",
-                "points": -1
-              },
-              {
-                "keyword": "strong customer mindset",
-                "type": "SOFT",
-                "status": "SOFT_MISSING",
-                "points": -1
-              },
-              {
-                "keyword": "excellent problem-solving",
-                "type": "SOFT",
-                "status": "SOFT_MISSING",
-                "points": -1
-              },
-              {
-                "keyword": "collaboration",
-                "type": "SOFT",
-                "status": "SOFT_MISSING",
-                "points": -1
-              },
-              {
-                "keyword": "communication skills",
-                "type": "SOFT",
-                "status": "SOFT_MISSING",
-                "points": -1
-              },
-              {
-                "keyword": "work effectively across remote and distributed teams",
-                "type": "SOFT",
-                "status": "SOFT_MISSING",
-                "points": -1
-              },
-              {
-                "keyword": "Bachelor's degree in Computer Science",
-                "type": "TECHNICAL",
-                "status": "MISSING",
-                "points": -5
-              },
-              {
-                "keyword": "Master's degree in Artificial Intelligence",
-                "type": "TECHNICAL",
-                "status": "MISSING",
-                "points": -5
-              }
-            ],
-            "total_deducted": -28,
-            "bonuses": [
-              {
-                "reason": "Each OPTIMIZED keyword (bullet with metric/context + Skills)",
-                "points": 4
-              },
-              {
-                "reason": "All technical keywords have bullet presence (zero SKILLS_ONLY)",
-                "points": 2
-              },
-              {
-                "reason": "Zero bad insertions",
-                "points": 1
-              },
-              {
-                "reason": "Summary clean (≤80 words, 3-4 sentences)",
-                "points": 1
-              }
-            ],
-            "total_bonus": 8,
-            "final": 89
-          },
-          "formatting_check": {
-            "header_complete": true,
-            "summary_word_count": 78,
-            "summary_sentence_count": 4,
-            "summary_pass": true,
-            "title_aligned": true,
-            "raw_urls_present": false,
-            "issues": []
-          },
+          "formatting_issues": [
+            {
+              "issue": "Resume title does not match JD title",
+              "fix": "Change title to AI/ML Engineer"
+            }
+          ],
           "genuine_gaps": [],
-          "summary_counts": {
-            "optimized": 4,
-            "strong": 0,
-            "bullet_only": 0,
-            "skills_only": 1,
-            "bad_insert": 0,
-            "soft_placed": 0,
-            "soft_missing": 6,
-            "missing": 4
+          "action_items": [
+            {
+              "priority": 2,
+              "type": "insertion",
+              "bullet_preview": "Developed a Flask-based medical-image analysis",
+              "old": "using healthcare data",
+              "new": "using healthcare data including clinical data"
+            }
+          ],
+          "keyword_analysis": {
+            "found": [],
+            "missing": [
+              "clinical data"
+            ],
+            "weak": [
+              "Engineered a financial risk intelligence pipeline"
+            ],
+            "orphaned": []
           },
-          "optimized_count": 4,
-          "strong_count": 0,
-          "weak_count": 1,
-          "missing_count": 4,
-          "raw_evaluation": "{\n  \"score\": 89,\n  \"score_breakdown\": {\n    \"start\": 100,\n    \"deductions\": [\n      {\"keyword\": \"GraphRAG\", \"type\": \"TECHNICAL\", \"status\": \"SKILLS_ONLY\", \"points\": -3},\n      {\"keyword\": \"evaluation\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5},\n      {\"keyword\": \"ElasticSearch\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5},\n      {\"keyword\": \"willingness to learn\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1},\n      {\"keyword\": \"strong customer mindset\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1},\n      {\"keyword\": \"excellent problem-solving\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1},\n      {\"keyword\": \"collaboration\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1},\n      {\"keyword\": \"communication skills\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1},\n      {\"keyword\": \"work effectively across remote and distributed teams\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1},\n      {\"keyword\": \"Bachelor's degree in Computer Science\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5},\n      {\"keyword\": \"Master's degree in Artificial Intelligence\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5}\n    ],\n    \"total_deducted\": -28,\n    \"bonuses\": [\n      {\"reason\": \"Each OPTIMIZED keyword (bullet with metric/context + Skills)\", \"points\": 4},\n      {\"reason\": \"All technical keywords have bullet presence (zero SKILLS_ONLY)\", \"points\": 2},\n      {\"reason\": \"Zero bad insertions\", \"points\": 1},\n      {\"reason\": \"Summary clean (≤80 words, 3-4 sentences)\", \"points\": 1}\n    ],\n    \"total_bonus\": 8,\n    \"final\": 89\n  },\n  \"keyword_checklist\": [\n    {\n      \"keyword\": \"LLMs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Retrieval-Augmented Generation (RAG)\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 5\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"semantic search\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Agentic AI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"GraphRAG\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SKILLS_ONLY\",\n      \"found_at\": \"Skills section\",\n      \"has_metric\": false,\n      \"deduction\": -3,\n      \"fix\": {\n        \"action\": \"add_to_bullet\",\n        \"target\": \"State Street bullet 1\",\n        \"suggested_text\": \"Architected a GenAI investment intelligence solution using OpenAI LLMs and GraphRAG-enhanced retrieval-augmented reasoning, cutting manual portfolio risk analysis by 45%.\"\n      }\n    },\n    {\n      \"keyword\": \"evaluation\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_bullet\",\n        \"target\": \"TekAnthem bullet 5\",\n        \"suggested_text\": \"Integrated Gemini, Pinecone vector stores, and LLM-based inspectors to enforce scoring metrics, automate model evaluation, and accelerate deployments by nearly 40%.\"\n      }\n    },\n    {\n      \"keyword\": \"ElasticSearch\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_bullet\",\n        \"target\": \"Streebo bullet 1\",\n        \"suggested_text\": \"Built a financial risk pipeline using Spark, SQL, Elasticsearch, and third-party APIs; applied feature engineering, boosting credit-risk readiness by 42%.\"\n      }\n    },\n    {\n      \"keyword\": \"willingness to learn\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Demonstrates a willingness to learn emerging AI techniques and adapt to new challenges.\"\n      }\n    },\n    {\n      \"keyword\": \"strong customer mindset\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Possesses a strong customer mindset, ensuring solutions meet user needs.\"\n      }\n    },\n    {\n      \"keyword\": \"excellent problem-solving\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Exhibits excellent problem-solving skills to tackle complex AI challenges.\"\n      }\n    },\n    {\n      \"keyword\": \"collaboration\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Collaborates effectively with cross-functional teams to deliver AI solutions.\"\n      }\n    },\n    {\n      \"keyword\": \"communication skills\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Strong communication skills to articulate complex AI concepts clearly.\"\n      }\n    },\n    {\n      \"keyword\": \"work effectively across remote and distributed teams\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Proven ability to work effectively across remote and distributed teams.\"\n      }\n    },\n    {\n      \"keyword\": \"Bachelor's degree in Computer Science\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_skills\",\n        \"target\": \"Education section\",\n        \"suggested_text\": \"Bachelor's degree in Computer Science and Engineering.\"\n      }\n    },\n    {\n      \"keyword\": \"Master's degree in Artificial Intelligence\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_skills\",\n        \"target\": \"Education section\",\n        \"suggested_text\": \"Master's degree in Artificial Intelligence.\"\n      }\n    }\n  ],\n  \"formatting_check\": {\n    \"header_complete\": true,\n    \"summary_word_count\": 78,\n    \"summary_sentence_count\": 4,\n    \"summary_pass\": true,\n    \"title_aligned\": true,\n    \"raw_urls_present\": false,\n    \"issues\": []\n  },\n  \"genuine_gaps\": [],\n  \"summary_counts\": {\n    \"optimized\": 4,\n    \"strong\": 0,\n    \"bullet_only\": 0,\n    \"skills_only\": 1,\n    \"bad_insert\": 0,\n    \"soft_placed\": 0,\n    \"soft_missing\": 6,\n    \"missing\": 4\n  },\n  \"action_items\": [\n    {\n      \"rank\": 1,\n      \"type\": \"TECHNICAL\",\n      \"keyword\": \"GraphRAG\",\n      \"issue\": \"GraphRAG is only in Skills, not in any bullet.\",\n      \"exact_fix\": \"Add GraphRAG to State Street bullet 1 with context and metric.\"\n    },\n    {\n      \"rank\": 2,\n      \"type\": \"TECHNICAL\",\n      \"keyword\": \"evaluation\",\n      \"issue\": \"Evaluation is missing from the resume.\",\n      \"exact_fix\": \"Add evaluation to TekAnthem bullet 5 with context and metric.\"\n    },\n    {\n      \"rank\": 3,\n      \"type\": \"TECHNICAL\",\n      \"keyword\": \"ElasticSearch\",\n      \"issue\": \"ElasticSearch is missing from the resume.\",\n      \"exact_fix\": \"Add ElasticSearch to Streebo bullet 1 with context and metric.\"\n    },\n    {\n      \"rank\": 4,\n      \"type\": \"SOFT\",\n      \"keyword\": \"willingness to learn\",\n      \"issue\": \"Willingness to learn is missing from the summary.\",\n      \"exact_fix\": \"Add willingness to learn to the summary with a verb.\"\n    },\n    {\n      \"rank\": 5,\n      \"type\": \"SOFT\",\n      \"keyword\": \"strong customer mindset\",\n      \"issue\": \"Strong customer mindset is missing from the summary.\",\n      \"exact_fix\": \"Add strong customer mindset to the summary with a verb.\"\n    }\n  ]\n}"
+          "feedback": "",
+          "recommendations": [
+            "INSERT: In bullet 'Developed a Flask-based medical-image analysis...' → change 'using healthcare data' to 'using healthcare data including clinical data'"
+          ],
+          "raw_evaluation": "{\n  \"score\": 82,\n  \"replacements\": [],\n  \"insertions\": [\n    {\n      \"missing_keyword\": \"clinical data\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Developed a Flask-based medical-image analysis\",\n      \"insert_after\": \"using healthcare data\",\n      \"insert_text\": \"including clinical data\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"QA\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Advanced the AI QA lifecycle and QA\",\n      \"insert_after\": \"AI QA lifecycle\",\n      \"insert_text\": \"and QA processes\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"entity resolution\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Engineered a financial risk intelligence pipeline\",\n      \"insert_after\": \"applying\",\n      \"insert_text\": \"entity resolution and\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"data normalization\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Formulated advanced credit-default and fraud-likelihood\",\n      \"insert_after\": \"applying\",\n      \"insert_text\": \"data normalization and\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"observability\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Operationalized scalable model inference through\",\n      \"insert_after\": \"MLOps orchestration with\",\n      \"insert_text\": \"observability tooling\",\n      \"confidence\": \"high\"\n    }\n  ],\n  \"orphaned_skills\": [\n    {\n      \"skill\": \"Lambda\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"Lambda,\",\n      \"insert_after\": \"AWS (\",\n      \"section\": \"Experience\"\n    },\n    {\n      \"skill\": \"S3\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"S3,\",\n      \"insert_after\": \"AWS (Lambda,\",\n      \"section\": \"Experience\"\n    },\n    {\n      \"skill\": \"EC2\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"EC2,\",\n      \"insert_after\": \"AWS (Lambda, S3,\",\n      \"section\": \"Experience\"\n    },\n    {\n      \"skill\": \"SQS\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"SQS,\",\n      \"insert_after\": \"AWS (Lambda, S3, EC2,\",\n      \"section\": \"Experience\"\n    }\n  ],\n  \"weak_bullets\": [\n    {\n      \"bullet_preview\": \"Engineered a financial risk intelligence pipeline\",\n      \"section\": \"Experience\",\n      \"issue\": \"no_metric\",\n      \"old_start\": \"Engineered a financial risk intelligence pipeline\",\n      \"new_start\": \"Engineered a financial risk intelligence pipeline, boosting credit-risk readiness by over 42%\"\n    }\n  ],\n  \"formatting_issues\": [\n    {\n      \"issue\": \"Resume title does not match JD title\",\n      \"fix\": \"Change title to AI/ML Engineer\"\n    }\n  ],\n  \"genuine_gaps\": [],\n  \"action_items\": [\n    {\n      \"priority\": 1,\n      \"type\": \"format_fix\",\n      \"bullet_preview\": \"Mohammed Azeezulla\",\n      \"old\": \"AI/ML Engineer\",\n      \"new\": \"AI/ML Engineer\"\n    },\n    {\n      \"priority\": 2,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Developed a Flask-based medical-image analysis\",\n      \"old\": \"using healthcare data\",\n      \"new\": \"using healthcare data including clinical data\"\n    },\n    {\n      \"priority\": 3,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Advanced the AI QA lifecycle and QA\",\n      \"old\": \"AI QA lifecycle\",\n      \"new\": \"AI QA lifecycle and QA processes\"\n    },\n    {\n      \"priority\": 4,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Engineered a financial risk intelligence pipeline\",\n      \"old\": \"applying\",\n      \"new\": \"applying entity resolution and\"\n    },\n    {\n      \"priority\": 5,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Formulated advanced credit-default and fraud-likelihood\",\n      \"old\": \"applying\",\n      \"new\": \"applying data normalization and\"\n    },\n    {\n      \"priority\": 6,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Operationalized scalable model inference through\",\n      \"old\": \"MLOps orchestration with\",\n      \"new\": \"MLOps orchestration with observability tooling\"\n    },\n    {\n      \"priority\": 7,\n      \"type\": \"orphan_fix\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"old\": \"AWS (\",\n      \"new\": \"AWS (Lambda,\"\n    }\n  ]\n}"
         }
       ],
       "best_evaluation": {
-        "score": 92,
+        "score": 100,
+        "replacements": [],
+        "insertions": [
+          {
+            "missing_keyword": "clinical data",
+            "section": "Experience",
+            "bullet_preview": "Developed a Flask-based medical-image analysis",
+            "insert_after": "using healthcare data",
+            "insert_text": "including clinical data",
+            "confidence": "high"
+          }
+        ],
+        "orphaned_skills": [],
+        "weak_bullets": [
+          {
+            "bullet_preview": "Engineered a financial risk intelligence pipeline",
+            "section": "Experience",
+            "issue": "no_metric",
+            "old_start": "Engineered a financial risk intelligence pipeline",
+            "new_start": "Engineered a financial risk intelligence pipeline, boosting credit-risk readiness by over 42%"
+          }
+        ],
+        "formatting_issues": [
+          {
+            "issue": "Resume title does not match JD title",
+            "fix": "Change title to AI/ML Engineer"
+          }
+        ],
+        "genuine_gaps": [],
+        "action_items": [
+          {
+            "priority": 2,
+            "type": "insertion",
+            "bullet_preview": "Developed a Flask-based medical-image analysis",
+            "old": "using healthcare data",
+            "new": "using healthcare data including clinical data"
+          }
+        ],
         "keyword_analysis": {
-          "found": [
-            "LLMs",
-            "Retrieval-Augmented Generation (RAG)",
-            "semantic search",
-            "Agentic AI",
-            "Python",
-            "prompt engineering",
-            "model fine-tuning",
-            "model monitoring",
-            "data ingestion",
-            "retrieval pipelines",
-            "knowledge graphs",
-            "third-party APIs",
-            "safety and guardrails for AI",
-            "Master's degree in Artificial Intelligence",
-            "NLP",
-            "vector databases",
-            "Pinecone",
-            "ML frameworks",
-            "LangChain",
-            "LlamaIndex",
-            "PyTorch",
-            "HuggingFace Transformers",
-            "APIs",
-            "AWS",
-            "Azure",
-            "cloud environments",
-            "AWS SageMaker",
-            "AzureAI",
-            "MLOps practices",
-            "CI/CD for AI",
-            "data versioning",
-            "continuous integration",
-            "feature engineering"
-          ],
+          "found": [],
           "missing": [
-            "evaluation",
-            "Bachelor's degree in Computer Science",
-            "ElasticSearch"
+            "clinical data"
           ],
           "weak": [
-            "GraphRAG"
-          ]
+            "Engineered a financial risk intelligence pipeline"
+          ],
+          "orphaned": []
         },
         "feedback": "",
-        "recommendations": [],
-        "fixes": [
-          {
-            "keyword": "GraphRAG",
-            "priority": "P2",
-            "status": "SKILLS_ONLY",
-            "fix": {
-              "action": "add_to_bullet",
-              "target": "State Street bullet 1",
-              "suggested_text": "Implemented GraphRAG techniques to enhance retrieval-augmented reasoning."
-            }
-          },
-          {
-            "keyword": "evaluation",
-            "priority": "P2",
-            "status": "MISSING",
-            "fix": {
-              "action": "add_to_bullet",
-              "target": "TekAnthem bullet 5",
-              "suggested_text": "Conducted evaluation of AI models to ensure accuracy and reliability."
-            }
-          },
-          {
-            "keyword": "Bachelor's degree in Computer Science",
-            "priority": "P2",
-            "status": "MISSING",
-            "fix": {
-              "action": "add_to_skills",
-              "target": "Education section",
-              "suggested_text": "Bachelor's degree in Computer Science from MVJ College of Engineering."
-            }
-          },
-          {
-            "keyword": "ElasticSearch",
-            "priority": "P2",
-            "status": "MISSING",
-            "fix": {
-              "action": "add_to_bullet",
-              "target": "Streebo bullet 1",
-              "suggested_text": "Utilized ElasticSearch for efficient data retrieval and indexing."
-            }
-          },
-          {
-            "keyword": "willingness to learn",
-            "priority": "P2",
-            "status": "SOFT_MISSING",
-            "fix": {
-              "action": "add_to_summary",
-              "target": "Summary",
-              "suggested_text": "Demonstrates a willingness to learn and adapt to new AI technologies."
-            }
-          },
-          {
-            "keyword": "strong customer mindset",
-            "priority": "P2",
-            "status": "SOFT_MISSING",
-            "fix": {
-              "action": "add_to_summary",
-              "target": "Summary",
-              "suggested_text": "Possesses a strong customer mindset, ensuring solutions meet client needs."
-            }
-          }
+        "recommendations": [
+          "INSERT: In bullet 'Developed a Flask-based medical-image analysis...' → change 'using healthcare data' to 'using healthcare data including clinical data'"
         ],
-        "keyword_checklist": [
-          {
-            "keyword": "LLMs",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "State Street bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "Retrieval-Augmented Generation (RAG)",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "State Street bullet 5",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "semantic search",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "State Street bullet 2",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "Agentic AI",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "TekAnthem bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "GraphRAG",
-            "type": "TECHNICAL",
-            "status": "SKILLS_ONLY",
-            "found_at": "Skills: Large Language Models & GenAI Frameworks row",
-            "has_metric": false,
-            "deduction": -3,
-            "fix": {
-              "action": "add_to_bullet",
-              "target": "State Street bullet 1",
-              "suggested_text": "Implemented GraphRAG techniques to enhance retrieval-augmented reasoning."
-            }
-          },
-          {
-            "keyword": "AI solution lifecycle",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Summary",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "architecture",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "design",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "prototyping",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "implementation",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "evaluation",
-            "type": "TECHNICAL",
-            "status": "MISSING",
-            "found_at": null,
-            "has_metric": false,
-            "deduction": -5,
-            "fix": {
-              "action": "add_to_bullet",
-              "target": "TekAnthem bullet 5",
-              "suggested_text": "Conducted evaluation of AI models to ensure accuracy and reliability."
-            }
-          },
-          {
-            "keyword": "productionization",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "Python",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "TekAnthem bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "prompt engineering",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "TekAnthem bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "model fine-tuning",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Projects: Multi-Stage LLM Application",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "model monitoring",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 4",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "data ingestion",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "retrieval pipelines",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "knowledge graphs",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "third-party APIs",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "prompt design",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: Large Language Models & GenAI Frameworks row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "model alignment",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: Large Language Models & GenAI Frameworks row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "safety and guardrails for AI",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "State Street bullet 5",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "AI deployment",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "AI research",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "code documentation",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "peer code reviews",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "system scalability",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "system efficiency",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "system reliability",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "Bachelor's degree in Computer Science",
-            "type": "TECHNICAL",
-            "status": "MISSING",
-            "found_at": null,
-            "has_metric": false,
-            "deduction": -5,
-            "fix": {
-              "action": "add_to_skills",
-              "target": "Education section",
-              "suggested_text": "Bachelor's degree in Computer Science from MVJ College of Engineering."
-            }
-          },
-          {
-            "keyword": "Master's degree in Artificial Intelligence",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Education section",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "Data Science",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "applied AI",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "NLP",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "TekAnthem bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "ML engineering",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "vector databases",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "State Street bullet 2",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "ElasticSearch",
-            "type": "TECHNICAL",
-            "status": "MISSING",
-            "found_at": null,
-            "has_metric": false,
-            "deduction": -5,
-            "fix": {
-              "action": "add_to_bullet",
-              "target": "Streebo bullet 1",
-              "suggested_text": "Utilized ElasticSearch for efficient data retrieval and indexing."
-            }
-          },
-          {
-            "keyword": "Pinecone",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "TekAnthem bullet 5",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "MCP",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "A2A protocol",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "ML frameworks",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 2",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "LangChain",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "State Street bullet 2",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "LlamaIndex",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Projects: Multi-Stage LLM Application",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "PyTorch",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 2",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "HuggingFace Transformers",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "State Street bullet 3",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "APIs",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "scalable backend services",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "AWS",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 4",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "Azure",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "TekAnthem bullet 2",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "cloud environments",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 4",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "AWS SageMaker",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 4",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "AWS Bedrock",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "AzureAI",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "TekAnthem bullet 2",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "load balancing LLMs",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: Cloud Platforms, Databases & Visualization row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "MLOps practices",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 4",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "CI/CD for AI",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 4",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "data versioning",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 2",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "continuous integration",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 4",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "data cleaning",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "feature engineering",
-            "type": "TECHNICAL",
-            "status": "OPTIMIZED",
-            "found_at": "Streebo bullet 1",
-            "has_metric": true,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "data pipelines",
-            "type": "TECHNICAL",
-            "status": "SOFT_PLACED",
-            "found_at": "Skills: AI Engineering Practices row",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "willingness to learn",
-            "type": "SOFT",
-            "status": "SOFT_MISSING",
-            "found_at": null,
-            "has_metric": false,
-            "deduction": -1,
-            "fix": {
-              "action": "add_to_summary",
-              "target": "Summary",
-              "suggested_text": "Demonstrates a willingness to learn and adapt to new AI technologies."
-            }
-          },
-          {
-            "keyword": "strong customer mindset",
-            "type": "SOFT",
-            "status": "SOFT_MISSING",
-            "found_at": null,
-            "has_metric": false,
-            "deduction": -1,
-            "fix": {
-              "action": "add_to_summary",
-              "target": "Summary",
-              "suggested_text": "Possesses a strong customer mindset, ensuring solutions meet client needs."
-            }
-          },
-          {
-            "keyword": "excellent problem-solving",
-            "type": "SOFT",
-            "status": "SOFT_PLACED",
-            "found_at": "Summary",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "collaboration",
-            "type": "SOFT",
-            "status": "SOFT_PLACED",
-            "found_at": "Summary",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          },
-          {
-            "keyword": "communication skills",
-            "type": "SOFT",
-            "status": "SOFT_PLACED",
-            "found_at": "Summary",
-            "has_metric": false,
-            "deduction": 0,
-            "fix": null
-          }
+        "raw_evaluation": "{\n  \"score\": 82,\n  \"replacements\": [],\n  \"insertions\": [\n    {\n      \"missing_keyword\": \"clinical data\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Developed a Flask-based medical-image analysis\",\n      \"insert_after\": \"using healthcare data\",\n      \"insert_text\": \"including clinical data\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"QA\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Advanced the AI QA lifecycle and QA\",\n      \"insert_after\": \"AI QA lifecycle\",\n      \"insert_text\": \"and QA processes\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"entity resolution\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Engineered a financial risk intelligence pipeline\",\n      \"insert_after\": \"applying\",\n      \"insert_text\": \"entity resolution and\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"data normalization\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Formulated advanced credit-default and fraud-likelihood\",\n      \"insert_after\": \"applying\",\n      \"insert_text\": \"data normalization and\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"missing_keyword\": \"observability\",\n      \"section\": \"Experience\",\n      \"bullet_preview\": \"Operationalized scalable model inference through\",\n      \"insert_after\": \"MLOps orchestration with\",\n      \"insert_text\": \"observability tooling\",\n      \"confidence\": \"high\"\n    }\n  ],\n  \"orphaned_skills\": [\n    {\n      \"skill\": \"Lambda\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"Lambda,\",\n      \"insert_after\": \"AWS (\",\n      \"section\": \"Experience\"\n    },\n    {\n      \"skill\": \"S3\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"S3,\",\n      \"insert_after\": \"AWS (Lambda,\",\n      \"section\": \"Experience\"\n    },\n    {\n      \"skill\": \"EC2\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"EC2,\",\n      \"insert_after\": \"AWS (Lambda, S3,\",\n      \"section\": \"Experience\"\n    },\n    {\n      \"skill\": \"SQS\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"insert_text\": \"SQS,\",\n      \"insert_after\": \"AWS (Lambda, S3, EC2,\",\n      \"section\": \"Experience\"\n    }\n  ],\n  \"weak_bullets\": [\n    {\n      \"bullet_preview\": \"Engineered a financial risk intelligence pipeline\",\n      \"section\": \"Experience\",\n      \"issue\": \"no_metric\",\n      \"old_start\": \"Engineered a financial risk intelligence pipeline\",\n      \"new_start\": \"Engineered a financial risk intelligence pipeline, boosting credit-risk readiness by over 42%\"\n    }\n  ],\n  \"formatting_issues\": [\n    {\n      \"issue\": \"Resume title does not match JD title\",\n      \"fix\": \"Change title to AI/ML Engineer\"\n    }\n  ],\n  \"genuine_gaps\": [],\n  \"action_items\": [\n    {\n      \"priority\": 1,\n      \"type\": \"format_fix\",\n      \"bullet_preview\": \"Mohammed Azeezulla\",\n      \"old\": \"AI/ML Engineer\",\n      \"new\": \"AI/ML Engineer\"\n    },\n    {\n      \"priority\": 2,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Developed a Flask-based medical-image analysis\",\n      \"old\": \"using healthcare data\",\n      \"new\": \"using healthcare data including clinical data\"\n    },\n    {\n      \"priority\": 3,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Advanced the AI QA lifecycle and QA\",\n      \"old\": \"AI QA lifecycle\",\n      \"new\": \"AI QA lifecycle and QA processes\"\n    },\n    {\n      \"priority\": 4,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Engineered a financial risk intelligence pipeline\",\n      \"old\": \"applying\",\n      \"new\": \"applying entity resolution and\"\n    },\n    {\n      \"priority\": 5,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Formulated advanced credit-default and fraud-likelihood\",\n      \"old\": \"applying\",\n      \"new\": \"applying data normalization and\"\n    },\n    {\n      \"priority\": 6,\n      \"type\": \"insertion\",\n      \"bullet_preview\": \"Operationalized scalable model inference through\",\n      \"old\": \"MLOps orchestration with\",\n      \"new\": \"MLOps orchestration with observability tooling\"\n    },\n    {\n      \"priority\": 7,\n      \"type\": \"orphan_fix\",\n      \"bullet_preview\": \"Integrated Kafka streaming with Spark, Redis,\",\n      \"old\": \"AWS (\",\n      \"new\": \"AWS (Lambda,\"\n    }\n  ]\n}"
+      },
+      "memory_state": {
+        "locked_changes_count": 30,
+        "keywords_inserted": [
+          "Python",
+          "PyTorch",
+          "Hugging Face",
+          "spaCy",
+          "LLMs",
+          "prompt engineering",
+          "evaluation",
+          "fine-tuning",
+          "observability",
+          "ML pipelines",
+          "information extraction",
+          "entity resolution",
+          "data normalization",
+          "QA",
+          "model inference",
+          "production code",
+          "clinical data",
+          "healthcare data",
+          "EMRs",
+          "HIPAA",
+          "de-ID workflows",
+          "strong Python development skills",
+          "familiarity with modern ML/NLP frameworks",
+          "practical knowledge of LLMs"
         ],
-        "score_breakdown": {
-          "start": 100,
-          "deductions": [
-            {
-              "keyword": "GraphRAG",
-              "type": "TECHNICAL",
-              "status": "SKILLS_ONLY",
-              "points": -3
-            },
-            {
-              "keyword": "evaluation",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "points": -5
-            },
-            {
-              "keyword": "Bachelor's degree in Computer Science",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "points": -5
-            },
-            {
-              "keyword": "ElasticSearch",
-              "type": "TECHNICAL",
-              "status": "MISSING",
-              "points": -5
-            },
-            {
-              "keyword": "willingness to learn",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "points": -1
-            },
-            {
-              "keyword": "strong customer mindset",
-              "type": "SOFT",
-              "status": "SOFT_MISSING",
-              "points": -1
-            }
-          ],
-          "total_deducted": -20,
-          "bonuses": [
-            {
-              "reason": "Each OPTIMIZED keyword (bullet with metric/context + Skills)",
-              "points": 4
-            },
-            {
-              "reason": "All technical keywords have bullet presence (zero SKILLS_ONLY)",
-              "points": 2
-            },
-            {
-              "reason": "Zero bad insertions",
-              "points": 1
-            },
-            {
-              "reason": "Summary clean (≤80 words, 3-4 sentences)",
-              "points": 1
-            }
-          ],
-          "total_bonus": 8,
-          "final": 92
-        },
-        "formatting_check": {},
-        "genuine_gaps": [],
-        "summary_counts": {},
-        "optimized_count": 0,
-        "strong_count": 0,
-        "weak_count": 0,
-        "missing_count": 0,
-        "raw_evaluation": "{\n  \"score\": 92,\n  \"score_breakdown\": {\n    \"start\": 100,\n    \"deductions\": [\n      {\"keyword\": \"GraphRAG\", \"type\": \"TECHNICAL\", \"status\": \"SKILLS_ONLY\", \"points\": -3},\n      {\"keyword\": \"evaluation\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5},\n      {\"keyword\": \"Bachelor's degree in Computer Science\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5},\n      {\"keyword\": \"ElasticSearch\", \"type\": \"TECHNICAL\", \"status\": \"MISSING\", \"points\": -5},\n      {\"keyword\": \"willingness to learn\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1},\n      {\"keyword\": \"strong customer mindset\", \"type\": \"SOFT\", \"status\": \"SOFT_MISSING\", \"points\": -1}\n    ],\n    \"total_deducted\": -20,\n    \"bonuses\": [\n      {\"reason\": \"Each OPTIMIZED keyword (bullet with metric/context + Skills)\", \"points\": 4},\n      {\"reason\": \"All technical keywords have bullet presence (zero SKILLS_ONLY)\", \"points\": 2},\n      {\"reason\": \"Zero bad insertions\", \"points\": 1},\n      {\"reason\": \"Summary clean (≤80 words, 3-4 sentences)\", \"points\": 1}\n    ],\n    \"total_bonus\": 8,\n    \"final\": 92\n  },\n  \"keyword_checklist\": [\n    {\n      \"keyword\": \"LLMs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Retrieval-Augmented Generation (RAG)\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 5\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"semantic search\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Agentic AI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"GraphRAG\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SKILLS_ONLY\",\n      \"found_at\": \"Skills: Large Language Models & GenAI Frameworks row\",\n      \"has_metric\": false,\n      \"deduction\": -3,\n      \"fix\": {\n        \"action\": \"add_to_bullet\",\n        \"target\": \"State Street bullet 1\",\n        \"suggested_text\": \"Implemented GraphRAG techniques to enhance retrieval-augmented reasoning.\"\n      }\n    },\n    {\n      \"keyword\": \"AI solution lifecycle\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"architecture\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"design\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"prototyping\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"implementation\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"evaluation\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_bullet\",\n        \"target\": \"TekAnthem bullet 5\",\n        \"suggested_text\": \"Conducted evaluation of AI models to ensure accuracy and reliability.\"\n      }\n    },\n    {\n      \"keyword\": \"productionization\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Python\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"prompt engineering\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"model fine-tuning\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Projects: Multi-Stage LLM Application\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"model monitoring\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"data ingestion\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"retrieval pipelines\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"knowledge graphs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"third-party APIs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"prompt design\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Large Language Models & GenAI Frameworks row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"model alignment\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Large Language Models & GenAI Frameworks row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"safety and guardrails for AI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 5\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AI deployment\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AI research\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"code documentation\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"peer code reviews\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"system scalability\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"system efficiency\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"system reliability\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Bachelor's degree in Computer Science\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_skills\",\n        \"target\": \"Education section\",\n        \"suggested_text\": \"Bachelor's degree in Computer Science from MVJ College of Engineering.\"\n      }\n    },\n    {\n      \"keyword\": \"Master's degree in Artificial Intelligence\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Education section\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Data Science\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"applied AI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"NLP\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"ML engineering\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"vector databases\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"ElasticSearch\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -5,\n      \"fix\": {\n        \"action\": \"add_to_bullet\",\n        \"target\": \"Streebo bullet 1\",\n        \"suggested_text\": \"Utilized ElasticSearch for efficient data retrieval and indexing.\"\n      }\n    },\n    {\n      \"keyword\": \"Pinecone\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 5\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"MCP\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"A2A protocol\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"ML frameworks\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"LangChain\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"LlamaIndex\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Projects: Multi-Stage LLM Application\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"PyTorch\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"HuggingFace Transformers\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"State Street bullet 3\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"APIs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"scalable backend services\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AWS\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"Azure\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"cloud environments\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AWS SageMaker\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AWS Bedrock\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"AzureAI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"TekAnthem bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"load balancing LLMs\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: Cloud Platforms, Databases & Visualization row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"MLOps practices\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"CI/CD for AI\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"data versioning\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 2\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"continuous integration\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 4\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"data cleaning\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"feature engineering\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"OPTIMIZED\",\n      \"found_at\": \"Streebo bullet 1\",\n      \"has_metric\": true,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"data pipelines\",\n      \"type\": \"TECHNICAL\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Skills: AI Engineering Practices row\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"willingness to learn\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Demonstrates a willingness to learn and adapt to new AI technologies.\"\n      }\n    },\n    {\n      \"keyword\": \"strong customer mindset\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_MISSING\",\n      \"found_at\": null,\n      \"has_metric\": false,\n      \"deduction\": -1,\n      \"fix\": {\n        \"action\": \"add_to_summary\",\n        \"target\": \"Summary\",\n        \"suggested_text\": \"Possesses a strong customer mindset, ensuring solutions meet client needs.\"\n      }\n    },\n    {\n      \"keyword\": \"excellent problem-solving\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"collaboration\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"communication skills\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\": 0,\n      \"fix\": null\n    },\n    {\n      \"keyword\": \"work effectively across remote and distributed teams\",\n      \"type\": \"SOFT\",\n      \"status\": \"SOFT_PLACED\",\n      \"found_at\": \"Summary\",\n      \"has_metric\": false,\n      \"deduction\":"
+        "keywords_still_missing": [
+          "3+ years of hands-on experience building and deploying ML/AI systems",
+          "experience with production-quality ML codebases",
+          "experience working with large-scale unstructured or semi-structured data",
+          "comfort working in fast-paced, ambiguous environments"
+        ]
       }
     }
   }

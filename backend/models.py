@@ -161,6 +161,31 @@ class PulledJob(Base):
 
 
 # ---------------------------------------------------------------------------
+# PortfolioConfig
+# ---------------------------------------------------------------------------
+
+class PortfolioConfig(Base):
+    __tablename__ = "portfolio_configs"
+
+    id           = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id      = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True, index=True)
+
+    template_id  = Column(String(100), default="ModernDev")   # e.g. "ModernDev", "ArtCanvas"
+    category     = Column(String(50),  default="tech")        # tech / creative / business / finance / healthcare / marketing
+    primary_color = Column(String(20), default="#06b6d4")
+    accent_color  = Column(String(20), default="#0ea5e9")
+    is_published  = Column(Boolean, default=False)
+    custom_bio    = Column(Text, default="")
+    show_sections = Column(JSON, default=lambda: {
+        "about": True, "skills": True, "experience": True,
+        "projects": True, "education": True, "contact": True,
+    })
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ---------------------------------------------------------------------------
 # SearchSession
 # ---------------------------------------------------------------------------
 

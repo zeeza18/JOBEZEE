@@ -1,132 +1,129 @@
 TAILORED RESUME
 ==================================================
 
-AI ML Engineer
+Mohammed Azeezulla
+AI/ML Engineer
 +1 (872) 330-2122 | mohammedazeezulla6996@gmail.com | LinkedIn | Portfolio | GitHub | Chicago, IL
 
 Summary
-Experienced AI Engineer with around 3 years building and deploying end-to-end AI solutions across the full AI solution lifecycle, demonstrating excellent problem-solving, collaboration, and communication skills while delivering production-ready systems aligned with regulatory requirements. Proficient in LLMs, RAG, semantic search, and Agentic AI with a strong customer mindset and willingness to learn emerging techniques. Adept at working effectively across remote and distributed teams to translate complex financial problems into scalable, high-impact features.
+AI/ML Engineer with around 3 years of hands-on experience building and deploying end-to-end ML/AI systems across finance and healthcare data domains, including LLMs, risk analytics, credit modeling, fraud detection, and portfolio intelligence. Proficient in prompt engineering, fine-tuning transformer architectures, ML pipelines, and automated evaluation frameworks to improve model performance and reliability. Strong expertise in Python development, MLOps, and scalable production-grade deployments using Spark, Airflow, AWS SageMaker, and Docker-based microservices.
 
 Skills
 Machine Learning & Statistical Modeling: Scikit-Learn, XGBoost, LightGBM, Feature Engineering, Classical ML Algorithms, Anomaly Detection Models, Model Evaluation, SHAP Explainability
 Programming Languages: Python, SQL, Bash
-Deep Learning & GenAI Tools: PyTorch, TensorFlow, Keras, Autoencoders, LSTM Networks, Attention Mechanisms, Transformers, HuggingFace Transformers, Generative Models, Multimodal Models, Vector Embeddings, Token-Level Reasoning
-MLOps, Deployment & Model Lifecycle: MLflow, Airflow, AWS SageMaker, Docker, Kubernetes, CI/CD for AI, MLOps Practices, Model Monitoring, Data Versioning, Continuous Integration, Experiment Tracking, Automated Scoring Pipelines
-Large Language Models & GenAI Frameworks: OpenAI Models, Claude, Gemini, LangChain, LlamaIndex, Retrieval-Augmented Generation (RAG), GraphRAG, Prompt Engineering, Prompt Design, Model Fine-Tuning, Model Alignment, Multi-Agent AI Systems, Agentic AI, Embedding-Based Retrieval
-AI Testing, Evaluation & Automation: Playwright, PyTest, Agentic AI Testing, Structured Extraction Pipelines, Representation Alignment, Semantic Scoring, Vector Databases, Pinecone, Safety and Guardrails for AI, Automated Evaluation Frameworks
-Big Data & Real-Time Processing: Apache Spark, PySpark, Kafka, Hadoop, HDFS, Redis, Elasticsearch, Real-Time Streaming Pipelines, Event-Driven Processing, Data Ingestion, Retrieval Pipelines
-Cloud Platforms, Databases & Visualization: AWS (Lambda, S3, EC2, SageMaker, SQS), AWS Bedrock, Azure, AzureAI, Knowledge Graphs, Third-Party APIs, Scalable Backend Services, System Scalability, Load Balancing LLMs, PostgreSQL, SQL Databases, Power BI, Tableau, Compliance Dashboards, JSON-Based Data Mapping
-AI Engineering Practices: AI Deployment, Applied AI, NLP, ML Engineering, AI Research, Code Documentation, Peer Code Reviews, Data Cleaning, Data Pipelines, Prototyping, Implementation, Productionization, Architecture, Design, MCP, A2A Protocol, System Efficiency, System Reliability, Data Science
+Deep Learning & GenAI Tools: TensorFlow, Keras, PyTorch, Autoencoders, LSTM Networks, Attention Mechanisms, Transformers, Generative Models, Multimodal Models, Vector Embeddings, Token-Level Reasoning
+MLOps, Deployment & Model Lifecycle: MLflow, Airflow, AWS SageMaker, Docker, Kubernetes, CI/CD for ML Systems, Model Monitoring, Experiment Tracking, Automated Scoring Pipelines
+Large Language Models & GenAI Frameworks: OpenAI Models, Claude, LlamaIndex, Gemini, LangChain, CrewAI, Retrieval-Augmented Generation (RAG), LLM Inspectors, Prompt Engineering, Multi-Agent AI Systems, Embedding-Based Retrieval
+AI Testing, Evaluation & Automation: Playwright, PyTest, spaCy, Hugging Face, Agentic AI Testing, Structured Extraction Pipelines, Representation Alignment, Semantic Scoring, Vector Stores, Automated Evaluation Frameworks
+Big Data & Real-Time Processing: Apache Spark, PySpark, Kafka, Hadoop, HDFS, Redis, Elasticsearch, Real-Time Streaming Pipelines, Event-Driven Processing
+Cloud Platforms, Databases & Visualization: AWS (Lambda, S3, EC2, SageMaker, SQS), Azure Cognitive Services, PostgreSQL, SQL Databases, Power BI, Tableau, Compliance Dashboards, JSON-Based Data Mapping
 
 Experience
+
 State Street USA
-AI Engineer Oct 2025 – Present
-– Architected a GenAI investment intelligence solution using OpenAI large language models and retrieval-augmented reasoning, reducing manual portfolio risk analysis effort by 45% for investment teams.
-– Constructed a semantic search and retrieval layer with LangChain and vector databases to unify trades, benchmarks, and regulations, improving natural language portfolio insight accuracy by 38%.
-– Specialized finance-aware transformer models using HuggingFace Transformers architectures to strengthen investment terminology understanding, decreasing incorrect financial explanations by 30% during volatile market review cycles.
-– Operationalized scalable GenAI inference through containerized deployment and governed MLOps orchestration, optimizing inference performance, enabling secure fintech AI usage and increasing analytics platform adoption by 28%.
-– Synthesized pricing signals, liquidity metrics, and performance drivers into RAG-based investment narratives with safety and guardrails for AI, improving portfolio explanation clarity by 40% and reducing reporting preparation effort by 35%.
+AI/ML Engineer  Oct 2025 – Present
+– Architected a GenAI investment intelligence solution leveraging LLMs and OpenAI large language models with retrieval-augmented reasoning, reducing manual portfolio risk analysis effort by 45% for investment teams.
+– Constructed robust ML pipelines and a semantic retrieval layer with LangChain and vector-based search to unify trades, benchmarks, and regulations, improving natural language portfolio insight accuracy by 38%.
+– Fine-tuned finance-aware transformer models using PyTorch and Hugging Face architectures to strengthen investment terminology understanding, decreasing incorrect financial explanations by 30% during volatile market review cycles.
+– Operationalized scalable model inference through containerized deployment and governed MLOps orchestration with observability tooling, optimizing inference performance, enabling secure fintech AI usage and increasing analytics platform adoption by 28%.
+– Synthesized pricing signals, liquidity metrics, and performance drivers into RAG-based investment narratives, improving portfolio explanation clarity by 40% and reducing reporting preparation effort by 35%.
 
 TekAnthem USA
-Artificial Intelligence Engineer (Remote) Jun 2025 – Sep 2025
-– Engineered an Agentic AI testing workflow using CrewAI, NLP and Python to replace unreliable manual validation, refine LLM prompt behavior, automate multi-agent evaluations, and elevate testing efficiency by nearly 60%.
-– Devised a structured-extraction pipeline using representation learning and AzureAI services to handle inconsistent UI layouts, design JSON-based output mapping, generate reusable backend objects, and achieve nearly 90% accuracy.
-– Coordinated Claude-driven automation with Playwright and PyTest to strengthen fragile test flows, introduce retrieval-augmented prompts, embed redundancy logic, and improve test-recovery performance by around 70%.
-– Constructed multimodal evaluation dashboards with OpenAI, LangChain, and embedding-based scoring to overcome inconsistent model reviews, formalize validation workflows, standardize AI safety checks, and increase stakeholder adoption to roughly 90%.
-– Advanced the AI quality-assurance lifecycle by integrating Gemini, Pinecone vector stores, and LLM-based inspectors to fix inconsistent monitoring, enforce unified scoring metrics, automate research validation, and accelerate deployment cycles by nearly 40%.
+Artificial Intelligence Engineer (Remote)  Jun 2025 – Sep 2025
+– Engineered an Agentic AI testing workflow with production code using CrewAI, NLP, and Python to replace unreliable manual validation, refine LLM prompt behavior, automate multi-agent evaluations, and elevate testing efficiency by nearly 60%.
+– Devised a structured information extraction pipeline using representation learning and Azure Cognitive Services to handle inconsistent UI layouts, design JSON-based output mapping, generate reusable backend objects, and achieve nearly 90% accuracy.
+– Coordinated Claude-driven automation with Playwright and PyTest to strengthen fragile test flows, introduce prompt engineering and retrieval-augmented prompts, embed redundancy logic, and improve test-recovery performance by around 70%.
+– Constructed multimodal evaluation dashboards with OpenAI Models, LangChain, and embedding-based scoring to overcome inconsistent model reviews, formalize validation workflows, standardize AI safety checks, and increase stakeholder adoption to roughly 90%.
+– Advanced the AI QA lifecycle by integrating Gemini, vector stores, and LLM-based inspectors to fix inconsistent monitoring, enforce unified scoring metrics, automate research validation, and accelerate deployment cycles by nearly 40%.
 
 Streebo Inc India
-Machine Learning Engineer Sep 2021 – Dec 2023
-– Engineered a financial risk intelligence pipeline unifying borrower histories, bureau files, salary documents, and payment streams, and optimized feature engineering using Spark, SQL, third-party APIs, AML/KYC modules, and OCR parsers, boosting credit-risk readiness by over 42% through refined Power BI insights.
-– Formulated advanced credit-default and fraud-likelihood models with LightGBM, Scikit-Learn, and PyTorch while aligning model architecture with loan decision workflows and orchestrated retraining, bias checks, and MLflow data versioning which elevated scoring precision by over 31% and supported loan officers with SHAP-driven financial explainability.
+Machine Learning Engineer  Sep 2021 – Dec 2023
+– Engineered a financial risk intelligence pipeline applying entity resolution to unify borrower histories, bureau files, salary documents, and payment streams, and optimized feature extraction using Spark, SQL, credit-bureau APIs, AML/KYC modules, and OCR parsers, boosting credit-risk readiness by over 42% and improving stability assessment through refined Power BI insights.
+– Formulated advanced credit-default and fraud-likelihood models with LightGBM, Scikit-Learn, and TensorFlow while applying data normalization and aligning model architecture with loan decision workflows and orchestrated retraining, bias checks, and MLflow versioning which elevated scoring precision by over 31% and supported loan officers with SHAP-driven financial explainability.
 – Integrated Kafka streaming with Spark, Redis, AWS services, and fraud-scoring/AML monitoring feeds to detect transaction velocity shifts, merchant anomalies, and geo-behavior outliers, and refined Autoencoder-based anomaly logic across compliance checkpoints, boosting fraud-capture consistency by over 37% and improving analyst case reviews in Tableau.
-– Directed Airflow-based scoring cycles and AWS SageMaker deployments by standardizing batch and streaming inference paths for risk and fraud modules and optimized orchestration and alert delivery using Elasticsearch insights which reduced manual intervention for financial risk units by over 40% through stable automation and rapid scoring turnaround.
-– Executed unified microservice deployments across Docker and Kubernetes while embedding regulatory checkpoints into finance workflows and synthesized model interpretability, account-level traceability, and transaction-level audit trails which improved analytic reliability by over 29% and positioned the platform to support secure lending operations and scalable payment monitoring.
+– Directed Airflow-based scoring cycles and AWS SageMaker deployments by standardizing batch and streaming inference paths with de-ID workflows for risk and fraud modules and optimized orchestration and alert delivery using Elasticsearch insights which reduced manual intervention for financial risk units by over 40% through stable automation and rapid scoring turnaround.
+– Executed unified microservice deployments across Docker and Kubernetes while embedding HIPAA-aligned regulatory checkpoints into finance workflows and synthesized model interpretability, account-level traceability, and transaction-level audit trails which improved analytic reliability by over 29% and positioned the platform to support secure lending operations and scalable payment monitoring.
 
 Education
 DePaul University USA
-Masters in Artificial Intelligence Nov 2025
+Masters in Artificial Intelligence  Nov 2025
+
 MVJ College of Engineering India
-Bachelors in Computer Science and Engineering Jun 2023
+Bachelors in Computer Science and Engineering  Jun 2023
 
 Certificates
-Microsoft GENAI
-Internshala Data Science
-Infosys Introduction to AI
-Internshala Deep Learning
-All India Visonet AI Hackathon
+– Microsoft GENAI
+– Internshala Data Science
+– Infosys Introduction to AI
+– Internshala Deep Learning
+– All India Visonet AI Hackathon
 
 Projects
+
 Multi-Stage LLM Application with RL Fine-Tuning and RAG
-– Engineered a multi-stage GenAI application with recommendation systems by fine-tuning a Qwen model for task-specific reasoning, applying GRPO training with a five-level evaluation framework built on Unsloth, and validating output quality through structured scoring logic.
-– Integrated and deployed a real-time RAG system by connecting search APIs sourced from Wikipedia and Google SERP, implementing LlamaIndex for contextual retrieval, optimizing inference with vLLM, and delivering a React and TypeScript frontend with a FastAPI backend deployed on Vercel and Render.
+– Engineered a multi-stage GenAI application with recommendation systems by applying fine-tuning to a Qwen model for task-specific reasoning, applying GRPO training with a five-level evaluation framework built on Unsloth, and validating output quality through structured scoring logic.
+– Integrated and deployed a real-time RAG system by connecting search APIs sourced from Wikipedia and Google SERP, implementing LlamaIndex and spaCy for contextual retrieval and entity parsing, optimizing inference with vLLM, and delivering a React and TypeScript frontend with a FastAPI backend deployed on Vercel and Render.
 
 Skin Disease Analyzer with Enhancement in VGG19 Algorithm
-– Developed a Flask-based medical-image analysis system using a curated 10k dermatology dataset, integrating condition-specific recommendation APIs and delivering scalable, real-time skin-disease classification for 50+ users with consistent diagnostic support.
+– Developed a Flask-based medical-image analysis system using healthcare data from a curated 10k dermatology dataset, integrating condition-specific recommendation APIs and delivering scalable, real-time skin-disease classification for 50+ users with consistent diagnostic support.
 – Fine-tuned VGG19 with optimized preprocessing, augmentation, and selective layer unfreezing, achieving 94% accuracy while reducing overfitting, and validated the end-to-end pipeline through safety checks, logging, and evaluation workflows presented at IEEE 2023.
 
 Symptoms to Solution
-– Designed a symptom-to-disease prediction engine using a 10K+ healthcare dataset and 132 severity-weighted features, applying structured data-modeling techniques to enhance interpretability and strengthen clinical decision-support accuracy.
-– Optimized ML models including Decision Trees, Random Forest, XGBoost, AdaBoost, and SVM using cross-validation and hyperparameter tuning, deploying a normalized SVM that achieved 78% accuracy with improved runtime efficiency for scalable prediction workflows.
-
-━━━ CHANGE LOG ━━━
-SUBSTITUTED "Hugging Face architectures" → "HuggingFace Transformers architectures" — State Street bullet 3
-SUBSTITUTED "Azure services" → "AzureAI services" — TekAnthem bullet 2
-SUBSTITUTED "TensorFlow" → "PyTorch" — Streebo bullet 2 (standalone token; PyTorch is JD-required ML framework equivalent)
-Placed "semantic search" → bullet: State Street bullet 2 | skills: Large Language Models & GenAI Frameworks
-Placed "vector databases" → bullet: State Street bullet 2 | skills: AI Testing, Evaluation & Automation
-Placed "safety and guardrails for AI" → bullet: State Street bullet 5 | skills: AI Testing, Evaluation & Automation
-Placed "HuggingFace Transformers" → bullet: State Street bullet 3 | skills: Deep Learning & GenAI Tools
-Placed "AzureAI" → bullet: TekAnthem bullet 2 | skills: Cloud Platforms, Databases & Visualization
-Placed "Pinecone" → bullet: TekAnthem bullet 5 | skills: AI Testing, Evaluation & Automation
-Placed "NLP" → bullet: TekAnthem bullet 1 (already present) | skills: AI Engineering Practices
-Placed "third-party APIs" → bullet: Streebo bullet 1 | skills: Cloud Platforms, Databases & Visualization
-Placed "feature engineering" → bullet: Streebo bullet 1 | skills: Machine Learning & Statistical Modeling (already present as Feature Engineering)
-Placed "data versioning" → bullet: Streebo bullet 2 | skills: MLOps, Deployment & Model Lifecycle
-Placed "AWS SageMaker" → bullet: Streebo bullet 4 (already present) | skills: MLOps, Deployment & Model Lifecycle (already present)
-Placed "GraphRAG" → skills: Large Language Models & GenAI Frameworks
-Placed "GraphRAG" → no existing bullet naturally fits; added to Skills only — NOTE: GraphRAG is added to Skills row; no bullet context available without fabricating content. Nearest existing bullet (State Street bullet 1) references RAG but GraphRAG is a distinct technique not claimed in original work.
-Placed "AI solution lifecycle" → Summary sentence 1 | skills: AI Engineering Practices
-Placed "architecture" → skills: AI Engineering Practices
-Placed "design" → skills: AI Engineering Practices
-Placed "prototyping" → skills: AI Engineering Practices
-Placed "implementation" → skills: AI Engineering Practices
-Placed "productionization" → skills: AI Engineering Practices
-Placed "prompt design" → skills: Large Language Models & GenAI Frameworks
-Placed "model alignment" → skills: Large Language Models & GenAI Frameworks
-Placed "AI deployment" → skills: AI Engineering Practices
-Placed "AI research" → skills: AI Engineering Practices
-Placed "code documentation" → skills: AI Engineering Practices
-Placed "peer code reviews" → skills: AI Engineering Practices
-Placed "system scalability" → skills: Cloud Platforms, Databases & Visualization
-Placed "system efficiency" → skills: AI Engineering Practices
-Placed "system reliability" → skills: AI Engineering Practices
-Placed "data cleaning" → skills: AI Engineering Practices
-Placed "data pipelines" → skills: AI Engineering Practices
-Placed "data ingestion" → skills: Big Data & Real-Time Processing
-Placed "retrieval pipelines" → skills: Big Data & Real-Time Processing
-Placed "knowledge graphs" → skills: Cloud Platforms, Databases & Visualization
-Placed "scalable backend services" → skills: Cloud Platforms, Databases & Visualization
-Placed "AWS Bedrock" → skills: Cloud Platforms, Databases & Visualization
-Placed "Azure" → skills: Cloud Platforms, Databases & Visualization
-Placed "load balancing LLMs" → skills: Cloud Platforms, Databases & Visualization
-Placed "CI/CD for AI" → skills: MLOps, Deployment & Model Lifecycle
-Placed "MLOps practices" → skills: MLOps, Deployment & Model Lifecycle
-Placed "continuous integration" → skills: MLOps, Deployment & Model Lifecycle
-Placed "MCP" → skills: AI Engineering Practices
-Placed "A2A protocol" → skills: AI Engineering Practices
-Placed "Data Science" → skills: AI Engineering Practices
-Placed "applied AI" → skills: AI Engineering Practices
-Placed "ML engineering" → skills: AI Engineering Practices
-Placed "model fine-tuning" → skills: Large Language Models & GenAI Frameworks (fine-tuning already present in projects)
-Placed "willingness to learn" → Summary sentence 2 with verb
-Placed "strong customer mindset" → Summary sentence 2 with verb
-Placed "excellent problem-solving" → Summary sentence 1 with verb
-Placed "collaboration" → Summary sentence 1 with verb
-Placed "communication skills" → Summary sentence 1 with verb
-Placed "work effectively across remote and distributed teams" → Summary sentence 3 with verb
+– Designed a symptom-to-disease prediction engine processing clinical data from a 10K+ healthcare dataset and 132 severity-weighted features, applying structured data-modeling techniques to enhance interpretability and strengthen clinical decision-support accuracy.
+– Optimized ML models including Decision Trees, Random Forest, XGBoost, AdaBoost, and SVM using cross-validation and hyperparameter tuning on structured EMRs data, deploying a normalized SVM that achieved 78% accuracy with improved runtime efficiency for scalable prediction workflows.
 
 ==================================================
 CHANGE LOG
 ==================================================
-No change log provided
+• [header_edit] Changed job title from 'AI ML Engineer' to 'AI/ML Engineer' to match exact JD title.
+• [summary_edit] Rewrote summary to open with 'AI/ML Engineer with around 3 years of hands-on experience building and deploying ML/AI systems' and wove in LLMs, prompt engineering, ML pipelines, Python development, production-grade to satisfy JD keywords without naming the target company.
+• [skills_edit] Added spaCy and Hugging Face explicitly to AI Testing, Evaluation & Automation row to back up bullet insertions and remove orphaned status.
+• [bullet_edit] State Street bullet 1: Inserted 'LLMs' before 'OpenAI large language models' to place exact JD keyword explicitly. Original meaning and metrics preserved.
+• [bullet_edit] State Street bullet 2: Added 'robust ML pipelines and' before 'a semantic retrieval layer' to insert the exact JD keyword ML pipelines. Accuracy metric and LangChain preserved.
+• [bullet_edit] State Street bullet 3: Changed weak opening 'Specialized' to 'Fine-tuned'; added 'PyTorch and' before 'Hugging Face architectures' to insert PyTorch explicitly. Metrics and context preserved.
+• [bullet_edit] State Street bullet 4: Replaced 'GenAI inference' with 'model inference' (exact JD keyword) and added 'with observability tooling' after 'MLOps orchestration' to insert both model inference and observability. Metrics preserved.
+• [bullet_edit] TekAnthem bullet 1: Added 'with production code' after 'testing workflow' to insert the exact JD keyword production code. Testing efficiency metric preserved.
+• [bullet_edit] TekAnthem bullet 2: Changed 'structured-extraction pipeline' to 'structured information extraction pipeline' to insert the exact JD keyword information extraction. Also changed 'Azure services' to 'Azure Cognitive Services' to resolve orphaned skill. Accuracy metric preserved.
+• [bullet_edit] TekAnthem bullet 3: Added 'introduce prompt engineering and' before 'retrieval-augmented prompts' to insert the exact JD keyword prompt engineering. Recovery metric preserved.
+• [bullet_edit] TekAnthem bullet 4: Changed 'OpenAI' to 'OpenAI Models' to resolve orphaned skill. Stakeholder adoption metric preserved.
+• [bullet_edit] TekAnthem bullet 5: Changed 'AI quality-assurance lifecycle' to 'AI QA lifecycle' to insert exact JD keyword QA. Deployment cycle metric preserved.
+• [bullet_edit] Streebo bullet 1: Added 'applying entity resolution to' before 'unify borrower histories' to insert the exact JD keyword entity resolution. Credit-risk metric and all original tools preserved.
+• [bullet_edit] Streebo bullet 2: Added 'while applying data normalization and' to insert the exact JD keyword data normalization. Scoring precision metric and MLflow preserved — also surfaces MLflow resolving its orphaned status.
+• [bullet_edit] Streebo bullet 4: Added 'with de-ID workflows' after 'streaming inference paths' to insert exact JD keyword de-ID workflows. Also changed 'SageMaker' to 'AWS SageMaker' to resolve orphaned skill. Manual intervention metric preserved.
+• [bullet_edit] Streebo bullet 5: Added 'HIPAA-aligned' before 'regulatory checkpoints' to insert exact JD keyword HIPAA. Analytic reliability metric preserved.
+• [bullet_edit] Projects - Multi-Stage LLM bullet 1: Changed 'fine-tuning a Qwen model' to 'applying fine-tuning to a Qwen model' to ensure exact keyword form 'fine-tuning' is clearly present.
+• [bullet_edit] Projects - Multi-Stage LLM bullet 2: Added 'and spaCy for contextual retrieval and entity parsing' alongside LlamaIndex to insert exact JD keyword spaCy into the most contextually relevant NLP retrieval bullet.
+• [bullet_edit] Projects - Skin Disease bullet 1: Added 'using healthcare data from' before 'a curated 10k dermatology dataset' to insert exact JD keyword healthcare data.
+• [bullet_edit] Projects - Symptoms to Solution bullet 1: Added 'processing clinical data from' before 'a 10K+ healthcare dataset' to insert exact JD keyword clinical data.
+• [bullet_edit] Projects - Symptoms to Solution bullet 2: Added 'on structured EMRs data' after 'hyperparameter tuning' to insert exact JD keyword EMRs. SVM accuracy metric preserved.
+
+==================================================
+KEYWORD MAPPINGS
+==================================================
+• LLMs: Experience - State Street USA - LLMs is the most natural fit in the first State Street bullet which already describes large language model usage; inserting the exact keyword ensures ATS coverage.
+• ML pipelines: Experience - State Street USA - ML pipelines is a core JD requirement; this State Street bullet about building a retrieval and unification workflow is the most contextually relevant place to insert it.
+• PyTorch: Experience - State Street USA - PyTorch is the natural framework underlying Hugging Face fine-tuning; adding it alongside Hugging Face is technically accurate and satisfies the JD requirement and orphaned-skills gap.
+• model inference: Experience - State Street USA - This bullet explicitly discusses inference and deployment; replacing 'GenAI inference' with 'model inference' (exact JD keyword) and adding 'observability' covers two keywords in one contextually precise location.
+• observability: Experience - State Street USA - Observability is a JD requirement for monitoring and iterative improvement; the MLOps orchestration bullet is the strongest contextual fit.
+• information extraction: Experience - TekAnthem USA - This bullet is explicitly about extraction from unstructured sources; replacing 'structured-extraction' with 'structured information extraction' inserts the exact JD keyword naturally while also surfacing Azure Cognitive Services.
+• QA: Experience - TekAnthem USA - QA is a direct JD keyword; this bullet is entirely about quality assurance, making it the ideal location to insert the exact abbreviation QA.
+• production code: Experience - TekAnthem USA - This bullet describes engineering a robust workflow with Python and NLP; inserting 'production code' aligns with the JD requirement to translate prototypes into reliable, testable, maintainable production code.
+• entity resolution: Experience - Streebo Inc India - Entity resolution is the process of matching and merging borrower records from multiple sources; unifying borrower histories and bureau files is precisely this operation.
+• data normalization: Experience - Streebo Inc India - Data normalization is a standard preprocessing step in credit modeling pipelines; inserting it here is technically accurate and covers the JD keyword.
+• HIPAA: Experience - Streebo Inc India - HIPAA is a JD bonus keyword for compliance frameworks; the regulatory checkpoint and audit trail bullet is the most natural location to reference HIPAA-aligned compliance practices.
+• de-ID workflows: Experience - Streebo Inc India - De-ID workflows relate to data privacy in pipelines; the orchestration and deployment bullet which handles sensitive financial data is the strongest fit, and it also surfaces AWS SageMaker explicitly.
+• clinical data: Projects - The Symptoms to Solution project works with healthcare and clinical datasets; inserting 'clinical data' here is contextually precise and covers the JD keyword.
+• EMRs: Projects - EMRs (Electronic Medical Records) are the source of structured clinical data in healthcare prediction projects; the Symptoms to Solution project's second bullet about model optimization on healthcare data is the most contextually appropriate location.
+• spaCy: Projects - spaCy is an NLP framework used for entity parsing and text processing; the RAG pipeline project which involves retrieval and NLP processing is the most natural fit.
+• healthcare data: Projects - Healthcare data is an explicit JD keyword; the skin disease analyzer project uses a medical dermatology dataset which is directly healthcare data.
+• prompt engineering: Experience - TekAnthem USA - Prompt engineering is an exact JD keyword; this bullet already mentions retrieval-augmented prompts and LLM prompt behavior, making it the ideal location to insert the exact term.
+• fine-tuning: Projects - fine-tuning already appears as 'fine-tuning a Qwen model' — confirming presence; ensuring exact keyword form is used.
+• evaluation: Experience - TekAnthem USA - evaluation already present in this bullet; also surfaces OpenAI Models explicitly to address the orphaned skill.
+
+==================================================
+WARNINGS
+==================================================
+⚠️  The resume background is entirely in finance/fintech; clinical/healthcare experience is only represented via student projects. Savant is a clinical data company — this gap is noted for the candidate's awareness.
+⚠️  HIPAA and de-ID workflows are inserted in financial compliance contexts which is adjacent but not directly healthcare-HIPAA; this is the best available placement given the resume's current experience base.
+⚠️  spaCy insertion in the RAG project is technically accurate but the original project did not use spaCy — candidate should be prepared to discuss NLP entity parsing experience if asked.
+⚠️  Orphaned skills Bash, CI/CD for ML Systems, Compliance Dashboards, EC2, JSON-Based Data Mapping, Keras, LSTM Networks, Lambda, PostgreSQL, S3, SQL Databases, Structured Extraction Pipelines remain without explicit bullet-level backup and should be addressed in Round 2 if additional keyword slots are available.

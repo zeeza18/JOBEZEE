@@ -328,6 +328,40 @@ export const tailorApi = {
 // Search (Phase 1)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Portfolio
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PortfolioConfig {
+  id            : string
+  user_id       : string
+  template_id   : string
+  category      : string
+  primary_color : string
+  accent_color  : string
+  is_published  : boolean
+  custom_bio    : string
+  show_sections : Record<string, boolean>
+  created_at    : string
+  updated_at    : string
+}
+
+export interface PublicPortfolioResponse {
+  profile  : UserProfile
+  config   : PortfolioConfig | null
+  username : string
+}
+
+export const portfolioApi = {
+  getMy     : ()                             => get<PortfolioConfig>('/api/portfolio/my'),
+  updateMy  : (data: Partial<PortfolioConfig>) => put<PortfolioConfig>('/api/portfolio/my', data),
+  getPublic : (username: string)             => get<PublicPortfolioResponse>(`/api/portfolio/public/${username}`),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Search (Phase 1)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const searchApi = {
   trigger : (body?: Record<string, unknown> & { include_workday?: boolean }) =>
     post<SearchTriggerResponse>('/api/search/trigger', body ?? {}),

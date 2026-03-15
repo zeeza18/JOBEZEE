@@ -1,14 +1,16 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Wand2, Send, Mic2, Kanban, User, Settings, Sparkles, LogOut } from 'lucide-react'
+import { Home, Wand2, Send, Mic2, Kanban, User, Settings, Sparkles, LogOut, Globe, Plug } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/useAuthStore'
 
 const mainNav = [
-  { to: '/app',              label: 'Dashboard',    icon: Home,     end: true },
-  { to: '/app/pulled-jobs',  label: 'Jobs',         icon: Sparkles, badge: 'Live' },
-  { to: '/app/tailor',       label: 'Tailor',       icon: Wand2 },
-  { to: '/app/apply',        label: 'Apply',        icon: Send },
-  { to: '/app/interview',    label: 'Interview',    icon: Mic2 },
+  { to: '/app',              label: 'Dashboard',  icon: Home,     end: true },
+  { to: '/app/pulled-jobs',  label: 'Jobs',       icon: Sparkles, badge: 'Live' },
+  { to: '/app/tailor',       label: 'Tailor',     icon: Wand2 },
+  { to: '/app/apply',        label: 'Apply',      icon: Send },
+  { to: '/app/interview',    label: 'Interview',  icon: Mic2 },
+  { to: '/app/portfolio',    label: 'Portfolio',  icon: Globe },
+  { to: '/app/connectors',   label: 'Connectors', icon: Plug, badge: 'Soon' },
   { to: '/app/applications', label: 'Applications', icon: Kanban },
 ]
 

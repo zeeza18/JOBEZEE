@@ -165,7 +165,7 @@ export default function LandingPage() {
           NAV BAR
       ══════════════════════════════════════════════════════════════════════ */}
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/5 bg-[#020817]/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6 md:py-4">
           <div className="flex items-center gap-2 text-xl font-bold">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-sky-500 text-base font-black text-white shadow-[0_0_20px_rgba(6,182,212,0.5)]">
               J
@@ -192,7 +192,8 @@ export default function LandingPage() {
               onClick={() => navigate('/auth')}
               className="rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_20px_rgba(6,182,212,0.4)] transition hover:-translate-y-0.5 hover:shadow-[0_0_35px_rgba(6,182,212,0.6)]"
             >
-              Get Started Free
+              <span className="hidden sm:inline">Get Started Free</span>
+              <span className="sm:hidden">Get Started</span>
             </button>
           </div>
         </div>
@@ -201,7 +202,7 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO
       ══════════════════════════════════════════════════════════════════════ */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pb-20 pt-32 text-center">
+      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pb-20 pt-24 md:pt-32 text-center">
         {/* Background */}
         <Orb className="h-[800px] w-[800px] bg-cyan-600 opacity-15 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
         <Orb className="h-[500px] w-[500px] bg-indigo-600 opacity-20 -left-40 top-0" />
@@ -223,7 +224,7 @@ export default function LandingPage() {
         {/* Headline */}
         <motion.h1
           initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.1 }}
-          className="max-w-5xl text-5xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl"
+          className="max-w-5xl text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl"
         >
           The job search platform{' '}
           <span className="block bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
@@ -283,7 +284,7 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 70, scale: 0.93 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="relative mx-auto mt-20 w-full max-w-4xl px-4"
+          className="relative mx-auto mt-12 md:mt-20 w-full max-w-4xl px-2 md:px-4"
         >
           {/* Glow */}
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent" />
@@ -301,7 +302,7 @@ export default function LandingPage() {
             </div>
 
             {/* Content */}
-            <div className="p-6 md:p-8">
+            <div className="p-4 md:p-8">
               {/* Stat row */}
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[
@@ -330,7 +331,7 @@ export default function LandingPage() {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.8 + i * 0.08 }}
-                    className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-5 py-3.5 transition hover:bg-white/[0.06]"
+                    className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-3 md:px-5 md:py-3.5 transition hover:bg-white/[0.06] gap-2"
                   >
                     <div className="text-left">
                       <p className="text-sm font-semibold text-white">{j.t}</p>
@@ -367,7 +368,7 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════════════════
           STATS
       ══════════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-24 px-4">
+      <section className="relative py-16 md:py-24 px-4">
         <div className="mx-auto grid max-w-5xl grid-cols-2 gap-6 md:grid-cols-4">
           {STATS.map((s, i) => (
             <motion.div
@@ -413,7 +414,7 @@ export default function LandingPage() {
             </p>
           </motion.div>
 
-          <div className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 md:mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f, i) => (
               <motion.div
                 key={f.title}
@@ -511,7 +512,7 @@ export default function LandingPage() {
           </p>
         </motion.div>
 
-        <div className="mx-auto mt-12 grid max-w-6xl grid-cols-1 gap-5 md:grid-cols-3">
+        <div className="mx-auto mt-8 md:mt-12 grid max-w-6xl grid-cols-1 gap-4 md:grid-cols-3">
           {TESTIMONIALS.map((t, i) => (
             <motion.div
               key={t.name}

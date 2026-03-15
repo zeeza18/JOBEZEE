@@ -1,0 +1,54 @@
+{
+  "score": 100,
+  "replacements": [],
+  "insertions": [
+    {
+      "missing_keyword": "clinical data",
+      "section": "Experience",
+      "bullet_preview": "Developed a Flask-based medical-image analysis",
+      "insert_after": "using healthcare data",
+      "insert_text": "including clinical data",
+      "confidence": "high"
+    }
+  ],
+  "orphaned_skills": [],
+  "weak_bullets": [
+    {
+      "bullet_preview": "Engineered a financial risk intelligence pipeline",
+      "section": "Experience",
+      "issue": "no_metric",
+      "old_start": "Engineered a financial risk intelligence pipeline",
+      "new_start": "Engineered a financial risk intelligence pipeline, boosting credit-risk readiness by over 42%"
+    }
+  ],
+  "formatting_issues": [
+    {
+      "issue": "Resume title does not match JD title",
+      "fix": "Change title to AI/ML Engineer"
+    }
+  ],
+  "genuine_gaps": [],
+  "action_items": [
+    {
+      "priority": 2,
+      "type": "insertion",
+      "bullet_preview": "Developed a Flask-based medical-image analysis",
+      "old": "using healthcare data",
+      "new": "using healthcare data including clinical data"
+    }
+  ],
+  "keyword_analysis": {
+    "found": [],
+    "missing": [
+      "clinical data"
+    ],
+    "weak": [
+      "Engineered a financial risk intelligence pipeline"
+    ],
+    "orphaned": []
+  },
+  "feedback": "",
+  "recommendations": [
+    "INSERT: In bullet 'Developed a Flask-based medical-image analysis...' → change 'using healthcare data' to 'using healthcare data including clinical data'"
+  ]
+}

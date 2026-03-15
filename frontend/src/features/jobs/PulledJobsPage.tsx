@@ -546,98 +546,100 @@ function JobCard({
 
   return (
     <div
-      className="group rounded-xl border border-slate-100 bg-white shadow-sm hover:shadow-md hover:border-slate-200 transition-all cursor-pointer"
+      className="group rounded-xl border border-slate-100 bg-white shadow-sm hover:shadow-md hover:border-slate-200 transition-all cursor-pointer w-full min-w-0"
       onClick={() => onOpenDrawer(job)}
     >
       {/* Main content */}
-      <div className="p-4 pb-3">
-        {/* Row 1: company + source + actions */}
-        <div className="flex items-center justify-between gap-3 mb-1.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs font-semibold text-slate-500 truncate">{job.company}</span>
+      <div className="p-4 md:p-5 pb-3 md:pb-4">
+        {/* Row 1: company + source badge + quick-open */}
+        <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-xs md:text-sm font-semibold text-slate-500 truncate min-w-0">{job.company}</span>
             {source && (
-              <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${srcColor(source)}`}>
+              <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] md:text-xs font-medium capitalize ${srcColor(source)}`}>
                 {source}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0">
             {job.url && (
               <a href={job.url} target="_blank" rel="noreferrer"
                 onClick={e => e.stopPropagation()}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 transition"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 transition"
                 title="Open job posting">
-                <ArrowUpRight className="h-3.5 w-3.5" />
+                <ArrowUpRight className="h-4 w-4" />
               </a>
             )}
             <button onClick={e => { e.stopPropagation(); onOpenDrawer(job) }}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 transition">
-              <ChevronRight className="h-3.5 w-3.5" />
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 transition">
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         </div>
 
         {/* Row 2: title */}
-        <h3 className="font-semibold text-slate-900 text-[14px] leading-snug mb-2 line-clamp-2">
+        <h3 className="font-semibold text-slate-900 text-sm md:text-base leading-snug mb-2 line-clamp-2">
           {job.title}
         </h3>
 
-        {/* Row 3: meta */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
-          {job.location && <span>{job.location}</span>}
-          {typeLabel && <><span className="text-slate-300">·</span><span>{typeLabel}</span></>}
-          {salary && <><span className="text-slate-300">·</span><span className="font-medium text-slate-700">{salary}</span></>}
-          {exp && <><span className="text-slate-300">·</span><span className="text-slate-500">{exp}</span></>}
-        </div>
+        {/* Row 3: location */}
+        {job.location && (
+          <p className="text-xs md:text-sm text-slate-500 truncate mb-0.5">{job.location}</p>
+        )}
 
-        {posted && <p className="text-[11px] text-slate-400 mt-1">{posted}</p>}
+        {/* Row 4: salary · type · exp · posted */}
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-sm text-slate-400">
+          {salary && <span className="font-medium text-slate-600">{salary}</span>}
+          {typeLabel && <>{salary && <span>·</span>}<span>{typeLabel}</span></>}
+          {exp    && <><span>·</span><span>{exp}</span></>}
+          {posted && <><span>·</span><span>{posted}</span></>}
+        </div>
       </div>
 
       {/* Action footer */}
-      <div className="border-t border-slate-50 px-4 py-2.5 flex items-center justify-between gap-2">
-        {/* Icon actions */}
-        <div className="flex items-center gap-0.5">
+      <div className="border-t border-slate-100 px-4 md:px-5 py-2.5 flex items-center justify-between gap-2">
+        {/* Save / Hide icon buttons */}
+        <div className="flex items-center gap-0.5 shrink-0">
           <button
             onClick={e => setStatus(e, isSaved ? 'new' : 'saved')}
             disabled={updating}
             title={isSaved ? 'Remove from saved' : 'Save job'}
-            className={`p-1.5 rounded-lg transition ${isSaved ? 'text-cyan-600 hover:text-cyan-700' : 'text-slate-400 hover:text-cyan-500'}`}
+            className={`p-2 rounded-lg transition ${isSaved ? 'text-cyan-600 hover:text-cyan-700' : 'text-slate-400 hover:text-cyan-500'}`}
           >
-            {isSaved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+            {isSaved ? <BookmarkCheck className="h-4 w-4 md:h-5 md:w-5" /> : <Bookmark className="h-4 w-4 md:h-5 md:w-5" />}
           </button>
           <button
             onClick={e => setStatus(e, job.status === 'hidden' ? 'new' : 'hidden')}
             disabled={updating}
             title={job.status === 'hidden' ? 'Unhide job' : 'Hide job'}
-            className={`p-1.5 rounded-lg transition ${job.status === 'hidden' ? 'text-cyan-500 hover:text-cyan-700' : 'text-slate-400 hover:text-red-400'}`}
+            className={`p-2 rounded-lg transition ${job.status === 'hidden' ? 'text-cyan-500 hover:text-cyan-700' : 'text-slate-400 hover:text-red-400'}`}
           >
-            {job.status === 'hidden' ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            {job.status === 'hidden' ? <Eye className="h-4 w-4 md:h-5 md:w-5" /> : <EyeOff className="h-4 w-4 md:h-5 md:w-5" />}
           </button>
         </div>
 
         {/* Tailor + Apply buttons */}
-        <div className="flex items-center gap-2">
-          {/* Applied badge */}
+        <div className="flex items-center gap-2 min-w-0">
           {job.status === 'applied' && (
-            <span className="flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+            <span className="flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 md:px-3 py-1.5 text-xs md:text-sm font-semibold text-emerald-700 shrink-0">
               <CheckCircle2 className="h-3.5 w-3.5" /> Applied
             </span>
           )}
 
           {tailorState?.status === 'tailoring' ? (
             <button disabled
-              className="flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-500 cursor-not-allowed">
+              className="flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs md:text-sm font-semibold text-cyan-500 cursor-not-allowed shrink-0">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Tailoring…
             </button>
           ) : tailorState?.status === 'done' ? (
             <button onClick={e => { e.stopPropagation(); onViewTailor(tailorState) }}
-              className="flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition">
+              className="flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs md:text-sm font-semibold text-cyan-700 hover:bg-cyan-100 transition shrink-0">
               <FileText className="h-3.5 w-3.5" />
-              View Resume {tailorState.score != null && <span className="ml-1 opacity-70">{tailorState.score}</span>}
+              Resume {tailorState.score != null && <span className="ml-1 opacity-70">{tailorState.score}</span>}
             </button>
           ) : job.status !== 'applied' ? (
             <button onClick={e => { e.stopPropagation(); onTailor(job) }}
-              className="flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700 transition">
+              className="flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 md:px-4 py-1.5 text-xs md:text-sm font-semibold text-white hover:bg-cyan-700 transition shrink-0">
               <Sparkles className="h-3.5 w-3.5" /> Tailor
             </button>
           ) : null}
@@ -646,12 +648,12 @@ function JobCard({
             job.url ? (
               <a href={job.url} target="_blank" rel="noreferrer"
                 onClick={async e => { e.stopPropagation(); await jobsApi.setStatus(job.id, 'applied').catch(() => {}); onStatusChange(job.id, 'applied') }}
-                className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition">
-                Apply <ArrowUpRight className="h-3 w-3" />
+                className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 md:px-4 py-1.5 text-xs md:text-sm font-semibold text-white hover:bg-slate-700 transition shrink-0">
+                Apply <ArrowUpRight className="h-3.5 w-3.5" />
               </a>
             ) : (
               <button disabled title="No link available"
-                className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-400 cursor-not-allowed">
+                className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 md:px-4 py-1.5 text-xs md:text-sm font-semibold text-slate-400 cursor-not-allowed shrink-0">
                 Apply
               </button>
             )
@@ -1060,74 +1062,73 @@ export default function PulledJobsPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full min-h-screen bg-slate-50">
+    <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-slate-50 -mx-4 -mt-5 -mb-20 md:-mx-8 md:-mt-6 md:-mb-6 w-[calc(100%+2rem)] md:w-[calc(100%+4rem)]">
 
       {/* ── Top bar ── */}
       <div className="bg-white border-b border-slate-100 px-4 py-3">
-        <div className="max-w-5xl mx-auto flex items-center gap-3">
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <h1 className="text-lg font-bold text-slate-900">Jobs</h1>
+        <div className="max-w-full space-y-2">
+
+          {/* Row 1 — always visible: title + icon actions */}
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg md:text-xl font-bold text-slate-900 flex-1">Jobs</h1>
             {polling && (
               <span className="flex items-center gap-1 rounded-full bg-cyan-50 border border-cyan-200 px-2 py-0.5 text-xs text-cyan-600">
                 <Loader2 className="h-3 w-3 animate-spin" /> Searching…
               </span>
             )}
+            {/* Search trigger */}
+            <button
+              onClick={() => triggerSearch()}
+              disabled={searching || polling}
+              title="Trigger new job search"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 hover:border-slate-300 transition disabled:opacity-50"
+            >
+              {searching || polling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">Search</span>
+            </button>
+            {/* Refresh */}
+            <button onClick={() => load()} disabled={loading} title="Refresh job list"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-300 transition disabled:opacity-50">
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
 
-          {/* Search input */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by title or company…"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-cyan-400 focus:bg-white focus:ring-1 focus:ring-cyan-200 transition"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
+          {/* Row 2 — search input + filter button */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by title or company…"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-cyan-400 focus:bg-white focus:ring-1 focus:ring-cyan-200 transition"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setFilterOpen(o => !o)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition shrink-0 ${
+                filterOpen || hasActiveFilters
+                  ? 'border-cyan-400 bg-cyan-50 text-cyan-700'
+                  : 'border-slate-200 text-slate-600 hover:border-slate-300'
+              }`}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Filters</span>
+              {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />}
+            </button>
           </div>
 
-          {/* Filter icon */}
-          <button
-            onClick={() => setFilterOpen(o => !o)}
-            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
-              filterOpen || hasActiveFilters
-                ? 'border-cyan-400 bg-cyan-50 text-cyan-700'
-                : 'border-slate-200 text-slate-600 hover:border-slate-300'
-            }`}
-          >
-            <Filter className="h-3.5 w-3.5" />
-            Filters
-            {hasActiveFilters && <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-cyan-500" />}
-          </button>
-
-          {/* Refresh / search trigger */}
-          <button
-            onClick={() => triggerSearch()}
-            disabled={searching || polling}
-            title="Trigger new job search"
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:border-slate-300 transition disabled:opacity-50"
-          >
-            {searching || polling
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : <Zap className="h-3.5 w-3.5" />}
-            Search
-          </button>
-
-          {/* Refresh list */}
-          <button onClick={() => load()} disabled={loading} title="Refresh job list"
-            className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-300 transition disabled:opacity-50">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       </div>
 
       {/* ── Filter panel ── */}
       <div className="bg-white border-b border-slate-100">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-full">
           <FilterPanel
             open={filterOpen}
             filters={filters}
@@ -1140,13 +1141,13 @@ export default function PulledJobsPage() {
 
       {/* ── Tabs ── */}
       <div className="bg-white border-b border-slate-100 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="flex items-center gap-1">
+        <div className="max-w-full px-4">
+          <div className="flex items-center gap-0 overflow-x-auto scrollbar-none">
             {TABS.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold tracking-wide border-b-2 transition-colors ${
+                className={`flex items-center gap-1.5 px-3 md:px-5 py-3 text-xs md:text-sm font-semibold tracking-wide border-b-2 transition-colors shrink-0 whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'border-cyan-500 text-cyan-700'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -1167,7 +1168,7 @@ export default function PulledJobsPage() {
       </div>
 
       {/* ── Job list ── */}
-      <div className="flex-1 max-w-5xl mx-auto w-full px-4 py-4">
+      <div className="flex-1 w-full max-w-full px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-brand" />
@@ -1175,7 +1176,7 @@ export default function PulledJobsPage() {
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="rounded-2xl border border-slate-100 bg-white p-10 shadow-sm max-w-sm">
-              <p className="text-3xl mb-3">🔍</p>
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 mx-auto mb-3"><Search className="h-6 w-6 text-slate-400" /></div>
               <p className="font-semibold text-slate-800 mb-1">
                 {activeTab === 'new'      ? 'No new jobs yet'
                  : activeTab === 'saved'  ? 'Nothing saved yet'
