@@ -5,12 +5,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ArrowUpRight, Bookmark, BookmarkCheck, CheckCircle2, ChevronRight,
+  ArrowUpRight, Bookmark, BookmarkCheck, Bot, CheckCircle2, ChevronRight,
   Download, Eye, EyeOff, FileText, Filter, Loader2, RefreshCw,
-  Search, Sparkles, X, Zap,
+  Search, Sparkles, X, XCircle, Zap,
 } from 'lucide-react'
-import { jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
+import { applyApi, jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
 import { useAppStore } from '../../store/useAppStore'
+import { useSettingsStore } from '../../store/useSettingsStore'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,13 @@ interface TailorJobState {
   resumeText  : string
   filename    : string | null
   error       : string | null
+}
+
+interface ApplyJobState {
+  applyJobId : string
+  status     : 'applying' | 'applied' | 'failed' | 'error'
+  result     : string | null
+  error      : string | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -45,8 +53,24 @@ function srcColor(src: string) {
   return SOURCE_COLORS[src?.toLowerCase()] ?? 'bg-slate-100 text-slate-500 border-slate-200'
 }
 
-function fmtSalary(job: PulledJob): string {
-  if (job.salary_text) return job.salary_text
+function fmtSalary(job: PulledJob, convertHourly = false): string {
+  if (job.salary_text) {
+    if (convertHourly) {
+      // Convert "$40 – $55/hr" style text to monthly estimate (× 40hr × 4wk)
+      const rangeM = job.salary_text.match(/\$(\d+)\s*[-–]\s*\$(\d+)\s*\/?\s*hr/i)
+      if (rangeM) {
+        const lo = Math.round(parseInt(rangeM[1]) * 40 * 4 / 1000)
+        const hi = Math.round(parseInt(rangeM[2]) * 40 * 4 / 1000)
+        return `$${lo}k–$${hi}k/mo`
+      }
+      const singleM = job.salary_text.match(/\$(\d+)\s*\/?\s*hr/i)
+      if (singleM) {
+        const mo = Math.round(parseInt(singleM[1]) * 40 * 4 / 1000)
+        return `$${mo}k+/mo`
+      }
+    }
+    return job.salary_text
+  }
   const sym = (job.salary_currency || 'USD') === 'USD' ? '$' : (job.salary_currency || '')
   if (job.salary_min && job.salary_max)
     return `${sym}${(job.salary_min / 1000).toFixed(0)}k – ${sym}${(job.salary_max / 1000).toFixed(0)}k`
@@ -68,15 +92,58 @@ function fmtPosted(posted: string | null | undefined): string {
   return `${Math.floor(days / 30)}mo ago`
 }
 
-/** Extract salary range from job description when structured fields are empty. */
+/** Parse all salary-sized dollar amounts from text with their positions. */
+function _parseDollarAmounts(desc: string): Array<{ val: number; text: string; index: number }> {
+  const re = /\$([\d,]+)\s*([kK])?/g
+  const out: Array<{ val: number; text: string; index: number }> = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(desc)) !== null) {
+    const raw = parseInt(m[1].replace(/,/g, ''), 10)
+    const val = m[2] ? raw * 1000 : raw
+    if (val >= 10_000) out.push({ val, text: m[0], index: m.index })  // ignore < $10k (costs, fees, etc.)
+  }
+  return out
+}
+
+/** Extract salary range from job description when structured fields are empty.
+ *  Works with any phrasing: "starts at $X … up to $Y", "$X – $Y", "between $X and $Y", etc.
+ */
 function extractDescSalary(desc: string): string {
   if (!desc) return ''
-  // Matches: $150,000 - $175,000 | $150k-$175k | $120K–$150K
-  const m = desc.match(/\$[\d,]+\s*[kK]?\s*[-–—to]+\s*\$[\d,]+\s*[kK]?/)
-  if (m) return m[0].replace(/\s+/g, ' ').trim()
-  // Matches: $150k+ or $150,000+
-  const m2 = desc.match(/\$[\d,]+\s*[kK]?\+/)
-  if (m2) return m2[0].trim()
+  const amounts = _parseDollarAmounts(desc)
+  // Look for two amounts within 100 chars of each other that form a lo–hi range
+  for (let i = 0; i < amounts.length - 1; i++) {
+    const a = amounts[i], b = amounts[i + 1]
+    if (b.index - a.index <= 100 && a.val !== b.val) {
+      const lo = Math.min(a.val, b.val), hi = Math.max(a.val, b.val)
+      const fmt = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`
+      return `${fmt(lo)} – ${fmt(hi)}`
+    }
+  }
+  // Single amount fallback
+  if (amounts.length > 0) return amounts[0].text
+  return ''
+}
+
+/** Extract hours/week from description. e.g. "10-20 hours per week" → "10–20 hrs/wk" */
+function extractHours(desc: string): string {
+  if (!desc) return ''
+  const m = desc.match(/(\d+)\s*[-–—to]+\s*(\d+)\s*hours?\s*(per|a|\/)\s*week/i)
+  if (m) return `${m[1]}–${m[2]} hrs/wk`
+  const m2 = desc.match(/(\d+)\+?\s*hours?\s*(per|a|\/)\s*week/i)
+  if (m2) return `${m2[1]}+ hrs/wk`
+  return ''
+}
+
+/** Extract hourly rate from description. e.g. "$55 per hour" → "$55/hr" */
+function extractHourlyRate(desc: string): string {
+  if (!desc) return ''
+  // Range: $40 - $55 per hour
+  const m = desc.match(/\$([\d,]+)\s*[-–—to]+\s*\$([\d,]+)\s*(per\s*hour|\/\s*hr|\/\s*hour)/i)
+  if (m) return `$${m[1]}–$${m[2]}/hr`
+  // Single: up to $55 per hour / $55/hr
+  const m2 = desc.match(/(?:up\s+to\s+)?\$([\d,]+)\s*(per\s*hour|\/\s*hr|\/\s*hour)/i)
+  if (m2) return `$${m2[1]}/hr`
   return ''
 }
 
@@ -96,17 +163,13 @@ function extractExp(desc: string): string {
 /** Parse salary numbers from description text. Returns [lo, hi] or null. */
 function parseDescSalaryNums(desc: string): [number, number] | null {
   if (!desc) return null
-  const m = desc.match(/\$([\d,]+)\s*([kK])?\s*[-–—to]+\s*\$([\d,]+)\s*([kK])?/)
-  if (m) {
-    const lo = parseFloat(m[1].replace(/,/g, '')) * (m[2] ? 1000 : 1)
-    const hi = parseFloat(m[3].replace(/,/g, '')) * (m[4] ? 1000 : 1)
-    return [Math.min(lo, hi), Math.max(lo, hi)]
+  const amounts = _parseDollarAmounts(desc)
+  for (let i = 0; i < amounts.length - 1; i++) {
+    const a = amounts[i], b = amounts[i + 1]
+    if (b.index - a.index <= 100 && a.val !== b.val)
+      return [Math.min(a.val, b.val), Math.max(a.val, b.val)]
   }
-  const m2 = desc.match(/\$([\d,]+)\s*([kK])?(?:\+|\/(?:yr|year|annual))?/i)
-  if (m2) {
-    const v = parseFloat(m2[1].replace(/,/g, '')) * (m2[2] ? 1000 : 1)
-    if (v > 0) return [v, v]
-  }
+  if (amounts.length > 0) return [amounts[0].val, amounts[0].val]
   return null
 }
 
@@ -519,20 +582,34 @@ function JobDetailDrawer({
 // ─── Job Card ─────────────────────────────────────────────────────────────────
 
 function JobCard({
-  job, tailorState, onStatusChange, onOpenDrawer, onTailor, onViewTailor,
+  job, tailorState, applyState, onStatusChange, onOpenDrawer, onTailor, onViewTailor, onAutoApply,
+  convertHourly,
 }: {
   job            : PulledJob
   tailorState?   : TailorJobState
+  applyState?    : ApplyJobState
   onStatusChange : (id: string, s: string) => void
   onOpenDrawer   : (job: PulledJob) => void
   onTailor       : (job: PulledJob) => void
   onViewTailor   : (state: TailorJobState) => void
+  onAutoApply    : (job: PulledJob) => void
+  convertHourly? : boolean
 }) {
   const [updating, setUpdating] = useState(false)
   const isSaved = job.status === 'saved' || job.status === 'favourite'
-  const salary = fmtSalary(job) || extractDescSalary(job.description || '')
-  const exp    = extractExp(job.description || '')
-  const posted = fmtPosted(job.posted_at)
+  const salary      = fmtSalary(job, convertHourly) || extractDescSalary(job.description || '')
+  const rawHourly   = extractHourlyRate(job.description || '')
+  const hourlyRate  = !salary ? (convertHourly && rawHourly
+    ? (() => {
+        const m = rawHourly.match(/\$(\d+)–\$(\d+)/)
+        if (m) return `$${Math.round(+m[1]*40*4/1000)}k–$${Math.round(+m[2]*40*4/1000)}k/mo`
+        const s = rawHourly.match(/\$(\d+)/)
+        return s ? `$${Math.round(+s[1]*40*4/1000)}k+/mo` : rawHourly
+      })()
+    : rawHourly) : ''
+  const hoursPerWk  = extractHours(job.description || '')
+  const exp         = extractExp(job.description || '')
+  const posted      = fmtPosted(job.posted_at)
   const source = job.site || job.source || ''
   const typeLabel = JOB_TYPE_LABELS[job.job_type] || job.job_type || ''
 
@@ -550,7 +627,7 @@ function JobCard({
       onClick={() => onOpenDrawer(job)}
     >
       {/* Main content */}
-      <div className="p-4 md:p-5 pb-3 md:pb-4">
+      <div className="p-3 md:p-5 pb-2 md:pb-4">
         {/* Row 1: company + source badge + quick-open */}
         <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -578,7 +655,7 @@ function JobCard({
         </div>
 
         {/* Row 2: title */}
-        <h3 className="font-semibold text-slate-900 text-sm md:text-base leading-snug mb-2 line-clamp-2">
+        <h3 className="font-semibold text-slate-900 text-sm md:text-base leading-snug mb-2 line-clamp-2 break-words">
           {job.title}
         </h3>
 
@@ -587,17 +664,19 @@ function JobCard({
           <p className="text-xs md:text-sm text-slate-500 truncate mb-0.5">{job.location}</p>
         )}
 
-        {/* Row 4: salary · type · exp · posted */}
+        {/* Row 4: salary · hourly · hrs/wk · type · exp · posted */}
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-sm text-slate-400">
-          {salary && <span className="font-medium text-slate-600">{salary}</span>}
-          {typeLabel && <>{salary && <span>·</span>}<span>{typeLabel}</span></>}
-          {exp    && <><span>·</span><span>{exp}</span></>}
-          {posted && <><span>·</span><span>{posted}</span></>}
+          {salary     && <span className="font-medium text-slate-600">{salary}</span>}
+          {hourlyRate && <span className="font-medium text-slate-600">{hourlyRate}</span>}
+          {hoursPerWk && <>{(salary || hourlyRate) && <span>·</span>}<span className="text-slate-500">{hoursPerWk}</span></>}
+          {typeLabel  && <><span>·</span><span>{typeLabel}</span></>}
+          {exp        && <><span>·</span><span>{exp}</span></>}
+          {posted     && <><span>·</span><span>{posted}</span></>}
         </div>
       </div>
 
       {/* Action footer */}
-      <div className="border-t border-slate-100 px-4 md:px-5 py-2.5 flex items-center justify-between gap-2">
+      <div className="border-t border-slate-100 px-3 md:px-5 py-2 flex items-center justify-between gap-1.5">
         {/* Save / Hide icon buttons */}
         <div className="flex items-center gap-0.5 shrink-0">
           <button
@@ -625,39 +704,57 @@ function JobCard({
               <CheckCircle2 className="h-3.5 w-3.5" /> Applied
             </span>
           )}
+          {job.status === 'submitted' && (
+            <span className="flex items-center gap-1 rounded-lg bg-amber-50 border border-amber-200 px-2.5 md:px-3 py-1.5 text-xs md:text-sm font-semibold text-amber-700 shrink-0">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Submitted
+            </span>
+          )}
 
           {tailorState?.status === 'tailoring' ? (
             <button disabled
-              className="flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs md:text-sm font-semibold text-cyan-500 cursor-not-allowed shrink-0">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Tailoring…
+              className="flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2 md:px-3 py-1.5 text-xs font-semibold text-cyan-500 cursor-not-allowed shrink-0">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> <span className="hidden sm:inline">Tailoring…</span>
             </button>
           ) : tailorState?.status === 'done' ? (
             <button onClick={e => { e.stopPropagation(); onViewTailor(tailorState) }}
-              className="flex items-center gap-1.5 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs md:text-sm font-semibold text-cyan-700 hover:bg-cyan-100 transition shrink-0">
+              className="flex items-center gap-1 rounded-lg border border-cyan-300 bg-cyan-50 px-2 md:px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition shrink-0">
               <FileText className="h-3.5 w-3.5" />
-              Resume {tailorState.score != null && <span className="ml-1 opacity-70">{tailorState.score}</span>}
+              <span className="hidden sm:inline">Resume</span>
+              {tailorState.score != null && <span className="opacity-70">{tailorState.score}</span>}
             </button>
           ) : job.status !== 'applied' ? (
             <button onClick={e => { e.stopPropagation(); onTailor(job) }}
-              className="flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 md:px-4 py-1.5 text-xs md:text-sm font-semibold text-white hover:bg-cyan-700 transition shrink-0">
-              <Sparkles className="h-3.5 w-3.5" /> Tailor
+              className="flex items-center gap-1 rounded-lg bg-cyan-600 px-2 md:px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700 transition shrink-0">
+              <Sparkles className="h-3.5 w-3.5" /> <span className="hidden xs:inline sm:inline">Tailor</span>
             </button>
           ) : null}
 
-          {job.status !== 'applied' && (
-            job.url ? (
-              <a href={job.url} target="_blank" rel="noreferrer"
-                onClick={async e => { e.stopPropagation(); await jobsApi.setStatus(job.id, 'applied').catch(() => {}); onStatusChange(job.id, 'applied') }}
-                className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 md:px-4 py-1.5 text-xs md:text-sm font-semibold text-white hover:bg-slate-700 transition shrink-0">
-                Apply <ArrowUpRight className="h-3.5 w-3.5" />
-              </a>
-            ) : (
-              <button disabled title="No link available"
-                className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 md:px-4 py-1.5 text-xs md:text-sm font-semibold text-slate-400 cursor-not-allowed shrink-0">
-                Apply
-              </button>
-            )
+          {/* Auto Apply button */}
+          {!applyState && job.status !== 'applied' && job.url && (
+            <button onClick={e => { e.stopPropagation(); onAutoApply(job) }}
+              title="Auto-apply with AI agent"
+              className="flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 md:px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition shrink-0">
+              <Bot className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Auto Apply</span>
+            </button>
           )}
+          {applyState?.status === 'applying' && (
+            <button disabled className="flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-2 md:px-3 py-1.5 text-xs font-semibold text-violet-500 cursor-not-allowed shrink-0">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> <span className="hidden sm:inline">Applying…</span>
+            </button>
+          )}
+          {applyState?.status === 'applied' && (
+            <span className="flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 md:px-3 py-1.5 text-xs md:text-sm font-semibold text-emerald-700 shrink-0">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Auto-Applied
+            </span>
+          )}
+          {(applyState?.status === 'failed' || applyState?.status === 'error') && (
+            <button onClick={e => { e.stopPropagation(); onAutoApply(job) }}
+              title={applyState.error ?? 'Apply failed — retry?'}
+              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 md:px-3 py-1.5 text-xs md:text-sm font-semibold text-red-600 hover:bg-red-100 transition shrink-0">
+              <XCircle className="h-3.5 w-3.5" /> Retry
+            </button>
+          )}
+
         </div>
       </div>
     </div>
@@ -785,6 +882,7 @@ const THREE_HOURS = 3 * 60 * 60 * 1000
 
 export default function PulledJobsPage() {
   const { pushToast } = useAppStore()
+  const { jobs: jobSettings, autoApply } = useSettingsStore()
 
   // ── Data state ───────────────────────────────────────────────────────────────
   const [jobs, setJobs]               = useState<PulledJob[]>([])
@@ -803,6 +901,7 @@ export default function PulledJobsPage() {
   const [selectedJob, setSelectedJob]   = useState<PulledJob | null>(null)
   const [viewingTailor, setViewingTailor] = useState<TailorJobState | null>(null)
   const [tailorJobs, setTailorJobs]     = useState<Map<string, TailorJobState>>(new Map())
+  const [applyJobs,  setApplyJobs]      = useState<Map<string, ApplyJobState>>(new Map())
 
   // ── Search session polling ────────────────────────────────────────────────────
   const [sessionId, setSessionId] = useState('')
@@ -812,19 +911,39 @@ export default function PulledJobsPage() {
   const sessionJobsCount   = useRef(0)   // jobs found in the current search session only
   const esSources          = useRef<Map<string, EventSource>>(new Map())
 
-  // ── Load jobs + stats ────────────────────────────────────────────────────────
+  // ── Load jobs + stats — first batch shows immediately, rest load in background ─
+  const BATCH = 50
+
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
-      const [jobData, statsData] = await Promise.all([
-        jobsApi.list({ limit: 500 }),
+      // First batch + stats in parallel — fast first paint
+      const [firstBatch, statsData] = await Promise.all([
+        jobsApi.list({ limit: BATCH, offset: 0 }),
         jobsApi.stats(),
       ])
-      setJobs(jobData)
+      setJobs(firstBatch)
       setStats(statsData)
+      if (!silent) setLoading(false)
+
+      // Load remaining batches in the background
+      if (firstBatch.length === BATCH) {
+        let offset = BATCH
+        while (true) {
+          const batch = await jobsApi.list({ limit: BATCH, offset })
+          if (batch.length === 0) break
+          setJobs(prev => {
+            // Avoid duplicates on silent reload (merge by id)
+            const existing = new Set(prev.map(j => j.id))
+            const fresh = batch.filter(j => !existing.has(j.id))
+            return fresh.length > 0 ? [...prev, ...fresh] : prev
+          })
+          if (batch.length < BATCH) break
+          offset += BATCH
+        }
+      }
     } catch {
       if (!silent) pushToast({ title: 'Could not load jobs', type: 'error' })
-    } finally {
       if (!silent) setLoading(false)
     }
   }, [pushToast])
@@ -971,6 +1090,64 @@ export default function PulledJobsPage() {
     }
   }, [tailorJobs, pushToast])
 
+  // ── Auto Apply SSE ───────────────────────────────────────────────────────────
+  const handleAutoApply = useCallback(async (job: PulledJob) => {
+    const existing = applyJobs.get(job.id)
+    if (existing?.status === 'applying') return
+    try {
+      const res = await applyApi.runForJob(job.id, false, autoApply.tailorBeforeApply)
+      const applyJobId = res.apply_job_id
+      setApplyJobs(prev => {
+        const next = new Map(prev)
+        next.set(job.id, { applyJobId, status: 'applying', result: null, error: null })
+        return next
+      })
+      pushToast({ title: `Auto-applying to ${job.company}…`, type: 'info' })
+      const es = new EventSource(applyApi.streamUrl(applyJobId))
+      esSources.current.set(applyJobId, es)
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.event === 'done') {
+            es.close()
+            esSources.current.delete(applyJobId)
+            const confirmed  = data.result === 'applied'
+            const submitted  = data.result === 'submitted'
+            const newStatus: ApplyJobState['status'] = confirmed ? 'applied' : submitted ? 'applied' : 'failed'
+            setApplyJobs(prev => {
+              const next = new Map(prev)
+              next.set(job.id, { applyJobId, status: newStatus, result: data.result, error: data.error ?? null })
+              return next
+            })
+            if (confirmed) {
+              jobsApi.setStatus(job.id, 'applied').catch(() => {})
+              handleStatusChange(job.id, 'applied')
+              pushToast({ title: `Applied to ${job.company}! Confirmed by email.`, type: 'success' })
+            } else if (submitted) {
+              jobsApi.setStatus(job.id, 'submitted').catch(() => {})
+              handleStatusChange(job.id, 'submitted')
+              pushToast({ title: `Submitted to ${job.company}`, description: 'Watching inbox for confirmation email…', type: 'success' })
+            } else {
+              pushToast({ title: `Auto-apply failed for ${job.company}`, description: data.result ?? data.error, type: 'error' })
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      es.onerror = () => {
+        es.close()
+        esSources.current.delete(applyJobId)
+        setApplyJobs(prev => {
+          const next = new Map(prev)
+          const cur = next.get(job.id)
+          if (cur?.status === 'applying') next.set(job.id, { ...cur, status: 'error', error: 'Connection lost' })
+          return next
+        })
+      }
+    } catch (e: unknown) {
+      pushToast({ title: 'Could not start auto-apply', description: e instanceof Error ? e.message : String(e), type: 'error' })
+    }
+  }, [applyJobs, pushToast])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Derived data ─────────────────────────────────────────────────────────────
   const allLocations = useMemo(
     () => [...new Set(jobs.map(j => j.location).filter(Boolean))].sort(),
@@ -1062,15 +1239,15 @@ export default function PulledJobsPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-slate-50 -mx-4 -mt-5 -mb-20 md:-mx-8 md:-mt-6 md:-mb-6 w-[calc(100%+2rem)] md:w-[calc(100%+4rem)]">
+    <div className="flex flex-col h-screen bg-slate-50 -mx-4 -mt-5 -mb-20 md:-mx-8 md:-mt-6 md:-mb-6 w-[calc(100%+2rem)] md:w-[calc(100%+4rem)]">
 
-      {/* ── Top bar ── */}
-      <div className="bg-white border-b border-slate-100 px-4 py-3">
-        <div className="max-w-full space-y-2">
+      {/* ── Top bar — always visible, not sticky — content below scrolls ── */}
+      <div className="flex-shrink-0 z-20 bg-white border-b border-slate-100 overflow-hidden">
+        <div className="px-4 py-3 space-y-2">
 
           {/* Row 1 — always visible: title + icon actions */}
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg md:text-xl font-bold text-slate-900 flex-1">Jobs</h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-lg md:text-xl font-bold text-slate-900 flex-1 min-w-0 truncate">Jobs</h1>
             {polling && (
               <span className="flex items-center gap-1 rounded-full bg-cyan-50 border border-cyan-200 px-2 py-0.5 text-xs text-cyan-600">
                 <Loader2 className="h-3 w-3 animate-spin" /> Searching…
@@ -1094,7 +1271,7 @@ export default function PulledJobsPage() {
           </div>
 
           {/* Row 2 — search input + filter button */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <input
@@ -1124,11 +1301,9 @@ export default function PulledJobsPage() {
           </div>
 
         </div>
-      </div>
 
-      {/* ── Filter panel ── */}
-      <div className="bg-white border-b border-slate-100">
-        <div className="max-w-full">
+        {/* ── Filter panel (inside sticky so it doesn't break the stack) ── */}
+        <div className="border-t border-slate-100">
           <FilterPanel
             open={filterOpen}
             filters={filters}
@@ -1137,17 +1312,15 @@ export default function PulledJobsPage() {
             onClose={() => setFilterOpen(false)}
           />
         </div>
-      </div>
 
-      {/* ── Tabs ── */}
-      <div className="bg-white border-b border-slate-100 sticky top-0 z-10">
-        <div className="max-w-full px-4">
-          <div className="flex items-center gap-0 overflow-x-auto scrollbar-none">
+        {/* ── Tabs ── */}
+        <div className="border-t border-slate-100">
+          <div className="flex items-center overflow-x-auto scrollbar-none">
             {TABS.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-3 md:px-5 py-3 text-xs md:text-sm font-semibold tracking-wide border-b-2 transition-colors shrink-0 whitespace-nowrap ${
+                className={`flex items-center gap-1 px-2.5 md:px-4 py-2.5 text-[11px] md:text-sm font-semibold tracking-wide border-b-2 transition-colors shrink-0 whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'border-cyan-500 text-cyan-700'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -1155,7 +1328,7 @@ export default function PulledJobsPage() {
               >
                 {tab.label}
                 {tab.count > 0 && (
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  <span className={`rounded-full px-1 py-0.5 text-[9px] md:text-[10px] font-bold ${
                     activeTab === tab.key ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-500'
                   }`}>
                     {tab.count}
@@ -1164,11 +1337,11 @@ export default function PulledJobsPage() {
               </button>
             ))}
           </div>
-        </div>
-      </div>
+        </div>{/* end tabs border-t */}
+      </div>{/* end sticky top bar */}
 
-      {/* ── Job list ── */}
-      <div className="flex-1 w-full max-w-full px-4 py-4">
+      {/* ── Job list — scrolls independently ── */}
+      <div className="flex-1 overflow-y-auto w-full max-w-full px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-brand" />
@@ -1205,7 +1378,6 @@ export default function PulledJobsPage() {
           </div>
         ) : (
           <>
-            <p className="text-xs text-slate-400 mb-3">{visible.length} job{visible.length !== 1 ? 's' : ''}</p>
             <div className="grid grid-cols-1 gap-3">
               <AnimatePresence initial={false}>
                 {visible.map(job => (
@@ -1215,10 +1387,13 @@ export default function PulledJobsPage() {
                     <JobCard
                       job={job}
                       tailorState={tailorJobs.get(job.id)}
+                      applyState={applyJobs.get(job.id)}
                       onStatusChange={handleStatusChange}
                       onOpenDrawer={setSelectedJob}
                       onTailor={handleTailor}
                       onViewTailor={setViewingTailor}
+                      onAutoApply={handleAutoApply}
+                      convertHourly={jobSettings.convertHourlyToMonthly}
                     />
                   </motion.div>
                 ))}

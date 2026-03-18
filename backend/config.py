@@ -11,11 +11,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # ── Database ────────────────────────────────────────────────────────────
-    DATABASE_URL: str = (
-        "postgresql+asyncpg://neondb_owner:npg_dmxC5cyOnX6D"
-        "@ep-ancient-snow-aik3fv7k.c-4.us-east-1.aws.neon.tech"
-        "/neondb?ssl=require"
-    )
+    DATABASE_URL: str = ""
 
     # ── JWT Auth ─────────────────────────────────────────────────────────────
     JWT_SECRET: str = "changeme-use-a-32-char-random-string-in-prod"

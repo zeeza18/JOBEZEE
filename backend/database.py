@@ -75,6 +75,7 @@ async def run_column_migrations() -> None:
         ("work_permit_type",          "VARCHAR(100)  DEFAULT ''"),
         ("resume_filename",           "VARCHAR(300)  DEFAULT ''"),
         ("resume_url",                "VARCHAR(500)  DEFAULT ''"),
+        ("apply_password",            "VARCHAR(200)  DEFAULT ''"),
         ("target_role",               "VARCHAR(200)  DEFAULT ''"),
         ("years_experience",          "VARCHAR(20)   DEFAULT ''"),
         ("education",                 "VARCHAR(200)  DEFAULT ''"),

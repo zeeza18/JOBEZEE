@@ -94,6 +94,9 @@ class UserProfile(Base):
     resume_filename = Column(String(300), default="")
     resume_url      = Column(String(500), default="")
 
+    # ── Auto-apply credentials ────────────────────────────────────────────────
+    apply_password  = Column(String(200), default="")   # password for job-site accounts
+
     # ── Experience & education ───────────────────────────────────────────────
     current_job_title = Column(String(200), default="")
     target_role       = Column(String(200), default="")

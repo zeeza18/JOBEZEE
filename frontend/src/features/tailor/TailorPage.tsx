@@ -3,6 +3,7 @@ import { FileText, Loader2, Upload, User } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { ScorePanel } from './ScorePanel'
+import { useSettingsStore } from '../../store/useSettingsStore'
 
 type JobStatus    = 'idle' | 'running' | 'complete' | 'error'
 type ResumeMode   = 'text' | 'file' | 'profile'
@@ -18,6 +19,7 @@ interface ProgressEvent {
 }
 
 const TailorPage = () => {
+  const { tailor: tailorSettings } = useSettingsStore()
   const [jd, setJd]               = useState('')
   const [resume, setResume]       = useState('')
   const [resumeMode, setResumeMode] = useState<ResumeMode>('profile')
@@ -333,7 +335,7 @@ const TailorPage = () => {
       {(jobStatus !== 'idle' || progressLines.length > 0 || score !== null) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div className="space-y-4">
-            {score !== null && <ScorePanel score={score} missing={[]} />}
+            {score !== null && tailorSettings.showSuggestions && <ScorePanel score={score} missing={[]} />}
             {jobStatus === 'complete' && (
               <Card className="space-y-3 p-4 md:p-5">
                 <p className="text-sm md:text-base font-semibold text-slate-800">Downloads</p>
@@ -346,7 +348,7 @@ const TailorPage = () => {
             )}
           </div>
 
-          {(jobStatus !== 'idle' || progressLines.length > 0) && (
+          {(jobStatus !== 'idle' || progressLines.length > 0) && tailorSettings.showKeywords && (
             <Card className="space-y-3 p-4 md:p-5">
               <div className="flex items-center justify-between">
                 <p className="text-sm md:text-base font-semibold text-slate-800">Progress</p>

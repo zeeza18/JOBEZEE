@@ -2,11 +2,20 @@ import type { LucideIcon } from 'lucide-react'
 import { Code2, Palette, Briefcase, TrendingUp, Heart, Megaphone } from 'lucide-react'
 import type { UserProfile } from '../../lib/api'
 
+export interface TextOverrides {
+  name?  : string
+  title? : string
+  bio?   : string
+}
+
 export interface PortfolioTemplateProps {
-  profile     : UserProfile
-  primaryColor: string
-  accentColor : string
-  showSections: Record<string, boolean>
+  profile      : UserProfile
+  primaryColor : string
+  accentColor  : string
+  showSections : Record<string, boolean>
+  heroGradient?: string   // CSS background value for hero section
+  profilePhoto?: string   // URL or null  (uses initials if absent)
+  textOverrides?: TextOverrides
 }
 
 export interface TemplateInfo {

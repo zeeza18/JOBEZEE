@@ -1,262 +1,345 @@
 import { motion } from 'framer-motion'
 import type { PortfolioTemplateProps } from '../types'
 
-const fadeUp  = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.6 } } }
-const stagger = { show: { transition: { staggerChildren: 0.08 } } }
+const fadeUp: any = { hidden: { opacity: 0, y: 30 }, show: { opacity: 1, y: 0, transition: { duration: 0.6 } } }
+const fadeIn: any = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { duration: 0.7 } } }
+const stagger: any = { show: { transition: { staggerChildren: 0.08 } } }
 
-const TICKER_SYMBOLS = ['BTC', 'GS', 'JPM', 'MS', 'BAC', 'C', 'WFC', 'AAPL', 'MSFT', 'AMZN']
+const TICKER_ITEMS = ['S&P 500 +1.24%', 'NASDAQ +0.87%', 'DOW +0.54%', 'BTC $67,420', 'GOLD $2,341', 'EUR/USD 1.0843', 'NIFTY 50 +0.92%', '10Y UST 4.28%', 'VIX 14.32', 'WTI OIL $78.40']
 
-export default function WallStreet({ profile, primaryColor, accentColor, showSections }: PortfolioTemplateProps) {
-  const darkGreen = primaryColor || '#0d2818'
-  const gold      = accentColor  || '#c9a84c'
-  const name      = profile.full_name || profile.preferred_name || 'Analyst'
-  const title     = profile.current_job_title || profile.target_role || 'Financial Analyst'
-  const allSkills = [...(profile.skills_languages || []), ...(profile.skills_frameworks || []), ...(profile.skills_tools || [])]
+const FINANCE_SECTORS = [
+  { name: 'Equities', pct: 92 },
+  { name: 'Fixed Income', pct: 78 },
+  { name: 'M&A Advisory', pct: 85 },
+  { name: 'Risk Management', pct: 88 },
+  { name: 'Derivatives', pct: 74 },
+  { name: 'Portfolio Mgmt', pct: 90 },
+]
+
+const MOCK_CERTS = [
+  { name: 'CFA', body: 'CFA Institute', level: 'Level III' },
+  { name: 'CPA', body: 'AICPA', level: 'Certified' },
+  { name: 'FRM', body: 'GARP', level: 'Part II' },
+  { name: 'Series 7', body: 'FINRA', level: 'Licensed' },
+]
+
+
+const QUARTERS = [
+  { label: 'Q1', val: 68, pos: true },
+  { label: 'Q2', val: 85, pos: true },
+  { label: 'Q3', val: 45, pos: false },
+  { label: 'Q4', val: 92, pos: true },
+  { label: 'Q1', val: 77, pos: true },
+  { label: 'Q2', val: 100, pos: true },
+]
+
+export default function WallStreet({
+  profile, primaryColor, accentColor, showSections, profilePhoto, textOverrides,
+}: PortfolioTemplateProps) {
+  const BG    = '#070f0a'
+  const GREEN = primaryColor || '#00d46a'
+  const DIM   = `${GREEN}90`
+  const RED   = '#ff4444'
+
+  const name     = textOverrides?.name  || profile.full_name || profile.preferred_name || 'Finance Professional'
+  const title    = textOverrides?.title || profile.current_job_title || profile.target_role || 'Investment Analyst'
+  const bio      = textOverrides?.bio   || profile.headline || 'Quantitative analyst driving alpha generation through data-driven investment strategies.'
+  const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+
+  const companies = profile.resume_facts_companies || []
+  const projects  = profile.resume_facts_projects  || []
+  const schools   = profile.resume_facts_schools   || []
+  const metrics   = profile.resume_facts_metrics   || []
+
+  const allSkillRows = [
+    { name: 'Equity Research',         cat: 'Analysis',   color: GREEN,    pct: 92 },
+    { name: 'Portfolio Management',    cat: 'Strategy',   color: GREEN,    pct: 90 },
+    { name: 'Financial Modeling',      cat: 'Analysis',   color: '#00c8ff', pct: 88 },
+    { name: 'Risk Assessment',         cat: 'Risk',       color: '#00c8ff', pct: 86 },
+    { name: 'Bloomberg Terminal',      cat: 'Tool',       color: accentColor || '#ffd700', pct: 94 },
+    { name: 'M&A Advisory',            cat: 'Strategy',   color: GREEN,    pct: 85 },
+    { name: 'Derivatives & Options',   cat: 'Asset Class',color: '#00c8ff', pct: 74 },
+    { name: 'DCF / LBO Valuation',     cat: 'Analysis',   color: GREEN,    pct: 88 },
+    { name: 'Fixed Income',            cat: 'Asset Class',color: '#00c8ff', pct: 78 },
+    { name: 'Capital IQ / FactSet',    cat: 'Tool',       color: accentColor || '#ffd700', pct: 82 },
+    { name: 'Regulatory Compliance',   cat: 'Risk',       color: '#00c8ff', pct: 80 },
+    { name: 'Excel Financial Models',  cat: 'Tool',       color: accentColor || '#ffd700', pct: 96 },
+  ]
+
+  const heroMetrics = [
+    { label: 'AUM',     val: metrics[0] || '$2.4B' },
+    { label: 'Avg. Returns', val: metrics[1] || '18.4%' },
+    { label: 'Deals Closed', val: metrics[2] || '47+' },
+    { label: 'Years', val: `${profile.years_experience || 12}` },
+  ]
+
+  const monoStyle: React.CSSProperties = { fontFamily: "'Courier New', 'Consolas', monospace" }
 
   return (
-    <div className="min-h-screen font-mono" style={{ background: darkGreen, color: '#d4edda' }}>
+    <div style={{ background: BG, color: GREEN, minHeight: '100vh', ...monoStyle }}>
+
       {/* TICKER TAPE */}
-      <div className="border-b overflow-hidden" style={{ borderColor: `${gold}40`, background: '#0a1f12' }}>
+      <div style={{ background: '#000', borderBottom: `1px solid ${GREEN}40`, overflow: 'hidden', height: 36, display: 'flex', alignItems: 'center' }}>
         <motion.div
           animate={{ x: [0, -2000] }}
           transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
-          className="flex items-center gap-12 py-2 whitespace-nowrap">
-          {[...TICKER_SYMBOLS, ...TICKER_SYMBOLS, ...TICKER_SYMBOLS].map((sym, i) => (
-            <span key={i} className="text-xs flex items-center gap-2">
-              <span className="font-bold" style={{ color: gold }}>{sym}</span>
-              <span className={i % 3 === 0 ? 'text-red-400' : 'text-green-400'}>
-                {i % 3 === 0 ? '▼' : '▲'} {(Math.random() * 5).toFixed(2)}%
-              </span>
+          style={{ display: 'flex', gap: 0, whiteSpace: 'nowrap' }}>
+          {[...TICKER_ITEMS, ...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
+            <span key={i} style={{ fontSize: 12, letterSpacing: '0.08em', padding: '0 24px', color: item.includes('-') ? RED : GREEN, borderRight: `1px solid ${GREEN}20` }}>
+              {item}
             </span>
           ))}
         </motion.div>
       </div>
 
       {/* NAV */}
-      <nav className="border-b" style={{ borderColor: `${gold}25`, background: 'rgba(13,40,24,0.95)', backdropFilter: 'blur(12px)' }}>
-        <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-xl font-black" style={{ color: gold }}>▲</div>
-            <div>
-              <p className="text-sm font-black tracking-wider text-white">{name.split(' ')[0].toUpperCase()}</p>
-              <p className="text-xs" style={{ color: `${gold}80` }}>PORTFOLIO TERMINAL v2.0</p>
-            </div>
-          </div>
-          <div className="hidden md:flex items-center gap-8 text-xs uppercase tracking-widest" style={{ color: `${gold}80` }}>
-            {['Overview', 'Track Record', 'Skills', 'Contact'].map(s => (
-              <a key={s} href={`#${s.toLowerCase().replace(' ', '-')}`} className="hover:text-white transition-colors"
-                style={{ color: 'inherit' }}>{s}</a>
+      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: `${BG}ee`, backdropFilter: 'blur(12px)', borderBottom: `1px solid ${GREEN}25` }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 60px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ color: GREEN, fontWeight: 700, fontSize: 16, letterSpacing: '0.1em' }}>[{initials}]</span>
+          <div style={{ display: 'flex', gap: 32, fontSize: 12, letterSpacing: '0.15em', color: DIM }}>
+            {['PROFILE', 'TRACK_RECORD', 'SECTORS', 'CERTS', 'CONTACT'].map(s => (
+              <a key={s} href={`#${s.toLowerCase()}`} style={{ textDecoration: 'none', color: 'inherit', transition: 'color 0.2s' }}
+                onMouseEnter={e => (e.currentTarget.style.color = GREEN)}
+                onMouseLeave={e => (e.currentTarget.style.color = DIM)}>
+                {s}
+              </a>
             ))}
           </div>
+          {profile.email && <a href={`mailto:${profile.email}`} style={{ fontSize: 12, color: GREEN, textDecoration: 'none', letterSpacing: '0.08em' }}>GET IN TOUCH</a>}
         </div>
       </nav>
 
       {/* HERO */}
-      <section id="overview" className="py-20 border-b" style={{ borderColor: `${gold}20` }}>
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-            <motion.div initial="hidden" animate="show" variants={stagger} className="lg:col-span-2">
-              <motion.p variants={fadeUp} className="text-xs uppercase tracking-widest mb-6" style={{ color: gold }}>
-                &gt; PROFILE.LOAD({name.replace(' ', '_').toUpperCase()})
-              </motion.p>
-              <motion.h1 variants={fadeUp} className="text-5xl md:text-7xl font-black leading-none mb-4 text-white">
-                {name}
-              </motion.h1>
-              <motion.div variants={fadeUp} className="flex items-center gap-3 mb-6">
-                <div className="h-px w-12" style={{ background: gold }} />
-                <p className="text-base" style={{ color: gold }}>{title}</p>
+      <section id="profile" style={{ minHeight: '90vh', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, padding: '0' }}>
+        {/* Left: Identity + stats */}
+        <motion.div initial="hidden" animate="show" variants={stagger}
+          style={{ padding: '80px 60px', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderRight: `1px solid ${GREEN}20` }}>
+          <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>
+            Investment Professional
+          </motion.p>
+          <motion.h1 variants={fadeUp} style={{ fontSize: 'clamp(36px, 4vw, 56px)', fontWeight: 900, lineHeight: 1.1, color: GREEN, marginBottom: 8, letterSpacing: '-0.02em' }}>
+            {name}
+          </motion.h1>
+          <motion.p variants={fadeUp} style={{ fontSize: 18, color: DIM, marginBottom: 32, letterSpacing: '0.05em' }}>
+            {title}
+          </motion.p>
+          <motion.div variants={fadeIn} style={{ width: '100%', height: 1, background: `linear-gradient(to right, ${GREEN}, transparent)`, marginBottom: 32 }} />
+          <motion.p variants={fadeUp} style={{ fontSize: 14, color: `${GREEN}99`, lineHeight: 1.9, marginBottom: 40, maxWidth: 440 }}>
+            {bio}
+          </motion.p>
+          {/* Key metrics row */}
+          <motion.div variants={stagger} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, marginBottom: 40 }}>
+            {heroMetrics.map((m, i) => (
+              <motion.div key={i} variants={fadeUp} style={{ padding: '16px 12px', background: `${GREEN}08`, border: `1px solid ${GREEN}25`, textAlign: 'center' }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: GREEN }}>{m.val}</div>
+                <div style={{ fontSize: 10, color: DIM, letterSpacing: '0.1em', marginTop: 4 }}>{m.label}</div>
               </motion.div>
-              <motion.p variants={fadeUp} className="text-green-300 leading-relaxed max-w-2xl opacity-80">
-                {profile.headline || `Markets specialist with deep expertise in quantitative analysis and risk management. ${profile.years_experience ? profile.years_experience + 'Y' : ''} of alpha generation.`}
-              </motion.p>
-              <motion.div variants={fadeUp} className="mt-8 flex gap-4">
-                {profile.email && (
-                  <a href={`mailto:${profile.email}`}
-                    className="px-6 py-2.5 text-sm font-bold transition-all hover:scale-105"
-                    style={{ background: gold, color: darkGreen }}>
-                    CONTACT →
-                  </a>
-                )}
-                {profile.linkedin && (
-                  <a href={profile.linkedin} target="_blank" rel="noreferrer"
-                    className="px-6 py-2.5 text-sm font-bold border transition-all hover:scale-105"
-                    style={{ borderColor: `${gold}60`, color: gold }}>
-                    LINKEDIN
-                  </a>
-                )}
-              </motion.div>
+            ))}
+          </motion.div>
+          <motion.div variants={fadeUp} style={{ display: 'flex', gap: 16 }}>
+            {profile.email && (
+              <a href={`mailto:${profile.email}`}
+                style={{ background: GREEN, color: '#000', padding: '12px 28px', fontSize: 13, fontWeight: 700, textDecoration: 'none', letterSpacing: '0.1em' }}>
+                GET IN TOUCH →
+              </a>
+            )}
+            {profile.linkedin && (
+              <a href={profile.linkedin}
+                style={{ border: `1px solid ${GREEN}50`, color: GREEN, padding: '12px 28px', fontSize: 13, fontWeight: 700, textDecoration: 'none', letterSpacing: '0.1em' }}>
+                LINKEDIN →
+              </a>
+            )}
+          </motion.div>
+        </motion.div>
+
+        {/* Right: Bar chart + avatar */}
+        <div style={{ padding: '80px 60px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <motion.div initial="hidden" animate="show" variants={stagger}>
+            {/* Avatar */}
+            <motion.div variants={fadeIn} style={{ marginBottom: 40 }}>
+              <div style={{ width: 120, height: 120, borderRadius: '50%', border: `2px solid ${GREEN}`, background: `${GREEN}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {profilePhoto
+                  ? <img src={profilePhoto} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 40, fontWeight: 900, color: GREEN }}>{initials}</span>}
+              </div>
             </motion.div>
 
-            {/* Terminal stats box */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-              className="rounded border p-6" style={{ borderColor: `${gold}30`, background: '#0a1f12' }}>
-              <p className="text-xs mb-4" style={{ color: gold }}>// PERFORMANCE METRICS</p>
-              <div className="space-y-4">
-                {[
-                  { k: 'YEARS_EXP', v: profile.years_experience || 'N/A' },
-                  { k: 'FIRMS_COUNT', v: (profile.resume_facts_companies || []).length || 0 },
-                  { k: 'PROJECTS', v: (profile.resume_facts_projects || []).length || 0 },
-                  { k: 'SKILLS_TOTAL', v: allSkills.length || 0 },
-                ].map(({ k, v }) => (
-                  <div key={k} className="flex items-center justify-between border-b pb-3" style={{ borderColor: `${gold}15` }}>
-                    <span className="text-xs text-green-500">{k}</span>
-                    <span className="text-lg font-black" style={{ color: gold }}>{v}</span>
-                  </div>
+            <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.2em', color: DIM, marginBottom: 20 }}>
+              PORTFOLIO_PERFORMANCE (QUARTERLY)
+            </motion.p>
+            {/* CSS Bar chart */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 160, padding: '0 0 24px', borderBottom: `1px solid ${GREEN}30`, position: 'relative' }}>
+              {/* Grid lines */}
+              {[0, 25, 50, 75, 100].map(pct => (
+                <div key={pct} style={{ position: 'absolute', left: 0, right: 0, bottom: `${pct * 1.36 + 24}px`, borderTop: `1px solid ${GREEN}15`, fontSize: 9, color: DIM, paddingLeft: 2 }}>
+                  {pct}%
+                </div>
+              ))}
+              {QUARTERS.map((q, i) => (
+                <motion.div key={i}
+                  initial={{ height: 0 }}
+                  animate={{ height: `${q.val * 1.36}px` }}
+                  transition={{ duration: 0.8, delay: i * 0.1 }}
+                  style={{ flex: 1, background: q.pos ? GREEN : RED, position: 'relative', minWidth: 0, maxWidth: 80 }}>
+                  <span style={{ position: 'absolute', bottom: -20, left: '50%', transform: 'translateX(-50%)', fontSize: 10, color: DIM }}>{q.label}</span>
+                  <span style={{ position: 'absolute', top: -18, left: '50%', transform: 'translateX(-50%)', fontSize: 10, color: q.pos ? GREEN : RED, fontWeight: 700 }}>
+                    {q.pos ? '+' : '-'}{q.val / 10}%
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+            <p style={{ fontSize: 10, color: DIM, marginTop: 8, letterSpacing: '0.1em' }}>
+              SIMULATED ILLUSTRATION — NOT ACTUAL RETURNS
+            </p>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* SKILLS TABLE */}
+      {showSections['skills'] !== false && (
+        <section style={{ padding: '80px 60px', borderTop: `1px solid ${GREEN}20` }}>
+          <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+            <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
+              <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Competency Matrix</motion.p>
+              <motion.h2 variants={fadeUp} style={{ fontSize: 40, fontWeight: 900, color: GREEN, marginBottom: 40, letterSpacing: '-0.02em' }}>Core Competencies</motion.h2>
+              <div style={{ border: `1px solid ${GREEN}30`, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 3fr 80px', background: `${GREEN}15`, padding: '12px 24px', borderBottom: `1px solid ${GREEN}30`, fontSize: 11, letterSpacing: '0.15em', color: DIM }}>
+                  <span>SKILL_NAME</span><span>CATEGORY</span><span>PROFICIENCY_BAR</span><span>PCT</span>
+                </div>
+                {allSkillRows.map((row, i) => (
+                  <motion.div key={i} variants={fadeUp}
+                    style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 3fr 80px', padding: '14px 24px', borderBottom: `1px solid ${GREEN}15`, fontSize: 13, alignItems: 'center', background: i % 2 === 0 ? 'transparent' : `${GREEN}05` }}>
+                    <span style={{ color: GREEN, fontWeight: 600 }}>{row.name}</span>
+                    <span style={{ color: row.color, fontSize: 11, letterSpacing: '0.1em' }}>{row.cat.toUpperCase()}</span>
+                    <div style={{ height: 6, background: `${GREEN}20`, borderRadius: 0, overflow: 'hidden' }}>
+                      <motion.div initial={{ width: 0 }} whileInView={{ width: `${row.pct}%` }} viewport={{ once: true }} transition={{ duration: 1, delay: i * 0.05 }}
+                        style={{ height: '100%', background: row.color }} />
+                    </div>
+                    <span style={{ color: row.color, fontSize: 12, textAlign: 'right' }}>{row.pct}%</span>
+                  </motion.div>
                 ))}
               </div>
             </motion.div>
           </div>
-        </div>
-      </section>
-
-      {/* SKILLS — Data table */}
-      {showSections.skills && allSkills.length > 0 && (
-        <motion.section id="skills" className="py-20 border-b" style={{ borderColor: `${gold}20` }}
-          initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-          <div className="max-w-7xl mx-auto px-8">
-            <motion.div variants={fadeUp} className="mb-10">
-              <p className="text-xs mb-2" style={{ color: gold }}>&gt; SKILLS.MATRIX()</p>
-              <h2 className="text-3xl font-black text-white">Technical Competencies</h2>
-            </motion.div>
-            <div className="border rounded" style={{ borderColor: `${gold}30` }}>
-              {/* Table header */}
-              <div className="grid grid-cols-4 border-b text-xs uppercase tracking-widest py-3 px-4"
-                style={{ borderColor: `${gold}30`, background: '#0a1f12', color: gold }}>
-                <span>Skill</span><span>Category</span><span>Proficiency</span><span>Rating</span>
-              </div>
-              {allSkills.map((skill, i) => {
-                const cat = i < (profile.skills_languages || []).length ? 'Language'
-                  : i < (profile.skills_languages || []).length + (profile.skills_frameworks || []).length ? 'Framework'
-                  : 'Tool'
-                const pct = Math.max(70, 100 - i * 4)
-                return (
-                  <motion.div key={skill} variants={fadeUp}
-                    className="grid grid-cols-4 border-b py-3 px-4 text-sm items-center hover:bg-white/5 transition-colors"
-                    style={{ borderColor: `${gold}15` }}>
-                    <span className="font-bold text-white">{skill}</span>
-                    <span className="text-green-400 text-xs">{cat}</span>
-                    <div className="h-1 bg-green-900 rounded-full w-24">
-                      <motion.div className="h-full rounded-full"
-                        initial={{ width: 0 }} whileInView={{ width: `${pct}%` }}
-                        transition={{ duration: 1, delay: i * 0.05 }} viewport={{ once: true }}
-                        style={{ background: gold }} />
-                    </div>
-                    <span style={{ color: gold }} className="font-black">{pct}%</span>
-                  </motion.div>
-                )
-              })}
-            </div>
-          </div>
-        </motion.section>
+        </section>
       )}
 
       {/* TRACK RECORD */}
-      {showSections.experience && (profile.resume_facts_companies || []).length > 0 && (
-        <motion.section id="track-record" className="py-20 border-b" style={{ borderColor: `${gold}20` }}
-          initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-          <div className="max-w-7xl mx-auto px-8">
-            <motion.div variants={fadeUp} className="mb-10">
-              <p className="text-xs mb-2" style={{ color: gold }}>&gt; EXPERIENCE.HISTORY()</p>
-              <h2 className="text-3xl font-black text-white">Track Record</h2>
+      {showSections['experience'] !== false && companies.length > 0 && (
+        <section id="track_record" style={{ padding: '80px 60px', background: `${GREEN}05` }}>
+          <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+            <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
+              <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Transaction History</motion.p>
+              <motion.h2 variants={fadeUp} style={{ fontSize: 40, fontWeight: 900, color: GREEN, marginBottom: 48, letterSpacing: '-0.02em' }}>Track Record</motion.h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+                {companies.map((company, i) => {
+                  const dealTypes = ['M&A Buy-Side', 'IPO Lead', 'Debt Issuance', 'PE Investment', 'Restructuring', 'Cross-Border M&A']
+                  const dealType = dealTypes[i % dealTypes.length]
+                  return (
+                    <motion.div key={i} variants={fadeUp}
+                      whileHover={{ borderColor: GREEN }}
+                      style={{ padding: '28px', border: `1px solid ${GREEN}30`, background: BG, transition: 'border-color 0.3s' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                        <h3 style={{ fontSize: 20, fontWeight: 700, color: GREEN }}>{company}</h3>
+                        <span style={{ fontSize: 11, letterSpacing: '0.1em', padding: '4px 10px', border: `1px solid ${accentColor || '#ffd700'}50`, color: accentColor || '#ffd700' }}>
+                          {dealType}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, color: DIM, lineHeight: 1.9 }}>
+                        <div>Deal Value: <span style={{ color: GREEN }}>{metrics[i] || `$${(i + 1) * 240}M`}</span></div>
+                        <div>Status: <span style={{ color: GREEN }}>Completed</span></div>
+                        <div>Year: <span style={{ color: GREEN }}>{2024 - i}</span></div>
+                      </div>
+                      {projects[i] && <p style={{ marginTop: 12, fontSize: 13, color: `${GREEN}80`, borderTop: `1px solid ${GREEN}20`, paddingTop: 12 }}>{projects[i]}</p>}
+                    </motion.div>
+                  )
+                })}
+              </div>
             </motion.div>
-            <div className="space-y-6">
-              {(profile.resume_facts_companies || []).map((company, i) => (
-                <motion.div key={i} variants={fadeUp}
-                  className="border rounded p-6" style={{ borderColor: `${gold}25`, background: '#0a1f12' }}>
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <p className="text-xs mb-1" style={{ color: gold }}>FIRM_{String(i + 1).padStart(2, '0')}</p>
-                      <h3 className="text-2xl font-black text-white">{company}</h3>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl" style={{ color: 'limegreen' }}>▲</div>
-                    </div>
-                  </div>
-                  <div className="border-t pt-4 space-y-2" style={{ borderColor: `${gold}15` }}>
-                    {(profile.resume_facts_metrics || []).slice(i * 2, i * 2 + 2).map((m, j) => (
-                      <p key={j} className="text-green-300 text-sm opacity-80 flex items-start gap-2">
-                        <span style={{ color: gold }}>▸</span> {m}
-                      </p>
-                    ))}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
           </div>
-        </motion.section>
+        </section>
       )}
 
-      {/* PROJECTS */}
-      {showSections.projects && (profile.resume_facts_projects || []).length > 0 && (
-        <motion.section id="projects" className="py-20 border-b" style={{ borderColor: `${gold}20` }}
-          initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-          <div className="max-w-7xl mx-auto px-8">
-            <motion.div variants={fadeUp} className="mb-10">
-              <p className="text-xs mb-2" style={{ color: gold }}>&gt; PROJECTS.LIST()</p>
-              <h2 className="text-3xl font-black text-white">Key Initiatives</h2>
-            </motion.div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {(profile.resume_facts_projects || []).map((project, i) => (
-                <motion.div key={i} variants={fadeUp}
-                  className="border rounded p-5 hover:border-yellow-600/50 transition-all" style={{ borderColor: `${gold}25`, background: '#0a1f12' }}>
-                  <p className="text-xs mb-2" style={{ color: gold }}>PROJ_{String(i + 1).padStart(3, '0')}</p>
-                  <h3 className="text-lg font-black text-white">{project}</h3>
+      {/* SECTORS */}
+      {showSections['about'] !== false && (
+        <section id="sectors" style={{ padding: '80px 60px' }}>
+          <div style={{ maxWidth: 1400, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80 }}>
+            <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
+              <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Sector Expertise</motion.p>
+              <motion.h2 variants={fadeUp} style={{ fontSize: 36, fontWeight: 900, color: GREEN, marginBottom: 40 }}>Asset Classes</motion.h2>
+              {FINANCE_SECTORS.map((sec, i) => (
+                <motion.div key={i} variants={fadeUp} style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8 }}>
+                    <span style={{ color: GREEN }}>{sec.name}</span>
+                    <span style={{ color: DIM }}>{sec.pct}%</span>
+                  </div>
+                  <div style={{ height: 4, background: `${GREEN}20` }}>
+                    <motion.div initial={{ width: 0 }} whileInView={{ width: `${sec.pct}%` }} viewport={{ once: true }} transition={{ duration: 1, delay: i * 0.1 }}
+                      style={{ height: '100%', background: `linear-gradient(to right, ${GREEN}, ${accentColor || '#ffd700'})` }} />
+                  </div>
                 </motion.div>
               ))}
-            </div>
+            </motion.div>
+            {/* Education */}
+            {showSections['education'] !== false && schools.length > 0 && (
+              <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
+                <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Academic Credentials</motion.p>
+                <motion.h2 variants={fadeUp} style={{ fontSize: 36, fontWeight: 900, color: GREEN, marginBottom: 40 }}>Education</motion.h2>
+                {schools.map((school, i) => (
+                  <motion.div key={i} variants={fadeUp} style={{ padding: '20px 24px', border: `1px solid ${GREEN}30`, marginBottom: 12, background: `${GREEN}05` }}>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: GREEN, marginBottom: 4 }}>{school}</p>
+                    <p style={{ fontSize: 13, color: DIM }}>{profile.education || 'Finance & Economics'}</p>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
           </div>
-        </motion.section>
+        </section>
       )}
 
-      {/* EDUCATION */}
-      {showSections.education && (profile.resume_facts_schools || []).length > 0 && (
-        <motion.section id="education" className="py-20 border-b" style={{ borderColor: `${gold}20` }}
-          initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-          <div className="max-w-7xl mx-auto px-8">
-            <motion.div variants={fadeUp} className="mb-10">
-              <p className="text-xs mb-2" style={{ color: gold }}>&gt; EDUCATION.CREDENTIALS()</p>
-              <h2 className="text-3xl font-black text-white">Academic Background</h2>
+      {/* CERTIFICATIONS */}
+      {showSections['projects'] !== false && (
+        <section id="certs" style={{ padding: '80px 60px', background: `${GREEN}05`, borderTop: `1px solid ${GREEN}20` }}>
+          <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+            <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
+              <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Professional Certifications</motion.p>
+              <motion.h2 variants={fadeUp} style={{ fontSize: 40, fontWeight: 900, color: GREEN, marginBottom: 48 }}>Credentials</motion.h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
+                {MOCK_CERTS.map((cert, i) => (
+                  <motion.div key={i} variants={fadeUp}
+                    whileHover={{ y: -4 }}
+                    style={{ padding: '36px 24px', border: `2px solid ${accentColor || '#ffd700'}50`, background: BG, textAlign: 'center', transition: 'transform 0.3s' }}>
+                    <div style={{ fontSize: 42, fontWeight: 900, color: accentColor || '#ffd700', marginBottom: 12 }}>{cert.name}</div>
+                    <div style={{ fontSize: 13, color: DIM, letterSpacing: '0.05em', marginBottom: 4 }}>{cert.body}</div>
+                    <div style={{ fontSize: 12, color: `${GREEN}80`, padding: '4px 12px', border: `1px solid ${GREEN}30`, display: 'inline-block', marginTop: 8 }}>{cert.level}</div>
+                  </motion.div>
+                ))}
+              </div>
             </motion.div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {(profile.resume_facts_schools || []).map((school, i) => (
-                <motion.div key={i} variants={fadeUp}
-                  className="border rounded p-6" style={{ borderColor: `${gold}25`, background: '#0a1f12' }}>
-                  <h3 className="text-xl font-black text-white">{school}</h3>
-                  {profile.education && <p className="text-green-300 opacity-70 mt-1 text-sm">{profile.education}</p>}
-                </motion.div>
-              ))}
-            </div>
           </div>
-        </motion.section>
+        </section>
       )}
 
       {/* CONTACT */}
-      {showSections.contact && (
-        <motion.section id="contact" className="py-24 text-center"
-          initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-          <div className="max-w-2xl mx-auto px-8">
-            <motion.p variants={fadeUp} className="text-xs mb-4 uppercase tracking-widest" style={{ color: gold }}>
-              &gt; CONTACT.INIT()
-            </motion.p>
-            <motion.h2 variants={fadeUp} className="text-5xl font-black text-white mb-6">Open Positions</motion.h2>
-            <motion.p variants={fadeUp} className="text-green-300 opacity-70 mb-10">
-              Seeking selective high-impact roles. Reach out with serious inquiries.
+      {showSections['contact'] !== false && (
+        <section id="contact" style={{ padding: '100px 60px', textAlign: 'center', borderTop: `1px solid ${GREEN}30` }}>
+          <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger} style={{ maxWidth: 700, margin: '0 auto' }}>
+            <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 24, textTransform: 'uppercase' }}>Contact</motion.p>
+            <motion.h2 variants={fadeUp} style={{ fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 900, color: GREEN, marginBottom: 24, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              Let's Connect
+            </motion.h2>
+            <motion.p variants={fadeUp} style={{ fontSize: 15, color: DIM, marginBottom: 48, lineHeight: 1.9 }}>
+              {profile.city ? `${profile.city}${profile.country ? `, ${profile.country}` : ''}` : 'Available Globally'} · Open to new opportunities
             </motion.p>
             {profile.email && (
               <motion.a variants={fadeUp} href={`mailto:${profile.email}`}
-                className="inline-block px-10 py-4 text-sm font-black transition-all hover:scale-105"
-                style={{ background: gold, color: darkGreen }}>
-                EXECUTE CONTACT →
+                style={{ display: 'inline-block', background: GREEN, color: '#000', padding: '16px 48px', fontSize: 14, fontWeight: 700, textDecoration: 'none', letterSpacing: '0.15em' }}>
+                GET IN TOUCH →
               </motion.a>
             )}
-          </div>
-        </motion.section>
+          </motion.div>
+        </section>
       )}
-
-      <footer className="border-t py-6 px-8 flex justify-between text-xs" style={{ borderColor: `${gold}20`, color: `${gold}40` }}>
-        <span>© {new Date().getFullYear()} {name.toUpperCase()}</span>
-        <span>BUILT WITH JOBEZEE TERMINAL</span>
-      </footer>
     </div>
   )
 }

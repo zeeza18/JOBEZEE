@@ -7,7 +7,7 @@ import OnboardingPage from '../pages/OnboardingPage'
 import DashboardPage from '../pages/DashboardPage'
 import CombinedJobsPage from '../features/jobs/PulledJobsPage'
 import TailorPage from '../features/tailor/TailorPage'
-import ApplyPage from '../features/apply/ApplyPage'
+import AutoApplyPage from '../features/apply/AutoApplyPage'
 import InterviewPage from '../features/interview/InterviewPage'
 import ApplicationsPage from '../features/applications/ApplicationsPage'
 import PortfolioPage   from '../features/portfolio/PortfolioPage'
@@ -46,7 +46,7 @@ const AppRoutes = () => {
         <Route path="/app/search"         element={<CombinedJobsPage />} />
         <Route path="/app/pulled-jobs"    element={<CombinedJobsPage />} />
         <Route path="/app/tailor"         element={<TailorPage />} />
-        <Route path="/app/apply"          element={<ApplyPage />} />
+        <Route path="/app/apply"          element={<AutoApplyPage />} />
         <Route path="/app/interview"      element={<InterviewPage />} />
         <Route path="/app/portfolio"      element={<PortfolioPage />} />
         <Route path="/app/connectors"     element={<ConnectorsPage />} />

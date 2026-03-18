@@ -54,6 +54,9 @@ class UserProfileBase(BaseModel):
     visa_sponsorship_required : bool = False
     work_permit_type          : str  = ""
 
+    # ── Auto-apply credentials ────────────────────────────────────────────────
+    apply_password  : str = ""
+
     # ── Experience & education ────────────────────────────────────────────────
     current_job_title : str = ""
     target_role       : str = ""

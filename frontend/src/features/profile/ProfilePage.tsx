@@ -66,6 +66,7 @@ const emptyProfile: Partial<UserProfile> = {
   earliest_start: 'Immediately',
   search_radius_miles: 50, hours_old: 72, results_per_site: 50,
   resume_filename: '', resume_url: '',
+  apply_password: '',
 }
 
 function fmt(v: string) {
@@ -627,6 +628,23 @@ export default function ProfilePage() {
               <p className="text-center text-xs text-slate-400">
                 Max 10 MB · Used for AI tailoring &amp; auto-apply pre-fill
               </p>
+
+              {/* Job-site account password */}
+              <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-5 space-y-2">
+                <p className="text-sm font-semibold text-slate-700">Auto-Apply Account Password</p>
+                <p className="text-xs text-slate-400">
+                  Used by the AI agent to sign into or create job-site accounts (Workday, Lever, Greenhouse, etc.) during auto-apply.
+                  Set this to the password you want to use for those accounts.
+                </p>
+                <input
+                  type="password"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                  placeholder="Enter your job-site account password"
+                  value={form.apply_password ?? ''}
+                  onChange={(e) => set('apply_password', e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
             </div>
           )}
 

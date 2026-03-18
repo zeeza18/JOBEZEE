@@ -82,6 +82,7 @@ export interface UserProfile {
   // Resume file
   resume_filename           : string
   resume_url                : string
+  apply_password            : string
 
   created_at                : string
   updated_at                : string
@@ -367,4 +368,43 @@ export const searchApi = {
     post<SearchTriggerResponse>('/api/search/trigger', body ?? {}),
   status  : (sessionId: string)   => get<SearchStatusResponse>(`/api/search/status/${sessionId}`),
   health  : ()                    => get<{ status: string }>('/api/health'),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auto Apply (Phase 3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ApplyJobStatus {
+  status         : string   // pending | running | complete | error
+  result         : string | null  // applied | failed | dry_run_done | ...
+  error          : string | null
+  progress_count : number
+  cost           : number
+}
+
+export const applyApi = {
+  runForUrl: (url: string, dry_run = false, tailor_before_apply = false) =>
+    post<{ apply_job_id: string; status: string }>(
+      '/api/apply/run-for-url', { url, dry_run, tailor_before_apply }
+    ),
+
+  runForJob: (jobId: string, dry_run = false, tailor_before_apply = false) =>
+    post<{ apply_job_id: string; status: string; job_title: string; company: string; tailored?: boolean }>(
+      '/api/apply/run-for-job', { job_id: jobId, dry_run, tailor_before_apply }
+    ),
+
+  status: (applyJobId: string) =>
+    get<ApplyJobStatus>(`/api/apply/status/${applyJobId}`),
+
+  streamUrl: (applyJobId: string) => `${BASE}/api/apply/stream/${applyJobId}`,
+
+  warmSessions: (workerId = 0, headless = false) =>
+    post<{ warm_job_id: string; status: string }>(
+      `/api/apply/warm-sessions?worker_id=${workerId}&headless=${headless}`, {}
+    ),
+
+  warmStatus: (warmJobId: string) =>
+    get<{ status: string; results: Record<string, string>; error: string | null }>(
+      `/api/apply/warm-sessions/status/${warmJobId}`
+    ),
 }

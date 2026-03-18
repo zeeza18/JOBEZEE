@@ -11,9 +11,12 @@ dist/
 build/
 .pytest_cache/
 
-# ── Backend secrets ───────────────────────────────────────────────────────────
-backend/.env
+# ── Secrets / env ─────────────────────────────────────────────────────────────
+.env
 *.env
+backend/.env
+frontend/.env
+PHASE3_AUTO_APPLY/.env
 !.env.example
 !backend/.env.example
 !frontend/.env.example
@@ -24,8 +27,6 @@ uploads/
 # ── Frontend ──────────────────────────────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
-frontend/.env
-!frontend/.env.example
 
 # ── OS / editor ───────────────────────────────────────────────────────────────
 .DS_Store
@@ -35,8 +36,41 @@ Thumbs.db
 *.swp
 *.swo
 
+# ── Claude Code local config ──────────────────────────────────────────────────
+.claude/settings.local.json
+
+# ── Personal / PII files ──────────────────────────────────────────────────────
+*.pdf
+MOHAMMED_AZEEZULLA_Resume.pdf
+
+# ── Screenshot images ─────────────────────────────────────────────────────────
+image*.png
+"image copy*.png"
+
 # ── Phase 1 cache / outputs ───────────────────────────────────────────────────
 PHASE1_JOB_SEARCH/__pycache__/
 *.xlsx
 *.csv
 data/
+
+# ── Phase 2 outputs (contain PII resume data) ─────────────────────────────────
+PHASE2_JOB_TAILOR/output/
+output/
+
+# ── Phase 3 auto-apply (submodule / separate project) ────────────────────────
+PHASE3_AUTO_APPLY/
+applypilot/
+
+# ── LaTeX build artifacts ─────────────────────────────────────────────────────
+*.aux
+*.log
+*.out
+*.synctex.gz
+
+# ── Dev/util scripts with hardcoded credentials ───────────────────────────────
+reset.py
+setup_test_user.py
+test_apply_linkedin.py
+
+# ── Personal resume LaTeX source (contains PII) ───────────────────────────────
+docs/latex/

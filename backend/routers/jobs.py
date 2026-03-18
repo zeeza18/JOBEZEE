@@ -175,7 +175,7 @@ async def set_job_status(
     current_user : User          = Depends(get_current_user),
     db           : AsyncSession  = Depends(get_db),
 ) -> dict:
-    valid = {"new", "saved", "applied", "hidden", "favourite"}
+    valid = {"new", "saved", "applied", "submitted", "hidden", "favourite"}
     if status not in valid:
         from fastapi import HTTPException
         raise HTTPException(400, f"status must be one of {valid}")
