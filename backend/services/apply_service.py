@@ -17,26 +17,28 @@ _JOBEZEE_ROOT = _SERVICE_DIR.parent.parent               # JOBEZEE/
 if str(_JOBEZEE_ROOT) not in sys.path:
     sys.path.insert(0, str(_JOBEZEE_ROOT))
 
-# ── Patch dashboard.add_event to capture progress ────────────────────────────
-from applypilot.apply import dashboard as _dash  # noqa: E402
-
-_orig_add_event = _dash.add_event
+# ── Patch dashboard.add_event to capture progress (only when applypilot is available) ──
 _event_callbacks: list[Callable[[str], None]] = []
 _cb_lock = threading.Lock()
 
+try:
+    from applypilot.apply import dashboard as _dash  # noqa: E402
+    _orig_add_event = _dash.add_event
 
-def _patched_add_event(msg: str) -> None:
-    _orig_add_event(msg)
-    with _cb_lock:
-        cbs = list(_event_callbacks)
-    for cb in cbs:
-        try:
-            cb(msg)
-        except Exception:
-            pass
+    def _patched_add_event(msg: str) -> None:
+        _orig_add_event(msg)
+        with _cb_lock:
+            cbs = list(_event_callbacks)
+        for cb in cbs:
+            try:
+                cb(msg)
+            except Exception:
+                pass
 
-
-_dash.add_event = _patched_add_event
+    _dash.add_event = _patched_add_event
+    _APPLYPILOT_AVAILABLE = True
+except Exception:
+    _APPLYPILOT_AVAILABLE = False
 
 # ── In-memory apply job store ─────────────────────────────────────────────────
 _apply_jobs: Dict[str, Dict[str, Any]] = {}
