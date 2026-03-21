@@ -284,7 +284,7 @@ const DashboardPage = () => {
           <div className="flex items-center gap-5 min-w-0 md:flex-1">
             <div className="shrink-0">
               {(linkedinAvatar || avatarUrl) ? (
-                <img src={linkedinAvatar ?? `${BASE}${avatarUrl}`} alt="avatar"
+                <img src={linkedinAvatar ?? avatarUrl!} alt="avatar"
                   className={`h-24 w-24 rounded-full object-cover ring-[3px] shadow-md ${linkedinAvatar ? 'ring-violet-400' : 'ring-cyan-300'}`} />
               ) : (
                 <div className="h-24 w-24 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 border-2 border-slate-200 flex items-center justify-center shadow">

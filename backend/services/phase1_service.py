@@ -566,6 +566,45 @@ def _parse_tavily_title(raw: str) -> tuple[str, str]:
     return raw.strip(), ''
 
 
+# Matches aggregation page titles like:
+#   "34,264 ai engineer Jobs in United States, March 2026"
+#   "20,000+ Ai Startup jobs in United States"
+#   "Ai Engineer Jobs, Employment in Boston, MA"
+#   "Machine Learning Ai Engineer Jobs, Employment"
+_TAVILY_AGGS_TITLE_RE = re.compile(
+    r'(\d[\d,]*\+?\s+.{2,60}\bjobs?\b'  # "34,264 ... jobs"
+    r'|\bjobs?,\s*employment\b'           # "Jobs, Employment"
+    r'|\bjob\s+listings?\b'              # "Job Listings"
+    r'|\d[\d,]*\+?\s+.{2,40}\bpositions?\b)',  # "1,000+ ... positions"
+    re.IGNORECASE,
+)
+
+
+def _is_individual_job_url(url: str) -> bool:
+    """
+    Return True only for URLs that point to a single job posting.
+    Rejects search-result / collection / listing pages.
+    """
+    u = url.lower().split("?")[0]   # strip query string for pattern matching
+
+    if "linkedin.com" in u:
+        # Individual jobs: linkedin.com/jobs/view/DIGITS
+        return bool(re.search(r'/jobs/view/\d+', u))
+
+    if "indeed.com" in u:
+        # Individual jobs contain viewjob in path or rc/clk
+        full = url.lower()
+        return "viewjob" in full or "/rc/clk" in full
+
+    if "glassdoor.com" in u:
+        # Individual jobs: /job-listing/ or /partner/jobListing
+        return "/job-listing/" in u or "joblisting" in u.replace("-", "")
+
+    # greenhouse, lever, ashbyhq, workday, jobvite, etc.
+    # These almost always point to a single opening — keep them.
+    return True
+
+
 async def _tavily_search(profile: Any, session_id: str) -> list[Any]:
     """Search for jobs using Tavily API based on user profile preferences."""
     from ..config import get_settings
@@ -621,8 +660,17 @@ async def _tavily_search(profile: Any, session_id: str) -> list[Any]:
                 url = (r.get('url') or '').strip()
                 if not url or url in seen_urls:
                     continue
+                # Skip search-result / collection pages — only keep individual postings
+                if not _is_individual_job_url(url):
+                    log.debug("[Tavily] skipping aggregation URL: %s", url)
+                    continue
+                raw_title = r.get('title') or ''
+                # Skip aggregation page titles ("34,264 Jobs in ...", "Jobs, Employment")
+                if _TAVILY_AGGS_TITLE_RE.search(raw_title):
+                    log.debug("[Tavily] skipping aggregation title: %s", raw_title)
+                    continue
                 seen_urls.add(url)
-                title, company = _parse_tavily_title(r.get('title') or '')
+                title, company = _parse_tavily_title(raw_title)
                 results.append(SimpleNamespace(
                     url          = url,
                     title        = title or query,

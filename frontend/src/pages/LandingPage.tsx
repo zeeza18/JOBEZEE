@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { motion, useInView, useMotionValue, useSpring } from 'framer-motion'
 import LogoBrand from '../components/common/LogoBrand'
 import {
@@ -163,6 +163,13 @@ export default function LandingPage() {
         <div className="pointer-events-none absolute left-1/2 top-0 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-b from-cyan-100/60 to-transparent blur-3xl" />
         <div className="pointer-events-none absolute -left-40 top-40 h-80 w-80 rounded-full bg-sky-100/50 blur-3xl" />
         <div className="pointer-events-none absolute -right-20 bottom-20 h-80 w-80 rounded-full bg-indigo-100/40 blur-3xl" />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}
+          className="relative mb-8"
+        >
+          <img src="/logo.jpg" alt="JOBEZEE" className="mx-auto h-24 w-24 rounded-2xl object-cover shadow-lg shadow-cyan-100" />
+        </motion.div>
 
         <motion.h1
           initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
@@ -474,9 +481,9 @@ export default function LandingPage() {
             © 2026 JOBEZEE · Built with React 19, FastAPI &amp; Neon PostgreSQL
           </p>
           <div className="flex gap-6 text-sm text-slate-400">
-            {['GitHub', 'Privacy', 'Terms'].map((l) => (
-              <a key={l} href="#" className="transition hover:text-slate-700">{l}</a>
-            ))}
+            <a href="https://github.com/zeeza18/JOBEZEE" target="_blank" rel="noopener noreferrer" className="transition hover:text-slate-700">GitHub</a>
+            <Link to="/privacy" className="transition hover:text-slate-700">Privacy</Link>
+            <Link to="/terms" className="transition hover:text-slate-700">Terms</Link>
           </div>
         </div>
       </footer>

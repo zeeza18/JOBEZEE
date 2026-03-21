@@ -18,6 +18,8 @@ interface ProgressEvent {
   error?: string
 }
 
+const BASE = import.meta.env.VITE_API_URL || ''
+
 const TailorPage = () => {
   const { tailor: tailorSettings } = useSettingsStore()
   const [jd, setJd]               = useState('')
@@ -60,7 +62,7 @@ const TailorPage = () => {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch('/api/tailor/extract-resume-text', {
+      const res = await fetch(`${BASE}/api/tailor/extract-resume-text`, {
         method: 'POST', credentials: 'include', body: fd,
       })
       const data = await res.json()
@@ -79,7 +81,7 @@ const TailorPage = () => {
     setResume('')
     setProfileFilename(null)
     try {
-      const res = await fetch('/api/tailor/profile-resume-text', { credentials: 'include' })
+      const res = await fetch(`${BASE}/api/tailor/profile-resume-text`, { credentials: 'include' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail ?? 'Failed to load profile resume')
       setResume(data.text)
@@ -113,7 +115,7 @@ const TailorPage = () => {
     setJobId(null)
     esRef.current?.close()
     try {
-      const res = await fetch('/api/tailor/run', {
+      const res = await fetch(`${BASE}/api/tailor/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -134,7 +136,7 @@ const TailorPage = () => {
   const addLine = (line: string) => setProgressLines((prev) => [...prev, line])
 
   const openStream = (id: string) => {
-    const es = new EventSource(`/api/tailor/stream/${id}`)
+    const es = new EventSource(`${BASE}/api/tailor/stream/${id}`)
     esRef.current = es
     es.onmessage = (e) => {
       const data: ProgressEvent = JSON.parse(e.data)
@@ -155,7 +157,7 @@ const TailorPage = () => {
           addLine('Done! Resume tailored successfully.')
         }
         es.close()
-        fetch(`/api/tailor/status/${id}`, { credentials: 'include' })
+        fetch(`${BASE}/api/tailor/status/${id}`, { credentials: 'include' })
           .then((r) => r.json())
           .then((s) => {
             setHasTex(s.has_tex ?? false)
@@ -171,7 +173,7 @@ const TailorPage = () => {
   const pollStatus = (id: string) => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/tailor/status/${id}`, { credentials: 'include' })
+        const res = await fetch(`${BASE}/api/tailor/status/${id}`, { credentials: 'include' })
         const s = await res.json()
         if (s.score != null) setScore(s.score)
         if (s.status === 'complete') {
@@ -192,7 +194,7 @@ const TailorPage = () => {
   const downloadFile = (endpoint: string, filename: string) => {
     if (!jobId) return
     const a = document.createElement('a')
-    a.href = `/api/tailor/${endpoint}/${jobId}`
+    a.href = `${BASE}/api/tailor/${endpoint}/${jobId}`
     a.download = filename
     a.click()
   }

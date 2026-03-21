@@ -16,6 +16,8 @@ import ConnectorsPage from '../features/connectors/ConnectorsPage'
 import ProfilePage from '../features/profile/ProfilePage'
 import SettingsPage from '../pages/SettingsPage'
 import NotFoundPage from '../pages/NotFoundPage'
+import PrivacyPage from '../pages/PrivacyPage'
+import TermsPage from '../pages/TermsPage'
 import { useAuthStore } from '../store/useAuthStore'
 
 /** Blocks /app/* routes while the session is being verified, then redirects to /auth if unauthenticated. */
@@ -56,6 +58,9 @@ const AppRoutes = () => {
       </Route>
 
       <Route path="/portfolio/:username" element={<PortfolioPublic />} />
+
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms"   element={<TermsPage />} />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

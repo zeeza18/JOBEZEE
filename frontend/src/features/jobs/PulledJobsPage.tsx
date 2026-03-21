@@ -391,7 +391,7 @@ function JobDetailDrawer({
     setFullDesc(null)
     setFetchingDesc(true)
     jobsApi.fullDescription(job.id)
-      .then(r => setFullDesc(r.description))
+      .then(r => { if (r.description) setFullDesc(r.description) })
       .catch(() => {})
       .finally(() => setFetchingDesc(false))
   }, [job.id])
@@ -1367,35 +1367,6 @@ export default function PulledJobsPage() {
           </div>
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 text-center select-none">
-            {/* Icon cluster */}
-            <div className="relative mb-8">
-              {/* Glow ring */}
-              <div className="absolute inset-0 rounded-full bg-cyan-400/10 blur-2xl scale-150" />
-              {/* Main icon */}
-              <div className="relative h-20 w-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-sky-600 shadow-lg shadow-cyan-200 flex items-center justify-center mx-auto">
-                {activeTab === 'saved' ? (
-                  <Bookmark className="h-9 w-9 text-white" />
-                ) : activeTab === 'applied' ? (
-                  <CheckCircle2 className="h-9 w-9 text-white" />
-                ) : activeTab === 'tailored' ? (
-                  <Sparkles className="h-9 w-9 text-white" />
-                ) : activeTab === 'hidden' ? (
-                  <EyeOff className="h-9 w-9 text-white" />
-                ) : (
-                  <Search className="h-9 w-9 text-white" />
-                )}
-              </div>
-              {/* Animated dots — only for searching states */}
-              {(activeTab === 'all' || activeTab === 'new') && (
-                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                  {[0, 1, 2].map(d => (
-                    <div key={d} className="h-2 w-2 rounded-full bg-cyan-400 animate-bounce"
-                      style={{ animationDelay: `${d * 0.18}s` }} />
-                  ))}
-                </div>
-              )}
-            </div>
-
             {/* Text */}
             <p className="text-lg font-bold text-slate-800 mb-2">
               {activeTab === 'saved'    ? 'No saved jobs yet'
