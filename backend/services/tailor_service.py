@@ -16,6 +16,12 @@ from typing import Any, Dict, Optional
 _SERVICE_DIR  = Path(__file__).resolve().parent          # backend/services/
 _JOBEZEE_ROOT = _SERVICE_DIR.parent.parent               # JOBEZEE/
 _TAILOR_ROOT  = _JOBEZEE_ROOT / "PHASE2_JOB_TAILOR"
+
+# Ensure repo root is importable regardless of which service module loaded first
+import sys as _sys
+_JOBEZEE_ROOT_STR = str(_JOBEZEE_ROOT)
+if _JOBEZEE_ROOT_STR not in _sys.path:
+    _sys.path.insert(0, _JOBEZEE_ROOT_STR)
 _OUTPUT_DIR   = _TAILOR_ROOT / "output"
 _JOB_OUTPUTS  = _JOBEZEE_ROOT / "job_outputs"           # per-job output dirs
 

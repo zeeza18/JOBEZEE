@@ -17,20 +17,19 @@ import traceback as _traceback
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlparse
 
 log = logging.getLogger(__name__)
 
-# ── Phase 1 is one directory up from JOBEZEE/backend/ ─────────────────────────
-_REPO_ROOT = Path(__file__).resolve().parents[3]   # …/RESUME-MAKER
+# ── PHASE1_JOB_SEARCH lives at the repo root (same level as backend/) ──────────
+_REPO_ROOT = Path(__file__).resolve().parents[2]   # …/JOBEZEE (repo root)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 # ── Lazy-import Phase 1 so missing deps don't break the whole app ─────────────
 try:
-    from JOBEZEE.PHASE1_JOB_SEARCH import (  # type: ignore
+    from PHASE1_JOB_SEARCH import (  # type: ignore
         JobRecord,
         UserPreferences,
         SearchFilters,
@@ -42,13 +41,13 @@ try:
     _SMARTEXTRACT_AVAILABLE = False
 
     try:
-        from JOBEZEE.PHASE1_JOB_SEARCH import search_workday  # type: ignore
+        from PHASE1_JOB_SEARCH import search_workday  # type: ignore
         _WORKDAY_AVAILABLE = True
     except Exception as _we:
         log.info("Workday search not available (%s)", _we)
 
     try:
-        from JOBEZEE.PHASE1_JOB_SEARCH import search_smart, LLMClient  # type: ignore
+        from PHASE1_JOB_SEARCH import search_smart, LLMClient  # type: ignore
         _SMARTEXTRACT_AVAILABLE = True
     except Exception as _se:
         log.info("SmartExtract not available (%s)", _se)
@@ -553,144 +552,6 @@ def _url_domain(url: str) -> str:
         return ""
 
 
-def _parse_tavily_title(raw: str) -> tuple[str, str]:
-    """Split 'Job Title - Company | Site' into (title, company)."""
-    # Strip trailing site qualifier like "| LinkedIn"
-    raw = re.sub(r'\s*\|\s*\w.*$', '', raw).strip()
-    if ' - ' in raw:
-        parts = raw.split(' - ', 1)
-        return parts[0].strip(), parts[1].strip()
-    if ' at ' in raw:
-        parts = raw.split(' at ', 1)
-        return parts[0].strip(), parts[1].strip()
-    return raw.strip(), ''
-
-
-# Matches aggregation page titles like:
-#   "34,264 ai engineer Jobs in United States, March 2026"
-#   "20,000+ Ai Startup jobs in United States"
-#   "Ai Engineer Jobs, Employment in Boston, MA"
-#   "Machine Learning Ai Engineer Jobs, Employment"
-_TAVILY_AGGS_TITLE_RE = re.compile(
-    r'(\d[\d,]*\+?\s+.{2,60}\bjobs?\b'  # "34,264 ... jobs"
-    r'|\bjobs?,\s*employment\b'           # "Jobs, Employment"
-    r'|\bjob\s+listings?\b'              # "Job Listings"
-    r'|\d[\d,]*\+?\s+.{2,40}\bpositions?\b)',  # "1,000+ ... positions"
-    re.IGNORECASE,
-)
-
-
-def _is_individual_job_url(url: str) -> bool:
-    """
-    Return True only for URLs that point to a single job posting.
-    Rejects search-result / collection / listing pages.
-    """
-    u = url.lower().split("?")[0]   # strip query string for pattern matching
-
-    if "linkedin.com" in u:
-        # Individual jobs: linkedin.com/jobs/view/DIGITS
-        return bool(re.search(r'/jobs/view/\d+', u))
-
-    if "indeed.com" in u:
-        # Individual jobs contain viewjob in path or rc/clk
-        full = url.lower()
-        return "viewjob" in full or "/rc/clk" in full
-
-    if "glassdoor.com" in u:
-        # Individual jobs: /job-listing/ or /partner/jobListing
-        return "/job-listing/" in u or "joblisting" in u.replace("-", "")
-
-    # greenhouse, lever, ashbyhq, workday, jobvite, etc.
-    # These almost always point to a single opening — keep them.
-    return True
-
-
-async def _tavily_search(profile: Any, session_id: str) -> list[Any]:
-    """Search for jobs using Tavily API based on user profile preferences."""
-    from ..config import get_settings
-    settings = get_settings()
-
-    if not settings.TAVILY_API_KEY:
-        log.warning("[Tavily] TAVILY_API_KEY not set — skipping")
-        return []
-
-    try:
-        from tavily import TavilyClient
-    except ImportError:
-        log.warning("[Tavily] tavily-python not installed")
-        return []
-
-    loop = asyncio.get_event_loop()
-    client = TavilyClient(api_key=settings.TAVILY_API_KEY)
-
-    roles     = getattr(profile, 'desired_roles',        []) or []
-    locations = getattr(profile, 'preferred_locations',  []) or []
-    remote    = (getattr(profile, 'remote_preference',   '') or '').lower()
-
-    JOB_DOMAINS = [
-        "linkedin.com", "indeed.com", "glassdoor.com",
-        "greenhouse.io", "lever.co", "workday.com", "jobs.ashbyhq.com",
-    ]
-
-    queries: list[str] = []
-    for role in roles[:2]:
-        if 'remote' in remote or not locations:
-            queries.append(f'"{role}" jobs remote hiring 2025')
-        for loc in (locations[:2] or []):
-            queries.append(f'"{role}" jobs {loc} 2025')
-
-    if not queries:
-        return []
-
-    results: list[Any] = []
-    seen_urls: set[str] = set()
-
-    for query in queries[:4]:
-        try:
-            resp = await loop.run_in_executor(
-                None,
-                lambda q=query: client.search(
-                    query=q,
-                    search_depth="basic",
-                    include_domains=JOB_DOMAINS,
-                    max_results=10,
-                ),
-            )
-            for r in resp.get('results', []):
-                url = (r.get('url') or '').strip()
-                if not url or url in seen_urls:
-                    continue
-                # Skip search-result / collection pages — only keep individual postings
-                if not _is_individual_job_url(url):
-                    log.debug("[Tavily] skipping aggregation URL: %s", url)
-                    continue
-                raw_title = r.get('title') or ''
-                # Skip aggregation page titles ("34,264 Jobs in ...", "Jobs, Employment")
-                if _TAVILY_AGGS_TITLE_RE.search(raw_title):
-                    log.debug("[Tavily] skipping aggregation title: %s", raw_title)
-                    continue
-                seen_urls.add(url)
-                title, company = _parse_tavily_title(raw_title)
-                results.append(SimpleNamespace(
-                    url          = url,
-                    title        = title or query,
-                    company      = company,
-                    location     = '',
-                    country      = '',
-                    description  = r.get('content') or '',
-                    job_type     = '',
-                    min_amount   = None,
-                    max_amount   = None,
-                    currency     = 'USD',
-                    source       = 'tavily',
-                    site         = _url_domain(url),
-                    date_posted  = '',
-                ))
-        except Exception as exc:
-            log.warning("[Tavily] query=%r failed: %s", query, exc)
-
-    log.info("[Tavily] session=%s found %d jobs across %d queries", session_id, len(results), len(queries))
-    return results
 
 
 async def run_phase1_search(profile: Any, session_id: str, include_workday: bool = True) -> None:
@@ -730,15 +591,7 @@ async def run_phase1_search(profile: Any, session_id: str, include_workday: bool
     log.info("[Phase1][0]   _SMARTEXTRACT_AVAILABLE  = %s", _SMARTEXTRACT_AVAILABLE)
 
     if not _PHASE1_AVAILABLE:
-        log.warning("[Phase1][0] Phase1 NOT available — trying Tavily search")
-        tavily_jobs = await _tavily_search(profile, session_id)
-        if tavily_jobs:
-            inserted = await _save_jobs(tavily_jobs, profile_id, session_id)
-            await _update_session(session_id, "done", inserted)
-            _RUNNING_PROFILES.discard(profile_key)
-            log.info("[Phase1][Tavily] done — %d jobs saved", inserted)
-            return
-        log.warning("[Phase1][0] Tavily returned nothing — falling back to mock")
+        log.warning("[Phase1][0] Phase1 NOT available — using mock jobs")
         mock_jobs = _generate_mock_jobs(profile, session_id)
         inserted  = await _save_jobs(mock_jobs, profile_id, session_id)
         await _update_session(session_id, "done", inserted)
@@ -805,7 +658,7 @@ async def run_phase1_search(profile: Any, session_id: str, include_workday: bool
 
         if target_countries and _PHASE1_AVAILABLE:
             try:
-                from JOBEZEE.PHASE1_JOB_SEARCH import INDEED_COUNTRY_CODES  # type: ignore
+                from PHASE1_JOB_SEARCH import INDEED_COUNTRY_CODES  # type: ignore
 
                 # Collect all indeed-codes that correspond to the user's targets
                 target_codes: set[str] = set()
@@ -1142,34 +995,120 @@ def _generate_mock_jobs(profile: Any, session_id: str) -> list[_MockRecord]:
     roles     = profile.desired_roles or ["Software Engineer"]
     locations = profile.preferred_locations or ["Remote"]
 
+    # (company, site, real_url)
     MOCK_COMPANIES = [
-        "Cyan Labs", "Northwind Digital", "Atlas Insights", "Brightline",
-        "TechCorp", "Velocity Inc", "StreamCo", "DataDriven", "NovaSoft",
-        "QuantumLeap", "Horizon AI", "BlueMountain Tech",
+        # ── LinkedIn — real companies with real careers pages ─────────────────
+        ("Anthropic",          "linkedin",      "https://www.anthropic.com/careers"),
+        ("OpenAI",             "linkedin",      "https://openai.com/careers"),
+        ("Google DeepMind",    "linkedin",      "https://deepmind.google/careers/"),
+        ("Meta AI",            "linkedin",      "https://www.metacareers.com/"),
+        ("Microsoft",          "linkedin",      "https://jobs.microsoft.com/"),
+        ("Amazon",             "linkedin",      "https://www.amazon.jobs/"),
+        ("Apple",              "linkedin",      "https://jobs.apple.com/"),
+        ("Nvidia",             "linkedin",      "https://www.nvidia.com/en-us/about-nvidia/careers/"),
+        ("Salesforce",         "linkedin",      "https://www.salesforce.com/company/careers/"),
+        ("Databricks",         "linkedin",      "https://www.databricks.com/company/careers"),
+        ("Scale AI",           "linkedin",      "https://scale.com/careers"),
+        ("Cohere",             "linkedin",      "https://cohere.com/about/careers"),
+        ("Hugging Face",       "linkedin",      "https://apply.workable.com/huggingface/"),
+        ("Mistral AI",         "linkedin",      "https://mistral.ai/fr/careers/"),
+        ("Runway ML",          "linkedin",      "https://runwayml.com/careers/"),
+        ("Stability AI",       "linkedin",      "https://stability.ai/careers"),
+        ("Perplexity AI",      "linkedin",      "https://www.perplexity.ai/hub/careers"),
+        ("Inflection AI",      "linkedin",      "https://inflection.ai/careers"),
+        # ── Indeed — search links for the role ───────────────────────────────
+        ("TechCorp",           "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("NovaSoft",           "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("Velocity Inc",       "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("Cyan Labs",          "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("Atlas Insights",     "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("DataDriven",         "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("StreamCo",           "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("Horizon AI",         "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("BlueMountain Tech",  "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("InferAI",            "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("Synapse Systems",    "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        ("VectorWave",         "indeed",        "https://www.indeed.com/jobs?q={role_q}&l=Remote"),
+        # ── Glassdoor — search links ─────────────────────────────────────────
+        ("QuantumLeap",        "glassdoor",     "https://www.glassdoor.com/Job/jobs.htm?sc.keyword={role_q}&locT=C&locId=1147401"),
+        ("Northwind Digital",  "glassdoor",     "https://www.glassdoor.com/Job/jobs.htm?sc.keyword={role_q}&locT=C&locId=1147401"),
+        ("Brightline",         "glassdoor",     "https://www.glassdoor.com/Job/jobs.htm?sc.keyword={role_q}&locT=C&locId=1147401"),
+        ("Orbit Analytics",    "glassdoor",     "https://www.glassdoor.com/Job/jobs.htm?sc.keyword={role_q}&locT=C&locId=1147401"),
+        ("PeakData",           "glassdoor",     "https://www.glassdoor.com/Job/jobs.htm?sc.keyword={role_q}&locT=C&locId=1147401"),
+        ("Nexus Intelligence", "glassdoor",     "https://www.glassdoor.com/Job/jobs.htm?sc.keyword={role_q}&locT=C&locId=1147401"),
+        ("Luminary AI",        "glassdoor",     "https://www.glassdoor.com/Job/jobs.htm?sc.keyword={role_q}&locT=C&locId=1147401"),
+        ("Prism Labs",         "glassdoor",     "https://www.glassdoor.com/Job/jobs.htm?sc.keyword={role_q}&locT=C&locId=1147401"),
+        # ── ZipRecruiter — search links ───────────────────────────────────────
+        ("SkyNet Solutions",   "zip_recruiter", "https://www.ziprecruiter.com/Jobs/{role_slug}-Jobs"),
+        ("IronClad AI",        "zip_recruiter", "https://www.ziprecruiter.com/Jobs/{role_slug}-Jobs"),
+        ("DeepRoute",          "zip_recruiter", "https://www.ziprecruiter.com/Jobs/{role_slug}-Jobs"),
+        ("Cortex Labs",        "zip_recruiter", "https://www.ziprecruiter.com/Jobs/{role_slug}-Jobs"),
+        ("Axiom AI",           "zip_recruiter", "https://www.ziprecruiter.com/Jobs/{role_slug}-Jobs"),
+        ("Sentinel Systems",   "zip_recruiter", "https://www.ziprecruiter.com/Jobs/{role_slug}-Jobs"),
+        ("Cascade AI",         "zip_recruiter", "https://www.ziprecruiter.com/Jobs/{role_slug}-Jobs"),
+        ("Ember Technologies", "zip_recruiter", "https://www.ziprecruiter.com/Jobs/{role_slug}-Jobs"),
     ]
-    MOCK_SITES = ["indeed", "linkedin", "glassdoor", "zip_recruiter"]
+
+    MOCK_DESCS = [
+        (
+            "## About the Role\n\nWe are looking for a {role} to join our growing team at {company}. "
+            "You will design, build, and deploy production AI systems that serve millions of users.\n\n"
+            "## Responsibilities\n\n- Develop and maintain ML pipelines end-to-end\n"
+            "- Collaborate with product and data teams to define requirements\n"
+            "- Optimize model performance and inference latency\n"
+            "- Write clean, well-tested Python code\n\n"
+            "## Requirements\n\n- 3+ years of experience in machine learning or AI engineering\n"
+            "- Proficiency in Python, PyTorch or TensorFlow\n"
+            "- Experience with cloud platforms (AWS, GCP, or Azure)\n"
+            "- Strong understanding of LLMs and transformer architectures"
+        ),
+        (
+            "## The Opportunity\n\n{company} is hiring a {role} to help scale our AI infrastructure. "
+            "This is a fully remote role with equity and competitive compensation.\n\n"
+            "## What You'll Do\n\n- Build and iterate on large language model applications\n"
+            "- Own the ML lifecycle from data to deployment\n"
+            "- Partner with engineering to integrate AI features into the product\n"
+            "- Contribute to internal tooling and frameworks\n\n"
+            "## What We're Looking For\n\n- BS/MS in Computer Science, ML, or related field\n"
+            "- Hands-on experience fine-tuning or prompting LLMs\n"
+            "- Familiarity with vector databases and RAG architectures\n"
+            "- Strong problem-solving and communication skills"
+        ),
+        (
+            "## Role Overview\n\n{company} is seeking a talented {role} to join our AI team. "
+            "You will work on cutting-edge generative AI products used by enterprise customers globally.\n\n"
+            "## Key Responsibilities\n\n- Design and implement AI agents and agentic workflows\n"
+            "- Evaluate and improve model outputs using robust benchmarking\n"
+            "- Work cross-functionally with research, product, and go-to-market teams\n"
+            "- Mentor junior engineers and contribute to technical roadmap\n\n"
+            "## Qualifications\n\n- 5+ years of software engineering experience, 2+ in AI/ML\n"
+            "- Experience with prompt engineering and RLHF techniques\n"
+            "- Proficiency in distributed systems and data engineering\n"
+            "- Prior experience shipping AI features to production"
+        ),
+    ]
 
     jobs: list[_MockRecord] = []
     for i, role in enumerate(roles[:3]):
-        for j, company in enumerate(MOCK_COMPANIES):
-            loc = locations[j % len(locations)]
+        role_q    = role.replace(" ", "+")
+        role_slug = role.replace(" ", "-")
+        for j, (company, site, url_tpl) in enumerate(MOCK_COMPANIES):
+            loc  = locations[j % len(locations)]
+            desc = MOCK_DESCS[j % len(MOCK_DESCS)].format(role=role, company=company)
+            url  = url_tpl.replace("{role_q}", role_q).replace("{role_slug}", role_slug)
             jobs.append(_MockRecord(
-                title       = f"{role} — #{i*len(MOCK_COMPANIES)+j+1}",
+                title       = role,
                 company     = company,
                 location    = loc,
                 country     = "USA",
-                job_url     = f"https://example.com/jobs/{session_id}-{i}-{j}",
-                description = (
-                    f"We are looking for a {role} to join {company}. "
-                    "You will work with a world-class team on cutting-edge products. "
-                    "Strong communication and technical skills required."
-                ),
+                job_url     = url,
+                description = desc,
                 job_type    = "Full-time",
-                min_amount  = 120_000 + j * 5_000,
-                max_amount  = 160_000 + j * 5_000,
+                min_amount  = 120_000 + j * 2_000,
+                max_amount  = 160_000 + j * 2_000,
                 currency    = "USD",
                 source      = "jobspy",
-                site        = MOCK_SITES[j % len(MOCK_SITES)],
+                site        = site,
                 date_posted = "2026-02-28",
             ))
 

@@ -9,5 +9,21 @@ bcrypt==4.3.0
 pydantic-settings==2.9.1
 python-multipart==0.0.20
 aiofiles==25.1.0
-tavily-python==0.5.1
 openai==1.82.0
+
+# ── PHASE1_JOB_SEARCH scraper deps ────────────────────────────────────────────
+python-jobspy==1.1.80
+tls-client==1.0.1
+requests==2.32.3
+markdownify==0.14.1
+regex==2024.11.6
+beautifulsoup4==4.12.3
+lxml==5.3.0
+
+# ── PHASE2_JOB_TAILOR / tailor_service deps ───────────────────────────────────
+pdfplumber==0.11.4
+python-docx==1.1.2
+
+# ── applypilot / apply_service / PHASE2 tool deps ─────────────────────────────
+python-dotenv==1.0.1
+rich==13.9.4

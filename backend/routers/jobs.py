@@ -149,9 +149,15 @@ async def list_pulled_jobs(
         select(PulledJob)
         .where(PulledJob.user_profile_id == profile_id)
         .order_by(
-            # Workday always last; all other sources first
-            case((PulledJob.site == 'workday', 1), else_=0).asc(),
-            case((PulledJob.source == 'workday', 1), else_=0).asc(),
+            # Site priority: linkedin=0, indeed=1, glassdoor=2, zip_recruiter=3, workday=99, rest=4
+            case(
+                (PulledJob.site == 'linkedin',      0),
+                (PulledJob.site == 'indeed',        1),
+                (PulledJob.site == 'glassdoor',     2),
+                (PulledJob.site == 'zip_recruiter', 3),
+                (PulledJob.site == 'workday',       99),
+                else_=4,
+            ).asc(),
             PulledJob.pulled_at.desc(),
         )
     )
