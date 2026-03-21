@@ -126,12 +126,13 @@ async def refresh_token(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
 
     # Issue a fresh access token only (keep existing refresh token)
+    from ..auth import _IS_SECURE, _SAMESITE
     response.set_cookie(
         key="jobezee_access",
         value=create_access_token(user.id),
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=_IS_SECURE,
+        samesite=_SAMESITE,
         max_age=3600,
         path="/",
     )

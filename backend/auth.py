@@ -87,6 +87,7 @@ def _decode_token(token: str, expected_type: str = "access") -> str:
 
 # ── Cookie helpers ────────────────────────────────────────────────────────────
 _IS_SECURE = not _cfg.DEBUG  # set Secure flag in production
+_SAMESITE  = "none" if _IS_SECURE else "lax"  # cross-domain requires none+secure
 
 
 def set_auth_cookies(response: Response, user_id: str) -> None:
@@ -96,7 +97,7 @@ def set_auth_cookies(response: Response, user_id: str) -> None:
         value=create_access_token(user_id),
         httponly=True,
         secure=_IS_SECURE,
-        samesite="lax",
+        samesite=_SAMESITE,
         max_age=ACCESS_EXPIRE_MINUTES * 60,
         path="/",
     )
@@ -105,7 +106,7 @@ def set_auth_cookies(response: Response, user_id: str) -> None:
         value=create_refresh_token(user_id),
         httponly=True,
         secure=_IS_SECURE,
-        samesite="lax",
+        samesite=_SAMESITE,
         max_age=REFRESH_EXPIRE_DAYS * 86_400,
         path="/api/auth/refresh",  # restrict refresh cookie to refresh endpoint
     )
