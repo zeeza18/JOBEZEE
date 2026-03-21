@@ -60,7 +60,7 @@ export const useSettingsStore = create<SettingsState>()(
         slugLocked: false,
       },
       autoApply: {
-        tailorBeforeApply: true,
+        tailorBeforeApply: false,
       },
 
       deductApplyCost: () =>
@@ -94,6 +94,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'jobezee-settings',
       storage: createJSONStorage(() => localStorage),
+      partialize: (s) => ({ billing: s.billing, jobs: s.jobs, tailor: s.tailor, portfolio: s.portfolio, autoApply: s.autoApply }),
     }
   )
 )

@@ -1343,38 +1343,76 @@ export default function PulledJobsPage() {
       {/* ── Job list — scrolls independently ── */}
       <div className="flex-1 overflow-y-auto w-full max-w-full px-4 py-4">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-brand" />
+          <div className="grid grid-cols-1 gap-3">
+            {[1,2,3,4,5,6].map(i => (
+              <div key={i} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm animate-pulse">
+                <div className="flex items-start gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-slate-100 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 w-1/3 rounded bg-slate-100" />
+                    <div className="h-3 w-1/2 rounded bg-slate-100" />
+                    <div className="flex gap-2 pt-1">
+                      <div className="h-5 w-16 rounded-full bg-slate-100" />
+                      <div className="h-5 w-20 rounded-full bg-slate-100" />
+                      <div className="h-5 w-14 rounded-full bg-slate-100" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 items-end shrink-0">
+                    <div className="h-5 w-20 rounded-full bg-slate-100" />
+                    <div className="h-7 w-16 rounded-xl bg-slate-100" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : visible.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="rounded-2xl border border-slate-100 bg-white p-10 shadow-sm max-w-sm">
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 mx-auto mb-3"><Search className="h-6 w-6 text-slate-400" /></div>
-              <p className="font-semibold text-slate-800 mb-1">
-                {activeTab === 'new'      ? 'No new jobs yet'
-                 : activeTab === 'saved'  ? 'Nothing saved yet'
-                 : activeTab === 'hidden' ? 'No hidden jobs'
-                 : activeTab === 'applied'  ? 'No applications yet'
-                 : activeTab === 'tailored' ? 'No tailored resumes yet'
-                 : 'No jobs found'}
-              </p>
-              <p className="text-sm text-slate-500 mb-4">
-                {activeTab === 'all' && stats?.total === 0
-                  ? 'Click Search to pull jobs from your profile preferences.'
-                  : activeTab === 'applied'
-                  ? 'Jobs you apply to will appear here.'
-                  : activeTab === 'tailored'
-                  ? 'Tailor a resume for a job and it will appear here.'
-                  : 'Try adjusting filters or running a new search.'}
-              </p>
+          <div className="flex flex-col items-center justify-center py-28 text-center select-none">
+            {/* Icon cluster */}
+            <div className="relative mb-8">
+              {/* Glow ring */}
+              <div className="absolute inset-0 rounded-full bg-cyan-400/10 blur-2xl scale-150" />
+              {/* Main icon */}
+              <div className="relative h-20 w-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-sky-600 shadow-lg shadow-cyan-200 flex items-center justify-center mx-auto">
+                {activeTab === 'saved' ? (
+                  <Bookmark className="h-9 w-9 text-white" />
+                ) : activeTab === 'applied' ? (
+                  <CheckCircle2 className="h-9 w-9 text-white" />
+                ) : activeTab === 'tailored' ? (
+                  <Sparkles className="h-9 w-9 text-white" />
+                ) : activeTab === 'hidden' ? (
+                  <EyeOff className="h-9 w-9 text-white" />
+                ) : (
+                  <Search className="h-9 w-9 text-white" />
+                )}
+              </div>
+              {/* Animated dots — only for searching states */}
               {(activeTab === 'all' || activeTab === 'new') && (
-                <button onClick={() => triggerSearch()} disabled={searching || polling}
-                  className="flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50 transition mx-auto">
-                  <Zap className="h-4 w-4" />
-                  {searching || polling ? 'Searching…' : 'Search Now'}
-                </button>
+                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                  {[0, 1, 2].map(d => (
+                    <div key={d} className="h-2 w-2 rounded-full bg-cyan-400 animate-bounce"
+                      style={{ animationDelay: `${d * 0.18}s` }} />
+                  ))}
+                </div>
               )}
             </div>
+
+            {/* Text */}
+            <p className="text-lg font-bold text-slate-800 mb-2">
+              {activeTab === 'saved'    ? 'No saved jobs yet'
+               : activeTab === 'hidden'  ? 'No hidden jobs'
+               : activeTab === 'applied' ? 'No applications yet'
+               : activeTab === 'tailored'? 'No tailored resumes yet'
+               : 'Searching for jobs…'}
+            </p>
+            <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
+              {activeTab === 'all' || activeTab === 'new'
+                ? 'Hang tight — jobs are being pulled from LinkedIn, Indeed, Glassdoor and more based on your profile.'
+                : activeTab === 'applied'
+                ? 'Jobs you apply to will show up here.'
+                : activeTab === 'tailored'
+                ? 'Tailor a resume for any job and it will appear here.'
+                : 'Try adjusting your filters or running a new search.'}
+            </p>
           </div>
         ) : (
           <>

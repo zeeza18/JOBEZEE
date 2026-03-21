@@ -42,6 +42,10 @@ class UserProfileBase(BaseModel):
     remote_preference    : str = "hybrid"
     job_type             : str = "full_time"
     experience_level     : str = "mid"
+    # Multi-select (LinkedIn-filter-friendly)
+    work_modes           : list[str] = Field(default_factory=list)   # ["remote","hybrid","onsite"]
+    job_types            : list[str] = Field(default_factory=list)   # ["full_time","contract"]
+    experience_levels    : list[str] = Field(default_factory=list)   # ["junior","mid","senior"]
 
     # ── Salary ───────────────────────────────────────────────────────────────
     salary_min        : float = 0.0
@@ -55,7 +59,25 @@ class UserProfileBase(BaseModel):
     work_permit_type          : str  = ""
 
     # ── Auto-apply credentials ────────────────────────────────────────────────
+    apply_email     : str = ""
     apply_password  : str = ""
+
+    # Per-platform credentials
+    linkedin_email      : str = ""
+    linkedin_password   : str = ""
+    indeed_email        : str = ""
+    indeed_password     : str = ""
+    greenhouse_email    : str = ""
+    greenhouse_password : str = ""
+    workday_email       : str = ""
+    workday_password    : str = ""
+
+    # Email integration
+    gmail_api_key : str = ""
+
+    # AI API keys (write-only — never returned in GET, use credentials_set)
+    openai_api_key    : str = ""
+    anthropic_api_key : str = ""
 
     # ── Experience & education ────────────────────────────────────────────────
     current_job_title : str = ""
@@ -79,6 +101,7 @@ class UserProfileBase(BaseModel):
     search_radius_miles : int = 50
     hours_old           : int = 72
     results_per_site    : int = 50
+    tailor_resume       : bool = False
 
 
 class UserProfileCreate(UserProfileBase):
@@ -93,6 +116,8 @@ class UserProfileResponse(UserProfileBase):
     id              : UUID
     resume_filename : str = ""
     resume_url      : str = ""
+    avatar_url      : str = ""
+    credentials_set : dict = Field(default_factory=dict)   # {field: bool} — which sensitive fields are set in DB
     created_at      : datetime
     updated_at      : datetime
 

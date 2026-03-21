@@ -358,14 +358,26 @@ const TailorPage = () => {
                   jobStatus === 'error'    ? 'bg-red-100 text-red-700'         : ''
                 }`}>{stageLabel[jobStatus]}</span>
               </div>
-              <div ref={logRef} className="h-48 md:h-64 overflow-y-auto rounded-xl bg-slate-900 p-3 md:p-4 font-mono text-xs md:text-sm text-slate-300 space-y-1">
+              <div ref={logRef} className="h-48 md:h-64 overflow-y-auto rounded-xl bg-slate-900 p-3 md:p-4 font-mono text-xs md:text-sm space-y-0.5">
                 {progressLines.length === 0 && <span className="text-slate-500">Waiting for pipeline output...</span>}
-                {progressLines.map((line, i) => (
-                  <div key={i} className="flex gap-2">
-                    <span className="text-slate-500 select-none">{String(i + 1).padStart(2, '0')}</span>
-                    <span>{line}</span>
-                  </div>
-                ))}
+                {progressLines.map((line, i) => {
+                  const cls =
+                    /^\[ERROR\]/i.test(line)    ? 'text-red-400' :
+                    /^\[WARN\]/i.test(line)     ? 'text-amber-400' :
+                    /^\[OK\]/i.test(line)       ? 'text-emerald-400' :
+                    /^\[STEP\]/i.test(line)     ? 'text-cyan-300 font-semibold' :
+                    /^\[Tailor\]/i.test(line)   ? 'text-violet-300' :
+                    /^\[PHASE/i.test(line)      ? 'text-cyan-400 font-semibold' :
+                    /^\[ROUND|^={3}/i.test(line) ? 'text-blue-300 font-semibold' :
+                    /^\[MEMORY\]/i.test(line)   ? 'text-slate-400' :
+                    /^\[ANALYZER\]/i.test(line) ? 'text-slate-400' :
+                    /^\[INFO\]/i.test(line)     ? 'text-slate-400' :
+                    /^\[STATS\]/i.test(line)    ? 'text-slate-400' :
+                    'text-slate-300'
+                  return (
+                    <div key={i} className={`break-all leading-relaxed ${cls}`}>{line}</div>
+                  )
+                })}
                 {jobStatus === 'running' && (
                   <div className="flex gap-1 pt-1">
                     <span className="animate-pulse text-cyan-400">●</span>

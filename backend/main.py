@@ -24,9 +24,10 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .database import create_tables, run_column_migrations
+from .database import create_tables, run_column_migrations, run_schema_migration
 from .routers import auth, jobs, portfolio, profile, search, tailor
-from .routers import apply_auto
+from .routers import apply_auto, applied_jobs, dashboard, auth_linkedin
+from .routers import analytics, logs
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -75,17 +76,91 @@ async def _auto_search_loop() -> None:
         await asyncio.sleep(3 * 60 * 60)
 
 
+# ── 30-minute auto email scan background loop ─────────────────────────────────
+
+async def _auto_email_scan_loop() -> None:
+    """Scan Gmail for all users with applied jobs every 30 minutes and auto-update statuses."""
+    _log = logging.getLogger(__name__ + ".emailscan")
+    _log.info("[EmailScan] loop started — first run in 5 minutes")
+    await asyncio.sleep(5 * 60)   # wait 5 min before first run (let DB initialize)
+    while True:
+        _log.info("[EmailScan] running 30-min email scan cycle")
+        try:
+            from .database import AsyncSessionLocal
+            from .models import PulledJob
+            from .routers.applied_jobs import _imap_search, _detect_status_from_text, _gpt_detect_status
+            from sqlalchemy import select
+
+            async with AsyncSessionLocal() as db:
+                res = await db.execute(
+                    select(PulledJob).where(PulledJob.status == "applied").limit(100)
+                )
+                jobs = res.scalars().all()
+
+                loop = asyncio.get_event_loop()
+                updates = 0
+                for job in jobs:
+                    query = f"{job.company} {job.title}" if job.company else (job.title or "")
+                    if not query.strip():
+                        continue
+                    combined_text = await loop.run_in_executor(
+                        None, lambda q=query: _imap_search(q, 3)
+                    )
+                    if not combined_text.strip():
+                        continue
+                    new_status = _detect_status_from_text(combined_text)
+                    if not new_status:
+                        new_status = await _gpt_detect_status(combined_text)
+                    if new_status and new_status != job.status:
+                        job.status = new_status
+                        updates += 1
+
+                if updates:
+                    await db.commit()
+            _log.info("[EmailScan] cycle complete — %d status updates", updates)
+        except Exception as exc:
+            _log.error("[EmailScan] error: %s", exc)
+        await asyncio.sleep(30 * 60)
+
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
+
+def _start_global_chrome() -> None:
+    """Launch the persistent Chrome window at startup (background thread)."""
+    _log = logging.getLogger(__name__ + ".chrome")
+    try:
+        import sys
+        from pathlib import Path as _P
+        _root = _P(__file__).resolve().parent.parent
+        if str(_root) not in sys.path:
+            sys.path.insert(0, str(_root))
+        from applypilot.config import load_env, ensure_dirs
+        from applypilot.apply.chrome import ensure_global_chrome
+        load_env()
+        ensure_dirs()
+        ensure_global_chrome(headless=False)
+        _log.info("[Chrome] Global browser window started on port 9222")
+    except Exception as exc:
+        _log.warning("[Chrome] Could not start global browser at startup: %s", exc)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await create_tables()          # creates any new tables
+    await create_tables()          # creates any new tables (including all v2 tables)
     await run_column_migrations()  # adds any missing columns to existing tables
+    await run_schema_migration()   # migrates data from old tables into v2 tables
+
+    # Start the persistent Chrome window so it's ready before the first apply
+    import threading as _threading
+    _threading.Thread(target=_start_global_chrome, daemon=True, name="chrome-startup").start()
+
     _bg_task = asyncio.create_task(_auto_search_loop())
+    _email_task = asyncio.create_task(_auto_email_scan_loop())
     yield
     _bg_task.cancel()
+    _email_task.cancel()
     try:
-        await _bg_task
+        await asyncio.gather(_bg_task, _email_task, return_exceptions=True)
     except asyncio.CancelledError:
         pass
 
@@ -97,9 +172,9 @@ app = FastAPI(
     description = "AI-powered job-search co-pilot — backend",
     version     = "1.0.0",
     lifespan    = lifespan,
-    docs_url    = "/docs",
-    redoc_url   = "/redoc",
-    debug       = _cfg.DEBUG,   # shows full traceback in 500 responses during dev
+    docs_url    = "/docs"   if _cfg.DEBUG else None,
+    redoc_url   = "/redoc"  if _cfg.DEBUG else None,
+    debug       = _cfg.DEBUG,
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
@@ -114,13 +189,18 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 
-app.include_router(auth.router,    prefix="/api/auth",    tags=["auth"])
+app.include_router(auth.router,         prefix="/api/auth",    tags=["auth"])
+app.include_router(auth_linkedin.router, prefix="/api/auth",   tags=["auth"])
 app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 app.include_router(jobs.router,    prefix="/api/jobs",    tags=["jobs"])
 app.include_router(search.router,  prefix="/api/search",  tags=["search"])
 app.include_router(tailor.router,     prefix="/api/tailor",     tags=["tailor"])
 app.include_router(portfolio.router,  prefix="/api/portfolio",  tags=["portfolio"])
 app.include_router(apply_auto.router, prefix="/api/apply",       tags=["apply"])
+app.include_router(applied_jobs.router, prefix="/api/applied-jobs", tags=["applied-jobs"])
+app.include_router(dashboard.router,    prefix="/api/dashboard",    tags=["dashboard"])
+app.include_router(analytics.router,    prefix="/api/analytics",    tags=["analytics"])
+app.include_router(logs.router,         prefix="/api/logs",         tags=["logs"])
 
 # ── Static files (uploaded resumes) ──────────────────────────────────────────
 
@@ -132,9 +212,23 @@ app.mount("/uploads", StaticFiles(directory=_cfg.UPLOAD_DIR), name="uploads")
 async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
     tb = traceback.format_exc()
     logging.error("Unhandled exception on %s %s\n%s", request.method, request.url, tb)
+
+    # Persist to error_logs table (fire-and-forget)
+    try:
+        from .routers.logs import write_error_log
+        asyncio.create_task(write_error_log(
+            source="unhandled_exception",
+            message=str(exc),
+            traceback_str=tb,
+            request_path=str(request.url.path),
+            request_method=request.method,
+        ))
+    except Exception:
+        pass
+
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc), "traceback": tb},
+        content={"detail": str(exc), "traceback": tb} if _cfg.DEBUG else {"detail": "Internal server error"},
     )
 
 

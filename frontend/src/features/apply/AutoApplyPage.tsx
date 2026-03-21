@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Check, CheckCircle2, FileText, Link2, Loader2, Settings2, Wifi, XCircle, Zap } from 'lucide-react'
-import { Button } from '../../components/ui/Button'
+import { CheckCircle2, Chrome, Link2, Linkedin, Loader2, Settings2, XCircle, Zap } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
-import { applyApi } from '../../lib/api'
+import { applyApi, linkedinApi } from '../../lib/api'
 import { useSettingsStore } from '../../store/useSettingsStore'
 
 type ApplyStatus = 'idle' | 'running' | 'complete' | 'error'
-type WarmStatus  = 'idle' | 'running' | 'complete' | 'error'
 
 interface StreamEvent {
   line?   : string
@@ -46,17 +44,31 @@ const AutoApplyPage = () => {
   const [status, setStatus]         = useState<ApplyStatus>('idle')
   const [lines, setLines]           = useState<string[]>([])
   const [result, setResult]         = useState<string | null>(null)
-  const [cost, setCost]             = useState<number | null>(null)
+  const [, setCost]                 = useState<number | null>(null)
   const [error, setError]           = useState<string | null>(null)
   const [activeStep, setActiveStep] = useState(-1)
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [warmStatus,  setWarmStatus]  = useState<WarmStatus>('idle')
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [warmResults, setWarmResults] = useState<Record<string, string>>({})
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [warmError,   setWarmError]   = useState<string | null>(null)
   const warmPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Persistent browser status
+  const [browserAlive,    setBrowserAlive]    = useState<boolean | null>(null)
+  const [browserStarting, setBrowserStarting] = useState(false)
+
+  // ── LinkedIn bot state ──────────────────────────────────────────────────────
+  const LI_JOB_KEY = 'jobezee_li_job_id'
+
+  const [liStatus,  setLiStatus]  = useState<'idle' | 'running' | 'complete' | 'error'>('idle')
+  const [liLines,   setLiLines]   = useState<string[]>([])
+  const [liResult,  setLiResult]  = useState<string | null>(null)
+  const [liError,   setLiError]   = useState<string | null>(null)
+  const [liJobId,   setLiJobId]   = useState<string | null>(null)
+  const [liStopping, setLiStopping] = useState(false)
+  const liEsRef  = useRef<EventSource | null>(null)
+  const liLogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (liLogRef.current) liLogRef.current.scrollTop = liLogRef.current.scrollHeight
+  }, [liLines])
 
   const esRef  = useRef<EventSource | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
@@ -65,10 +77,87 @@ const AutoApplyPage = () => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [lines])
 
+  // Poll browser status every 5 seconds
+  useEffect(() => {
+    const checkBrowser = async () => {
+      try {
+        const s = await applyApi.browserStatus()
+        setBrowserAlive(s.alive)
+      } catch { setBrowserAlive(false) }
+    }
+    checkBrowser()
+    const interval = setInterval(checkBrowser, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Open (or reopen) the LinkedIn SSE stream — replays all lines from start on reconnect
+  const openLinkedInStream = (id: string) => {
+    liEsRef.current?.close()
+    const es = new EventSource(linkedinApi.streamUrl(id))
+    liEsRef.current = es
+    es.onmessage = (e) => {
+      const ev = JSON.parse(e.data)
+      if (ev.line) {
+        setLiLines(prev => [...prev, ev.line])
+      } else if (ev.event === 'done') {
+        setLiStatus(ev.status === 'error' ? 'error' : 'complete')
+        setLiResult(ev.result ?? null)
+        if (ev.error) setLiError(ev.error)
+        es.close()
+        localStorage.removeItem(LI_JOB_KEY)
+      }
+    }
+    // On SSE disconnect: silently close — backend bot keeps running.
+    // Next time user visits this page the mount effect will reconnect.
+    es.onerror = () => es.close()
+  }
+
+  // On mount: reconnect to any bot that was running before navigation
+  useEffect(() => {
+    const savedId = localStorage.getItem(LI_JOB_KEY)
+    if (!savedId) return
+    linkedinApi.status(savedId)
+      .then(s => {
+        if (s.status === 'running') {
+          setLiJobId(savedId)
+          setLiStatus('running')
+          setLiLines([])  // will be replayed by SSE from position 0
+          openLinkedInStream(savedId)
+        } else {
+          // Finished while away — show final state then clear
+          setLiJobId(savedId)
+          setLiStatus(s.status === 'error' ? 'error' : 'complete')
+          if (s.error) setLiError(s.error)
+          localStorage.removeItem(LI_JOB_KEY)
+        }
+      })
+      .catch(() => localStorage.removeItem(LI_JOB_KEY))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => () => {
     esRef.current?.close()
+    liEsRef.current?.close()
     if (warmPollRef.current) clearInterval(warmPollRef.current)
+    // NOTE: do NOT clear LI_JOB_KEY here — bot keeps running on the server
   }, [])
+
+  const handleBrowserStart = async () => {
+    setBrowserStarting(true)
+    try {
+      await applyApi.browserStart()
+      // Poll until alive
+      let tries = 0
+      const poll = setInterval(async () => {
+        tries++
+        try {
+          const s = await applyApi.browserStatus()
+          if (s.alive) { setBrowserAlive(true); setBrowserStarting(false); clearInterval(poll) }
+        } catch { /* continue */ }
+        if (tries > 20) { setBrowserStarting(false); clearInterval(poll) }
+      }, 1500)
+    } catch { setBrowserStarting(false) }
+  }
 
   const addLine = (line: string) => setLines(prev => [...prev, line])
 
@@ -120,28 +209,34 @@ const AutoApplyPage = () => {
     }
   }
 
-  const handleWarm = async () => {
-    setWarmStatus('running')
-    setWarmResults({})
-    setWarmError(null)
-    if (warmPollRef.current) clearInterval(warmPollRef.current)
+
+  const handleLinkedInStop = async () => {
+    if (!liJobId) return
+    setLiStopping(true)
     try {
-      const data = await applyApi.warmSessions(0, false)
-      const id = data.warm_job_id
-      warmPollRef.current = setInterval(async () => {
-        try {
-          const s = await applyApi.warmStatus(id)
-          if (s.status !== 'running') {
-            clearInterval(warmPollRef.current!)
-            setWarmStatus(s.status === 'error' ? 'error' : 'complete')
-            setWarmResults(s.results ?? {})
-            setWarmError(s.error ?? null)
-          }
-        } catch { clearInterval(warmPollRef.current!) }
-      }, 3000)
+      await linkedinApi.stop(liJobId)
+    } catch { /* ignore — stream will close on its own */ }
+    setLiStopping(false)
+    setLiStatus('error')
+    setLiError('Stopped by user')
+    liEsRef.current?.close()
+    localStorage.removeItem(LI_JOB_KEY)
+  }
+
+  const handleLinkedIn = async () => {
+    setLiStatus('running')
+    setLiLines([])
+    setLiResult(null)
+    setLiError(null)
+    setLiJobId(null)
+    try {
+      const data = await linkedinApi.launch(false, autoApply.tailorBeforeApply)
+      setLiJobId(data.linkedin_job_id)
+      localStorage.setItem(LI_JOB_KEY, data.linkedin_job_id)
+      openLinkedInStream(data.linkedin_job_id)
     } catch (err: any) {
-      setWarmStatus('error')
-      setWarmError(err.message ?? 'Failed to start warm sessions')
+      setLiStatus('error')
+      setLiError(err.message ?? 'Failed to launch LinkedIn bot')
     }
   }
 
@@ -166,295 +261,226 @@ const AutoApplyPage = () => {
     }
   }
 
-  const resultColor =
-    result === 'applied'      ? 'text-emerald-600' :
-    result === 'submitted'    ? 'text-amber-600'   :
-    result === 'dry_run_done' ? 'text-cyan-600'    :
-    result === 'failed'       ? 'text-red-600'      : 'text-slate-600'
-
-  const resultIcon =
-    result === 'applied'      ? <CheckCircle2 className="h-5 w-5 text-emerald-500" /> :
-    result === 'submitted'    ? <CheckCircle2 className="h-5 w-5 text-amber-500" />   :
-    result === 'dry_run_done' ? <CheckCircle2 className="h-5 w-5 text-cyan-500" />    :
-    <XCircle className="h-5 w-5 text-red-500" />
 
   return (
-    <div className="space-y-5 w-full">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Phase 3 · AI-powered</p>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Auto Apply</h1>
-        </div>
-        {/* Mode badge from Settings */}
-        <a
-          href="/app/settings"
-          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 hover:bg-slate-100"
-        >
-          <Settings2 className="h-3.5 w-3.5 text-slate-400" />
-          <span>
-            Mode:{' '}
-            <span className={autoApply.tailorBeforeApply ? 'font-semibold text-violet-600' : 'font-semibold text-cyan-600'}>
-              {autoApply.tailorBeforeApply ? 'Tailor → Apply' : 'Direct Apply'}
+    <div className="space-y-4">
+
+      {/* ── Header ── */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-bold text-slate-900">Auto Apply</h1>
+        <div className="flex items-center gap-2">
+          {browserAlive === null ? (
+            <span className="flex items-center gap-1.5 text-xs text-slate-400">
+              <Loader2 className="h-3 w-3 animate-spin" /> Checking…
             </span>
-          </span>
-          {autoApply.tailorBeforeApply
-            ? <FileText className="h-3.5 w-3.5 text-violet-400" />
-            : <Zap className="h-3.5 w-3.5 text-cyan-400" />
-          }
-        </a>
+          ) : browserAlive ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Browser ready
+            </span>
+          ) : (
+            <button onClick={handleBrowserStart} disabled={browserStarting}
+              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:border-slate-300 transition disabled:opacity-50">
+              {browserStarting ? <><Loader2 className="h-3 w-3 animate-spin" /> Starting…</> : <><Chrome className="h-3 w-3" /> Start Browser</>}
+            </button>
+          )}
+          <a href="/app/settings"
+            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500 hover:border-slate-300 transition">
+            <Settings2 className="h-3 w-3" />
+            {autoApply.tailorBeforeApply ? <span className="text-violet-600">Tailor → Apply</span> : <span className="text-cyan-600">Direct Apply</span>}
+          </a>
+        </div>
       </div>
 
-      {/* URL Input Card */}
-      <Card className="space-y-4 p-4 md:p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <Link2 className="h-4 w-4 text-cyan-500" />
-          <p className="text-sm font-semibold text-slate-800">Job URL</p>
-        </div>
-        <input
-          type="url"
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition"
-          placeholder="Paste job posting URL here — e.g. https://jobs.lever.co/company/abc123"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          disabled={status === 'running'}
-          onKeyDown={e => { if (e.key === 'Enter') handleRun() }}
-        />
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <div
-              onClick={() => setDryRun(v => !v)}
-              className={`relative w-10 h-5 rounded-full transition-colors ${dryRun ? 'bg-cyan-500' : 'bg-slate-200'}`}
-            >
-              <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${dryRun ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </div>
-            <span className="text-sm text-slate-600">
-              Dry run <span className="text-slate-400 text-xs">(fills form, skips Submit)</span>
-            </span>
-          </label>
-          <Button
-            onClick={handleRun}
-            disabled={status === 'running' || !url.trim()}
-            className="px-6"
-          >
-            {status === 'running'
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Applying…</>
-              : <><Zap className="h-4 w-4" /> Auto Apply</>
-            }
-          </Button>
-        </div>
-      </Card>
-
-      {/* Warm Sessions Card */}
-      <Card className="p-4 md:p-5 space-y-3">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Wifi className="h-4 w-4 text-cyan-500" />
-            <p className="text-sm font-semibold text-slate-800">Warm Sessions</p>
-            <span className="text-xs text-slate-400">Pre-login to LinkedIn & Indeed so the agent never re-authenticates mid-run</span>
+      {/* ── 1. Apply by URL ── */}
+      <Card className="overflow-hidden p-0">
+        {/* Card header */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 md:px-6 py-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 border border-cyan-100 shrink-0">
+            <Link2 className="h-4 w-4 text-cyan-600" />
           </div>
-          <Button
-            variant="ghost"
-            onClick={handleWarm}
-            disabled={warmStatus === 'running'}
-            className="px-4 text-sm"
-          >
-            {warmStatus === 'running'
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Warming…</>
-              : <><Wifi className="h-3.5 w-3.5" /> Warm Now</>
-            }
-          </Button>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-slate-800">Apply by URL</p>
+            <p className="text-xs text-slate-400">Lever, Greenhouse, Workday, Jobvite and more</p>
+          </div>
+          {/* dry run toggle — right side on desktop, wraps below on mobile */}
+          <label className="flex items-center gap-2 cursor-pointer select-none ml-auto">
+            <span className="text-xs text-slate-500">Dry run</span>
+            <button type="button" onClick={() => setDryRun(v => !v)}
+              className={`relative h-5 w-9 rounded-full transition-colors ${dryRun ? 'bg-cyan-500' : 'bg-slate-200'}`}>
+              <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${dryRun ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </button>
+          </label>
         </div>
 
-        {warmStatus !== 'idle' && (
-          <div className="flex flex-wrap gap-2">
-            {warmStatus === 'running' && (
-              <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                <Loader2 className="h-3 w-3 animate-spin" /> Starting Chrome &amp; logging in…
-              </span>
+        {/* URL input + button — row on desktop, stacked on mobile */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 px-4 md:px-6 py-4 md:py-5">
+          <input
+            type="url"
+            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-cyan-400 focus:bg-white focus:ring-2 focus:ring-cyan-100 transition"
+            placeholder="https://jobs.lever.co/company/abc123"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            disabled={status === 'running'}
+            onKeyDown={e => { if (e.key === 'Enter') handleRun() }}
+          />
+          <button onClick={handleRun} disabled={status === 'running' || !url.trim()}
+            className="w-full md:w-auto shrink-0 flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-6 py-3 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50 transition">
+            {status === 'running' ? <><Loader2 className="h-4 w-4 animate-spin" /> Applying…</> : <><Zap className="h-4 w-4" /> Apply Now</>}
+          </button>
+        </div>
+
+        {/* Progress + log — only when active */}
+        {status !== 'idle' && (
+          <div className="border-t border-slate-100 px-4 md:px-6 py-4 space-y-4">
+            {/* Step pills */}
+            <div className="flex flex-wrap gap-2">
+              {STEPS.map((step, idx) => {
+                const isDone   = activeStep > idx || (status === 'complete' && idx === STEPS.length - 1)
+                const isActive = idx === activeStep && status === 'running'
+                const isFailed = status === 'error' && idx === activeStep
+                return (
+                  <span key={step.key}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-all
+                      ${isDone   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : isFailed ? 'bg-red-50 text-red-600 border-red-200'
+                      : isActive ? 'bg-cyan-50 text-cyan-700 border-cyan-300'
+                      : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
+                    {isActive && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {isDone && <CheckCircle2 className="h-3 w-3" />}
+                    {step.label}
+                  </span>
+                )
+              })}
+            </div>
+
+            {/* Log */}
+            {lines.length > 0 && (
+              <div ref={logRef}
+                className="h-40 overflow-y-auto rounded-xl bg-slate-950 px-4 py-3 font-mono text-xs leading-relaxed text-slate-300">
+                {lines.map((line, i) => <div key={i} className="break-all">{line}</div>)}
+                {status === 'running' && (
+                  <div className="flex gap-1.5 pt-1 text-cyan-400"><span className="animate-pulse">●</span><span className="text-slate-500">working…</span></div>
+                )}
+              </div>
             )}
-            {Object.entries(warmResults).map(([site, state]) => {
-              const ok = state === 'already_logged_in' || state === 'logged_in' || state === 'loaded'
-              return (
-                <span
-                  key={site}
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium
-                    ${ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                         : 'bg-amber-50 text-amber-700 border border-amber-200'}`}
-                >
-                  {ok
-                    ? <Check className="h-3 w-3" />
-                    : <XCircle className="h-3 w-3" />
-                  }
-                  <span className="capitalize">{site}</span>
-                  <span className="opacity-60">·</span>
-                  <span>{state === 'already_logged_in' ? 'already in' : state}</span>
-                </span>
-              )
-            })}
-            {warmError && (
-              <span className="text-xs text-red-600">{warmError}</span>
+
+            {/* Result banner */}
+            {status === 'complete' && result && (
+              <div className={`flex items-center gap-3 rounded-xl border px-4 py-3
+                ${result === 'applied' ? 'bg-emerald-50 border-emerald-200'
+                : result === 'submitted' ? 'bg-amber-50 border-amber-200'
+                : 'bg-red-50 border-red-200'}`}>
+                {result === 'applied' || result === 'submitted' || result === 'dry_run_done'
+                  ? <CheckCircle2 className={`h-5 w-5 shrink-0 ${result === 'applied' ? 'text-emerald-500' : result === 'submitted' ? 'text-amber-500' : 'text-cyan-500'}`} />
+                  : <XCircle className="h-5 w-5 shrink-0 text-red-500" />}
+                <div className="flex-1">
+                  <p className={`text-sm font-bold ${result === 'applied' ? 'text-emerald-700' : result === 'submitted' ? 'text-amber-700' : 'text-red-700'}`}>
+                    {result === 'applied' ? 'Applied — Confirmed!' : result === 'submitted' ? 'Submitted — watching inbox…' : result === 'dry_run_done' ? 'Dry run complete' : result === 'captcha' ? 'Blocked by CAPTCHA' : 'Application failed'}
+                  </p>
+                  {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
+                </div>
+                <button onClick={() => { setStatus('idle'); setLines([]); setResult(null); setUrl(''); setActiveStep(-1) }}
+                  className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+                  Reset
+                </button>
+              </div>
+            )}
+            {status === 'error' && error && !result && (
+              <p className="text-sm text-red-600">{error}</p>
             )}
           </div>
         )}
       </Card>
 
-      {/* Live Progress */}
-      {status !== 'idle' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-
-          {/* Step tracker */}
-          <Card className="p-5">
-            <p className="text-sm font-semibold text-slate-800 mb-5">Progress</p>
-            <div>
-              {STEPS.map((step, idx) => {
-                const isDone    = activeStep > idx || (status === 'complete' && idx === STEPS.length - 1)
-                const isActive  = idx === activeStep && status !== 'complete' && status !== 'error'
-                const isFailed  = status === 'error' && idx === activeStep
-                const isPending = !isDone && !isActive && !isFailed
-
-                return (
-                  <div key={step.key} className="flex gap-3">
-                    {/* Connector column */}
-                    <div className="flex flex-col items-center">
-                      {/* Step circle */}
-                      <div className={`
-                        relative flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
-                        transition-all duration-500
-                        ${isDone    ? 'bg-emerald-500 shadow-md shadow-emerald-200'                         : isFailed  ? 'bg-red-500 shadow-md shadow-red-200'
-                        : isActive  ? 'bg-cyan-500 shadow-lg shadow-cyan-200 ring-4 ring-cyan-100'
-                        : 'bg-slate-100 border-2 border-slate-200'}
-                      `}>
-                        {isDone    ? <Check className="h-4 w-4 text-white" />                        : isFailed  ? <XCircle className="h-3.5 w-3.5 text-white" />
-                        : isActive  ? <Loader2 className="h-3.5 w-3.5 text-white animate-spin" />
-                        : <span className="text-xs font-bold text-slate-300">{idx + 1}</span>
-                        }
-                        {isActive && (
-                          <span className="absolute inset-0 rounded-full bg-cyan-400 animate-ping opacity-25" />
-                        )}
-                      </div>
-                      {/* Connector line */}
-                      {idx < STEPS.length - 1 && (
-                        <div className={`
-                          w-0.5 flex-1 min-h-[2rem] mt-1 transition-all duration-700
-                          ${isDone ? 'bg-emerald-300' : 'bg-slate-100'}
-                        `} />
-                      )}
-                    </div>
-
-                    {/* Step text */}
-                    <div className={`pb-5 pt-1 transition-all duration-500 ${isPending ? 'opacity-30' : 'opacity-100'}`}>
-                      <p className={`text-sm font-semibold transition-colors duration-300
-                        ${isDone    ? 'text-emerald-700'
-                        : isFailed  ? 'text-red-600'
-                        : isActive  ? 'text-cyan-700'
-                        : 'text-slate-400'}
-                      `}>
-                        {step.label}
-                      </p>
-                      {(isActive || isDone) && (
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {isDone && idx === STEPS.length - 1 && result === 'dry_run_done'
-                            ? 'Dry run — form filled, not submitted'
-                            : step.sub}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {error && (
-              <div className="mt-1 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
-            )}
-          </Card>
-
-          {/* Right: log + result */}
-          <div className="space-y-4">
-            {/* Compact agent log */}
-            <Card className="p-4">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Agent Log</p>
-              <div
-                ref={logRef}
-                className="h-52 overflow-y-auto rounded-lg bg-slate-900 p-3 font-mono text-xs text-slate-300 space-y-0.5"
-              >
-                {lines.length === 0 && <span className="text-slate-600">Waiting for agent…</span>}
-                {lines.map((line, i) => (
-                  <div key={i} className="break-all leading-relaxed">{line}</div>
-                ))}
-                {status === 'running' && (
-                  <div className="flex gap-1.5 pt-1">
-                    <span className="animate-pulse text-cyan-400">●</span>
-                    <span className="text-slate-500">working…</span>
-                  </div>
-                )}
+      {/* ── 2. LinkedIn Bot ── */}
+      <Card className="overflow-hidden p-0">
+        {/* Gradient header */}
+        <div className="bg-gradient-to-r from-[#0077B5] to-[#0091D5] px-4 md:px-6 py-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                <Linkedin className="h-5 w-5 text-white" />
               </div>
-            </Card>
-
-            {/* Result card */}
-            {status === 'complete' && result && (
-              <Card className="p-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  {resultIcon}
-                  <div>
-                    <p className={`text-base font-bold ${resultColor}`}>
-                      {result === 'applied'      ? 'Applied — Confirmed!'             :
-                       result === 'submitted'    ? 'Submitted — Awaiting Email'        :
-                       result === 'dry_run_done' ? 'Dry Run Complete'                  :
-                       result === 'failed'       ? 'Application Failed'                :
-                       result === 'expired'      ? 'Job Listing Expired'               :
-                       result === 'captcha'      ? 'Blocked by CAPTCHA'                :
-                       result}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {result === 'applied'      ? 'Confirmed by company email.'                              :
-                       result === 'submitted'    ? 'Form submitted. Watching inbox for confirmation email…'   :
-                       result === 'dry_run_done' ? 'Form filled but not submitted (dry run).'                 :
-                       result === 'failed'       ? 'Agent could not complete the application.'                :
-                       result === 'captcha'      ? 'Try manually or add CapSolver API key.'                   :
-                       'Check the log for details.'}
-                    </p>
-                  </div>
-                </div>
-                {cost != null && cost > 0 && (
-                  <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 flex items-center justify-between">
-                    <p className="text-xs text-slate-400 uppercase tracking-wide">API Cost</p>
-                    <p className="text-sm font-bold text-slate-700">${cost.toFixed(4)}</p>
-                  </div>
-                )}
-                {result !== 'applied' && (
-                  <Button
-                    variant="ghost"
-                    onClick={() => { setStatus('idle'); setLines([]); setResult(null); setUrl(''); setActiveStep(-1) }}
-                    className="w-full"
-                  >
-                    Try another URL
-                  </Button>
-                )}
-              </Card>
-            )}
+              <div>
+                <p className="text-base font-bold text-white">LinkedIn Easy Apply Bot</p>
+                <p className="text-xs text-white/60">Bulk-applies to jobs matching your profile preferences</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 sm:shrink-0">
+              {liStatus === 'running' && (
+                <button onClick={handleLinkedInStop} disabled={liStopping}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
+                  {liStopping ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                  {liStopping ? 'Stopping…' : 'Stop Bot'}
+                </button>
+              )}
+              <button onClick={handleLinkedIn} disabled={liStatus === 'running'}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-2 text-sm font-bold text-[#0077B5] hover:bg-blue-50 transition disabled:opacity-60">
+                {liStatus === 'running'
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Running…</>
+                  : <><Zap className="h-4 w-4" /> Launch Bot</>}
+              </button>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Info section */}
-      {status === 'idle' && (
-        <Card className="p-4 md:p-5 bg-slate-50 border-slate-100">
-          <div className="flex gap-3">
-            <Bot className="h-5 w-5 text-cyan-500 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-slate-700">How it works</p>
-              <ul className="text-sm text-slate-500 space-y-1 list-disc list-inside">
-                <li>Paste any job URL — Workday, Lever, Greenhouse, Jobvite, and more</li>
-                <li>The AI agent runs headlessly, fills every form field using your profile</li>
-                <li>Your uploaded resume PDF is attached automatically</li>
-                <li>Enable <span className="font-medium text-slate-700">Dry run</span> to test without submitting</li>
-              </ul>
+        {/* Body */}
+        <div className="px-4 md:px-6 py-5 space-y-4">
+          {liStatus === 'idle' && (
+            <div className="flex flex-wrap gap-3 text-sm text-slate-500">
+              {['Desired roles', 'Experience level', 'Work preference', 'Job type', 'Salary'].map(item => (
+                <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">{item}</span>
+              ))}
+              <span className="text-xs text-slate-400 self-center">pulled from your profile</span>
             </div>
-          </div>
-        </Card>
-      )}
+          )}
+
+          {liStatus !== 'idle' && (
+            <>
+              <div ref={liLogRef}
+                className="h-56 overflow-y-auto rounded-xl bg-slate-950 px-4 py-3 font-mono text-xs leading-relaxed space-y-0.5">
+                {liLines.length === 0 && <span className="text-slate-600">Starting bot…</span>}
+                {liLines.map((line, i) => {
+                  const cls =
+                    /\[ERROR\]|\bERROR\b|failed|exception/i.test(line) ? 'text-red-400' :
+                    /\[WARN\]|\bwarning\b/i.test(line)                  ? 'text-amber-400' :
+                    /\[OK\]|Successfully|Applied|PASSED/i.test(line)    ? 'text-emerald-400' :
+                    /\[JOBEZEE\]/i.test(line)                           ? 'text-cyan-300' :
+                    /\[Tailor\]/i.test(line)                            ? 'text-violet-300' :
+                    /\[Resume\]/i.test(line)                            ? 'text-blue-300' :
+                    /\[JD\]/i.test(line)                                ? 'text-slate-400' :
+                    /Skipping|FAILED|Click Failed/i.test(line)          ? 'text-slate-500' :
+                    'text-slate-300'
+                  return <div key={i} className={`break-all ${cls}`}>{line}</div>
+                })}
+                {liStatus === 'running' && (
+                  <div className="flex gap-1.5 pt-1 text-blue-400"><span className="animate-pulse">●</span><span className="text-slate-500">bot running…</span></div>
+                )}
+              </div>
+
+              {liStatus === 'complete' && (
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                  <p className="text-sm font-semibold text-emerald-700 flex-1">{liResult ?? 'Bot finished successfully'}</p>
+                  <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); localStorage.removeItem(LI_JOB_KEY) }}
+                    className="text-xs font-medium text-slate-400 hover:text-slate-600 transition">Clear</button>
+                </div>
+              )}
+              {liStatus === 'error' && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 space-y-1.5">
+                  <p className="text-sm font-medium text-red-700">{liError ?? 'Bot encountered an error. Check the log above.'}</p>
+                  {liError?.toLowerCase().includes('desired roles') && (
+                    <a href="/app/profile" className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 underline hover:text-blue-800">
+                      Add desired roles in Profile →
+                    </a>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Card>
+
     </div>
   )
 }

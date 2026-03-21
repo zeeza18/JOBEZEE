@@ -42,6 +42,21 @@ _dash.add_event = _patched_add_event
 _apply_jobs: Dict[str, Dict[str, Any]] = {}
 _store_lock = threading.Lock()
 
+# Atomic counter for unique worker IDs (avoids dashboard state collisions on parallel applies)
+_worker_id_counter = 0
+_worker_id_lock = threading.Lock()
+
+# Semaphore: only 1 apply agent runs at a time (shared Chrome can't handle concurrent sessions)
+_apply_semaphore = threading.Semaphore(1)
+
+
+def _next_worker_id() -> int:
+    global _worker_id_counter
+    with _worker_id_lock:
+        wid = _worker_id_counter
+        _worker_id_counter += 1
+        return wid
+
 _RICH_RE = re.compile(r"\[/?[^\[\]]*\]")   # strip Rich markup tags
 
 
@@ -105,7 +120,10 @@ def _run_apply(
     from applypilot.config import load_env, ensure_dirs, DB_PATH
     from applypilot.database import init_db, get_connection
     from applypilot.apply.launcher import main as launcher_main
-    from applypilot.apply.dashboard import get_totals
+    from applypilot.apply.dashboard import get_state
+
+    # Unique worker ID so parallel jobs don't clobber each other's state
+    wid = _next_worker_id()
 
     # Register progress callback for this job
     def _on_event(msg: str) -> None:
@@ -120,13 +138,19 @@ def _run_apply(
     with _cb_lock:
         _event_callbacks.append(_on_event)
 
+    # If another apply is already running, wait in queue
     with _store_lock:
-        _apply_jobs[apply_job_id]["status"] = "running"
+        _apply_jobs[apply_job_id]["status"] = "queued"
+    _dash.add_event("STEP:queued")
 
-    # Emit the first step so the frontend stepper wakes up immediately
-    _dash.add_event("STEP:started")
-
+    _apply_semaphore.acquire()
     try:
+        with _store_lock:
+            _apply_jobs[apply_job_id]["status"] = "running"
+
+        # Emit the first step so the frontend stepper wakes up immediately
+        _dash.add_event("STEP:started")
+
         load_env()
         # Also load JOBEZEE root .env explicitly
         from dotenv import load_dotenv
@@ -172,11 +196,12 @@ def _run_apply(
             limit=1,
             target_url=url,
             min_score=1,
-            headless=True,
+            headless=False,   # use the persistent visible Chrome window
             model="gpt-4o-mini",
             dry_run=dry_run,
             continuous=False,
             workers=1,
+            worker_id=wid,
         )
 
         # Read final apply status from ApplyPilot DB
@@ -187,13 +212,25 @@ def _run_apply(
         if dry_run and result == "unknown":
             result = "dry_run_done"
 
-        totals = get_totals()
+        # Per-worker cost — accurate even when multiple jobs run in parallel
+        ws = get_state(wid)
+        job_cost = ws.total_cost if ws else 0.0
 
         with _store_lock:
             job = _apply_jobs[apply_job_id]
             job["status"] = "complete"
             job["result"] = result
-            job["cost"]   = totals.get("cost", 0.0)
+            job["cost"]   = job_cost
+
+        # Update JOBEZEE PostgreSQL pulled_jobs status
+        if pulled_job_id and not dry_run:
+            pg_status = {
+                "applied":            "applied",
+                "submitted":          "applied",
+                "failed:external_site": "hidden",
+            }.get(result, "new")  # leave as 'new' for other failures so user can retry
+            if pg_status != "new":
+                _update_pulled_job_status(pulled_job_id, pg_status)
 
         # If submitted but not yet confirmed by email, start a background poller
         if result == "submitted" and not dry_run and pulled_job_id:
@@ -212,6 +249,7 @@ def _run_apply(
                 job["status"] = "error"
                 job["error"]  = str(exc)
     finally:
+        _apply_semaphore.release()
         with _cb_lock:
             try:
                 _event_callbacks.remove(_on_event)

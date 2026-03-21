@@ -21,14 +21,25 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
 
     # ── LLM Keys (Phase 1 / SmartExtract) ───────────────────────────────────
-    OPENAI_API_KEY: str = ""
-    GOOGLE_API_KEY: str = ""   # alias — same as GEMINI_API_KEY
-    GEMINI_API_KEY: str = ""   # preferred field name for Gemini
+    OPENAI_API_KEY:    str = ""
+    ANTHROPIC_API_KEY: str = ""   # Claude API key fallback
+    GOOGLE_API_KEY:    str = ""   # alias — same as GEMINI_API_KEY
+    GEMINI_API_KEY:    str = ""   # preferred field name for Gemini
+
+    # ── Gmail IMAP ───────────────────────────────────────────────────────────
+    GMAIL_USER:         str = ""
+    GMAIL_APP_PASSWORD: str = ""
+
+    # ── LinkedIn OAuth ────────────────────────────────────────────────────────
+    LINKEDIN_CLIENT_ID:     str = ""
+    LINKEDIN_CLIENT_SECRET: str = ""
+    LINKEDIN_REDIRECT_URI:  str = "http://localhost:8001/api/auth/linkedin/callback"
+    FRONTEND_URL:           str = "http://localhost:5173"
 
     # ── App ──────────────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     model_config = {
         "env_file": [str(_HERE / ".env"), str(_HERE.parent / ".env")],

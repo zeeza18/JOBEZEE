@@ -7,11 +7,11 @@ import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { SectionHeader } from '../components/common/SectionHeader'
-import { profileApi, type UserProfile } from '../lib/api'
+import { profileApi, searchApi, type UserProfile } from '../lib/api'
 import { useAppStore } from '../store/useAppStore'
 import { cn } from '../lib/utils'
 
-const REMOTE_OPTIONS    = ['remote', 'hybrid', 'onsite', 'any']
+const REMOTE_OPTIONS    = ['remote', 'hybrid', 'onsite']
 const JOB_TYPE_OPTIONS  = ['full_time', 'part_time', 'contract', 'internship', 'temporary']
 const EXP_OPTIONS       = ['intern', 'junior', 'mid', 'senior', 'lead', 'executive']
 const CURRENCIES        = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR', 'SGD', 'AED', 'JPY', 'CHF']
@@ -37,6 +37,7 @@ const emptyProfile: Partial<UserProfile> = {
   desired_roles: [], preferred_locations: [], preferred_countries: [],
   preferred_regions: [], industries: [],
   remote_preference: 'hybrid', job_type: 'full_time', experience_level: 'mid',
+  work_modes: ['hybrid'], job_types: ['full_time'], experience_levels: ['mid'],
   salary_min: 0, salary_max: 0, salary_currency: 'USD', salary_range_text: '',
   work_authorization: '', visa_sponsorship_required: false, work_permit_type: '',
   current_job_title: '', target_role: '', years_experience: '', education: '',
@@ -235,36 +236,87 @@ const OnboardingPage = () => {
             onChange={(v) => setField('preferred_regions', v)}
             placeholder="e.g. North America, EMEA"
           />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Work mode</Label>
-              <select
-                value={form.remote_preference ?? 'hybrid'}
-                onChange={(e) => setField('remote_preference', e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none"
-              >
-                {REMOTE_OPTIONS.map((o) => <option key={o} value={o}>{fmt(o)}</option>)}
-              </select>
+              <Label>Work mode <span className="text-xs text-slate-400 font-normal">(select all that apply)</span></Label>
+              <div className="flex flex-wrap gap-2">
+                {REMOTE_OPTIONS.map((o) => {
+                  const selected = (form.work_modes ?? []).includes(o)
+                  return (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() => {
+                        const cur = form.work_modes ?? []
+                        const next = selected ? cur.filter(x => x !== o) : [...cur, o]
+                        setField('work_modes', next)
+                        setField('remote_preference', next[0] ?? 'hybrid')
+                      }}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                        selected
+                          ? 'bg-cyan-500 border-cyan-500 text-white'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300'
+                      }`}
+                    >
+                      {fmt(o)}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Job type</Label>
-              <select
-                value={form.job_type ?? 'full_time'}
-                onChange={(e) => setField('job_type', e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none"
-              >
-                {JOB_TYPE_OPTIONS.map((o) => <option key={o} value={o}>{fmt(o)}</option>)}
-              </select>
+              <Label>Job type <span className="text-xs text-slate-400 font-normal">(select all that apply)</span></Label>
+              <div className="flex flex-wrap gap-2">
+                {JOB_TYPE_OPTIONS.map((o) => {
+                  const selected = (form.job_types ?? []).includes(o)
+                  return (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() => {
+                        const cur = form.job_types ?? []
+                        const next = selected ? cur.filter(x => x !== o) : [...cur, o]
+                        setField('job_types', next)
+                        setField('job_type', next[0] ?? 'full_time')
+                      }}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                        selected
+                          ? 'bg-cyan-500 border-cyan-500 text-white'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300'
+                      }`}
+                    >
+                      {fmt(o)}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Experience level</Label>
-              <select
-                value={form.experience_level ?? 'mid'}
-                onChange={(e) => setField('experience_level', e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none"
-              >
-                {EXP_OPTIONS.map((o) => <option key={o} value={o}>{fmt(o)}</option>)}
-              </select>
+              <Label>Experience level <span className="text-xs text-slate-400 font-normal">(select all that apply)</span></Label>
+              <div className="flex flex-wrap gap-2">
+                {EXP_OPTIONS.map((o) => {
+                  const selected = (form.experience_levels ?? []).includes(o)
+                  return (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() => {
+                        const cur = form.experience_levels ?? []
+                        const next = selected ? cur.filter(x => x !== o) : [...cur, o]
+                        setField('experience_levels', next)
+                        setField('experience_level', next[0] ?? 'mid')
+                      }}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                        selected
+                          ? 'bg-cyan-500 border-cyan-500 text-white'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300'
+                      }`}
+                    >
+                      {fmt(o)}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -598,7 +650,14 @@ const OnboardingPage = () => {
 
   const handleFinish = async () => {
     const ok = await save(true)
-    if (ok) navigate('/app')
+    if (!ok) return
+    try {
+      await searchApi.trigger()
+      pushToast({ title: 'Profile saved! Job search started.', type: 'success' })
+    } catch {
+      // non-fatal — user can trigger manually from the dashboard
+    }
+    navigate('/app')
   }
 
   if (loading) {

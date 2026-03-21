@@ -44,6 +44,10 @@ export interface UserProfile {
   remote_preference         : string
   job_type                  : string
   experience_level          : string
+  work_modes                ?: string[]
+  job_types                 ?: string[]
+  experience_levels         ?: string[]
+  tailor_resume             ?: boolean
 
   // Salary
   salary_min                : number
@@ -375,7 +379,7 @@ export const searchApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ApplyJobStatus {
-  status         : string   // pending | running | complete | error
+  status         : string   // pending | queued | running | complete | error
   result         : string | null  // applied | failed | dry_run_done | ...
   error          : string | null
   progress_count : number
@@ -407,4 +411,68 @@ export const applyApi = {
     get<{ status: string; results: Record<string, string>; error: string | null }>(
       `/api/apply/warm-sessions/status/${warmJobId}`
     ),
+
+  browserStatus: () =>
+    get<{ alive: boolean; port: number; error?: string }>('/api/apply/browser/status'),
+
+  browserStart: () =>
+    post<{ status: string }>('/api/apply/browser/start', {}),
+
+  browserNavigate: (url: string) =>
+    post<{ status: string; url: string }>('/api/apply/browser/navigate', { url }),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Applied Jobs (LinkedIn bot history)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AppliedJob {
+  job_id          : string
+  title           : string
+  company         : string
+  location        : string
+  work_style      : string
+  link            : string
+  date_applied    : string
+  date_posted     : string
+  resume          : string
+  experience      : string
+  platform        : string
+  status          : 'applied' | 'failed'
+  email_confirmed : boolean
+  fail_reason?    : string
+}
+
+export interface AppliedJobsResponse {
+  total   : number
+  applied : number
+  failed  : number
+  jobs    : AppliedJob[]
+}
+
+export const appliedJobsApi = {
+  list: () =>
+    get<AppliedJobsResponse>('/api/applied-jobs'),
+
+  checkEmail: (company: string, job_title: string) =>
+    post<{ confirmed: boolean; message?: string; snippet?: string }>(
+      '/api/applied-jobs/check-email', { company, job_title }
+    ),
+}
+
+export const linkedinApi = {
+  launch: (dry_run = false, tailor_before_apply = false) =>
+    post<{ linkedin_job_id: string; status: string }>(
+      '/api/apply/linkedin-launch', { dry_run, tailor_before_apply }
+    ),
+
+  status: (jobId: string) =>
+    get<{ status: string; result: string | null; error: string | null; progress_count: number }>(
+      `/api/apply/linkedin-status/${jobId}`
+    ),
+
+  streamUrl: (jobId: string) => `${BASE}/api/apply/linkedin-stream/${jobId}`,
+
+  stop: (jobId: string) =>
+    post<{ stopped: boolean }>(`/api/apply/linkedin-stop/${jobId}`),
 }

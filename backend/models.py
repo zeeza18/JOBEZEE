@@ -22,6 +22,8 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
+    Index,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.sql import func
@@ -75,9 +77,13 @@ class UserProfile(Base):
     preferred_countries  = Column(JSON, default=list)   # ["USA", "Germany"]
     preferred_regions    = Column(JSON, default=list)   # ["north_america", "europe"]
     industries           = Column(JSON, default=list)   # ["technology", "finance"]
-    remote_preference    = Column(String(20), default="hybrid")   # remote/hybrid/onsite/any
-    job_type             = Column(String(20), default="full_time") # full_time/part_time/contract
-    experience_level     = Column(String(20), default="mid")       # junior/mid/senior/lead/executive
+    remote_preference    = Column(String(20), default="hybrid")   # legacy single-value
+    job_type             = Column(String(20), default="full_time") # legacy single-value
+    experience_level     = Column(String(20), default="mid")       # legacy single-value
+    # Multi-select versions used by LinkedIn bot (LinkedIn supports multiple filters)
+    work_modes           = Column(JSON, default=list)   # ["remote","hybrid","onsite"]
+    job_types            = Column(JSON, default=list)   # ["full_time","contract"]
+    experience_levels    = Column(JSON, default=list)   # ["junior","mid","senior"]
 
     # ── Salary ───────────────────────────────────────────────────────────────
     salary_min        = Column(Float, default=0.0)
@@ -93,9 +99,28 @@ class UserProfile(Base):
     # ── Resume ───────────────────────────────────────────────────────────────
     resume_filename = Column(String(300), default="")
     resume_url      = Column(String(500), default="")
+    avatar_url      = Column(String(500), default="")
 
     # ── Auto-apply credentials ────────────────────────────────────────────────
-    apply_password  = Column(String(200), default="")   # password for job-site accounts
+    apply_email     = Column(String(200), default="")   # default email for job-site accounts
+    apply_password  = Column(String(200), default="")   # default password for job-site accounts
+
+    # Per-platform credentials (override apply_email/apply_password per site)
+    linkedin_email      = Column(String(200), default="")
+    linkedin_password   = Column(String(200), default="")
+    indeed_email        = Column(String(200), default="")
+    indeed_password     = Column(String(200), default="")
+    greenhouse_email    = Column(String(200), default="")
+    greenhouse_password = Column(String(200), default="")
+    workday_email       = Column(String(200), default="")
+    workday_password    = Column(String(200), default="")
+
+    # Email integration
+    gmail_api_key = Column(Text, default="")   # Gmail App Password for IMAP scanning
+
+    # AI API keys (user-supplied; override .env fallback)
+    openai_api_key    = Column(Text, default="")
+    anthropic_api_key = Column(Text, default="")
 
     # ── Experience & education ───────────────────────────────────────────────
     current_job_title = Column(String(200), default="")
@@ -119,6 +144,7 @@ class UserProfile(Base):
     search_radius_miles = Column(Integer, default=50)
     hours_old           = Column(Integer, default=72)
     results_per_site    = Column(Integer, default=50)
+    tailor_resume       = Column(Boolean, default=False)
 
     # ── Meta ──────────────────────────────────────────────────────────────────
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -196,8 +222,273 @@ class SearchSession(Base):
     __tablename__ = "search_sessions"
 
     id         = Column(String(50), primary_key=True)
+    user_id    = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
     status     = Column(String(20), default="running")  # running / done / failed
     jobs_found = Column(Integer, default=0)
     error      = Column(Text, default="")
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     finished_at = Column(DateTime(timezone=True), nullable=True)
+
+
+# ===========================================================================
+# NEW SCHEMA — v2 tables (created alongside old tables, non-destructive)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Profile split tables
+# ---------------------------------------------------------------------------
+
+class JobPreferences(Base):
+    """Job-search preferences split out of the monolithic user_profiles table."""
+    __tablename__ = "job_preferences"
+
+    id      = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True, index=True)
+
+    desired_roles       = Column(JSON, default=list)
+    preferred_locations = Column(JSON, default=list)
+    preferred_countries = Column(JSON, default=list)
+    preferred_regions   = Column(JSON, default=list)
+    industries          = Column(JSON, default=list)
+    work_modes          = Column(JSON, default=list)   # ["remote","hybrid","onsite"]
+    job_types           = Column(JSON, default=list)   # ["full_time","contract"]
+    experience_levels   = Column(JSON, default=list)   # ["junior","mid","senior"]
+
+    salary_min      = Column(Float,      default=0.0)
+    salary_max      = Column(Float,      default=0.0)
+    salary_currency = Column(String(10), default="USD")
+
+    search_radius_miles = Column(Integer, default=50)
+    hours_old           = Column(Integer, default=72)
+    results_per_site    = Column(Integer, default=50)
+
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class UserSkills(Base):
+    """Skills and resume facts split out of user_profiles."""
+    __tablename__ = "user_skills"
+
+    id      = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True, index=True)
+
+    languages  = Column(JSON, default=list)
+    frameworks = Column(JSON, default=list)
+    tools      = Column(JSON, default=list)
+
+    facts_companies = Column(JSON, default=list)
+    facts_projects  = Column(JSON, default=list)
+    facts_schools   = Column(JSON, default=list)
+    facts_metrics   = Column(JSON, default=list)
+
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class UserCredentials(Base):
+    """Platform credentials stored separately from profile data."""
+    __tablename__ = "user_credentials"
+
+    id      = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True, index=True)
+
+    apply_email    = Column(String(200), default="")
+    apply_password = Column(String(200), default="")
+
+    linkedin_email      = Column(String(200), default="")
+    linkedin_password   = Column(String(200), default="")
+    indeed_email        = Column(String(200), default="")
+    indeed_password     = Column(String(200), default="")
+    greenhouse_email    = Column(String(200), default="")
+    greenhouse_password = Column(String(200), default="")
+    workday_email       = Column(String(200), default="")
+    workday_password    = Column(String(200), default="")
+
+    gmail_api_key = Column(Text, default="")
+
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Resumes
+# ---------------------------------------------------------------------------
+
+class Resume(Base):
+    """Tracks every resume version uploaded by a user."""
+    __tablename__ = "resumes"
+
+    id          = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id     = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    filename    = Column(String(300), default="")
+    storage_url = Column(String(500), default="")
+    is_base     = Column(Boolean, default=True)    # False = tailored version
+    label       = Column(String(100), default="")  # e.g. "Base", "Tailored for Google"
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Jobs v2  (immutable listing + mutable user state separated)
+# ---------------------------------------------------------------------------
+
+class JobListing(Base):
+    """Deduped, immutable job listing data. One row per unique URL."""
+    __tablename__ = "job_listings"
+
+    id              = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title           = Column(String(300), default="")
+    company         = Column(String(200), default="", index=True)
+    location        = Column(String(200), default="")
+    country         = Column(String(100), default="")
+    url             = Column(String(1000), default="", unique=True, index=True)
+    description     = Column(Text, default="")
+    job_type        = Column(String(50), default="")
+    salary_min      = Column(Float, nullable=True)
+    salary_max      = Column(Float, nullable=True)
+    salary_currency = Column(String(10), default="USD")
+    salary_text     = Column(String(200), default="")
+    source          = Column(String(100), default="")
+    site            = Column(String(100), default="")
+    posted_at       = Column(String(100), default="")
+    skills          = Column(JSON, default=list)
+    first_seen_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserJobState(Base):
+    """Per-user mutable state on a job listing (saved / hidden / new)."""
+    __tablename__ = "user_job_states"
+    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_user_job"),)
+
+    id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    job_id     = Column(PGUUID(as_uuid=True), ForeignKey("job_listings.id"), nullable=False, index=True)
+    status     = Column(String(50), default="new")   # new / saved / hidden
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Applications
+# ---------------------------------------------------------------------------
+
+class Application(Base):
+    """One row per apply attempt — proper pipeline tracking."""
+    __tablename__ = "applications"
+
+    id               = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id          = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    job_id           = Column(PGUUID(as_uuid=True), ForeignKey("job_listings.id"), nullable=True, index=True)
+    pulled_job_id    = Column(PGUUID(as_uuid=True), nullable=True)   # backward compat ref to pulled_jobs
+    resume_id        = Column(PGUUID(as_uuid=True), ForeignKey("resumes.id"), nullable=True)
+    platform         = Column(String(100), default="")   # linkedin / indeed / greenhouse / workday
+    status           = Column(String(50), default="applying")
+    applied_at       = Column(DateTime(timezone=True), server_default=func.now())
+    email_confirmed_at = Column(DateTime(timezone=True), nullable=True)
+    notes            = Column(Text, default="")
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at       = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ApplicationEmail(Base):
+    """Email detected from inbox linked to an application."""
+    __tablename__ = "application_emails"
+
+    id               = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id   = Column(PGUUID(as_uuid=True), ForeignKey("applications.id"), nullable=True, index=True)
+    user_id          = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    subject          = Column(String(500), default="")
+    body_snippet     = Column(Text, default="")
+    detected_status  = Column(String(50), default="")   # applied / interview_r1 / offer / rejected
+    received_at      = Column(DateTime(timezone=True), nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Analytics
+# ---------------------------------------------------------------------------
+
+class UserEvent(Base):
+    """Browser-level analytics: page views, clicks, feature usage."""
+    __tablename__ = "user_events"
+
+    id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    event_type = Column(String(50), default="")   # page_view / click / search / apply / tailor / login
+    page       = Column(String(200), default="")
+    element    = Column(String(200), default="")
+    extra      = Column(JSON, default=dict)
+    duration_ms = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class ToolUsage(Base):
+    """AI tool cost tracking — tokens + USD per operation."""
+    __tablename__ = "tool_usage"
+
+    id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    tool       = Column(String(50), default="")    # tailor / apply / search / linkedin_bot
+    model      = Column(String(100), default="")   # gpt-4o-mini / claude-3-5-sonnet / etc.
+    tokens_in  = Column(Integer, default=0)
+    tokens_out = Column(Integer, default=0)
+    cost_usd   = Column(Float,   default=0.0)
+    job_id     = Column(PGUUID(as_uuid=True), nullable=True)
+    extra      = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class BillingTransaction(Base):
+    """Every credit added or debit taken from a user's balance."""
+    __tablename__ = "billing_txns"
+
+    id           = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id      = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    type         = Column(String(20), default="debit")   # credit / debit
+    amount_usd   = Column(Float, default=0.0)
+    description  = Column(String(500), default="")
+    balance_after = Column(Float, default=0.0)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+# ---------------------------------------------------------------------------
+# Ops: error logs, app logs, feedback
+# ---------------------------------------------------------------------------
+
+class ErrorLog(Base):
+    """Server-side errors caught by exception handlers."""
+    __tablename__ = "error_logs"
+
+    id             = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id        = Column(String(36), nullable=True, index=True)
+    level          = Column(String(20), default="error")   # error / warning / critical
+    source         = Column(String(200), default="")       # module or router name
+    message        = Column(Text, default="")
+    traceback      = Column(Text, default="")
+    request_path   = Column(String(500), default="")
+    request_method = Column(String(10), default="")
+    extra          = Column(JSON, default=dict)
+    created_at     = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class AppLog(Base):
+    """General application-level log events (search started, apply complete, etc.)."""
+    __tablename__ = "app_logs"
+
+    id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(String(36), nullable=True, index=True)
+    level      = Column(String(20), default="info")   # debug / info / warning / error
+    source     = Column(String(200), default="")
+    message    = Column(Text, default="")
+    extra      = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class Feedback(Base):
+    """User-submitted feedback, bug reports, and feature requests."""
+    __tablename__ = "feedback"
+
+    id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(String(36), nullable=True, index=True)
+    type       = Column(String(50), default="general")   # bug / feature / general
+    rating     = Column(Integer, nullable=True)           # 1–5 stars
+    message    = Column(Text, default="")
+    page       = Column(String(200), default="")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)

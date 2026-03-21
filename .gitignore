@@ -36,8 +36,8 @@ Thumbs.db
 *.swp
 *.swo
 
-# ── Claude Code local config ──────────────────────────────────────────────────
-.claude/settings.local.json
+# ── Claude Code ───────────────────────────────────────────────────────────────
+.claude/
 
 # ── Personal / PII files ──────────────────────────────────────────────────────
 *.pdf
@@ -46,6 +46,11 @@ MOHAMMED_AZEEZULLA_Resume.pdf
 # ── Screenshot images ─────────────────────────────────────────────────────────
 image*.png
 "image copy*.png"
+*_button_state.png
+
+# ── Local SQLite dev database ─────────────────────────────────────────────────
+*.db
+backend/jobezee.db
 
 # ── Phase 1 cache / outputs ───────────────────────────────────────────────────
 PHASE1_JOB_SEARCH/__pycache__/

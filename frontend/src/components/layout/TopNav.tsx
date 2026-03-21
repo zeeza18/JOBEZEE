@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { LogOut, User } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
+import LogoBrand from '../common/LogoBrand'
 
 const TopNav = () => {
   const navigate = useNavigate()
@@ -14,11 +15,8 @@ const TopNav = () => {
   return (
     <header className="md:hidden sticky top-0 z-30 border-b border-white/[0.06] bg-[#0d1117]">
       <div className="flex items-center justify-between px-4 py-3">
-        <button onClick={() => navigate('/')} className="flex items-center gap-2" aria-label="Home">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-cyan-500 text-sm font-black text-white">
-            J
-          </div>
-          <span className="text-sm font-semibold text-white">JOBEZEE</span>
+        <button onClick={() => navigate('/')} aria-label="Home">
+          <LogoBrand size="sm" />
         </button>
 
         <div className="flex items-center gap-2">

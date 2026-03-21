@@ -46,18 +46,21 @@ def get_job(job_id: str) -> Optional[Dict[str, Any]]:
 
 # ─── Original: run from plain text (TailorPage) ───────────────────────────────
 
-def start_tailor_job(job_id: str, job_description: str, resume: str) -> None:
+def start_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "") -> None:
     """Launch crew in a daemon thread (plain text resume — for TailorPage)."""
     t = threading.Thread(
         target=_run_tailor_job,
-        args=(job_id, job_description, resume),
+        args=(job_id, job_description, resume, openai_api_key),
         daemon=True,
     )
     t.start()
 
 
-def _run_tailor_job(job_id: str, job_description: str, resume: str) -> None:
+def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "") -> None:
     """Runs inside background thread."""
+    import os as _os
+    if openai_api_key:
+        _os.environ["OPENAI_API_KEY"] = openai_api_key
     with _lock:
         _jobs[job_id]["status"] = "running"
 
@@ -69,11 +72,24 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str) -> None:
                 if score is not None:
                     _jobs[job_id]["score"] = score
 
+    def _cp1252_safe(s: str) -> str:
+        out = []
+        for c in (s or ""):
+            try:
+                c.encode('cp1252')
+                out.append(c)
+            except (UnicodeEncodeError, LookupError):
+                out.append(' ')
+        return ''.join(out)
+
     try:
+        _clean_jd = _cp1252_safe(_clean_job_description(job_description))
+        _resume   = _cp1252_safe(resume)
+
         from PHASE2_JOB_TAILOR.crew import ResumeCrew
 
         crew = ResumeCrew()
-        result = crew.run_tailoring_process(_clean_job_description(job_description), resume, progress_callback)
+        result = crew.run_tailoring_process(_clean_jd, _resume, progress_callback)
 
         final_score = result.get("final_score")
         final_resume = result.get("final_resume", "")
@@ -116,11 +132,12 @@ def start_tailor_job_for_job(
     resume_url: str,
     username: str,
     company: str,
+    openai_api_key: str = "",
 ) -> None:
     """Launch crew for a specific pulled job using the user's uploaded resume."""
     t = threading.Thread(
         target=_run_tailor_for_job,
-        args=(tailor_job_id, job_description, resume_url, username, company),
+        args=(tailor_job_id, job_description, resume_url, username, company, openai_api_key),
         daemon=True,
     )
     t.start()
@@ -132,7 +149,11 @@ def _run_tailor_for_job(
     resume_url: str,
     username: str,
     company: str,
+    openai_api_key: str = "",
 ) -> None:
+    import os as _os
+    if openai_api_key:
+        _os.environ["OPENAI_API_KEY"] = openai_api_key
     with _lock:
         _jobs[tailor_job_id]["status"] = "running"
 
@@ -165,6 +186,19 @@ def _run_tailor_for_job(
                 "the scraper only captured a preview of this posting. "
                 "Pull fresh jobs to get the full description."
             )
+
+        # Sanitize chars Windows cp1252 can't encode (arrows, emojis, curly chars)
+        def _cp1252_safe(s: str) -> str:
+            out = []
+            for c in (s or ""):
+                try:
+                    c.encode('cp1252')
+                    out.append(c)
+                except (UnicodeEncodeError, LookupError):
+                    out.append(' ')
+            return ''.join(out)
+        clean_jd    = _cp1252_safe(clean_jd)
+        resume_text = _cp1252_safe(resume_text)
 
         from PHASE2_JOB_TAILOR.crew import ResumeCrew
 
@@ -260,78 +294,97 @@ def _clean_job_description(jd: str) -> str:
     """
     Strip boilerplate from scraped job descriptions before sending to the crew.
 
-    Removes:
-    - Markdown bold/italic/heading markers
-    - "About [company/us/team]" intro sections
-    - Benefits / perks sections
-    - EEO / diversity boilerplate
-    - Repeated whitespace
+    Strategy (universal, non-strict):
+    - Strip markdown formatting
+    - Skip known boilerplate SECTIONS only (company overview, benefits, EEO)
+    - Once inside a boilerplate section, ONLY stop skipping for a known keeper header
+      (never for unknown lines — prevents salary/perks lines leaking back in)
+    - Strip trailing EEO paragraphs regardless of section structure
+    - If cleaned result is too short, caller should fall back to original JD
 
-    Keeps: responsibilities, requirements, qualifications, skills, 'what you'll do'.
+    Keeps everything not explicitly matching a boilerplate pattern.
     """
     if not jd:
         return jd
 
     # ── 1. Strip markdown formatting ─────────────────────────────────────────
-    text = re.sub(r'\*{1,3}([^*]+)\*{1,3}', r'\1', jd)   # **bold** / *italic*
-    text = re.sub(r'_{1,2}([^_]+)_{1,2}', r'\1', text)    # __bold__ / _italic_
-    text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)  # headings
+    text = re.sub(r'\*{1,3}([^*]+)\*{1,3}', r'\1', jd)
+    text = re.sub(r'_{1,2}([^_]+)_{1,2}', r'\1', text)
+    text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)
 
-    # ── 2. Split into sections by blank lines / common headers ───────────────
-    # Identify boilerplate section headers (case-insensitive)
-    _BOILERPLATE_HEADERS = re.compile(
+    # ── 2. Boilerplate section headers — trigger skip mode ───────────────────
+    _BOILERPLATE = re.compile(
         r'^(?:'
-        r'about\s+(us|the\s+company|the\s+team|zillow|our\s+company|[a-z]+)'
+        r'about\s+(us|the\s+company|the\s+team|our\s+company|[a-z]{2,30})\b'
+        r'|about\s+the\s+(role|position)'     # intro pitch — not requirements
         r'|who\s+we\s+are'
-        r'|our\s+story'
-        r'|our\s+mission'
+        r'|our\s+(story|mission|values?|culture|vision)'
         r'|company\s+overview'
-        r'|why\s+(join\s+us|work\s+(here|with\s+us)|us)'
+        r'|why\s+(join\s+us|work\s+(here|with\s+us|for\s+us)|us|choose\s+us)'
         r'|what\s+we\s+offer'
-        r'|compensation\s+and\s+benefits?'
+        r'|what\s+makes\s+this\s+role\s+(different|unique|special|stand\s+out)'
+        r'|what\s+sets\s+(us|this\s+role)\s+apart'
+        r'|life\s+at\s+\w+'
+        r'|compensation(\s+and\s+benefits?)?'
         r'|benefits?\s+(&|and)\s+perks?'
         r'|perks?\s+(&|and)\s+benefits?'
-        r'|benefits?'
-        r'|perks?'
-        r'|equal\s+opportunity'
+        r'|benefits?\s*$'
+        r'|perks?\s*$'
+        r'|featured\s+benefits?'
+        r'|what\s+you.ll\s+(get|receive|enjoy)'
+        r'|additional\s+details?'
+        r'|interview\s+(process|stages?|steps?)'
+        r'|our\s+interview\s+process'
+        r'|hiring\s+process'
+        r'|how\s+we\s+(hire|interview|work)'
+        r'|equal\s+(opportunity|employment)'
         r'|eeo\b'
         r'|diversity\s+(&|and)\s+inclusion'
         r'|we\s+are\s+an\s+equal'
         r'|salary\s+range'
         r'|pay\s+range'
+        r'|total\s+(rewards?|compensation)'
+        r'|application\s+(terms|process|note|deadline)'
+        r'|please\s+(note|read)\b'
         r')\s*[:\-]?\s*$',
         re.IGNORECASE,
     )
 
-    # Identify keeper section headers (we always keep lines after these)
-    _KEEPER_HEADERS = re.compile(
+    # ── 3. Keeper section headers — always exit skip mode ────────────────────
+    _KEEPER = re.compile(
         r'^(?:'
         r'responsibilities?'
-        r'|what\s+you\'?ll?\s+do'
-        r'|what\s+you\'?ll?\s+build'
-        r'|what\s+you\'?ll?\s+work\s+on'
-        r'|your\s+role'
+        r'|key\s+responsibilities?'
+        r'|what\s+you.ll\s+(do|build|work\s+on|own|own\s+and\s+build)'
+        r'|your\s+(role|impact|day[\s-]to[\s-]day)'
         r'|the\s+role'
         r'|role\s+overview'
+        r'|day[\s-]to[\s-]day'
         r'|requirements?'
         r'|qualifications?'
         r'|required\s+qualifications?'
         r'|preferred\s+qualifications?'
         r'|minimum\s+qualifications?'
         r'|basic\s+qualifications?'
-        r'|what\s+(you|we)\'?re?\s+looking\s+for'
+        r'|desired\s+qualifications?'
+        r'|what\s+(you|we).re?\s+looking\s+for'
+        r'|what\s+you.ll\s+bring'
+        r'|what\s+you\s+bring'
         r'|must[\s-]have'
         r'|nice[\s-]to[\s-]have'
-        r'|skills?'
+        r'|skills?\s+(required|needed|we\s+need)?'
         r'|technical\s+skills?'
+        r'|core\s+skills?'
         r'|experience'
         r'|education'
-        r'|key\s+responsibilities?'
-        r'|job\s+description'
-        r'|about\s+the\s+role'
-        r'|about\s+the\s+job'
-        r'|job\s+summary'
+        r'|about\s+the\s+job'                 # "About the job" kept; "About the role/position" is boilerplate
+        r'|job\s+(description|summary|overview)'
         r'|position\s+summary'
+        r'|you\s+will'
+        r'|we\s+are\s+looking'
+        r'|tech\s+stack'
+        r'|stack'
+        r'|requirements\s+added\s+by.*'         # LinkedIn structured requirements block
         r')\s*[:\-]?\s*$',
         re.IGNORECASE,
     )
@@ -339,57 +392,49 @@ def _clean_job_description(jd: str) -> str:
     lines = text.split('\n')
     output_lines = []
     skip_section = False
-    found_keeper = False
 
-    for i, line in enumerate(lines):
+    for line in lines:
         stripped = line.strip()
+        # A "section header" is a standalone short line (not a bullet or long sentence)
+        is_header = bool(stripped) and len(stripped) < 70 and not stripped.startswith(('-', '*', '•', '·'))
 
-        # Check if this is a section header (short line, title-like)
-        is_header = stripped and len(stripped) < 80 and not stripped.startswith('-')
-
-        if is_header and _KEEPER_HEADERS.match(stripped):
+        if is_header and _KEEPER.match(stripped):
             skip_section = False
-            found_keeper = True
             output_lines.append(line)
             continue
 
-        if is_header and _BOILERPLATE_HEADERS.match(stripped):
-            # Only skip if we've already found real content, or it's clearly boilerplate
+        if is_header and _BOILERPLATE.match(stripped):
             skip_section = True
             continue
 
         if skip_section:
-            # Stop skipping when we hit the next substantive section header
-            if is_header and stripped:
-                # Heuristic: if next header looks like a keeper, stop skipping
-                if _KEEPER_HEADERS.match(stripped):
-                    skip_section = False
-                    found_keeper = True
-                    output_lines.append(line)
-                # If unknown header, tentatively stop skipping (don't throw away unknowns)
-                elif not _BOILERPLATE_HEADERS.match(stripped):
-                    skip_section = False
-                    output_lines.append(line)
+            # Only a confirmed KEEPER header exits skip mode — never unknown lines
+            # This prevents salary/perks content lines from leaking back
             continue
 
         output_lines.append(line)
 
     cleaned = '\n'.join(output_lines)
 
-    # ── 3. Collapse excessive blank lines ────────────────────────────────────
+    # ── 4. Collapse excessive blank lines ────────────────────────────────────
     cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
 
-    # ── 4. Strip trailing EEO paragraphs (last 10 lines) ─────────────────────
+    # ── 5. Strip trailing EEO / application-note paragraphs (up to last 15 lines)
     _EEO_PHRASES = [
-        'equal opportunity', 'eeo', 'affirmative action',
-        'discrimination', 'applicants will receive consideration',
-        'regardless of race', 'regardless of gender',
+        'equal opportunity', 'eeo', 'affirmative action', 'discrimination',
+        'applicants will receive consideration', 'regardless of race',
+        'regardless of gender', 'protected veteran', 'disability status',
+        'visa sponsorship', 'authorized to work', 'work authorization',
+        'unsubscribe', 'resume database', 'resume submission',
+        'background check', 'drug test',
     ]
     final_lines = cleaned.rstrip().split('\n')
-    while final_lines:
+    removed = 0
+    while final_lines and removed < 15:
         last = final_lines[-1].lower()
         if any(phrase in last for phrase in _EEO_PHRASES):
             final_lines.pop()
+            removed += 1
         else:
             break
     cleaned = '\n'.join(final_lines).strip()

@@ -437,7 +437,7 @@ class ResumeTailor:
                     f.write("WARNINGS\n")
                     f.write("=" * 50 + "\n")
                     for w in warnings:
-                        f.write(f"⚠️  {w}\n")
+                        f.write(f"[WARN] {w}\n")
 
             print(f"[OK] Tailored resume saved to {filepath}")
 

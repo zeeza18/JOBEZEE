@@ -1,17 +1,15 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Wand2, Send, Mic2, Kanban, User, Settings, Sparkles, LogOut, Globe, Plug } from 'lucide-react'
+import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/useAuthStore'
+import LogoBrand from '../common/LogoBrand'
 
 const mainNav = [
-  { to: '/app',              label: 'Dashboard',  icon: Home,     end: true },
-  { to: '/app/pulled-jobs',  label: 'Jobs',       icon: Sparkles, badge: 'Live' },
-  { to: '/app/tailor',       label: 'Tailor',     icon: Wand2 },
-  { to: '/app/apply',        label: 'Apply',      icon: Send },
-  { to: '/app/interview',    label: 'Interview',  icon: Mic2 },
-  { to: '/app/portfolio',    label: 'Portfolio',  icon: Globe },
-  { to: '/app/connectors',   label: 'Connectors', icon: Plug, badge: 'Soon' },
-  { to: '/app/applications', label: 'Applications', icon: Kanban },
+  { to: '/app',              label: 'Dashboard', icon: Home,     end: true },
+  { to: '/app/pulled-jobs',  label: 'Jobs',      icon: Sparkles, badge: 'Live' },
+  { to: '/app/tailor',       label: 'Tailor',    icon: Wand2 },
+  { to: '/app/apply',        label: 'Apply',     icon: Send },
+  { to: '/app/portfolio',    label: 'Portfolio', icon: Globe },
 ]
 
 const accountNav = [
@@ -62,11 +60,8 @@ const SideNav = () => {
   return (
     <aside className="fixed inset-y-0 left-0 w-60 bg-[#0d1117] border-r border-white/[0.06] flex flex-col z-40 hidden md:flex">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-white/[0.06] flex-shrink-0">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-cyan-500 text-sm font-black text-white">
-          J
-        </div>
-        <span className="text-sm font-semibold text-white tracking-tight">JOBEZEE</span>
+      <div className="flex items-center px-4 h-16 border-b border-white/[0.06] flex-shrink-0">
+        <LogoBrand size="sm" />
       </div>
 
       {/* Nav scroll area */}

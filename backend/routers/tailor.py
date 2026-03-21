@@ -42,15 +42,26 @@ class TailorForJobRequest(BaseModel):
 # ── Start job (plain text — TailorPage) ───────────────────────────────────────
 
 @router.post("/run")
-async def start_tailor(req: TailorRequest, _user=Depends(get_current_user)):
+async def start_tailor(
+    req: TailorRequest,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Start the tailoring pipeline with pasted text. Returns immediately with job_id."""
     if not req.job_description.strip():
         raise HTTPException(400, "job_description is required")
     if not req.resume.strip():
         raise HTTPException(400, "resume is required")
 
+    # Fetch user's API key from profile
+    import uuid as _uuid
+    _pid = _uuid.UUID(current_user.id)
+    _prof_res = await db.execute(select(UserProfile).where(UserProfile.id == _pid))
+    _profile = _prof_res.scalar_one_or_none()
+    openai_key = (getattr(_profile, "openai_api_key", "") or "").strip()
+
     job_id = create_job()
-    start_tailor_job(job_id, req.job_description, req.resume)
+    start_tailor_job(job_id, req.job_description, req.resume, openai_api_key=openai_key)
     return {"job_id": job_id, "status": "running"}
 
 
@@ -96,6 +107,8 @@ async def start_tailor_for_job(
     username = name_raw.replace(" ", "_")
     company = pulled_job.company or "company"
 
+    openai_key = (getattr(profile, "openai_api_key", "") or "").strip()
+
     tailor_job_id = create_job()
     start_tailor_job_for_job(
         tailor_job_id,
@@ -103,6 +116,7 @@ async def start_tailor_for_job(
         resume_url,
         username,
         company,
+        openai_api_key=openai_key,
     )
     return {"job_id": tailor_job_id, "status": "running"}
 

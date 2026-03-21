@@ -17,7 +17,12 @@ const App = () => {
       const user = useAuthStore.getState().user
       if (user && !searchFired.current) {
         searchFired.current = true
-        searchApi.trigger().catch(() => {})
+        const last = Number(localStorage.getItem('lastSearchTrigger') || 0)
+        const THREE_HOURS = 3 * 60 * 60 * 1000
+        if (Date.now() - last > THREE_HOURS) {
+          localStorage.setItem('lastSearchTrigger', String(Date.now()))
+          searchApi.trigger().catch(() => {})
+        }
       }
     })
   }, [fetchMe])

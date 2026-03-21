@@ -46,7 +46,7 @@ class KeywordExtractor:
             dict: Contains keywords, needs, and results
         """
 
-        print("🤖 Analyzing Job Description with GPT-4o...")
+        print("[PHASE 1] Analyzing Job Description with GPT-4o...")
 
         try:
             # Make API call to OpenAI with JSON mode enabled
@@ -173,7 +173,7 @@ class KeywordExtractor:
                 f.write("\n" + "=" * 50 + "\n")
                 f.write("RAW ANALYSIS:\n")
                 f.write(analysis.get('raw_analysis', ''))
-            print(f"📁 Analysis saved to {filepath}")
+            print(f"[OK] Analysis saved to {filepath}")
 
             # --- machine-readable JSON (used by download endpoint for filename) ---
             json_path = output_dir / 'keyword_analysis.json'
@@ -185,10 +185,10 @@ class KeywordExtractor:
                     "needs": analysis.get('needs', []),
                     "results": analysis.get('results', []),
                 }, f, indent=2)
-            print(f"📁 Analysis JSON saved to {json_path}")
+            print(f"[OK] Analysis JSON saved to {json_path}")
 
         except Exception as e:
-            print(f"⚠️  Warning: Could not save analysis - {e}")
+            print(f"[WARN] Could not save analysis - {e}")
 
 # Test function
 if __name__ == "__main__":

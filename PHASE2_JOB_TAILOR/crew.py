@@ -49,9 +49,9 @@ class ResumeCrew:
             log_file = _OUTPUT_DIR / 'process_log.json'
             with open(log_file, 'w', encoding='utf-8') as f:
                 json.dump(self.process_log, f, indent=2, ensure_ascii=False)
-            print(f"📋 Process log saved to {log_file}")
+            print(f"[OK] Process log saved to {log_file}")
         except Exception as e:
-            print(f"⚠️  Warning: Could not save process log - {e}")
+            print(f"[WARN] Could not save process log - {e}")
 
     def save_content(self, content, filename):
         """Save content to file"""
@@ -60,9 +60,9 @@ class ResumeCrew:
             filepath = _OUTPUT_DIR / filename
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(content)
-            print(f"💾 Saved {filename}")
+            print(f"[OK] Saved {filename}")
         except Exception as e:
-            print(f"⚠️  Warning: Could not save {filename} - {e}")
+            print(f"[WARN] Could not save {filename} - {e}")
 
     def run_tailoring_process(
         self,
@@ -153,7 +153,7 @@ class ResumeCrew:
             print(f"\n{'='*20} ROUND {round_num} {'='*20}")
 
             # TOOL 2: Tailor Resume
-            print(f"🎨 Round {round_num} - Tool 2: Tailoring Resume")
+            print(f"[Tailor] Round {round_num} - Tailoring resume...")
             print("-" * 40)
 
             self.log_step(f"ROUND {round_num} - TOOL 2: Tailoring resume", {})
@@ -402,7 +402,7 @@ class ResumeCrew:
         else:
             best_score = 0
 
-        print(f"\n🎉 PHASE 3: Final Results & Summary")
+        print(f"\n[PHASE 3] Final Results & Summary")
         print("=" * 60)
 
         # Save inputs
@@ -481,9 +481,9 @@ class ResumeCrew:
 
         # Show final summary
         final_score = best_score
-        print(f"🏆 Best Score: {best_score}/100 (Round {best_round or 1})")
+        print(f"[BEST] Best Score: {best_score}/100 (Round {best_round or 1})")
         print(f"[PROGRESS] Score Progress: {' → '.join([str(eval.get('score', 0)) for eval in all_evaluations])}")
-        print(f"📄 Final Resume: {len(best_resume.split())} words")
+        print(f"[OK] Final Resume: {len(best_resume.split())} words")
 
         print("\nOutput Files Created:")
         print("   - job_description.txt - Your input JD")
@@ -543,7 +543,7 @@ class ResumeCrew:
                 f.write("=" * 60 + "\n\n")
 
                 # Process Overview
-                f.write("📋 PROCESS OVERVIEW\n")
+                f.write("PROCESS OVERVIEW\n")
                 f.write("-" * 30 + "\n")
                 f.write("[OK] Tool 1: Keyword Extraction - COMPLETED\n")
                 f.write("[OK] Tool 2: Resume Tailoring - COMPLETED\n")
@@ -586,10 +586,10 @@ class ResumeCrew:
                 else:
                     f.write("No recommendations available.\n")
 
-                f.write(f"\n🎉 Process completed successfully!\n")
+                f.write(f"\nProcess completed successfully!\n")
                 f.write(f"Final resume ready for submission.\n")
 
             print(f"[STATS] Summary report saved to {filepath}")
 
         except Exception as e:
-            print(f"⚠️  Warning: Could not create summary report - {e}")
+            print(f"[WARN] Could not create summary report - {e}")

@@ -5,19 +5,19 @@
  * work authorization, experience, skills, resume facts, and resume upload.
  *
  * "Save & Search Jobs" → saves profile to DB → triggers Phase 1 discovery.
- * "Import from Local"  → calls POST /api/profile/import-local (reads local/user_profile.json).
- * "Export to Local"    → calls GET  /api/profile/export-local (writes local/user_profile.json).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Briefcase, Building2, Check, ChevronRight, FileText,
   Globe2, Info, Loader2, Plus, Shield, Trash2, Upload, User, X,
-  Download, BookOpen,
+  BookOpen,
 } from 'lucide-react'
 import { SectionHeader } from '../../components/common/SectionHeader'
 import { profileApi, searchApi, type UserProfile } from '../../lib/api'
 import { useAppStore } from '../../store/useAppStore'
+
+const BASE = import.meta.env.VITE_API_URL || ''
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -57,6 +57,7 @@ const emptyProfile: Partial<UserProfile> = {
   desired_roles: [], preferred_locations: [], preferred_countries: [],
   preferred_regions: [], industries: [],
   remote_preference: 'hybrid', job_type: 'full_time', experience_level: 'mid',
+  work_modes: [], job_types: [], experience_levels: [],
   salary_min: 0, salary_max: 0, salary_currency: 'USD', salary_range_text: '',
   work_authorization: '', visa_sponsorship_required: false, work_permit_type: '',
   current_job_title: '', target_role: '', years_experience: '', education: '',
@@ -175,17 +176,51 @@ function SField({ value, onChange, options }: { value: string; onChange: (v: str
   )
 }
 
-// ─── API helpers (import/export local JSON) ────────────────────────────────────
-// Use same-origin by default; override with VITE_API_URL if backend is elsewhere.
-const BASE = import.meta.env.VITE_API_URL ?? ''
-async function importLocal(): Promise<UserProfile> {
-  const res = await fetch(`${BASE}/api/profile/import-local`, { method: 'POST', credentials: 'include' })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
+/** Multi-select pill picker — toggles values in an array */
+function MultiPillSelect({ values, onChange, options }: { values: string[]; onChange: (v: string[]) => void; options: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-2 pt-0.5">
+      {options.map(o => {
+        const selected = values.includes(o)
+        return (
+          <button key={o} type="button"
+            onClick={() => onChange(selected ? values.filter(x => x !== o) : [...values, o])}
+            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all select-none ${
+              selected
+                ? 'border-cyan-500 bg-cyan-50 text-cyan-700 shadow-sm ring-1 ring-cyan-200'
+                : 'border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700 bg-white'
+            }`}>
+            {selected && <Check className="mr-1 inline h-3 w-3" />}{fmt(o)}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
-async function exportLocal(): Promise<void> {
-  const res = await fetch(`${BASE}/api/profile/export-local`, { credentials: 'include' })
-  if (!res.ok) throw new Error(await res.text())
+
+/** +/− stepper for numeric preferences */
+function StepperInput({ value, onChange, step = 1, min = 0 }: {
+  value: number; onChange: (v: number) => void; step?: number; min?: number
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <button type="button"
+        onClick={() => onChange(Math.max(min, value - step))}
+        className="h-9 w-9 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-lg font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50 transition select-none">
+        −
+      </button>
+      <input
+        type="number" value={value} min={min} step={step}
+        onChange={e => onChange(Math.max(min, Number(e.target.value)))}
+        className="w-20 text-center rounded-xl border border-slate-200 bg-white py-2 text-sm font-bold text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
+      />
+      <button type="button"
+        onClick={() => onChange(value + step)}
+        className="h-9 w-9 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-lg font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50 transition select-none">
+        +
+      </button>
+    </div>
+  )
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -197,7 +232,6 @@ export default function ProfilePage() {
   const [loading, setLoading]       = useState(false)
   const [saving, setSaving]         = useState(false)
   const [searching, setSearching]   = useState(false)
-  const [syncing, setSyncing]       = useState(false)
   const [sessionId, setSessionId]   = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -236,27 +270,6 @@ export default function ProfilePage() {
     } finally { setSaving(false) }
   }
 
-  const handleImportLocal = async () => {
-    setSyncing(true)
-    try {
-      const updated = await importLocal()
-      setForm(updated)
-      pushToast({ title: 'Imported from local/user_profile.json', type: 'success' })
-    } catch (e: unknown) {
-      pushToast({ title: 'Import failed', description: String(e), type: 'error' })
-    } finally { setSyncing(false) }
-  }
-
-  const handleExportLocal = async () => {
-    setSyncing(true)
-    try {
-      await exportLocal()
-      pushToast({ title: 'Exported to local/user_profile.json', type: 'success' })
-    } catch (e: unknown) {
-      pushToast({ title: 'Export failed', description: String(e), type: 'error' })
-    } finally { setSyncing(false) }
-  }
-
   const handleResumeUpload = async (file: File) => {
     try {
       const res = await profileApi.uploadResume(file)
@@ -293,28 +306,6 @@ export default function ProfilePage() {
           </p>
         </motion.div>
       )}
-
-      {/* Local JSON sync bar */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
-        <span className="text-xs font-medium text-slate-500">Local JSON sync:</span>
-        <button
-          onClick={handleImportLocal} disabled={syncing}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-brand/40 hover:text-brand disabled:opacity-50"
-        >
-          {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-          Import from local/user_profile.json
-        </button>
-        <button
-          onClick={handleExportLocal} disabled={syncing}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-brand/40 hover:text-brand disabled:opacity-50"
-        >
-          {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-          Export to local/user_profile.json
-        </button>
-        <span className="ml-auto text-xs text-slate-400 hidden md:block">
-          JOBEZEE/local/user_profile.json
-        </span>
-      </div>
 
       {/* Tab bar */}
       <div className="flex overflow-x-auto gap-1 rounded-2xl border border-slate-100 bg-slate-50 p-1">
@@ -411,20 +402,38 @@ export default function ProfilePage() {
                 placeholder="e.g. USA, Canada, United Kingdom"
                 info="Drives the Indeed country endpoint selection. Use full country names (USA, United Kingdom, Germany)."
               />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <Field label="Work Mode"><SField value={form.remote_preference ?? 'hybrid'} onChange={(v) => set('remote_preference', v)} options={REMOTE_OPTIONS} /></Field>
-                <Field label="Job Type"><SField value={form.job_type ?? 'full_time'} onChange={(v) => set('job_type', v)} options={JOB_TYPE_OPTIONS} /></Field>
-                <Field label="Experience Level"><SField value={form.experience_level ?? 'mid'} onChange={(v) => set('experience_level', v)} options={EXP_OPTIONS} /></Field>
+              <div className="space-y-4">
+                <Field label="Work Mode" info="Select all that apply — used by LinkedIn bot and job filters.">
+                  <MultiPillSelect
+                    values={form.work_modes ?? []}
+                    onChange={(v) => { set('work_modes', v); set('remote_preference', v[0] ?? 'hybrid') }}
+                    options={REMOTE_OPTIONS}
+                  />
+                </Field>
+                <Field label="Job Type" info="Select all that apply.">
+                  <MultiPillSelect
+                    values={form.job_types ?? []}
+                    onChange={(v) => { set('job_types', v); set('job_type', v[0] ?? 'full_time') }}
+                    options={JOB_TYPE_OPTIONS}
+                  />
+                </Field>
+                <Field label="Experience Level" info="Select all that apply.">
+                  <MultiPillSelect
+                    values={form.experience_levels ?? []}
+                    onChange={(v) => { set('experience_levels', v); set('experience_level', v[0] ?? 'mid') }}
+                    options={EXP_OPTIONS}
+                  />
+                </Field>
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <Field label="Search Radius (miles)" info="Distance from your city for onsite/hybrid roles. Set to 0 for remote-only.">
-                  <TInput value={String(form.search_radius_miles ?? 50)} onChange={(v) => set('search_radius_miles', Number(v))} type="number" placeholder="50" />
+                  <StepperInput value={form.search_radius_miles ?? 50} onChange={(v) => set('search_radius_miles', v)} step={5} min={0} />
                 </Field>
                 <Field label="Max job age (hours)" info="Only return listings posted in the last N hours. 72 = last 3 days.">
-                  <TInput value={String(form.hours_old ?? 72)} onChange={(v) => set('hours_old', Number(v))} type="number" placeholder="72" />
+                  <StepperInput value={form.hours_old ?? 72} onChange={(v) => set('hours_old', v)} step={24} min={1} />
                 </Field>
                 <Field label="Results per site" info="How many listings to fetch per job board per search. Higher = slower but more results.">
-                  <TInput value={String(form.results_per_site ?? 50)} onChange={(v) => set('results_per_site', Number(v))} type="number" placeholder="50" />
+                  <StepperInput value={form.results_per_site ?? 50} onChange={(v) => set('results_per_site', v)} step={10} min={5} />
                 </Field>
               </div>
             </div>

@@ -433,7 +433,8 @@ def _scrape_with_retry(kwargs: dict, max_retries: int, backoff: float):
     """Call scrape_jobs with exponential backoff on transient errors."""
     from jobspy import scrape_jobs
 
-    _TRANSIENT = ("timeout", "429", "proxy", "connection", "reset", "refused", "rate")
+    _TRANSIENT   = ("timeout", "429", "proxy", "connection", "reset", "refused", "rate")
+    _PERMANENT   = ("invalid country", "valid countries are", "invalid location")
 
     for attempt in range(max_retries + 1):
         try:
@@ -442,6 +443,9 @@ def _scrape_with_retry(kwargs: dict, max_retries: int, backoff: float):
                 return scrape_jobs(**kwargs)
         except Exception as exc:
             err = str(exc).lower()
+            if any(k in err for k in _PERMANENT):
+                log.warning("jobspy: skipping invalid location/country — %s", exc)
+                return None
             is_transient = any(k in err for k in _TRANSIENT)
             if is_transient and attempt < max_retries:
                 wait = backoff * (attempt + 1)

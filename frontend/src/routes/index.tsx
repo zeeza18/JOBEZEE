@@ -39,7 +39,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/"           element={<LandingPage />} />
       <Route path="/auth"       element={<AuthPage />} />
-      <Route path="/onboarding" element={<OnboardingPage />} />
+      <Route path="/onboarding" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
 
       <Route element={<AuthGuard><AppShell /></AuthGuard>}>
         <Route path="/app"                element={<DashboardPage />} />

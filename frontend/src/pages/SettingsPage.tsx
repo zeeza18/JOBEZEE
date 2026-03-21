@@ -1,14 +1,21 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
-  CreditCard,
   Briefcase,
   FileText,
   Globe,
   Zap,
-  Plus,
-  Minus,
   ChevronDown,
   ChevronUp,
+  Camera,
+  Trash2,
+  User,
+  Check,
+  Loader2,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Info,
+  Save,
 } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { SectionHeader } from '../components/common/SectionHeader'
@@ -112,11 +119,132 @@ function SettingRow({
   )
 }
 
+// ── Info tooltip ──────────────────────────────────────────────────────────────
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-flex">
+      <button type="button" onClick={() => setOpen(v => !v)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="text-slate-400 hover:text-cyan-500 transition-colors">
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl text-xs text-slate-600 leading-relaxed">
+          {text}
+          <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-white" />
+        </span>
+      )}
+    </span>
+  )
+}
+
+// ── Password field with show/hide ─────────────────────────────────────────────
+function PwField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder ?? 'Password'}
+        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-9 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
+      />
+      <button type="button" onClick={() => setShow(v => !v)}
+        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+        {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  )
+}
+
+// ── Platform credential pair ──────────────────────────────────────────────────
+const PLATFORM_COLORS: Record<string, string> = {
+  in: 'bg-[#0077B5] text-white',
+  gh: 'bg-emerald-600 text-white',
+  wd: 'bg-slate-700 text-white',
+}
+
+function PlatformCreds({
+  logo, name, emailVal, pwVal, onEmail, onPw, pwSaved,
+}: {
+  logo: string; name: string
+  emailVal: string; pwVal: string
+  onEmail: (v: string) => void; onPw: (v: string) => void
+  pwSaved?: boolean
+}) {
+  const isSaved = pwSaved || (emailVal.trim() !== '' && pwVal.trim() !== '')
+  return (
+    <div className="px-5 py-4 space-y-3">
+      <div className="flex items-center gap-2.5 mb-1">
+        <span className={`inline-flex h-6 w-8 items-center justify-center rounded text-[10px] font-black tracking-tight ${PLATFORM_COLORS[logo] ?? 'bg-slate-200 text-slate-600'}`}>
+          {logo.toUpperCase()}
+        </span>
+        <p className="text-sm font-semibold text-slate-700">{name}</p>
+        {isSaved && (
+          <span className="ml-auto flex items-center gap-1 text-xs font-medium text-emerald-600">
+            <Check className="h-3 w-3" /> Saved
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <input
+          type="email"
+          value={emailVal}
+          onChange={e => onEmail(e.target.value)}
+          placeholder={`${name} email`}
+          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
+        />
+        <PwField
+          value={pwVal}
+          onChange={onPw}
+          placeholder={pwSaved && !pwVal ? '••••••••••••' : `${name} password`}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── API key field ─────────────────────────────────────────────────────────────
+function ApiKeyField({
+  label, value, onChange, placeholder, isSaved, hint,
+}: {
+  label: string; value: string; onChange: (v: string) => void
+  placeholder?: string; isSaved?: boolean; hint?: string
+}) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="px-5 py-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-semibold text-slate-700">{label}</p>
+        {isSaved && !value && (
+          <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
+            <Check className="h-3 w-3" /> Saved
+          </span>
+        )}
+      </div>
+      <div className="relative">
+        <input
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={isSaved && !value ? '••••••••••••••••••••••••' : (placeholder ?? 'sk-…')}
+          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-9 font-mono text-xs text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
+        />
+        <button type="button" onClick={() => setShow(v => !v)}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+          {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      {hint && <p className="text-xs text-slate-400">{hint}</p>}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 const SettingsPage = () => {
   const {
-    billing, jobs, tailor, portfolio, autoApply,
-    deductApplyCost, addCredits,
+    jobs, tailor, portfolio, autoApply,
     updateJobs, updateTailor, updatePortfolio, updateAutoApply,
   } = useSettingsStore()
 
@@ -132,23 +260,126 @@ const SettingsPage = () => {
     pushToast({ title: 'Portfolio slug saved', type: 'success' })
   }
 
-  // Fun billing demo
-  const handleSpend = () => {
-    if (billing.balance < billing.costPerApply) {
-      pushToast({ title: 'Insufficient balance', description: 'Add credits to continue applying', type: 'error' })
-      return
+  // ── Profile Picture ──────────────────────────────────────────────────────────
+  const BASE_URL = import.meta.env.VITE_API_URL || ''
+
+  // Hold the full profile so credential saves don't wipe other fields
+  const fullProfileRef = useRef<Record<string, unknown>>({})
+
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [avatarUrl,       setAvatarUrl]       = useState<string>('')
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarRemoving,  setAvatarRemoving]  = useState(false)
+  const [avatarSuccess,   setAvatarSuccess]   = useState(false)
+  const [avatarError,     setAvatarError]     = useState<string | null>(null)
+
+  // ── Credentials state ─────────────────────────────────────────────────────
+  const [creds, setCreds] = useState({
+    apply_email: '', apply_password: '',
+    linkedin_email: '', linkedin_password: '',
+    indeed_email: '', indeed_password: '',
+    greenhouse_email: '', greenhouse_password: '',
+    workday_email: '', workday_password: '',
+    gmail_api_key: '',
+    openai_api_key: '',
+    anthropic_api_key: '',
+  })
+  // Which sensitive fields are already saved in DB (backend never returns the actual values)
+  const [credentialsSet, setCredentialsSet] = useState<Record<string, boolean>>({})
+  const [credsSaving, setCredsSaving] = useState(false)
+  const [credsSaved,  setCredsSaved]  = useState(false)
+
+  const setCred = (key: keyof typeof creds) => (val: string) =>
+    setCreds(prev => ({ ...prev, [key]: val }))
+
+  const saveCredentials = async () => {
+    setCredsSaving(true)
+    try {
+      const r = await fetch(`${BASE_URL}/api/profile/`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fullProfileRef.current, ...creds }),
+      })
+      if (r.ok) {
+        const updated = await r.json()
+        // Refresh credentials_set from response
+        if (updated.credentials_set) setCredentialsSet(updated.credentials_set)
+      }
+      setCredsSaved(true)
+      setTimeout(() => setCredsSaved(false), 2500)
+    } catch { /* silent */ }
+    setCredsSaving(false)
+  }
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/profile/`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(p => {
+        fullProfileRef.current = p
+        if (p.avatar_url) setAvatarUrl(`${BASE_URL}${p.avatar_url}`)
+        if (p.credentials_set) setCredentialsSet(p.credentials_set)
+        setCreds({
+          apply_email:         p.apply_email         ?? '',
+          apply_password:      p.apply_password      ?? '',
+          linkedin_email:      p.linkedin_email      ?? '',
+          linkedin_password:   p.linkedin_password   ?? '',
+          indeed_email:        p.indeed_email        ?? '',
+          indeed_password:     p.indeed_password     ?? '',
+          greenhouse_email:    p.greenhouse_email    ?? '',
+          greenhouse_password: p.greenhouse_password ?? '',
+          workday_email:       p.workday_email       ?? '',
+          workday_password:    p.workday_password    ?? '',
+          gmail_api_key:       p.gmail_api_key       ?? '',
+          openai_api_key:      p.openai_api_key      ?? '',
+          anthropic_api_key:   p.anthropic_api_key   ?? '',
+        })
+      })
+      .catch(() => {})
+  }, [])
+
+  const handleAvatarRemove = async () => {
+    if (!avatarUrl) return
+    setAvatarRemoving(true); setAvatarError(null)
+    try {
+      const r = await fetch(`${BASE_URL}/api/profile/avatar/remove`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!r.ok) throw new Error(await r.text())
+      setAvatarUrl('')
+      pushToast({ title: 'Photo removed', type: 'info' })
+    } catch (err: any) {
+      setAvatarError(err.message ?? 'Remove failed')
+    } finally {
+      setAvatarRemoving(false)
     }
-    deductApplyCost()
-    pushToast({ title: `–$${billing.costPerApply.toFixed(2)} applied`, description: `Balance: $${(billing.balance - billing.costPerApply).toFixed(2)}`, type: 'info' })
   }
 
-  const handleAddCredits = (amt: number) => {
-    addCredits(amt)
-    pushToast({ title: `+$${amt.toFixed(2)} added`, type: 'success' })
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarUploading(true); setAvatarSuccess(false); setAvatarError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const r = await fetch(`${BASE_URL}/api/profile/avatar`, {
+        method: 'POST',
+        credentials: 'include',
+        body: fd,
+      })
+      if (!r.ok) throw new Error(await r.text())
+      const data = await r.json()
+      setAvatarUrl(`${BASE_URL}${data.avatar_url}`)
+      setAvatarSuccess(true)
+      setTimeout(() => setAvatarSuccess(false), 3000)
+    } catch (err: any) {
+      setAvatarError(err.message ?? 'Upload failed')
+    } finally {
+      setAvatarUploading(false)
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+    }
   }
-
-  const pct = Math.min(100, (billing.balance / 5) * 100)
-  const barColor = pct > 50 ? 'bg-cyan-500' : pct > 20 ? 'bg-amber-400' : 'bg-rose-500'
 
   return (
     <div className="space-y-6">
@@ -158,65 +389,50 @@ const SettingsPage = () => {
         {/* ── Left column: all sections ───────────────────────────────────── */}
         <div className="space-y-4 lg:col-span-2">
 
-          {/* 1. Billing */}
-          <Section icon={CreditCard} title="Billing" description="Track apply spend and manage credits" accent="cyan">
-            {/* Balance display */}
-            <div className="px-5 py-4">
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Current Balance</p>
-                  <p className={cn('mt-0.5 text-3xl font-bold tabular-nums', billing.balance === 0 ? 'text-rose-500' : 'text-slate-800')}>
-                    ${billing.balance.toFixed(2)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">~${billing.costPerApply.toFixed(2)} deducted per application</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-400">
-                    ≈ {billing.balance > 0 ? Math.floor(billing.balance / billing.costPerApply) : 0} applies left
-                  </p>
-                </div>
-              </div>
-
-              {/* Balance bar */}
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className={cn('h-full rounded-full transition-all duration-500', barColor)}
-                  style={{ width: `${pct}%` }}
-                />
+          {/* 0. Profile Picture */}
+          <Card className="p-5 md:p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Camera className="h-4 w-4 text-cyan-500" />
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Profile Picture</p>
+                <p className="text-xs text-slate-400">Shown on your dashboard. JPG, PNG or WebP, max 5 MB.</p>
               </div>
             </div>
-
-            {/* Add / spend controls */}
-            <div className="flex items-center gap-2 px-5 py-3.5">
-              <p className="mr-auto text-xs font-medium text-slate-600">Add credits</p>
-              {[1, 5, 10].map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => handleAddCredits(amt)}
-                  className="flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100"
-                >
-                  <Plus className="h-3 w-3" />
-                  ${amt}
-                </button>
-              ))}
+            <div className="flex items-center gap-4">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="avatar" className="h-16 w-16 rounded-full object-cover ring-2 ring-cyan-200 shadow" />
+              ) : (
+                <div className="h-16 w-16 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center">
+                  <User className="h-7 w-7 text-slate-400" />
+                </div>
+              )}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-medium px-4 py-2 transition-colors">
+                    {avatarUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    {avatarUploading ? 'Uploading…' : 'Upload Photo'}
+                    <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarUpload} disabled={avatarUploading} />
+                  </label>
+                  {avatarUrl && (
+                    <button
+                      onClick={handleAvatarRemove}
+                      disabled={avatarRemoving}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 text-sm font-medium px-3 py-2 transition-colors"
+                    >
+                      {avatarRemoving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      {avatarRemoving ? 'Removing…' : 'Remove'}
+                    </button>
+                  )}
+                </div>
+                {avatarSuccess && (
+                  <p className="flex items-center gap-1 text-xs text-emerald-600"><Check className="h-3 w-3" /> Photo updated!</p>
+                )}
+                {avatarError && <p className="text-xs text-red-500">{avatarError}</p>}
+              </div>
             </div>
+          </Card>
 
-            {/* Fun demo spend button */}
-            <SettingRow
-              label="Simulate apply spend"
-              hint="Demo only — press to deduct one apply cost from balance"
-            >
-              <button
-                onClick={handleSpend}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 active:scale-95"
-              >
-                <Minus className="h-3 w-3" />
-                ${billing.costPerApply.toFixed(2)}
-              </button>
-            </SettingRow>
-          </Section>
-
-          {/* 2. Job Settings */}
+          {/* 1. Job Settings */}
           <Section icon={Briefcase} title="Job Settings" description="Control how pulled jobs are filtered and displayed" accent="violet">
             <SettingRow
               label="Show filters from preferences"
@@ -296,7 +512,100 @@ const SettingsPage = () => {
             </div>
           </Section>
 
-          {/* 5. Auto Apply Settings */}
+          {/* 5. Credentials */}
+          <Section icon={KeyRound} title="Credentials" description="Login details for job platforms + email integration" accent="amber">
+
+            {/* Apply defaults */}
+            <div className="px-5 py-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-slate-700">Default Apply Email & Password</p>
+                <InfoTip text="Used as the fallback when auto-applying to any job site. Per-platform credentials below will override these if set." />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input type="email" value={creds.apply_email} onChange={e => setCred('apply_email')(e.target.value)}
+                  placeholder="you@email.com"
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition" />
+                <PwField value={creds.apply_password} onChange={setCred('apply_password')} placeholder="Default password" />
+              </div>
+              <p className="text-xs text-slate-400">These are used when signing up / logging in to job sites. Not your JOBEZEE password.</p>
+            </div>
+
+            <div className="mx-5 h-px bg-slate-100" />
+
+            {/* Per-platform */}
+            <PlatformCreds logo="in" name="LinkedIn"
+              emailVal={creds.linkedin_email} pwVal={creds.linkedin_password}
+              onEmail={setCred('linkedin_email')} onPw={setCred('linkedin_password')}
+              pwSaved={credentialsSet['linkedin_password']} />
+            <div className="mx-5 h-px bg-slate-100" />
+            <PlatformCreds logo="in" name="Indeed"
+              emailVal={creds.indeed_email} pwVal={creds.indeed_password}
+              onEmail={setCred('indeed_email')} onPw={setCred('indeed_password')}
+              pwSaved={credentialsSet['indeed_password']} />
+            <div className="mx-5 h-px bg-slate-100" />
+            <PlatformCreds logo="gh" name="Greenhouse"
+              emailVal={creds.greenhouse_email} pwVal={creds.greenhouse_password}
+              onEmail={setCred('greenhouse_email')} onPw={setCred('greenhouse_password')}
+              pwSaved={credentialsSet['greenhouse_password']} />
+            <div className="mx-5 h-px bg-slate-100" />
+            <PlatformCreds logo="wd" name="Workday"
+              emailVal={creds.workday_email} pwVal={creds.workday_password}
+              onEmail={setCred('workday_email')} onPw={setCred('workday_password')}
+              pwSaved={credentialsSet['workday_password']} />
+
+            <div className="mx-5 h-px bg-slate-100" />
+
+            {/* Gmail App Password */}
+            <ApiKeyField
+              label="Gmail App Password"
+              value={creds.gmail_api_key}
+              onChange={setCred('gmail_api_key')}
+              isSaved={credentialsSet['gmail_api_key']}
+              placeholder="fhlc ggyy wcyo oumv"
+              hint="16-char Google App Password for IMAP inbox scanning. Gmail → Settings → Security → App passwords."
+            />
+
+            <div className="mx-5 h-px bg-slate-100" />
+
+            {/* AI API Keys */}
+            <div className="px-5 pt-4 pb-1">
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-sm font-semibold text-slate-700">AI API Keys</p>
+                <span className="rounded-full bg-cyan-50 border border-cyan-200 px-2 py-0.5 text-[10px] font-semibold text-cyan-600 uppercase tracking-wide">Optional</span>
+                <InfoTip text="Your own API keys are used for resume tailoring and auto-apply. If left empty, the platform's shared keys from .env are used as fallback." />
+              </div>
+            </div>
+
+            <ApiKeyField
+              label="OpenAI API Key"
+              value={creds.openai_api_key}
+              onChange={setCred('openai_api_key')}
+              isSaved={credentialsSet['openai_api_key']}
+              placeholder="sk-proj-…"
+              hint="Used for GPT-4o-mini resume tailoring and job status detection. Get it at platform.openai.com."
+            />
+            <div className="mx-5 h-px bg-slate-100" />
+            <ApiKeyField
+              label="Claude (Anthropic) API Key"
+              value={creds.anthropic_api_key}
+              onChange={setCred('anthropic_api_key')}
+              isSaved={credentialsSet['anthropic_api_key']}
+              placeholder="sk-ant-…"
+              hint="Used for Claude-powered resume tailoring. Get it at console.anthropic.com."
+            />
+
+            {/* Save button */}
+            <div className="px-5 py-4 flex items-center justify-between border-t border-slate-100">
+              <p className="text-xs text-slate-400">Credentials are encrypted at rest and never shared.</p>
+              <button onClick={saveCredentials} disabled={credsSaving}
+                className="flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 transition-colors">
+                {credsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : credsSaved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                {credsSaving ? 'Saving…' : credsSaved ? 'Saved!' : 'Save Credentials'}
+              </button>
+            </div>
+          </Section>
+
+          {/* 7. Auto Apply Settings */}
           <Section icon={Zap} title="Auto Apply Settings" description="Control how the agent applies to jobs" accent="rose">
             <SettingRow
               label="Tailor resume before applying"
