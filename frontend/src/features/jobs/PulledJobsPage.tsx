@@ -904,7 +904,8 @@ function FilterPanel({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const THREE_HOURS = 3 * 60 * 60 * 1000
+const THREE_HOURS   = 3 * 60 * 60 * 1000
+const THIRTY_MINUTES = 30 * 60 * 1000
 
 export default function PulledJobsPage() {
   const { pushToast } = useAppStore()
@@ -936,6 +937,7 @@ export default function PulledJobsPage() {
   const pollTimer          = useRef<ReturnType<typeof setInterval> | null>(null)
   const sessionJobsCount   = useRef(0)   // jobs found in the current search session only
   const esSources          = useRef<Map<string, EventSource>>(new Map())
+  const autoSearchFired    = useRef(false) // fire auto-search only once per mount
 
   // ── Load jobs + stats — first batch shows immediately, rest load in background ─
   const BATCH = 50
@@ -1030,6 +1032,25 @@ export default function PulledJobsPage() {
       pushToast({ title: 'Search failed', description: friendly, type: 'error' })
     } finally { setSearching(false) }
   }, [pushToast, filters.workdayInSearch])
+
+  // ── Auto-search on first visit when DB is empty and profile has roles ─────────
+  useEffect(() => {
+    if (autoSearchFired.current) return
+    if (loading) return
+    if (userProfile === null) return
+    if ((userProfile.desired_roles ?? []).length === 0) return
+    if (jobs.length > 0) return
+    autoSearchFired.current = true
+    triggerSearch()
+  }, [loading, userProfile, jobs.length, triggerSearch])
+
+  // ── Pull fresh jobs every 30 minutes while the page is open ──────────────────
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!polling && !searching) triggerSearch()
+    }, THIRTY_MINUTES)
+    return () => clearInterval(id)
+  }, [polling, searching, triggerSearch])
 
   // ── Status change ─────────────────────────────────────────────────────────────
   const handleStatusChange = (id: string, newStatus: string) => {
@@ -1399,11 +1420,14 @@ export default function PulledJobsPage() {
                : activeTab === 'hidden'  ? 'No hidden jobs'
                : activeTab === 'applied' ? 'No applications yet'
                : activeTab === 'tailored'? 'No tailored resumes yet'
-               : 'Searching for jobs…'}
+               : (polling || searching)  ? 'Pulling jobs for you…'
+               : 'No jobs yet'}
             </p>
             <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
               {activeTab === 'all' || activeTab === 'new'
-                ? 'Hang tight — jobs are being pulled from LinkedIn, Indeed, Glassdoor and more based on your profile.'
+                ? (polling || searching)
+                  ? 'Fetching from LinkedIn, Indeed, Glassdoor and more — results appear in ~30 seconds.'
+                  : 'Make sure your profile has at least one desired role, then hit ⚡ Search.'
                 : activeTab === 'applied'
                 ? 'Jobs you apply to will show up here.'
                 : activeTab === 'tailored'
