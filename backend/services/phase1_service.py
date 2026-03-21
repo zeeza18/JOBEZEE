@@ -11,12 +11,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import sys
 import traceback as _traceback
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
+from urllib.parse import urlparse
 
 log = logging.getLogger(__name__)
 
@@ -543,6 +546,105 @@ def _passes_board_title(
 # Main entry point (called from BackgroundTask)
 # ---------------------------------------------------------------------------
 
+def _url_domain(url: str) -> str:
+    try:
+        return urlparse(url).netloc.lower().replace("www.", "").split(".")[0]
+    except Exception:
+        return ""
+
+
+def _parse_tavily_title(raw: str) -> tuple[str, str]:
+    """Split 'Job Title - Company | Site' into (title, company)."""
+    # Strip trailing site qualifier like "| LinkedIn"
+    raw = re.sub(r'\s*\|\s*\w.*$', '', raw).strip()
+    if ' - ' in raw:
+        parts = raw.split(' - ', 1)
+        return parts[0].strip(), parts[1].strip()
+    if ' at ' in raw:
+        parts = raw.split(' at ', 1)
+        return parts[0].strip(), parts[1].strip()
+    return raw.strip(), ''
+
+
+async def _tavily_search(profile: Any, session_id: str) -> list[Any]:
+    """Search for jobs using Tavily API based on user profile preferences."""
+    from ..config import get_settings
+    settings = get_settings()
+
+    if not settings.TAVILY_API_KEY:
+        log.warning("[Tavily] TAVILY_API_KEY not set — skipping")
+        return []
+
+    try:
+        from tavily import TavilyClient
+    except ImportError:
+        log.warning("[Tavily] tavily-python not installed")
+        return []
+
+    loop = asyncio.get_event_loop()
+    client = TavilyClient(api_key=settings.TAVILY_API_KEY)
+
+    roles     = getattr(profile, 'desired_roles',        []) or []
+    locations = getattr(profile, 'preferred_locations',  []) or []
+    remote    = (getattr(profile, 'remote_preference',   '') or '').lower()
+
+    JOB_DOMAINS = [
+        "linkedin.com", "indeed.com", "glassdoor.com",
+        "greenhouse.io", "lever.co", "workday.com", "jobs.ashbyhq.com",
+    ]
+
+    queries: list[str] = []
+    for role in roles[:2]:
+        if 'remote' in remote or not locations:
+            queries.append(f'"{role}" jobs remote hiring 2025')
+        for loc in (locations[:2] or []):
+            queries.append(f'"{role}" jobs {loc} 2025')
+
+    if not queries:
+        return []
+
+    results: list[Any] = []
+    seen_urls: set[str] = set()
+
+    for query in queries[:4]:
+        try:
+            resp = await loop.run_in_executor(
+                None,
+                lambda q=query: client.search(
+                    query=q,
+                    search_depth="basic",
+                    include_domains=JOB_DOMAINS,
+                    max_results=10,
+                ),
+            )
+            for r in resp.get('results', []):
+                url = (r.get('url') or '').strip()
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                title, company = _parse_tavily_title(r.get('title') or '')
+                results.append(SimpleNamespace(
+                    url          = url,
+                    title        = title or query,
+                    company      = company,
+                    location     = '',
+                    country      = '',
+                    description  = r.get('content') or '',
+                    job_type     = '',
+                    min_amount   = None,
+                    max_amount   = None,
+                    currency     = 'USD',
+                    source       = 'tavily',
+                    site         = _url_domain(url),
+                    date_posted  = '',
+                ))
+        except Exception as exc:
+            log.warning("[Tavily] query=%r failed: %s", query, exc)
+
+    log.info("[Tavily] session=%s found %d jobs across %d queries", session_id, len(results), len(queries))
+    return results
+
+
 async def run_phase1_search(profile: Any, session_id: str, include_workday: bool = True) -> None:
     """
     Execute Phase 1 job discovery using the user's saved preferences.
@@ -580,7 +682,15 @@ async def run_phase1_search(profile: Any, session_id: str, include_workday: bool
     log.info("[Phase1][0]   _SMARTEXTRACT_AVAILABLE  = %s", _SMARTEXTRACT_AVAILABLE)
 
     if not _PHASE1_AVAILABLE:
-        log.warning("[Phase1][0] Phase1 NOT available — running in MOCK mode")
+        log.warning("[Phase1][0] Phase1 NOT available — trying Tavily search")
+        tavily_jobs = await _tavily_search(profile, session_id)
+        if tavily_jobs:
+            inserted = await _save_jobs(tavily_jobs, profile_id, session_id)
+            await _update_session(session_id, "done", inserted)
+            _RUNNING_PROFILES.discard(profile_key)
+            log.info("[Phase1][Tavily] done — %d jobs saved", inserted)
+            return
+        log.warning("[Phase1][0] Tavily returned nothing — falling back to mock")
         mock_jobs = _generate_mock_jobs(profile, session_id)
         inserted  = await _save_jobs(mock_jobs, profile_id, session_id)
         await _update_session(session_id, "done", inserted)

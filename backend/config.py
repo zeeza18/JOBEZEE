@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY:    str = ""   # alias — same as GEMINI_API_KEY
     GEMINI_API_KEY:    str = ""   # preferred field name for Gemini
 
+    # ── Tavily Search API ────────────────────────────────────────────────────
+    TAVILY_API_KEY: str = ""
+
     # ── Gmail IMAP ───────────────────────────────────────────────────────────
     GMAIL_USER:         str = ""
     GMAIL_APP_PASSWORD: str = ""
