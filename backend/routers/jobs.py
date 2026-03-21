@@ -121,14 +121,14 @@ async def get_full_description(
         None, _sync_fetch_description, job.url, job.site or ""
     )
 
-    if fetched and len(fetched) > len(job.description or ""):
+    if fetched:
         await db.execute(
             update(PulledJob)
             .where(PulledJob.id == job_id)
             .values(description=fetched)
         )
         await db.commit()
-        log.info("Updated description for job %s (+%d chars)", job_id, len(fetched) - len(job.description or ""))
+        log.info("Updated description for job %s (%d chars)", job_id, len(fetched))
         return {"description": fetched, "source": "fetched"}
 
     return {"description": job.description or "", "source": "cached"}

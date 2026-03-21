@@ -257,15 +257,16 @@ function jobInfoCount(job: PulledJob): number {
 // ─── Lightweight markdown renderer ────────────────────────────────────────────
 
 function renderInline(text: string): React.ReactNode[] {
-  const unescaped = text.replace(/\\([*_`\-\.#\[\]()])/g, '$1')
+  // Unescape ALL backslash sequences (markdownify escapes +, &, etc.)
+  const unescaped = text.replace(/\\(.)/g, '$1')
   const parts: React.ReactNode[] = []
   const re = /(\*\*(.+?)\*\*|\*(.+?)\*|\[(.+?)\]\((.+?)\))/g
   let last = 0, m: RegExpExecArray | null
   while ((m = re.exec(unescaped)) !== null) {
     if (m.index > last) parts.push(unescaped.slice(last, m.index))
-    if (m[0].startsWith('**'))     parts.push(<strong key={m.index}>{m[2]}</strong>)
+    if (m[0].startsWith('**'))     parts.push(<strong key={m.index} className="font-semibold text-slate-900">{m[2]}</strong>)
     else if (m[0].startsWith('*')) parts.push(<em key={m.index}>{m[3]}</em>)
-    else parts.push(<a key={m.index} href={m[5]} target="_blank" rel="noreferrer" className="text-brand underline">{m[4]}</a>)
+    else parts.push(<a key={m.index} href={m[5]} target="_blank" rel="noreferrer" className="text-cyan-600 underline">{m[4]}</a>)
     last = m.index + m[0].length
   }
   if (last < unescaped.length) parts.push(unescaped.slice(last))
@@ -275,10 +276,14 @@ function renderInline(text: string): React.ReactNode[] {
 function JobDescription({ text }: { text: string }) {
   if (!text) return <p className="text-sm text-slate-400 italic">No description available.</p>
 
-  // Normalise line endings, then ensure headings always start on their own line
   const raw = text
     .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-    // inline "## Heading" → preceded by a blank line so it becomes its own block
+    // strip trailing backslash hard-line-breaks that markdownify adds
+    .replace(/\\[ \t]*$/gm, '')
+    // normalize lines that are pure asterisk-wrapped text → ## heading
+    // e.g. "*Role Responsibilities**" or "**What You Need*" → "## Role Responsibilities"
+    .replace(/^[*]{1,3}([^*\n]{2,60}?)[*]{1,3}[ \t]*$/gm, (_, content) => `## ${content.trim()}`)
+    // ensure ## headings always start on their own line
     .replace(/([^\n])(#{1,3} )/g, '$1\n\n$2')
 
   const blocks = raw.split(/\n{2,}/)
@@ -1028,8 +1033,10 @@ export default function PulledJobsPage() {
       pushToast({ title: `Searching for ${roleLabel}`, description: `in ${locLabel}`, type: 'success' })
     } catch (e: unknown) {
       const msg = String(e)
-      const friendly = msg.includes('409') ? 'A search is already running — wait for it to finish.' : msg
-      pushToast({ title: 'Search failed', description: friendly, type: 'error' })
+      // 409 = already running — silent, no toast needed
+      if (!msg.includes('409')) {
+        pushToast({ title: 'Search failed', description: msg, type: 'error' })
+      }
     } finally { setSearching(false) }
   }, [pushToast, filters.workdayInSearch])
 
@@ -1413,27 +1420,53 @@ export default function PulledJobsPage() {
             ))}
           </div>
         ) : visible.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-28 text-center select-none">
-            {/* Text */}
-            <p className="text-lg font-bold text-slate-800 mb-2">
-              {activeTab === 'saved'    ? 'No saved jobs yet'
-               : activeTab === 'hidden'  ? 'No hidden jobs'
-               : activeTab === 'applied' ? 'No applications yet'
-               : activeTab === 'tailored'? 'No tailored resumes yet'
-               : (polling || searching)  ? 'Pulling jobs for you…'
-               : 'No jobs yet'}
-            </p>
-            <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
-              {activeTab === 'all' || activeTab === 'new'
-                ? (polling || searching)
-                  ? 'Fetching from LinkedIn, Indeed, Glassdoor and more — results appear in ~30 seconds.'
-                  : 'Make sure your profile has at least one desired role, then hit ⚡ Search.'
-                : activeTab === 'applied'
-                ? 'Jobs you apply to will show up here.'
-                : activeTab === 'tailored'
-                ? 'Tailor a resume for any job and it will appear here.'
-                : 'Try adjusting your filters or running a new search.'}
-            </p>
+          <div className="flex flex-col items-center justify-center py-24 text-center select-none gap-4">
+            {(polling || searching) && (activeTab === 'all' || activeTab === 'new') ? (
+              <>
+                {/* Animated job-card skeletons while pulling */}
+                <div className="w-full max-w-xl space-y-3">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+                      style={{ opacity: 1 - i * 0.15, animation: `pulse 1.8s ease-in-out ${i * 0.15}s infinite` }}>
+                      <div className="flex items-start gap-3">
+                        <div className="h-9 w-9 rounded-xl bg-slate-100 animate-pulse shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-3.5 rounded bg-slate-100 animate-pulse" style={{ width: `${55 + i * 7}%` }} />
+                          <div className="h-3 rounded bg-slate-100 animate-pulse" style={{ width: `${35 + i * 5}%` }} />
+                          <div className="flex gap-2 pt-1">
+                            <div className="h-5 w-16 rounded-full bg-slate-100 animate-pulse" />
+                            <div className="h-5 w-20 rounded-full bg-slate-100 animate-pulse" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-400 mt-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-cyan-500" />
+                  <span>Pulling jobs from LinkedIn, Indeed, Glassdoor and more…</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-base font-semibold text-slate-700">
+                  {activeTab === 'saved'    ? 'No saved jobs yet'
+                   : activeTab === 'hidden'  ? 'No hidden jobs'
+                   : activeTab === 'applied' ? 'No applications yet'
+                   : activeTab === 'tailored'? 'No tailored resumes yet'
+                   : 'No jobs found'}
+                </p>
+                <p className="text-sm text-slate-400 max-w-xs leading-relaxed">
+                  {activeTab === 'all' || activeTab === 'new'
+                    ? 'Make sure your profile has at least one desired role, then hit Search.'
+                    : activeTab === 'applied'
+                    ? 'Jobs you apply to will show up here.'
+                    : activeTab === 'tailored'
+                    ? 'Tailor a resume for any job and it will appear here.'
+                    : 'Try adjusting your filters or running a new search.'}
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <>
