@@ -52,7 +52,11 @@ from .workday_discovery import (
     GLOBAL_EMPLOYERS,
     get_global_employers,
 )
-from .smartextract_discovery import search as search_smart, build_targets_from_yaml
+try:
+    from .smartextract_discovery import search as search_smart, build_targets_from_yaml
+except ImportError:
+    search_smart = None          # type: ignore[assignment]
+    build_targets_from_yaml = None  # type: ignore[assignment]
 
 __all__ = [
     # --- User entry point ---
