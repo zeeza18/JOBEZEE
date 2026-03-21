@@ -274,38 +274,64 @@ function renderInline(text: string): React.ReactNode[] {
 
 function JobDescription({ text }: { text: string }) {
   if (!text) return <p className="text-sm text-slate-400 italic">No description available.</p>
-  const raw = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+
+  // Normalise line endings, then ensure headings always start on their own line
+  const raw = text
+    .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    // inline "## Heading" → preceded by a blank line so it becomes its own block
+    .replace(/([^\n])(#{1,3} )/g, '$1\n\n$2')
+
   const blocks = raw.split(/\n{2,}/)
   return (
-    <div className="space-y-3 text-sm leading-relaxed text-slate-700">
+    <div className="space-y-2.5 text-[13px] leading-relaxed text-slate-700 font-normal">
       {blocks.map((block, bi) => {
         const trimmed = block.trim()
         if (!trimmed) return null
+
+        // ── Headings ────────────────────────────────────────────────────────
         const hm = trimmed.match(/^(#{1,3})\s+(.+)/)
         if (hm) {
           const lvl = hm[1].length
-          const cls = lvl === 1 ? 'text-base font-bold text-slate-900' : lvl === 2 ? 'text-sm font-bold text-slate-800' : 'text-sm font-semibold text-slate-700'
+          const cls = lvl === 1
+            ? 'text-sm font-bold text-slate-900 tracking-tight mt-1'
+            : lvl === 2
+            ? 'text-[13px] font-semibold text-slate-800 mt-0.5'
+            : 'text-[13px] font-medium text-slate-700'
           return <p key={bi} className={cls}>{renderInline(hm[2])}</p>
         }
+
+        // ── List blocks ──────────────────────────────────────────────────────
         const lines = trimmed.split('\n')
         const isList = lines.every(l => /^\s*[-*•]\s/.test(l) || l.trim() === '')
         if (isList) return (
-          <ul key={bi} className="list-disc list-outside ml-4 space-y-0.5">
-            {lines.filter(l => l.trim()).map((l, li) => <li key={li}>{renderInline(l.replace(/^\s*[-*•]\s*/, ''))}</li>)}
+          <ul key={bi} className="space-y-0.5 pl-1">
+            {lines.filter(l => l.trim()).map((l, li) => (
+              <li key={li} className="flex gap-2 items-start">
+                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />
+                <span>{renderInline(l.replace(/^\s*[-*•]\s*/, ''))}</span>
+              </li>
+            ))}
           </ul>
         )
+
+        // ── Mixed paragraph + bullets ────────────────────────────────────────
         const hasBullet = lines.some(l => /^\s*[-*•]\s/.test(l))
         if (hasBullet) return (
           <div key={bi} className="space-y-0.5">
             {lines.filter(l => l.trim()).map((l, li) => {
               const bm = l.match(/^\s*[-*•]\s*(.+)/)
               return bm
-                ? <div key={li} className="flex gap-2"><span className="text-slate-400 mt-0.5">•</span><span>{renderInline(bm[1])}</span></div>
-                : <p key={li}>{renderInline(l)}</p>
+                ? <div key={li} className="flex gap-2 items-start">
+                    <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />
+                    <span>{renderInline(bm[1])}</span>
+                  </div>
+                : <p key={li} className="text-slate-700">{renderInline(l)}</p>
             })}
           </div>
         )
-        return <p key={bi}>{renderInline(lines.map(l => l.trim()).join(' '))}</p>
+
+        // ── Plain paragraph ──────────────────────────────────────────────────
+        return <p key={bi} className="text-slate-700">{renderInline(lines.map(l => l.trim()).join(' '))}</p>
       })}
     </div>
   )
