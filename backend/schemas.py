@@ -198,7 +198,8 @@ class SearchTriggerRequest(BaseModel):
     salary_min       : float | None     = None
     hours_old        : int | None       = None
     results_per_site : int | None       = None
-    include_workday  : bool             = False   # disabled by default (slow)
+    include_workday  : bool             = True
+    workday_only     : bool             = False  # skip boards, run Workday phase only
 
 
 class SearchTriggerResponse(BaseModel):

@@ -213,9 +213,9 @@ export default function AuthPage() {
 
           <p className="mt-6 text-center text-xs text-slate-400">
             By continuing you agree to our{' '}
-            <span className="text-cyan-500 cursor-pointer hover:underline">Terms</span>{' '}
+            <a href="https://www.jobezee.org/terms" target="_blank" rel="noopener noreferrer" className="text-cyan-500 hover:underline">Terms</a>{' '}
             &amp;{' '}
-            <span className="text-cyan-500 cursor-pointer hover:underline">Privacy Policy</span>.
+            <a href="https://www.jobezee.org/privacy" target="_blank" rel="noopener noreferrer" className="text-cyan-500 hover:underline">Privacy Policy</a>.
           </p>
 
           <p className="mt-3 text-center text-xs text-slate-400">

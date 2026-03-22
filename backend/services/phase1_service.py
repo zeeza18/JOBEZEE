@@ -554,14 +554,20 @@ def _url_domain(url: str) -> str:
 
 
 
-async def run_phase1_search(profile: Any, session_id: str, include_workday: bool = True) -> None:
+async def run_phase1_search(
+    profile: Any,
+    session_id: str,
+    include_workday: bool = True,
+    workday_only: bool = False,
+) -> None:
     """
     Execute Phase 1 job discovery using the user's saved preferences.
 
-    Pipeline (two-phase save so the frontend sees results ASAP):
-      1. search_boards()  → deduplicate → save to DB immediately  ← frontend sees these in ~30 s
-      2. search_workday() → relevance filter → dedup vs saved URLs → save to DB
-      3. mark session done
+    Pipeline:
+      1. Phase A — search_boards() (LinkedIn/Indeed/Glassdoor/ZipRecruiter)
+                   skipped when workday_only=True
+      2. Phase B — search_workday()
+                   skipped when include_workday=False
     """
 
     # ── CHECKPOINT 0: entry ──────────────────────────────────────────────────
@@ -633,9 +639,7 @@ async def run_phase1_search(profile: Any, session_id: str, include_workday: bool
 
         # ════════════════════════════════════════════════════════════════════
         # PHASE A — Board search (Indeed / LinkedIn / Glassdoor / ZipRecruiter)
-        # Run ONE title at a time and save immediately after each query.
-        # → First results visible on frontend after ~2-3 min instead of 10-15.
-        # Cap results_per_site at 100 per site to balance speed vs volume.
+        # Skipped when workday_only=True (second-pass Workday session).
         # ════════════════════════════════════════════════════════════════════
         import time as _time
 
@@ -725,7 +729,10 @@ async def run_phase1_search(profile: Any, session_id: str, include_workday: bool
 
         saved_urls: set[str] = set()   # cross-title dedup tracker
 
-        for t_idx, title in enumerate(prefs.job_titles, 1):
+        if workday_only:
+            log.info("[Phase1][3] workday_only=True — skipping board search (LinkedIn/Indeed/Glassdoor)")
+
+        for t_idx, title in enumerate([] if workday_only else prefs.job_titles, 1):
             title_kwargs = {**base_kwargs, "queries": [title]}
             log.info(
                 "[Phase1][3] Board search %d/%d — title=%r sites=indeed+linkedin+zip",
@@ -816,10 +823,10 @@ async def run_phase1_search(profile: Any, session_id: str, include_workday: bool
                     lambda: search_workday(
                         queries=prefs.job_titles,
                         employers=employers,
-                        workers=12,              # more parallelism = faster wall time
-                        request_timeout=6,       # tight per-request cap
-                        fetch_details=True,      # fetch description from each job's detail page
-                        max_jobs_per_employer=5, # fewer detail fetches per employer = much faster
+                        workers=16,              # high parallelism — most employers time out fast
+                        request_timeout=5,       # tight timeout so slow employers don't stall
+                        fetch_details=False,     # skip per-job detail fetch — JD loaded on click
+                        max_jobs_per_employer=10,
                     ),
                 )
                 log.info(

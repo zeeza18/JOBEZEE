@@ -816,7 +816,7 @@ interface Filters {
 }
 
 const EMPTY_FILTERS: Filters = {
-  location: '', jobType: '', salaryMin: 0, hoursOld: 0, source: '', workdayInSearch: false,
+  location: '', jobType: '', salaryMin: 0, hoursOld: 0, source: '', workdayInSearch: true,
 }
 
 function FilterPanel({
@@ -1027,51 +1027,64 @@ export default function PulledJobsPage() {
   // New jobs land at position 0 (ordered by pulled_at desc), so offset-based
   // incremental fetching won't work. Instead: on each new batch detected, do a
   // silent full reload so the UI always reflects the DB state.
-  const fetchNewBatch = useCallback(async (sid: string) => {
+  const fetchNewBatch = useCallback(async (sid: string, isWorkday = false) => {
     try {
       const st = await searchApi.status(sid)
       if (st.jobs_found > sessionJobsCount.current) {
         sessionJobsCount.current = st.jobs_found
-        await load(true)   // full reload — new jobs are at the top of the list
+        await load(true)
       }
       if (st.status !== 'running') {
         setPolling(false)
         if (pollTimer.current) clearInterval(pollTimer.current)
         await load(true)   // final sync
+
+        // After board search completes, silently kick off Workday as a new session
+        if (!isWorkday && filters.workdayInSearch) {
+          try {
+            const wd = await searchApi.trigger({ include_workday: true, workday_only: true })
+            sessionJobsCount.current = 0
+            setSessionId(wd.session_id + ':workday')
+            setPolling(true)
+          } catch { /* 409 or unavailable — skip silently */ }
+        }
       }
     } catch {
       setPolling(false)
       if (pollTimer.current) clearInterval(pollTimer.current)
     }
-  }, [load])
+  }, [load, filters.workdayInSearch])
 
   useEffect(() => {
     if (!polling || !sessionId) return
     if (pollTimer.current) clearInterval(pollTimer.current)
-    pollTimer.current = setInterval(() => fetchNewBatch(sessionId), 5000)
+    const isWorkday = sessionId.endsWith(':workday')
+    const realSid   = isWorkday ? sessionId.replace(':workday', '') : sessionId
+    pollTimer.current = setInterval(() => fetchNewBatch(realSid, isWorkday), 5000)
     return () => { if (pollTimer.current) clearInterval(pollTimer.current) }
   }, [polling, sessionId, fetchNewBatch])
 
   // ── Trigger Phase 1 search ────────────────────────────────────────────────────
+  // Phase A (boards) fires first. After it completes, Phase B (Workday) fires
+  // automatically as a separate session so board results are visible first.
   const triggerSearch = useCallback(async () => {
     setSearching(true)
     try {
-      const res = await searchApi.trigger({ include_workday: filters.workdayInSearch })
+      // Always boards-only first — Workday fires after boards complete
+      const res = await searchApi.trigger({ include_workday: false, workday_only: false })
       const roleLabel = res.roles?.slice(0, 2).join(', ') || 'your roles'
       const locLabel  = res.locations?.slice(0, 2).join(', ') || 'your locations'
-      // Reset counters so incremental polling works regardless of prior loaded state
       sessionJobsCount.current = 0
       setSessionId(res.session_id)
       setPolling(true)
       pushToast({ title: `Searching for ${roleLabel}`, description: `in ${locLabel}`, type: 'success' })
     } catch (e: unknown) {
       const msg = String(e)
-      // 409 = already running — silent, no toast needed
       if (!msg.includes('409')) {
         pushToast({ title: 'Search failed', description: msg, type: 'error' })
       }
     } finally { setSearching(false) }
-  }, [pushToast, filters.workdayInSearch])
+  }, [pushToast])
 
   // ── Auto-search on first visit when DB is empty and profile has roles ─────────
   useEffect(() => {

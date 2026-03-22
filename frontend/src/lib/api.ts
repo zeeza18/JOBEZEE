@@ -368,7 +368,7 @@ export const portfolioApi = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const searchApi = {
-  trigger : (body?: Record<string, unknown> & { include_workday?: boolean }) =>
+  trigger : (body?: Record<string, unknown> & { include_workday?: boolean; workday_only?: boolean }) =>
     post<SearchTriggerResponse>('/api/search/trigger', body ?? {}),
   status  : (sessionId: string)   => get<SearchStatusResponse>(`/api/search/status/${sessionId}`),
   health  : ()                    => get<{ status: string }>('/api/health'),
