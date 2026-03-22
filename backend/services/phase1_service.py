@@ -509,6 +509,38 @@ def _infer_countries_from_locations(locs: list[str]) -> list[str]:
     return list(found)
 
 
+def _normalise_countries(raw: list[str]) -> list[str]:
+    """
+    Normalise country strings to the exact keys INDEED_COUNTRY_CODES expects.
+    e.g. 'usa' -> 'USA', 'united states' -> 'United States', 'uk' -> 'United Kingdom'
+    Build a lowercase lookup once then map each input string.
+    """
+    try:
+        from PHASE1_JOB_SEARCH import INDEED_COUNTRY_CODES  # type: ignore
+        lc_lookup = {k.lower(): k for k in INDEED_COUNTRY_CODES}
+    except Exception:
+        lc_lookup = {}
+
+    # Common aliases not in INDEED_COUNTRY_CODES
+    _ALIASES: dict[str, str] = {
+        "us": "United States", "usa": "United States",
+        "u.s.": "United States", "u.s.a.": "United States",
+        "uk": "United Kingdom", "u.k.": "United Kingdom",
+        "uae": "United Arab Emirates",
+    }
+
+    out: list[str] = []
+    for c in raw:
+        cl = c.lower().strip()
+        if cl in _ALIASES:
+            out.append(_ALIASES[cl])
+        elif cl in lc_lookup:
+            out.append(lc_lookup[cl])
+        else:
+            out.append(c)  # pass through unchanged — may work or be skipped
+    return out
+
+
 def build_preferences(profile: Any) -> "UserPreferences":
     """
     Map all UserProfile DB fields to a Phase 1 UserPreferences object.
@@ -518,7 +550,7 @@ def build_preferences(profile: Any) -> "UserPreferences":
     # Countries: use explicit field; if empty, infer from location strings.
     # This ensures jobs from Brazil/Europe are filtered out when user sets
     # preferred_locations like "Remote, US" but leaves preferred_countries blank.
-    countries = list(profile.preferred_countries or [])
+    countries = _normalise_countries(list(profile.preferred_countries or []))
     if not countries and not (profile.preferred_regions or []):
         countries = _infer_countries_from_locations(profile.preferred_locations or [])
 
