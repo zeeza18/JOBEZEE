@@ -49,6 +49,9 @@ def createChromeSession(isRetry: bool = False):
     if sys.platform.startswith("linux"):
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--window-size=1920,1080")
 
     # Stability flags — suppress profile picker and first-run UI
     options.add_argument("--no-first-run")
@@ -79,7 +82,9 @@ def createChromeSession(isRetry: bool = False):
             print_lg("Downloading Chrome Driver... This may take some time. Only needed once!")
             driver = uc.Chrome(options=options)
     else:
+        print_lg("Launching Chrome via Selenium (may download ChromeDriver)...")
         driver = webdriver.Chrome(options=options)
+        print_lg("Chrome launched successfully")
 
     driver.maximize_window()
     wait = WebDriverWait(driver, 5)

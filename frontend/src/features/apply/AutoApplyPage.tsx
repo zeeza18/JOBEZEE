@@ -56,12 +56,13 @@ const AutoApplyPage = () => {
 
   // ── LinkedIn bot state ──────────────────────────────────────────────────────
   const LI_JOB_KEY = 'jobezee_li_job_id'
+  const _initLiJobId = localStorage.getItem(LI_JOB_KEY)
 
-  const [liStatus,  setLiStatus]  = useState<'idle' | 'running' | 'complete' | 'error'>('idle')
+  const [liStatus,  setLiStatus]  = useState<'idle' | 'running' | 'complete' | 'error'>(_initLiJobId ? 'running' : 'idle')
   const [liLines,   setLiLines]   = useState<string[]>([])
   const [liResult,  setLiResult]  = useState<string | null>(null)
   const [liError,   setLiError]   = useState<string | null>(null)
-  const [liJobId,   setLiJobId]   = useState<string | null>(null)
+  const [liJobId,   setLiJobId]   = useState<string | null>(_initLiJobId)
   const [liStopping, setLiStopping] = useState(false)
   const liEsRef  = useRef<EventSource | null>(null)
   const liLogRef = useRef<HTMLDivElement>(null)
