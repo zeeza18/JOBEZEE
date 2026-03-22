@@ -50,7 +50,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "backend.main:app",
         host      = "0.0.0.0",
-        port      = 8001,
+        port      = int(os.environ.get("PORT", 8001)),  # Render injects PORT
         reload    = False,   # disabled — reload subprocess caused stale bytecode
         log_level = "info",
     )

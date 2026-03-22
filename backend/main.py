@@ -166,25 +166,31 @@ def _start_global_chrome() -> None:
         _log.warning("[Chrome] Could not start global browser at startup: %s", exc)
 
 
-async def _run_migrations() -> None:
-    """Run heavy DB migrations in background so startup doesn't block health checks."""
-    _log = logging.getLogger(__name__ + ".migrations")
+async def _run_startup_db() -> None:
+    """
+    All DB startup work runs in the background.
+
+    Uvicorn runs the lifespan BEFORE it binds the port, so ANY await here
+    delays port binding and triggers Render's 'no open ports' timeout.
+    Tables and columns already exist in production — these are all idempotent.
+    """
+    _log = logging.getLogger(__name__ + ".startup")
     try:
+        await create_tables()
+        _log.info("[Startup] create_tables done")
         await run_column_migrations()
+        _log.info("[Startup] column migrations done")
         await run_schema_migration()
-        _log.info("[Migrations] complete")
+        _log.info("[Startup] schema migration done")
     except Exception as exc:
-        _log.error("[Migrations] failed: %s", exc)
+        _log.error("[Startup] DB startup failed (non-fatal): %s", exc)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # create_tables is fast (CREATE TABLE IF NOT EXISTS) — block on this only
-    await create_tables()
-
-    # Column + data migrations are slow (50+ ALTER TABLEs + large INSERTs)
-    # Run in background so the server passes health checks immediately
-    asyncio.create_task(_run_migrations())
+    # Nothing blocking here — port binds immediately, health check passes fast.
+    # All DB work (create_tables + migrations) runs in background.
+    asyncio.create_task(_run_startup_db())
 
     # Start the persistent Chrome window so it's ready before the first apply
     import threading as _threading
