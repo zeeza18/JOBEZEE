@@ -540,7 +540,7 @@ def build_preferences(profile: Any) -> "UserPreferences":
         # job_type is a single string in DB; Phase 1 expects a list
         job_types        = [profile.job_type] if profile.job_type else [],
         experience_level = profile.experience_level or "mid",
-        industries       = profile.industries         or [],
+        industries       = [i.lower() for i in (profile.industries or [])],
 
         # ── Auto-exclude titles that don't match experience level ──────────
         exclude_titles   = _exclude_for_level(profile.experience_level or "mid"),
@@ -669,7 +669,31 @@ async def run_phase1_search(
             role_keywords = {
                 w.lower() for q in prefs.job_titles for w in q.split() if len(w) > 1
             }
-        log.info("[Phase1][2] role_keywords = %s", sorted(role_keywords))
+
+        # Expand common tech abbreviations so short tokens like "ml" or "ai"
+        # also match expanded titles like "Machine Learning Engineer" or
+        # "Artificial Intelligence Researcher".
+        _TITLE_EXPANSIONS: dict[str, list[str]] = {
+            "ai":  ["artificial intelligence", "generative ai", "genai"],
+            "ml":  ["machine learning", "deep learning", "mlops", "ml engineer"],
+            "nlp": ["natural language processing", "language model", "llm"],
+            "cv":  ["computer vision"],
+            "dl":  ["deep learning", "neural network"],
+            "llm": ["large language model", "language model"],
+            "rl":  ["reinforcement learning"],
+            "ds":  ["data science", "data scientist"],
+            "de":  ["data engineer", "data engineering"],
+            "swe": ["software engineer", "software developer"],
+            "sde": ["software development engineer", "software engineer"],
+        }
+        expanded: set[str] = set(role_keywords)
+        for kw in list(role_keywords):
+            expanded.update(_TITLE_EXPANSIONS.get(kw, []))
+        # Always include the full original query strings as matching patterns
+        for q in prefs.job_titles:
+            expanded.add(q.lower().strip())
+        role_keywords = expanded
+        log.info("[Phase1][2] role_keywords expanded = %s", sorted(role_keywords))
 
         loop = asyncio.get_event_loop()
         total_inserted = 0
@@ -856,6 +880,11 @@ async def run_phase1_search(
             try:
                 employers = prefs.get_workday_employers()
                 log.info("[Phase1][4] Workday employers matched: %d", len(employers))
+                # Fallback: if industry/region filters produced 0 employers, search all
+                if not employers:
+                    from PHASE1_JOB_SEARCH.workday_discovery import get_global_employers  # type: ignore
+                    employers = get_global_employers()
+                    log.info("[Phase1][4] Workday fallback: using all %d global employers", len(employers))
                 t_wd = _time.time()
                 wd_raw = await loop.run_in_executor(
                     None,

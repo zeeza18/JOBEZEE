@@ -7,7 +7,10 @@ import sys
 import csv
 import re
 import time
-import pyautogui
+try:
+    import pyautogui
+except Exception:
+    pyautogui = None
 import pandas as pd
 
 # Set CSV field size limit to prevent field size errors
@@ -41,7 +44,7 @@ if use_AI:
 from typing import Literal
 
 
-pyautogui.FAILSAFE = False
+if pyautogui: pyautogui.FAILSAFE = False
 # if use_resume_generator:    from resume_generator import is_logged_in_GPT, login_GPT, open_resume_chat, create_custom_resume
 
 
@@ -949,7 +952,7 @@ def apply_to_jobs(search_terms: list[str]) -> None:
 
             
                 for job in job_listings:
-                    if keep_screen_awake: pyautogui.press('shiftright')
+                    if keep_screen_awake and pyautogui: pyautogui.press('shiftright')
                     if current_count >= switch_number: break
                     print_lg("\n-@-\n")
 
