@@ -921,8 +921,8 @@ function FilterPanel({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const THREE_HOURS   = 3 * 60 * 60 * 1000
-const THIRTY_MINUTES = 30 * 60 * 1000
+const THREE_HOURS = 3 * 60 * 60 * 1000
+const ONE_HOUR    = 60 * 60 * 1000
 
 export default function PulledJobsPage() {
   const { pushToast } = useAppStore()
@@ -1027,7 +1027,7 @@ export default function PulledJobsPage() {
   // New jobs land at position 0 (ordered by pulled_at desc), so offset-based
   // incremental fetching won't work. Instead: on each new batch detected, do a
   // silent full reload so the UI always reflects the DB state.
-  const fetchNewBatch = useCallback(async (sid: string, isWorkday = false) => {
+  const fetchNewBatch = useCallback(async (sid: string) => {
     try {
       const st = await searchApi.status(sid)
       if (st.jobs_found > sessionJobsCount.current) {
@@ -1052,9 +1052,8 @@ export default function PulledJobsPage() {
   useEffect(() => {
     if (!polling || !sessionId) return
     if (pollTimer.current) clearInterval(pollTimer.current)
-    const isWorkday = sessionId.endsWith(':workday')
-    const realSid   = isWorkday ? sessionId.replace(':workday', '') : sessionId
-    pollTimer.current = setInterval(() => fetchNewBatch(realSid, isWorkday), 5000)
+    const realSid = sessionId.replace(':workday', '')
+    pollTimer.current = setInterval(() => fetchNewBatch(realSid), 5000)
     return () => { if (pollTimer.current) clearInterval(pollTimer.current) }
   }, [polling, sessionId, fetchNewBatch])
 
@@ -1114,11 +1113,12 @@ export default function PulledJobsPage() {
     triggerSearch()
   }, [loading, userProfile, jobs.length, triggerSearch])
 
-  // ── Pull fresh jobs every 30 minutes while the page is open ──────────────────
+  // ── Pull fresh jobs every 1 hour while the page is open ─────────────────────
+  // New results merge with existing — duplicates removed server-side by URL.
   useEffect(() => {
     const id = setInterval(() => {
       if (!polling && !searching) triggerSearch()
-    }, THIRTY_MINUTES)
+    }, ONE_HOUR)
     return () => clearInterval(id)
   }, [polling, searching, triggerSearch])
 
