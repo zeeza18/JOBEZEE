@@ -57,6 +57,15 @@ def createChromeSession(isRetry: bool = False):
         options.add_argument("--disable-translate")
         options.add_argument("--no-service-autorun")
         options.add_argument("--password-store=basic")
+        # Point ChromeDriver to the exact Chrome binary installed on Render
+        for _cb in ("/usr/bin/google-chrome", "/usr/bin/google-chrome-stable",
+                    "/usr/bin/chromium-browser", "/usr/bin/chromium"):
+            if os.path.exists(_cb):
+                options.binary_location = _cb
+                print_lg(f"Chrome binary: {_cb}")
+                break
+        else:
+            print_lg("[WARN] Chrome binary not found at any standard path")
 
     # Stability flags — suppress profile picker and first-run UI
     options.add_argument("--no-first-run")
@@ -98,21 +107,13 @@ def createChromeSession(isRetry: bool = False):
                     secs += 10
                     print_lg(f"  [Chrome] still starting... ({secs}s elapsed)", flush=True)
         threading.Thread(target=_heartbeat, daemon=True).start()
-        # Use webdriver-manager if chromedriver not on PATH
         _cd_path = shutil.which("chromedriver")
         if _cd_path:
             print_lg(f"Using chromedriver from PATH: {_cd_path}")
             driver = webdriver.Chrome(service=ChromeService(_cd_path), options=options)
         else:
-            print_lg("chromedriver not on PATH — using webdriver-manager to install...")
-            try:
-                from webdriver_manager.chrome import ChromeDriverManager
-                _installed = ChromeDriverManager().install()
-                print_lg(f"webdriver-manager installed chromedriver at: {_installed}")
-                driver = webdriver.Chrome(service=ChromeService(_installed), options=options)
-            except Exception as _wdm_err:
-                print_lg(f"webdriver-manager failed ({_wdm_err}), falling back to selenium-manager...")
-                driver = webdriver.Chrome(options=options)
+            print_lg("chromedriver not on PATH — letting selenium-manager auto-download matching version...")
+            driver = webdriver.Chrome(options=options)
         _done.set()
         print_lg("Chrome launched successfully")
 
