@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     LINKEDIN_REDIRECT_URI:  str = "http://localhost:8001/api/auth/linkedin/callback"
     FRONTEND_URL:           str = "http://localhost:5173"
 
+    # ── Cookie settings ───────────────────────────────────────────────────────
+    # Set COOKIE_DOMAIN=.jobezee.org in production so cookies are first-party
+    # (requires backend to be on api.jobezee.org — add custom domain in Render)
+    COOKIE_DOMAIN: str = ""   # empty = no domain attr (localhost default)
+
     # ── App ──────────────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://jobezee.org,https://www.jobezee.org"

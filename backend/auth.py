@@ -42,7 +42,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 # ── Token helpers ─────────────────────────────────────────────────────────────
-ACCESS_EXPIRE_MINUTES  = 60          # 1 hour
+ACCESS_EXPIRE_MINUTES  = 60 * 8      # 8 hours
 REFRESH_EXPIRE_DAYS    = 30
 
 _ACCESS_COOKIE  = "jobezee_access"
@@ -86,35 +86,60 @@ def _decode_token(token: str, expected_type: str = "access") -> str:
 
 
 # ── Cookie helpers ────────────────────────────────────────────────────────────
-_IS_SECURE = not _cfg.DEBUG  # set Secure flag in production
-_SAMESITE  = "none" if _IS_SECURE else "lax"  # cross-domain requires none+secure
+#
+# Strategy:
+#   Production with COOKIE_DOMAIN=.jobezee.org (backend at api.jobezee.org):
+#     → SameSite=lax, Secure=True, Domain=.jobezee.org
+#     → First-party cookies — work in all browsers including Safari / Chrome ITP
+#
+#   Production without COOKIE_DOMAIN (backend still on .onrender.com):
+#     → SameSite=none, Secure=True
+#     → Third-party cookies — blocked by Safari and eventually Chrome
+#
+#   Development (DEBUG=True):
+#     → SameSite=lax, Secure=False, no Domain
+#
+
+def _cookie_kwargs() -> dict:
+    is_secure     = not _cfg.DEBUG
+    cookie_domain = _cfg.COOKIE_DOMAIN or None   # None = no Domain attr
+
+    if cookie_domain:
+        # Same-site setup: api.jobezee.org + .jobezee.org domain
+        samesite = "lax"
+    elif is_secure:
+        # Cross-domain fallback (onrender.com ↔ jobezee.org)
+        samesite = "none"
+    else:
+        # Local dev
+        samesite = "lax"
+
+    return {"secure": is_secure, "samesite": samesite, "domain": cookie_domain, "httponly": True}
 
 
 def set_auth_cookies(response: Response, user_id: str) -> None:
     """Write both access and refresh tokens as httpOnly cookies."""
+    kw = _cookie_kwargs()
     response.set_cookie(
-        key=_ACCESS_COOKIE,
-        value=create_access_token(user_id),
-        httponly=True,
-        secure=_IS_SECURE,
-        samesite=_SAMESITE,
-        max_age=ACCESS_EXPIRE_MINUTES * 60,
-        path="/",
+        key     = _ACCESS_COOKIE,
+        value   = create_access_token(user_id),
+        max_age = ACCESS_EXPIRE_MINUTES * 60,
+        path    = "/",
+        **kw,
     )
     response.set_cookie(
-        key=_REFRESH_COOKIE,
-        value=create_refresh_token(user_id),
-        httponly=True,
-        secure=_IS_SECURE,
-        samesite=_SAMESITE,
-        max_age=REFRESH_EXPIRE_DAYS * 86_400,
-        path="/api/auth/refresh",  # restrict refresh cookie to refresh endpoint
+        key     = _REFRESH_COOKIE,
+        value   = create_refresh_token(user_id),
+        max_age = REFRESH_EXPIRE_DAYS * 86_400,
+        path    = "/api/auth/refresh",
+        **kw,
     )
 
 
 def clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie(_ACCESS_COOKIE,  path="/")
-    response.delete_cookie(_REFRESH_COOKIE, path="/api/auth/refresh")
+    kw = _cookie_kwargs()
+    response.delete_cookie(_ACCESS_COOKIE,  path="/",                 **kw)
+    response.delete_cookie(_REFRESH_COOKIE, path="/api/auth/refresh", **kw)
 
 
 # ── FastAPI dependency ────────────────────────────────────────────────────────

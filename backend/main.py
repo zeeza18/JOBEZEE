@@ -166,11 +166,25 @@ def _start_global_chrome() -> None:
         _log.warning("[Chrome] Could not start global browser at startup: %s", exc)
 
 
+async def _run_migrations() -> None:
+    """Run heavy DB migrations in background so startup doesn't block health checks."""
+    _log = logging.getLogger(__name__ + ".migrations")
+    try:
+        await run_column_migrations()
+        await run_schema_migration()
+        _log.info("[Migrations] complete")
+    except Exception as exc:
+        _log.error("[Migrations] failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await create_tables()          # creates any new tables (including all v2 tables)
-    await run_column_migrations()  # adds any missing columns to existing tables
-    await run_schema_migration()   # migrates data from old tables into v2 tables
+    # create_tables is fast (CREATE TABLE IF NOT EXISTS) — block on this only
+    await create_tables()
+
+    # Column + data migrations are slow (50+ ALTER TABLEs + large INSERTs)
+    # Run in background so the server passes health checks immediately
+    asyncio.create_task(_run_migrations())
 
     # Start the persistent Chrome window so it's ready before the first apply
     import threading as _threading
