@@ -52,6 +52,11 @@ def createChromeSession(isRetry: bool = False):
         options.add_argument("--disable-gpu")
         options.add_argument("--disable-software-rasterizer")
         options.add_argument("--window-size=1920,1080")
+        options.add_argument("--disable-background-networking")
+        options.add_argument("--disable-sync")
+        options.add_argument("--disable-translate")
+        options.add_argument("--no-service-autorun")
+        options.add_argument("--password-store=basic")
 
     # Stability flags — suppress profile picker and first-run UI
     options.add_argument("--no-first-run")

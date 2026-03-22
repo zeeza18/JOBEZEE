@@ -250,8 +250,9 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
         overrides["settings"] = {
             "tailor_resume": tailor_before_apply,
             "jobezee_root":  str(_JOBEZEE_ROOT),
-            # Run Chrome headless — no real display on Render
             "run_in_background": True,
+            "safe_mode": True,          # use temp profile — avoids slow profile creation on server
+            "disable_extensions": True, # faster startup
         }
 
         # ── Personals (config/personals.py is gitignored — inject from profile) ─
