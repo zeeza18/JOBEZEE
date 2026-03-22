@@ -650,7 +650,7 @@ const OnboardingPage = () => {
     } catch {
       // non-fatal — jobs page will auto-trigger if needed
     }
-    navigate('/app/search')
+    navigate('/app')
   }
 
   if (loading) {
