@@ -71,8 +71,9 @@ def createChromeSession(isRetry: bool = False):
                 print_lg(f"Chrome binary: {_cb}")
                 break
         else:
-            import subprocess as _sp
-            _found = _sp.run(["which", "google-chrome"], capture_output=True, text=True).stdout.strip()
+            import shutil as _shutil
+            _found = (_shutil.which("google-chrome") or _shutil.which("chromium-browser")
+                      or _shutil.which("chromium") or "")
             if _found:
                 options.binary_location = _found
                 print_lg(f"Chrome binary (via which): {_found}")

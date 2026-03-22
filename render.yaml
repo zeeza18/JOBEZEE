@@ -3,28 +3,31 @@ services:
     name: jobezee-api
     runtime: python
     buildCommand: >-
-      apt-get install -y xvfb wget python3-tk python3-dev &&
-      wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/google-chrome.deb &&
-      apt-get install -y /tmp/google-chrome.deb &&
+      apt-get update -qq &&
+      apt-get install -y --no-install-recommends xvfb chromium-browser chromium-chromedriver python3-tk python3-dev &&
       pip install -r backend/requirements.txt &&
       python -c "
-import os
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-o = Options()
-for cb in ['/opt/google/chrome/chrome', '/opt/google/chrome/google-chrome', '/usr/bin/google-chrome']:
-    if os.path.exists(cb):
-        o.binary_location = cb
-        print('Pre-warm using Chrome at:', cb)
-        break
-o.add_argument('--headless')
-o.add_argument('--no-sandbox')
-o.add_argument('--disable-dev-shm-usage')
-o.add_argument('--disable-gpu')
-o.add_argument('--window-size=1920,1080')
-d = webdriver.Chrome(options=o)
-d.quit()
-print('Chrome pre-warm OK — ChromeDriver cached')
+import shutil, subprocess
+cb = shutil.which('chromium-browser') or shutil.which('chromium') or ''
+cd = shutil.which('chromedriver') or ''
+print('Chrome binary:', cb or 'NOT FOUND')
+print('Chromedriver  :', cd or 'NOT FOUND')
+if cb and cd:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
+    o = Options()
+    o.binary_location = cb
+    o.add_argument('--headless')
+    o.add_argument('--no-sandbox')
+    o.add_argument('--disable-dev-shm-usage')
+    o.add_argument('--disable-gpu')
+    o.add_argument('--window-size=1920,1080')
+    d = webdriver.Chrome(service=Service(cd), options=o)
+    d.quit()
+    print('Chrome pre-warm OK')
+else:
+    print('Skipping pre-warm — binary missing')
 " || echo "Pre-warm failed (non-fatal)"
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
@@ -52,7 +55,7 @@ print('Chrome pre-warm OK — ChromeDriver cached')
       - key: FRONTEND_URL
         sync: false
       - key: CORS_ORIGINS
-        sync: false
+        value: "https://jobezee.org,https://www.jobezee.org,http://localhost:5173"
       - key: UPLOAD_DIR
         value: uploads
       - key: DEBUG
