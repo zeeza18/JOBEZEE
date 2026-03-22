@@ -1,7 +1,15 @@
 {
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "https://jobezee-api.onrender.com/api/:path*" },
-    { "source": "/uploads/:path*", "destination": "https://jobezee-api.onrender.com/uploads/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://jobezee-api.onrender.com/api/$1",
+      "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
+    },
+    {
+      "src": "/uploads/(.*)",
+      "dest": "https://jobezee-api.onrender.com/uploads/$1"
+    },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
