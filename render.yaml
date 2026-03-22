@@ -4,30 +4,31 @@ services:
     runtime: python
     buildCommand: >-
       apt-get update -qq &&
-      apt-get install -y --no-install-recommends xvfb chromium-browser chromium-chromedriver python3-tk python3-dev &&
+      apt-get install -y --no-install-recommends xvfb python3-tk python3-dev wget ca-certificates &&
+      wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/chrome.deb &&
+      apt-get install -y /tmp/chrome.deb &&
+      rm /tmp/chrome.deb &&
       pip install -r backend/requirements.txt &&
       python -c "
-import shutil, subprocess
-cb = shutil.which('chromium-browser') or shutil.which('chromium') or ''
-cd = shutil.which('chromedriver') or ''
+import shutil
+cb = shutil.which('google-chrome') or shutil.which('google-chrome-stable') or ''
 print('Chrome binary:', cb or 'NOT FOUND')
-print('Chromedriver  :', cd or 'NOT FOUND')
-if cb and cd:
+if cb:
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
     o = Options()
     o.binary_location = cb
-    o.add_argument('--headless')
+    o.add_argument('--headless=new')
     o.add_argument('--no-sandbox')
     o.add_argument('--disable-dev-shm-usage')
     o.add_argument('--disable-gpu')
     o.add_argument('--window-size=1920,1080')
-    d = webdriver.Chrome(service=Service(cd), options=o)
+    d = webdriver.Chrome(options=o)
+    print('Chrome version:', d.capabilities['browserVersion'])
     d.quit()
     print('Chrome pre-warm OK')
 else:
-    print('Skipping pre-warm — binary missing')
+    print('Skipping pre-warm — Chrome not found')
 " || echo "Pre-warm failed (non-fatal)"
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
