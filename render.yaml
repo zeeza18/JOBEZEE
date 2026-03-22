@@ -9,27 +9,7 @@ services:
       apt-get install -y /tmp/chrome.deb &&
       rm /tmp/chrome.deb &&
       pip install -r backend/requirements.txt &&
-      python -c "
-import shutil
-cb = shutil.which('google-chrome') or shutil.which('google-chrome-stable') or ''
-print('Chrome binary:', cb or 'NOT FOUND')
-if cb:
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
-    o = Options()
-    o.binary_location = cb
-    o.add_argument('--headless=new')
-    o.add_argument('--no-sandbox')
-    o.add_argument('--disable-dev-shm-usage')
-    o.add_argument('--disable-gpu')
-    o.add_argument('--window-size=1920,1080')
-    d = webdriver.Chrome(options=o)
-    print('Chrome version:', d.capabilities['browserVersion'])
-    d.quit()
-    print('Chrome pre-warm OK')
-else:
-    print('Skipping pre-warm — Chrome not found')
-" || echo "Pre-warm failed (non-fatal)"
+      google-chrome --version || google-chrome-stable --version || echo "Chrome version check failed"
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
