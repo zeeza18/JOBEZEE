@@ -1039,9 +1039,14 @@ export default function PulledJobsPage() {
         if (pollTimer.current) clearInterval(pollTimer.current)
         await load(true)   // final sync
 
-        // Workday disabled temporarily — boards only
-        // TODO: re-enable when boards confirmed working
-        // if (!isWorkday && filters.workdayInSearch) { ... }
+        // After boards complete, silently fire Workday as a second session
+        // so board results are always visible first
+        try {
+          const wd = await searchApi.trigger({ include_workday: true, workday_only: true })
+          sessionJobsCount.current = 0
+          setSessionId(wd.session_id + ':workday')
+          setPolling(true)
+        } catch { /* 409 or unavailable — skip silently */ }
       }
     } catch {
       setPolling(false)

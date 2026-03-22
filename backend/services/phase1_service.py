@@ -925,7 +925,7 @@ async def run_phase1_search(
                         employers=employers,
                         workers=16,              # high parallelism — most employers time out fast
                         request_timeout=5,       # tight timeout so slow employers don't stall
-                        fetch_details=False,     # skip per-job detail fetch — JD loaded on click
+                        fetch_details=True,      # fetch JD via Workday API (fast — ~0s extra)
                         max_jobs_per_employer=10,
                     ),
                 )
