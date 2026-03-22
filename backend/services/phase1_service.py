@@ -65,6 +65,38 @@ except Exception as _e:
 
 _RUNNING_PROFILES: set[str] = set()
 
+# ---------------------------------------------------------------------------
+# ProcessPoolExecutor — each scrape runs in its own Python process.
+# tls-client is completely isolated per process → true concurrency, no
+# shared C-library state, no corruption between simultaneous users.
+# max_workers is read from env so it can be tuned per deployment tier.
+# ---------------------------------------------------------------------------
+import os as _os
+from concurrent.futures import ProcessPoolExecutor as _PPE
+
+_SCRAPER_POOL = _PPE(max_workers=int(_os.getenv("SCRAPER_WORKERS", "3")))
+
+
+def _scrape_boards_worker(kwargs: dict) -> list:
+    """
+    Module-level worker — MUST be at module scope so ProcessPoolExecutor
+    can pickle it across process boundaries.
+
+    Each call runs in its own Python interpreter: tls-client gets a fresh
+    instance, no shared state with other concurrent scrapes.
+    """
+    import sys
+    from pathlib import Path
+
+    # Re-establish sys.path in the worker process (forked processes inherit
+    # it on Linux, but spawn-based (macOS/Windows) processes do not).
+    _root = str(Path(__file__).resolve().parents[2])
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from PHASE1_JOB_SEARCH import search_boards  # type: ignore
+    return search_boards(**kwargs)
+
 
 # ---------------------------------------------------------------------------
 # Experience-level → auto exclude title keywords
@@ -576,17 +608,12 @@ async def run_phase1_search(
     log.info("=" * 70)
     log.info("[Phase1][0] SESSION START  session=%s  user=%s", session_id, profile_id)
 
-    # ── Duplicate guard ───────────────────────────────────────────────────────
+    # ── In-process duplicate guard (router handles cross-instance via DB) ────────
     if profile_key in _RUNNING_PROFILES:
-        log.warning(
-            "[Phase1][0] DUPLICATE — profile=%s already has a running search. "
-            "Marking session=%s as done (0 jobs).",
-            profile_key, session_id,
-        )
+        log.warning("[Phase1][0] DUPLICATE in-process — session=%s skipped", session_id)
         await _update_session(session_id, "done", 0)
         return
     _RUNNING_PROFILES.add(profile_key)
-    log.info("[Phase1][0]   _RUNNING_PROFILES now = %s", _RUNNING_PROFILES)
 
     log.info("[Phase1][0]   desired_roles       = %s", getattr(profile, "desired_roles", "MISSING"))
     log.info("[Phase1][0]   preferred_locations = %s", getattr(profile, "preferred_locations", "MISSING"))
@@ -740,8 +767,10 @@ async def run_phase1_search(
             )
             t0 = _time.time()
             try:
+                # Run in isolated process — tls-client fully independent per user.
+                # Up to SCRAPER_WORKERS scrapes run truly in parallel.
                 title_jobs = await loop.run_in_executor(
-                    None, lambda k=title_kwargs: search_boards(**k)
+                    _SCRAPER_POOL, _scrape_boards_worker, title_kwargs
                 )
                 elapsed = _time.time() - t0
                 log.info(

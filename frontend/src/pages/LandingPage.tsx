@@ -128,37 +128,8 @@ export default function LandingPage() {
   return (
     <div className="relative overflow-x-hidden bg-white text-slate-900">
 
-      {/* ── NAV ── */}
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6 md:py-3.5">
-          <LogoBrand size="md" variant="light" />
-
-          <nav className="hidden items-center gap-8 text-sm font-medium text-slate-500 md:flex">
-            {[['Features', '#features'], ['How it works', '#how-it-works']].map(([t, h]) => (
-              <a key={t} href={h} className="transition hover:text-slate-900">{t}</a>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/auth')}
-              className="hidden text-sm font-medium text-slate-500 transition hover:text-slate-900 md:block"
-            >
-              Sign in
-            </button>
-            <button
-              onClick={() => navigate('/auth')}
-              className="rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-cyan-200 hover:shadow-md"
-            >
-              <span className="hidden sm:inline">Get Started Free</span>
-              <span className="sm:hidden">Get Started</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
       {/* ── HERO ── */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pb-16 pt-28 text-center">
+      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pb-16 pt-16 text-center">
         {/* Subtle bg blobs */}
         <div className="pointer-events-none absolute left-1/2 top-0 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-b from-cyan-100/60 to-transparent blur-3xl" />
         <div className="pointer-events-none absolute -left-40 top-40 h-80 w-80 rounded-full bg-sky-100/50 blur-3xl" />

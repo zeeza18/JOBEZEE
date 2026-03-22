@@ -8,6 +8,8 @@ Reads a JSON file with config overrides, patches the config modules in-memory
 (before runAiBot.py imports them), then runs runAiBot.py.
 """
 import json
+import os
+import platform
 import runpy
 import sys
 from pathlib import Path
@@ -57,6 +59,24 @@ if "personals" in overrides:
 if "questions" in overrides:
     _patch_module("config.questions", overrides["questions"])
 
+# ── Start virtual display on headless Linux (e.g. Render) ────────────────────
+_vdisplay = None
+if platform.system() == "Linux" and not os.environ.get("DISPLAY"):
+    try:
+        from pyvirtualdisplay import Display
+        _vdisplay = Display(visible=False, size=(1920, 1080))
+        _vdisplay.start()
+        print("[Launcher] Started virtual display (Xvfb)", flush=True)
+    except Exception as _e:
+        print(f"[Launcher] Could not start virtual display: {_e}", flush=True)
+
 # ── Run the bot ───────────────────────────────────────────────────────────────
 print("[Launcher] Starting runAiBot.py ...", flush=True)
-runpy.run_path(str(_bot_dir / "runAiBot.py"), run_name="__main__")
+try:
+    runpy.run_path(str(_bot_dir / "runAiBot.py"), run_name="__main__")
+finally:
+    if _vdisplay is not None:
+        try:
+            _vdisplay.stop()
+        except Exception:
+            pass

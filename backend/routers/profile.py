@@ -17,14 +17,21 @@ from pathlib import Path
 import re
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..models import User, UserProfile
+from ..models import PulledJob, SearchSession, User, UserProfile
 from ..schemas import UserProfileCreate, UserProfileResponse
+
+# Fields that change what jobs get pulled — trigger a clear + re-search
+_SEARCH_RELEVANT = frozenset({
+    "desired_roles", "preferred_locations", "preferred_countries", "preferred_regions",
+    "remote_preference", "job_type", "experience_level", "salary_min",
+    "hours_old", "results_per_site", "industries",
+})
 
 router = APIRouter()
 
@@ -83,9 +90,10 @@ async def get_profile(
 
 @router.put("/")
 async def update_profile(
-    data         : UserProfileCreate,
-    current_user : User          = Depends(get_current_user),
-    db           : AsyncSession  = Depends(get_db),
+    data             : UserProfileCreate,
+    background_tasks : BackgroundTasks,
+    current_user     : User          = Depends(get_current_user),
+    db               : AsyncSession  = Depends(get_db),
 ):
     pid    = _profile_id_for(current_user)
     result = await db.execute(select(UserProfile).where(UserProfile.id == pid))
@@ -97,15 +105,42 @@ async def update_profile(
         if field in update_dict and not (update_dict[field] or "").strip():
             update_dict.pop(field)
 
-    if not profile:
-        profile = UserProfile(id=pid, **update_dict)
-        db.add(profile)
-    else:
+    # Detect if any search-relevant field changed
+    search_changed = False
+    if profile:
+        for field in _SEARCH_RELEVANT:
+            if field in update_dict and getattr(profile, field, None) != update_dict[field]:
+                search_changed = True
+                break
         for key, val in update_dict.items():
             setattr(profile, key, val)
+    else:
+        search_changed = bool(update_dict.get("desired_roles"))
+        profile = UserProfile(id=pid, **update_dict)
+        db.add(profile)
 
     await db.commit()
     await db.refresh(profile)
+
+    # If search preferences changed: wipe old jobs and kick off a fresh search
+    if search_changed and (profile.desired_roles or []):
+        await db.execute(delete(PulledJob).where(PulledJob.user_profile_id == pid))
+        await db.commit()
+
+        # Only trigger if no search is already running
+        running = await db.execute(
+            select(SearchSession)
+            .where(SearchSession.user_id == current_user.id)
+            .where(SearchSession.status == "running")
+        )
+        if not running.scalar_one_or_none():
+            sid = str(uuid.uuid4())[:8].upper()
+            db.add(SearchSession(id=sid, status="running", user_id=current_user.id))
+            await db.commit()
+
+            from ..services.phase1_service import run_phase1_search
+            background_tasks.add_task(run_phase1_search, profile, sid, True, False)
+
     return _masked_response(profile)
 
 

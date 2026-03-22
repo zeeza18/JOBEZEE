@@ -27,3 +27,7 @@ python-docx==1.1.2
 # ── applypilot / apply_service / PHASE2 tool deps ─────────────────────────────
 python-dotenv==1.0.1
 rich==13.9.4
+
+# ── LinkedIn bot deps ──────────────────────────────────────────────────────────
+pyautogui==0.9.54
+pyvirtualdisplay==3.0

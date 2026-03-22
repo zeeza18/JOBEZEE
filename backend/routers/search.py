@@ -14,7 +14,7 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..models import SearchSession, User, UserProfile
 from ..schemas import SearchStatusResponse, SearchTriggerRequest, SearchTriggerResponse
-from ..services.phase1_service import run_phase1_search, _RUNNING_PROFILES
+from ..services.phase1_service import run_phase1_search
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -81,14 +81,19 @@ async def trigger_search(
     if not merged.desired_roles:
         raise HTTPException(400, "Add at least one desired job role in Profile → Job Preferences or include roles in the request.")
 
-    # Block duplicate search if one is already in flight for this profile
-    if str(profile_id) in _RUNNING_PROFILES:
+    # Block duplicate search — check DB so this works across instances/restarts
+    running_check = await db.execute(
+        select(SearchSession)
+        .where(SearchSession.user_id == current_user.id)
+        .where(SearchSession.status == "running")
+    )
+    if running_check.scalar_one_or_none():
         raise HTTPException(409, "A search is already running for your profile. Wait for it to finish before starting a new one.")
 
     session_id = str(uuid.uuid4())[:8].upper()
 
     try:
-        session = SearchSession(id=session_id, status="running")
+        session = SearchSession(id=session_id, status="running", user_id=current_user.id)
         db.add(session)
         await db.commit()
     except Exception as exc:
