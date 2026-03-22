@@ -1118,14 +1118,15 @@ export default function PulledJobsPage() {
     triggerSearch()
   }, [loading, userProfile, jobs.length, triggerSearch])
 
-  // ── Pull fresh jobs every 1 hour while the page is open ─────────────────────
-  // New results merge with existing — duplicates removed server-side by URL.
+  // ── Silent reload every 1 hour to pick up cron-triggered jobs ───────────────
+  // Backend cron runs every hour for all users. Frontend just silently reloads
+  // the list so new jobs appear without user doing anything.
   useEffect(() => {
     const id = setInterval(() => {
-      if (!polling && !searching) triggerSearch()
+      if (!polling && !searching) load(true)
     }, ONE_HOUR)
     return () => clearInterval(id)
-  }, [polling, searching, triggerSearch])
+  }, [polling, searching, load])
 
   // ── Status change ─────────────────────────────────────────────────────────────
   const handleStatusChange = (id: string, newStatus: string) => {

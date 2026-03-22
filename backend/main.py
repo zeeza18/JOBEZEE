@@ -43,19 +43,31 @@ os.makedirs(os.path.join(_cfg.UPLOAD_DIR, "resumes"), exist_ok=True)
 # ── 3-hour auto-search background loop ───────────────────────────────────────
 
 async def _auto_search_loop() -> None:
-    """Trigger Phase 1 search for all users with profiles every 3 hours."""
+    """Trigger Phase 1 search for every user with roles set — every 1 hour."""
     _log = logging.getLogger(__name__ + ".autosearch")
-    _log.info("[AutoSearch] loop started — first run in 3 hours")
-    await asyncio.sleep(3 * 60 * 60)   # wait 3 h before the first run
+    _log.info("[AutoSearch] loop started — first run in 5 minutes")
+    await asyncio.sleep(5 * 60)   # short delay so DB is ready before first run
     while True:
-        _log.info("[AutoSearch] running 3-hour search cycle")
+        _log.info("[AutoSearch] running 1-hour search cycle")
         try:
             from .database import AsyncSessionLocal
             from .models import SearchSession, UserProfile
             from .services.phase1_service import _RUNNING_PROFILES, run_phase1_search
-            from sqlalchemy import select
+            from sqlalchemy import select, update as sa_update
+            from datetime import datetime, timezone, timedelta
 
             async with AsyncSessionLocal() as db:
+                # Kill zombie sessions older than 30 min so they don't block cron
+                zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+                await db.execute(
+                    sa_update(SearchSession)
+                    .where(SearchSession.status == "running")
+                    .where(SearchSession.started_at < zombie_cutoff)
+                    .values(status="done", finished_at=datetime.now(timezone.utc))
+                )
+                await db.commit()
+
+                # Find all users who have at least one desired role
                 res = await db.execute(select(UserProfile))
                 profiles = res.scalars().all()
                 count = 0
@@ -63,16 +75,27 @@ async def _auto_search_loop() -> None:
                     if not getattr(profile, "desired_roles", None):
                         continue
                     if str(profile.id) in _RUNNING_PROFILES:
+                        _log.info("[AutoSearch] skipping user=%s — already running", profile.id)
+                        continue
+                    # Check no running session in DB either
+                    running = await db.execute(
+                        select(SearchSession)
+                        .where(SearchSession.user_id == str(profile.id))
+                        .where(SearchSession.status == "running")
+                    )
+                    if running.scalar_one_or_none():
                         continue
                     sid = str(_uuid.uuid4())[:8].upper()
-                    db.add(SearchSession(id=sid, status="running"))
+                    db.add(SearchSession(id=sid, status="running", user_id=str(profile.id)))
                     await db.commit()
-                    asyncio.create_task(run_phase1_search(profile, sid, include_workday=True))
+                    asyncio.create_task(run_phase1_search(profile, sid, include_workday=False))
                     count += 1
-            _log.info("[AutoSearch] triggered %d searches", count)
+                    _log.info("[AutoSearch] triggered session=%s user=%s roles=%s",
+                              sid, profile.id, getattr(profile, "desired_roles", []))
+            _log.info("[AutoSearch] cycle complete — %d searches triggered", count)
         except Exception as exc:
-            _log.error("[AutoSearch] error: %s", exc)
-        await asyncio.sleep(3 * 60 * 60)
+            _log.exception("[AutoSearch] error: %s", exc)
+        await asyncio.sleep(60 * 60)   # 1 hour between cycles
 
 
 # ── 30-minute auto email scan background loop ─────────────────────────────────
