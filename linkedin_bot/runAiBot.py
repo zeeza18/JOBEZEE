@@ -1,5 +1,6 @@
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
+print("[Bot] runAiBot.py started", flush=True)
 
 # Imports
 import os
@@ -33,7 +34,9 @@ from config.secrets import use_AI, username, password
 from config.settings import *
 from config.settings import tailor_resume, jobezee_root
 
+print("[Bot] importing open_chrome (starts Chrome)...", flush=True)
 from modules.open_chrome import *
+print("[Bot] Chrome session ready", flush=True)
 from modules.helpers import *
 from modules.clickers_and_finders import *
 from modules.validator import validate_config

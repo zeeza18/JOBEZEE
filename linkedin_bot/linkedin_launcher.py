@@ -102,7 +102,8 @@ import traceback
 print("[Launcher] Starting runAiBot.py ...", flush=True)
 try:
     runpy.run_path(str(_bot_dir / "runAiBot.py"), run_name="__main__")
-except SystemExit:
+except SystemExit as _se:
+    print(f"[Launcher] SystemExit raised with code: {_se.code!r}", flush=True)
     raise
 except Exception as _bot_err:
     print(f"\n[Launcher] *** BOT CRASHED ***", flush=True)
