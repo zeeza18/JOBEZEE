@@ -113,14 +113,28 @@ def _scrape_boards_worker(kwargs: dict) -> list:
         print(traceback.format_exc(), flush=True)
         return []
 
-    try:
-        results = search_boards(**kwargs)
-        print(f"[WORKER] search_boards returned {len(results)} results", flush=True)
-        return results
-    except Exception as e:
-        print(f"[WORKER] search_boards EXCEPTION: {e}", flush=True)
-        print(traceback.format_exc(), flush=True)
+    import threading
+    result_holder: list = []
+    exc_holder:   list = []
+
+    def _run():
+        try:
+            result_holder.extend(search_boards(**kwargs))
+        except Exception as e:
+            exc_holder.append(e)
+            print(f"[WORKER] search_boards EXCEPTION: {e}", flush=True)
+            print(traceback.format_exc(), flush=True)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout=90)   # 90s hard cap — jobspy sometimes hangs on dead sites
+
+    if t.is_alive():
+        print(f"[WORKER] TIMEOUT after 90s — returning 0 results", flush=True)
         return []
+
+    print(f"[WORKER] search_boards returned {len(result_holder)} results", flush=True)
+    return result_holder
 
 
 # ---------------------------------------------------------------------------
@@ -574,7 +588,18 @@ def build_preferences(profile: Any) -> "UserPreferences":
         job_titles       = profile.desired_roles       or ["software engineer"],
 
         # ── Where to search ────────────────────────────────────────────────
-        locations        = profile.preferred_locations or [],
+        # Strip country codes from locations (usa/uk/us etc.) — those belong
+        # in `countries`. Passing them as locations confuses jobspy and causes hangs.
+        locations        = [
+            l for l in (profile.preferred_locations or [])
+            if l.lower().strip() not in {
+                'usa','us','u.s.','u.s.a.','united states',
+                'uk','u.k.','united kingdom',
+                'canada','ca','australia','au',
+                'germany','de','france','fr','india','in',
+                'uae','netherlands','nl','singapore','sg',
+            }
+        ],
         countries        = countries,
         regions          = profile.preferred_regions   or [],
 
