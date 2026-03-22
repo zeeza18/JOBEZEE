@@ -87,8 +87,21 @@ def createChromeSession(isRetry: bool = False):
             print_lg("Downloading Chrome Driver... This may take some time. Only needed once!")
             driver = uc.Chrome(options=options)
     else:
-        print_lg("Launching Chrome via Selenium (may download ChromeDriver)...")
+        import threading, shutil
+        _cd = shutil.which("chromedriver")
+        print_lg(f"chromedriver on PATH: {_cd or 'NOT FOUND — selenium-manager will download'}")
+        print_lg(f"Launching Chrome via Selenium...")
+        _done = threading.Event()
+        def _heartbeat():
+            secs = 0
+            while not _done.is_set():
+                _done.wait(10)
+                if not _done.is_set():
+                    secs += 10
+                    print_lg(f"  [Chrome] still starting... ({secs}s elapsed)", flush=True)
+        threading.Thread(target=_heartbeat, daemon=True).start()
         driver = webdriver.Chrome(options=options)
+        _done.set()
         print_lg("Chrome launched successfully")
 
     driver.maximize_window()
