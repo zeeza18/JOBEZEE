@@ -65,9 +65,10 @@ class LatexResumeFormatter:
                     continue
         return None
 
-    def _load_job_title(self) -> str:
+    def _load_job_title(self, output_dir=None) -> str:
         """Load job_title from keyword_analysis.json produced by Tool 1."""
-        json_path = Path(__file__).resolve().parent.parent / "output" / "keyword_analysis.json"
+        base = Path(output_dir) if output_dir else Path(__file__).resolve().parent.parent / "output"
+        json_path = base / "keyword_analysis.json"
         try:
             data = json.loads(json_path.read_text(encoding="utf-8"))
             return data.get("job_title", "").strip()
@@ -89,7 +90,7 @@ class LatexResumeFormatter:
         except Exception:
             return ""
 
-    def format_to_latex(self, final_resume: str, template_hint: Optional[str] = None) -> Dict[str, str]:
+    def format_to_latex(self, final_resume: str, template_hint: Optional[str] = None, output_dir=None) -> Dict[str, str]:
         """
         Use OpenAI to convert the final tailored resume text into LaTeX.
 
@@ -104,7 +105,7 @@ class LatexResumeFormatter:
         if not final_resume or len(final_resume.strip()) < 50:
             raise ValueError("Final resume content is too short or empty for LaTeX conversion.")
 
-        job_title = self._load_job_title()
+        job_title = self._load_job_title(output_dir=output_dir)
         job_title_line = f"JOB_TITLE: {job_title}\n\n" if job_title else ""
         contact_links = self._load_contact_links()
 

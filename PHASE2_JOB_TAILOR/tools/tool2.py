@@ -398,10 +398,10 @@ class ResumeTailor:
 
         return fallback
 
-    def save_tailored_resume(self, tailored_data: Dict[str, Any], filename: str = "tailored_resume.txt"):
+    def save_tailored_resume(self, tailored_data: Dict[str, Any], filename: str = "tailored_resume.txt", output_dir=None):
         """Save the tailored resume and structured data to files."""
         try:
-            output_dir = Path(__file__).resolve().parent.parent / 'output'
+            output_dir = Path(output_dir) if output_dir else Path(__file__).resolve().parent.parent / 'output'
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # Save human-readable text file

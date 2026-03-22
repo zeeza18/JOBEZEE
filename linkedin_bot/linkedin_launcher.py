@@ -7,11 +7,14 @@ Usage:
 Reads a JSON file with config overrides, patches the config modules in-memory
 (before runAiBot.py imports them), then runs runAiBot.py.
 """
+import importlib
 import json
 import os
 import platform
 import runpy
 import sys
+import tempfile
+import types
 from pathlib import Path
 
 # ── Parse --config arg ────────────────────────────────────────────────────────
@@ -37,16 +40,29 @@ if _jobezee_root not in sys.path:
     sys.path.insert(0, _jobezee_root)
 
 # ── Patch config modules BEFORE runAiBot imports them ─────────────────────────
-import importlib
 
 def _patch_module(module_name: str, patch: dict) -> None:
+    """Import (or create in-memory) a module and set attributes from patch."""
     try:
         mod = importlib.import_module(module_name)
-        for k, v in patch.items():
-            setattr(mod, k, v)
-        print(f"[Launcher] Patched {module_name}: {list(patch.keys())}", flush=True)
+    except ImportError:
+        # Module file doesn't exist on this machine (e.g. gitignored secrets.py).
+        # Create it in-memory so runAiBot.py can still import from it.
+        mod = types.ModuleType(module_name)
+        sys.modules[module_name] = mod
+        # Ensure parent package is registered too
+        if "." in module_name:
+            parent = module_name.rsplit(".", 1)[0]
+            if parent not in sys.modules:
+                sys.modules[parent] = types.ModuleType(parent)
     except Exception as e:
         print(f"[Launcher] Could not patch {module_name}: {e}", flush=True)
+        return
+
+    for k, v in patch.items():
+        setattr(mod, k, v)
+    print(f"[Launcher] Patched {module_name}: {list(patch.keys())}", flush=True)
+
 
 if "search" in overrides:
     _patch_module("config.search", overrides["search"])
@@ -62,6 +78,17 @@ if "questions" in overrides:
 # ── Start virtual display on headless Linux (e.g. Render) ────────────────────
 _vdisplay = None
 if platform.system() == "Linux" and not os.environ.get("DISPLAY"):
+    # Xlib requires ~/.Xauthority to exist (even empty) before it can connect.
+    _xauth = os.path.join(os.path.expanduser("~"), ".Xauthority")
+    if not os.path.exists(_xauth):
+        try:
+            open(_xauth, "wb").close()
+        except OSError:
+            # Home dir not writable — fall back to /tmp
+            _xauth = os.path.join(tempfile.gettempdir(), ".Xauthority")
+            open(_xauth, "wb").close()
+    os.environ["XAUTHORITY"] = _xauth
+
     try:
         from pyvirtualdisplay import Display
         _vdisplay = Display(visible=False, size=(1920, 1080))

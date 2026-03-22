@@ -42,22 +42,24 @@ class ResumeCrew:
         self.process_log.append(log_entry)
         print(f"[STEP] {step}")
 
-    def save_process_log(self):
+    def save_process_log(self, output_dir=None):
         """Save the complete process log"""
         try:
-            _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            log_file = _OUTPUT_DIR / 'process_log.json'
+            out = Path(output_dir) if output_dir else _OUTPUT_DIR
+            out.mkdir(parents=True, exist_ok=True)
+            log_file = out / 'process_log.json'
             with open(log_file, 'w', encoding='utf-8') as f:
                 json.dump(self.process_log, f, indent=2, ensure_ascii=False)
             print(f"[OK] Process log saved to {log_file}")
         except Exception as e:
             print(f"[WARN] Could not save process log - {e}")
 
-    def save_content(self, content, filename):
+    def save_content(self, content, filename, output_dir=None):
         """Save content to file"""
         try:
-            _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            filepath = _OUTPUT_DIR / filename
+            out = Path(output_dir) if output_dir else _OUTPUT_DIR
+            out.mkdir(parents=True, exist_ok=True)
+            filepath = out / filename
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(content)
             print(f"[OK] Saved {filename}")
@@ -69,6 +71,7 @@ class ResumeCrew:
         job_description,
         current_resume,
         progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        output_dir: Optional[Path] = None,
     ):
         """
         Complete 3-tool iterative process:
@@ -86,7 +89,7 @@ class ResumeCrew:
             keyword_analysis = self.keyword_extractor.extract_keywords(job_description)
 
             # Save the keyword analysis
-            self.keyword_extractor.save_analysis(keyword_analysis)
+            self.keyword_extractor.save_analysis(keyword_analysis, output_dir=output_dir)
 
             self.log_step("Keywords extracted successfully", {
                 "keywords_count": len(keyword_analysis.get('keywords', [])),
@@ -247,7 +250,7 @@ class ResumeCrew:
 
                 # Save this version
                 version_filename = f"tailored_resume_round_{round_num}.txt"
-                self.resume_tailor.save_tailored_resume(tailored_data, version_filename)
+                self.resume_tailor.save_tailored_resume(tailored_data, version_filename, output_dir=output_dir)
 
                 # Update current best
                 latest_resume = tailored_data.get('tailored_resume', latest_resume)
@@ -316,7 +319,7 @@ class ResumeCrew:
 
                 # Save this evaluation
                 eval_filename = f"evaluation_round_{round_num}.txt"
-                self.resume_evaluator.save_evaluation(evaluation, eval_filename)
+                self.resume_evaluator.save_evaluation(evaluation, eval_filename, output_dir=output_dir)
 
                 all_evaluations.append(evaluation)
 
@@ -406,22 +409,22 @@ class ResumeCrew:
         print("=" * 60)
 
         # Save inputs
-        self.save_content(job_description, "job_description.txt")
-        self.save_content(current_resume, "original_resume.txt")
+        self.save_content(job_description, "job_description.txt", output_dir=output_dir)
+        self.save_content(current_resume, "original_resume.txt", output_dir=output_dir)
 
         # Save final best resume
-        self.save_content(best_resume, "final_tailored_resume.txt")
+        self.save_content(best_resume, "final_tailored_resume.txt", output_dir=output_dir)
 
         # TOOL 4: Convert final resume to LaTeX
         latex_summary = {"status": "skipped"}
         try:
-            latex_result = self.latex_formatter.format_to_latex(best_resume)
+            latex_result = self.latex_formatter.format_to_latex(best_resume, output_dir=output_dir)
             latex_document = latex_result.get("latex_document", "")
             latex_summary["raw_response_length"] = len(latex_result.get("raw_response", ""))
 
             if latex_document:
                 docs_latex_path = _MODULE_ROOT.parent / "docs" / "latex" / "main.tex"
-                output_tex_path = _OUTPUT_DIR / "final_tailored_resume.tex"
+                output_tex_path = (Path(output_dir) if output_dir else _OUTPUT_DIR) / "final_tailored_resume.tex"
 
                 # Ensure docs/latex directory exists
                 docs_latex_path.parent.mkdir(parents=True, exist_ok=True)
@@ -450,7 +453,7 @@ class ResumeCrew:
         self.log_step("TOOL 4: LaTeX resume conversion", latex_summary)
 
         # Create summary report
-        self._create_summary_report(keyword_analysis, all_evaluations, best_resume, best_round, best_score)
+        self._create_summary_report(keyword_analysis, all_evaluations, best_resume, best_round, best_score, output_dir=output_dir)
 
         # Log final results with memory state
         self.log_step("Complete process finished", {
@@ -477,7 +480,7 @@ class ResumeCrew:
         print(f"   Locked:   {len(locked_changes)} changes preserved across rounds")
 
         # Save process log
-        self.save_process_log()
+        self.save_process_log(output_dir=output_dir)
 
         # Show final summary
         final_score = best_score
@@ -532,11 +535,12 @@ class ResumeCrew:
             }
         }
 
-    def _create_summary_report(self, keyword_analysis, all_evaluations, final_resume, best_round, best_score):
+    def _create_summary_report(self, keyword_analysis, all_evaluations, final_resume, best_round, best_score, output_dir=None):
         """Create a comprehensive summary report"""
         try:
-            _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            filepath = _OUTPUT_DIR / 'process_summary.txt'
+            out = Path(output_dir) if output_dir else _OUTPUT_DIR
+            out.mkdir(parents=True, exist_ok=True)
+            filepath = out / 'process_summary.txt'
 
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write("RESUME AUTOMATION PROCESS SUMMARY\n")

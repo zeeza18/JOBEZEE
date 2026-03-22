@@ -653,11 +653,11 @@ const OnboardingPage = () => {
     if (!ok) return
     try {
       await searchApi.trigger()
-      pushToast({ title: 'Profile saved! Job search started.', type: 'success' })
+      pushToast({ title: 'Profile saved! Finding jobs for you now.', type: 'success' })
     } catch {
-      // non-fatal — user can trigger manually from the dashboard
+      // non-fatal — jobs page will auto-trigger if needed
     }
-    navigate('/app')
+    navigate('/app/search')
   }
 
   if (loading) {

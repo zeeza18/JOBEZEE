@@ -45,6 +45,11 @@ def createChromeSession(isRetry: bool = False):
     if run_in_background:   options.add_argument("--headless")
     if disable_extensions:  options.add_argument("--disable-extensions")
 
+    # Required in containerised Linux (Render, Docker) — Chrome refuses to run as root otherwise
+    if sys.platform.startswith("linux"):
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+
     # Stability flags — suppress profile picker and first-run UI
     options.add_argument("--no-first-run")
     options.add_argument("--no-default-browser-check")

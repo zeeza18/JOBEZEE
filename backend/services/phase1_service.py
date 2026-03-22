@@ -72,9 +72,19 @@ _RUNNING_PROFILES: set[str] = set()
 # max_workers is read from env so it can be tuned per deployment tier.
 # ---------------------------------------------------------------------------
 import os as _os
+import multiprocessing as _mp
 from concurrent.futures import ProcessPoolExecutor as _PPE
 
-_SCRAPER_POOL = _PPE(max_workers=int(_os.getenv("SCRAPER_WORKERS", "3")))
+# MUST use "spawn" not "fork" on Linux.
+# fork() duplicates asyncpg socket FDs into the worker process; when the worker
+# exits it closes them, which closes the PARENT's sockets too → DB pool corrupt
+# → every simultaneous user gets 0 jobs.  spawn starts a fresh interpreter with
+# no inherited file descriptors, so the parent's pool is never touched.
+_spawn_ctx   = _mp.get_context("spawn")
+_SCRAPER_POOL = _PPE(
+    max_workers=int(_os.getenv("SCRAPER_WORKERS", "3")),
+    mp_context=_spawn_ctx,
+)
 
 
 def _scrape_boards_worker(kwargs: dict) -> list:
@@ -372,15 +382,15 @@ async def _save_jobs(
 
     BATCH_SIZE = 10
 
-    # Pre-load the full set of URLs already stored for this user so we can
-    # skip duplicates without a per-row DB query.
+    # Single session: load existing URLs AND insert new ones.
+    # Two separate sessions doubled connection usage and caused pool exhaustion
+    # when multiple users searched simultaneously.
     async with AsyncSessionLocal() as db:
         existing_result = await db.execute(
             select(PulledJob.url).where(PulledJob.user_profile_id == profile_id)
         )
         existing_urls: set[str] = {row[0] for row in existing_result.fetchall() if row[0]}
 
-    async with AsyncSessionLocal() as db:
         inserted = 0
         skipped  = 0
         for rec in jobs:

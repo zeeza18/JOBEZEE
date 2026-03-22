@@ -322,11 +322,12 @@ Return ONLY valid JSON. No markdown, no extra text."""
             "raw_evaluation": response,
         }
 
-    def save_evaluation(self, evaluation_data: Dict[str, object], filename: str = "resume_evaluation.txt") -> None:
+    def save_evaluation(self, evaluation_data: Dict[str, object], filename: str = "resume_evaluation.txt", output_dir=None) -> None:
         """Save the evaluation results to text and JSON files."""
         try:
-            os.makedirs('output', exist_ok=True)
-            filepath = os.path.join('output', filename)
+            out = Path(output_dir) if output_dir else Path(__file__).resolve().parent.parent / 'output'
+            out.mkdir(parents=True, exist_ok=True)
+            filepath = out / filename
 
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write("RESUME EVALUATION REPORT\n")
@@ -393,7 +394,7 @@ Return ONLY valid JSON. No markdown, no extra text."""
             print(f"Evaluation report saved to {filepath}")
 
             # Save JSON version for machine processing
-            json_path = filepath.replace('.txt', '.json')
+            json_path = filepath.with_suffix('.json')
             save_data = {k: v for k, v in evaluation_data.items() if k != 'raw_evaluation'}
             with open(json_path, 'w', encoding='utf-8') as f:
                 json.dump(save_data, f, indent=2, ensure_ascii=False)

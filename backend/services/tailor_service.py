@@ -94,8 +94,11 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
 
         from PHASE2_JOB_TAILOR.crew import ResumeCrew
 
+        job_dir = _JOB_OUTPUTS / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
         crew = ResumeCrew()
-        result = crew.run_tailoring_process(_clean_jd, _resume, progress_callback)
+        result = crew.run_tailoring_process(_clean_jd, _resume, progress_callback, output_dir=job_dir)
 
         final_score = result.get("final_score")
         final_resume = result.get("final_resume", "")
@@ -105,12 +108,15 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
         pdf_path: Optional[Path] = None
 
         if latex_summary.get("status") == "success":
-            candidate = _OUTPUT_DIR / "final_tailored_resume.tex"
+            candidate = job_dir / "final_tailored_resume.tex"
             if candidate.exists():
                 tex_path = candidate
                 compiled = _compile_pdf(tex_path)
                 if compiled:
                     pdf_path = compiled
+
+        if not pdf_path and final_resume:
+            pdf_path = _generate_pdf_from_text(final_resume, job_dir / "tailored_resume.pdf")
 
         with _lock:
             _jobs[job_id].update({
@@ -208,29 +214,33 @@ def _run_tailor_for_job(
 
         from PHASE2_JOB_TAILOR.crew import ResumeCrew
 
+        safe_name = _safe_filename(username, company)
+        job_dir = _JOB_OUTPUTS / tailor_job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
         crew = ResumeCrew()
-        result = crew.run_tailoring_process(clean_jd, resume_text, progress_callback)
+        result = crew.run_tailoring_process(clean_jd, resume_text, progress_callback, output_dir=job_dir)
 
         final_score = result.get("final_score")
         final_resume = result.get("final_resume", "")
         latex_summary = result.get("latex_summary", {})
 
-        safe_name = _safe_filename(username, company)
-        job_dir = _JOB_OUTPUTS / tailor_job_id
-        job_dir.mkdir(parents=True, exist_ok=True)
-
         tex_path: Optional[Path] = None
         pdf_path: Optional[Path] = None
 
         if latex_summary.get("status") == "success":
-            src_tex = _OUTPUT_DIR / "final_tailored_resume.tex"
+            src_tex = job_dir / "final_tailored_resume.tex"
             if src_tex.exists():
                 dest_tex = job_dir / f"{safe_name}.tex"
-                shutil.copy2(src_tex, dest_tex)
+                if src_tex != dest_tex:
+                    shutil.copy2(src_tex, dest_tex)
                 tex_path = dest_tex
                 compiled = _compile_pdf(dest_tex)
                 if compiled:
                     pdf_path = compiled
+
+        if not pdf_path and final_resume:
+            pdf_path = _generate_pdf_from_text(final_resume, job_dir / f"{safe_name}.pdf")
 
         with _lock:
             _jobs[tailor_job_id].update({
@@ -457,6 +467,85 @@ def _safe_filename(username: str, company: str) -> str:
         s = re.sub(r'[\s-]+', '_', s)
         return s[:40]
     return f"{clean(username)}_{clean(company)}"
+
+
+def _generate_pdf_from_text(resume_text: str, out_path: Path) -> Optional[Path]:
+    """Generate a clean PDF from plain-text resume using reportlab (pdflatex fallback)."""
+    try:
+        from reportlab.lib.pagesizes import LETTER
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib import colors
+
+        doc = SimpleDocTemplate(
+            str(out_path),
+            pagesize=LETTER,
+            leftMargin=0.75 * inch,
+            rightMargin=0.75 * inch,
+            topMargin=0.75 * inch,
+            bottomMargin=0.75 * inch,
+        )
+        styles = getSampleStyleSheet()
+        heading_style = ParagraphStyle(
+            "Heading",
+            parent=styles["Normal"],
+            fontSize=11,
+            fontName="Helvetica-Bold",
+            spaceAfter=2,
+            textColor=colors.HexColor("#1a1a2e"),
+        )
+        body_style = ParagraphStyle(
+            "Body",
+            parent=styles["Normal"],
+            fontSize=10,
+            fontName="Helvetica",
+            leading=14,
+            spaceAfter=1,
+        )
+        name_style = ParagraphStyle(
+            "Name",
+            parent=styles["Normal"],
+            fontSize=16,
+            fontName="Helvetica-Bold",
+            spaceAfter=4,
+            textColor=colors.HexColor("#1a1a2e"),
+        )
+
+        story = []
+        _SECTION_HEADERS = {
+            "EXPERIENCE", "EDUCATION", "SKILLS", "SUMMARY", "OBJECTIVE",
+            "PROJECTS", "CERTIFICATIONS", "AWARDS", "PUBLICATIONS",
+            "VOLUNTEER", "LANGUAGES", "INTERESTS", "REFERENCES",
+        }
+
+        lines = resume_text.split("\n")
+        first_non_empty = True
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                story.append(Spacer(1, 4))
+                continue
+            # First non-empty line = name
+            if first_non_empty:
+                story.append(Paragraph(stripped, name_style))
+                first_non_empty = False
+            elif stripped.upper() in _SECTION_HEADERS or (len(stripped) < 40 and stripped.isupper()):
+                story.append(Spacer(1, 6))
+                story.append(Paragraph(stripped, heading_style))
+            else:
+                # Escape HTML special chars for reportlab
+                safe = stripped.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                story.append(Paragraph(safe, body_style))
+
+        doc.build(story)
+        print(f"[tailor_service] PDF generated via reportlab: {out_path}")
+        return out_path
+    except ImportError:
+        print("[tailor_service] reportlab not installed — PDF generation skipped")
+    except Exception as exc:
+        print(f"[tailor_service] reportlab PDF generation failed: {exc}")
+    return None
 
 
 def _compile_pdf(tex_path: Path) -> Optional[Path]:

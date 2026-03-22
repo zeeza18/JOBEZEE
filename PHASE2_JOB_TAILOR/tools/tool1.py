@@ -148,10 +148,10 @@ class KeywordExtractor:
 
         return result
 
-    def save_analysis(self, analysis, filename="keyword_analysis.txt"):
+    def save_analysis(self, analysis, filename="keyword_analysis.txt", output_dir=None):
         """Save the keyword analysis to text file and keyword_analysis.json."""
         try:
-            output_dir = Path(__file__).resolve().parent.parent / 'output'
+            output_dir = Path(output_dir) if output_dir else Path(__file__).resolve().parent.parent / 'output'
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # --- human-readable text file ---

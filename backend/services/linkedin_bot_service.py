@@ -250,6 +250,29 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
         overrides["settings"] = {
             "tailor_resume": tailor_before_apply,
             "jobezee_root":  str(_JOBEZEE_ROOT),
+            # Run Chrome headless — no real display on Render
+            "run_in_background": True,
+        }
+
+        # ── Personals (config/personals.py is gitignored — inject from profile) ─
+        full_name  = (getattr(profile, "full_name", "") or "").strip()
+        name_parts = full_name.split(None, 1)
+        first_name = name_parts[0] if name_parts else ""
+        last_name  = name_parts[1] if len(name_parts) > 1 else ""
+        overrides["personals"] = {
+            "first_name":        first_name,
+            "middle_name":       "",
+            "last_name":         last_name,
+            "phone_number":      (getattr(profile, "phone", "")    or "").strip(),
+            "current_city":      (getattr(profile, "city", "")     or "").strip(),
+            "street":            (getattr(profile, "address", "")  or "").strip(),
+            "state":             (getattr(profile, "state", "")    or "").strip(),
+            "zipcode":           (getattr(profile, "zip_code", "") or "").strip(),
+            "country":           (getattr(profile, "country", "")  or "United States").strip() or "United States",
+            "ethnicity":         "Decline",
+            "gender":            "Decline",
+            "disability_status": "Decline",
+            "veteran_status":    "Decline",
         }
 
         # Write to a temp JSON file
