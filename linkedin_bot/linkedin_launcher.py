@@ -98,9 +98,17 @@ if platform.system() == "Linux" and not os.environ.get("DISPLAY"):
         print(f"[Launcher] Could not start virtual display: {_e}", flush=True)
 
 # ── Run the bot ───────────────────────────────────────────────────────────────
+import traceback
 print("[Launcher] Starting runAiBot.py ...", flush=True)
 try:
     runpy.run_path(str(_bot_dir / "runAiBot.py"), run_name="__main__")
+except SystemExit:
+    raise
+except Exception as _bot_err:
+    print(f"\n[Launcher] *** BOT CRASHED ***", flush=True)
+    print(f"[Launcher] Exception: {type(_bot_err).__name__}: {_bot_err}", flush=True)
+    traceback.print_exc()
+    sys.exit(1)
 finally:
     if _vdisplay is not None:
         try:
