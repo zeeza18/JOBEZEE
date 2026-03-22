@@ -49,8 +49,7 @@ export default function AuthPage() {
     setError('')
     setForgotLoading(true)
     try {
-      const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8001'
-      await fetch(`${base}/api/auth/forgot-password`, {
+      await fetch(`/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail }),
@@ -300,7 +299,7 @@ export default function AuthPage() {
                 {/* LinkedIn OAuth */}
                 <button
                   type="button"
-                  onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL ?? 'http://localhost:8001'}/api/auth/linkedin` }}
+                  onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || ''}/api/auth/linkedin` }}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
                 >
                   <svg className="h-4 w-4 fill-[#0077B5]" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

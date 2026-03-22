@@ -250,9 +250,26 @@ export const authApi = {
 // Profile
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Fields returned by GET but not accepted by PUT
+const _PROFILE_READONLY = new Set(['id', 'created_at', 'updated_at', 'avatar_url', 'credentials_set', 'resume_url', 'resume_filename'])
+
+function _sanitizeProfile(data: Partial<UserProfile>): Partial<UserProfile> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (_PROFILE_READONLY.has(k)) continue
+    // Coerce null numbers to 0 so Pydantic doesn't reject them
+    if (v === null && (k === 'salary_min' || k === 'salary_max' || k === 'search_radius_miles' || k === 'hours_old' || k === 'results_per_site')) {
+      out[k] = 0
+    } else {
+      out[k] = v
+    }
+  }
+  return out as Partial<UserProfile>
+}
+
 export const profileApi = {
   get    : ()                           => get<UserProfile>('/api/profile/'),
-  update : (data: Partial<UserProfile>) => put<UserProfile>('/api/profile/', data),
+  update : (data: Partial<UserProfile>) => put<UserProfile>('/api/profile/', _sanitizeProfile(data)),
 
   uploadResume: (file: File) => {
     const form = new FormData()

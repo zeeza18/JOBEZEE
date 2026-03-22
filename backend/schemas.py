@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +102,56 @@ class UserProfileBase(BaseModel):
     hours_old           : int = 72
     results_per_site    : int = 50
     tailor_resume       : bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_nulls(cls, data: object) -> object:
+        """Replace None with safe defaults so old DB rows with null columns don't cause 422s."""
+        if not isinstance(data, dict):
+            return data
+        _str_defaults: list[str] = [
+            "full_name", "preferred_name", "email", "phone", "address",
+            "city", "state", "zip_code", "linkedin", "github", "portfolio",
+            "personal_website", "headline", "remote_preference", "job_type",
+            "experience_level", "salary_currency", "salary_range_text",
+            "work_authorization", "work_permit_type", "apply_email",
+            "apply_password", "linkedin_email", "linkedin_password",
+            "indeed_email", "indeed_password", "greenhouse_email",
+            "greenhouse_password", "workday_email", "workday_password",
+            "gmail_api_key", "openai_api_key", "anthropic_api_key",
+            "current_job_title", "target_role", "years_experience",
+            "education", "earliest_start",
+        ]
+        _list_defaults: list[str] = [
+            "desired_roles", "preferred_locations", "preferred_countries",
+            "preferred_regions", "industries", "work_modes", "job_types",
+            "experience_levels", "skills_languages", "skills_frameworks",
+            "skills_tools", "resume_facts_companies", "resume_facts_projects",
+            "resume_facts_schools", "resume_facts_metrics",
+        ]
+        _float_defaults: dict[str, float] = {"salary_min": 0.0, "salary_max": 0.0}
+        _int_defaults: dict[str, int] = {
+            "search_radius_miles": 50, "hours_old": 72, "results_per_site": 50,
+        }
+        _bool_defaults: dict[str, bool] = {
+            "visa_sponsorship_required": False, "tailor_resume": False,
+        }
+        for k in _str_defaults:
+            if data.get(k) is None:
+                data[k] = ""
+        for k in _list_defaults:
+            if data.get(k) is None:
+                data[k] = []
+        for k, v in _float_defaults.items():
+            if data.get(k) is None:
+                data[k] = v
+        for k, v in _int_defaults.items():
+            if data.get(k) is None:
+                data[k] = v
+        for k, v in _bool_defaults.items():
+            if data.get(k) is None:
+                data[k] = v
+        return data
 
 
 class UserProfileCreate(UserProfileBase):

@@ -253,7 +253,8 @@ export default function ProfilePage() {
       await profileApi.update(form)
       pushToast({ title: 'Profile saved!', type: 'success' })
     } catch (e: unknown) {
-      pushToast({ title: 'Save failed', description: String(e), type: 'error' })
+      const msg = e instanceof Error ? e.message : String(e)
+      pushToast({ title: 'Save failed', description: msg, type: 'error' })
     } finally { setSaving(false) }
   }
 
