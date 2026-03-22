@@ -157,16 +157,20 @@ async def linkedin_callback(
 
     if not profile:
         profile = UserProfile(
-            id        = pid,
-            full_name = full_name,
-            email     = email,
-            avatar_url= picture or "",
+            id             = pid,
+            full_name      = full_name,
+            email          = email,
+            avatar_url     = picture or "",
+            linkedin_email = email,
         )
         db.add(profile)
     else:
         # Always keep full_name + email fresh from LinkedIn
         profile.full_name = profile.full_name or full_name
         profile.email     = profile.email     or email
+        # Auto-fill linkedin_email if not already set manually
+        if not profile.linkedin_email:
+            profile.linkedin_email = email
         # Only update avatar if user hasn't set their own
         if picture and not profile.avatar_url:
             profile.avatar_url = picture

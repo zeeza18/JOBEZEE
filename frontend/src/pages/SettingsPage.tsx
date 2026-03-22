@@ -317,7 +317,7 @@ const SettingsPage = () => {
       .then(r => r.json())
       .then(p => {
         fullProfileRef.current = p
-        if (p.avatar_url) setAvatarUrl(`${BASE_URL}${p.avatar_url}`)
+        if (p.avatar_url) setAvatarUrl(p.avatar_url.startsWith('http') ? p.avatar_url : `${BASE_URL}${p.avatar_url}`)
         if (p.credentials_set) setCredentialsSet(p.credentials_set)
         setCreds({
           apply_email:         p.apply_email         ?? '',

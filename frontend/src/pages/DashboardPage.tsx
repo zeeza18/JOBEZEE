@@ -271,7 +271,9 @@ const DashboardPage = () => {
   const displayName  = profile?.full_name || user?.full_name || 'You'
   const primaryRole  = profile?.desired_roles?.[0] ?? null
   const yearsExp     = profile?.years_experience ?? null
-  const avatarUrl    = profile?.avatar_url ? `${BASE}${profile.avatar_url}` : null
+  const avatarUrl    = profile?.avatar_url
+    ? (profile.avatar_url.startsWith('http') ? profile.avatar_url : `${BASE}${profile.avatar_url}`)
+    : null
 
   return (
     <div className="flex flex-col gap-4 md:h-[calc(100vh-108px)] md:overflow-hidden">

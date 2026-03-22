@@ -403,7 +403,7 @@ function TailoredResumeModal({ state, onClose }: { state: TailorJobState; onClos
 // ─── Job Detail Drawer ────────────────────────────────────────────────────────
 
 function JobDetailDrawer({
-  job, onClose, onStatusChange, tailorState, onTailor, onViewTailor,
+  job, onClose, onStatusChange, tailorState, onTailor, onViewTailor, descCache,
 }: {
   job            : PulledJob
   onClose        : () => void
@@ -411,21 +411,33 @@ function JobDetailDrawer({
   tailorState?   : TailorJobState
   onTailor       : (job: PulledJob) => void
   onViewTailor   : (state: TailorJobState) => void
+  descCache      : React.RefObject<Map<string, string>>
 }) {
   const [updating, setUpdating]         = useState(false)
   const [fullDesc, setFullDesc]         = useState<string | null>(null)
   const [fetchingDesc, setFetchingDesc] = useState(false)
   const isSaved = job.status === 'saved' || job.status === 'favourite'
 
-  // Auto-fetch full description when drawer opens
+  // Check cache first — instant if pre-fetched, otherwise fetch live
   useEffect(() => {
+    const cached = descCache.current.get(job.id)
+    if (cached) {
+      setFullDesc(cached)
+      setFetchingDesc(false)
+      return
+    }
     setFullDesc(null)
     setFetchingDesc(true)
     jobsApi.fullDescription(job.id)
-      .then(r => { if (r.description) setFullDesc(r.description) })
+      .then(r => {
+        if (r.description) {
+          setFullDesc(r.description)
+          descCache.current.set(job.id, r.description)
+        }
+      })
       .catch(() => {})
       .finally(() => setFetchingDesc(false))
-  }, [job.id])
+  }, [job.id, descCache])
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -943,9 +955,27 @@ export default function PulledJobsPage() {
   const sessionJobsCount   = useRef(0)   // jobs found in the current search session only
   const esSources          = useRef<Map<string, EventSource>>(new Map())
   const autoSearchFired    = useRef(false) // fire auto-search only once per mount
+  const descCache          = useRef<Map<string, string>>(new Map()) // pre-fetched JD cache
 
   // ── Load jobs + stats — first batch shows immediately, rest load in background ─
   const BATCH = 50
+
+  // ── Background pre-fetch job descriptions (top N, 3 at a time) ──────────────
+  const prefetchDescs = useCallback(async (jobList: PulledJob[]) => {
+    const PREFETCH = 20
+    const CONCURRENCY = 3
+    const uncached = jobList.slice(0, PREFETCH).filter(j => !descCache.current.has(j.id))
+    for (let i = 0; i < uncached.length; i += CONCURRENCY) {
+      await Promise.all(
+        uncached.slice(i, i + CONCURRENCY).map(async j => {
+          try {
+            const r = await jobsApi.fullDescription(j.id)
+            if (r.description) descCache.current.set(j.id, r.description)
+          } catch {}
+        })
+      )
+    }
+  }, [])
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -958,6 +988,9 @@ export default function PulledJobsPage() {
       setJobs(firstBatch)
       setStats(statsData)
       if (!silent) setLoading(false)
+
+      // Pre-fetch descriptions for top 20 jobs in the background (no await — fire and forget)
+      prefetchDescs(firstBatch)
 
       // Load remaining batches in the background
       if (firstBatch.length === BATCH) {
@@ -979,7 +1012,7 @@ export default function PulledJobsPage() {
       if (!silent) pushToast({ title: 'Could not load jobs', type: 'error' })
       if (!silent) setLoading(false)
     }
-  }, [pushToast])
+  }, [pushToast, prefetchDescs])
 
   useEffect(() => { load() }, [load])
 
@@ -1506,6 +1539,7 @@ export default function PulledJobsPage() {
             tailorState={tailorJobs.get(selectedJob.id)}
             onTailor={handleTailor}
             onViewTailor={setViewingTailor}
+            descCache={descCache}
           />
         )}
       </AnimatePresence>
