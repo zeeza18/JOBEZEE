@@ -170,3 +170,74 @@ async def get_status(
     except Exception as exc:
         log.exception("[SearchStatus] session=%s failed: %s", session_id, exc)
         raise HTTPException(500, f"Could not fetch search status: {exc}")
+
+
+@router.get("/debug/board-search")
+async def debug_board_search(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession   = Depends(get_db),
+):
+    """
+    Debug endpoint — runs board search directly (no subprocess) and returns
+    full details: kwargs, raw count, kept count, sample titles, any errors.
+    """
+    import sys, traceback
+    from pathlib import Path
+
+    out: dict = {"steps": [], "error": None}
+
+    try:
+        # Step 1: load profile
+        from sqlalchemy import select as sa_select
+        from ..models import UserProfile
+        res = await db.execute(sa_select(UserProfile).where(UserProfile.id == current_user.id))
+        profile = res.scalar_one_or_none()
+        if not profile:
+            return {"error": "profile not found"}
+
+        out["steps"].append(f"profile loaded: roles={profile.desired_roles} locs={profile.preferred_locations} countries={profile.preferred_countries}")
+
+        # Step 2: build prefs
+        _root = str(Path(__file__).resolve().parents[3])
+        if _root not in sys.path:
+            sys.path.insert(0, _root)
+
+        from ..services.phase1_service import build_preferences, _normalise_countries
+        prefs = build_preferences(profile)
+        kwargs = prefs.to_jobspy_kwargs()
+        out["steps"].append(f"prefs built: titles={prefs.job_titles} countries_arg={kwargs.get('countries')} locations={kwargs.get('locations')}")
+        out["kwargs"] = {k: v for k, v in kwargs.items()}
+
+        # Step 3: import check
+        try:
+            from PHASE1_JOB_SEARCH import search_boards, INDEED_COUNTRY_CODES  # type: ignore
+            out["steps"].append(f"PHASE1_JOB_SEARCH imported OK")
+        except Exception as e:
+            out["steps"].append(f"PHASE1_JOB_SEARCH IMPORT FAILED: {e}")
+            out["error"] = str(e)
+            return out
+
+        # Step 4: validate countries
+        countries = kwargs.get("countries") or []
+        for c in countries:
+            valid = c in INDEED_COUNTRY_CODES
+            out["steps"].append(f"country '{c}' valid={valid}")
+
+        # Step 5: run search for first title only (fast test)
+        title = prefs.job_titles[0] if prefs.job_titles else "software engineer"
+        test_kwargs = {**kwargs, "queries": [title], "results_per_site": 10}
+        out["steps"].append(f"running search_boards: {test_kwargs}")
+
+        try:
+            raw = search_boards(**test_kwargs)
+            out["steps"].append(f"search_boards returned {len(raw)} results")
+            out["raw_count"] = len(raw)
+            out["sample_titles"] = [(j.title, j.site, j.location) for j in raw[:10]]
+        except Exception as e:
+            out["steps"].append(f"search_boards EXCEPTION: {e}")
+            out["error"] = traceback.format_exc()
+
+    except Exception as e:
+        out["error"] = traceback.format_exc()
+
+    return out

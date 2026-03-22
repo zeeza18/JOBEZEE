@@ -95,17 +95,32 @@ def _scrape_boards_worker(kwargs: dict) -> list:
     Each call runs in its own Python interpreter: tls-client gets a fresh
     instance, no shared state with other concurrent scrapes.
     """
-    import sys
+    import sys, traceback, os
     from pathlib import Path
 
-    # Re-establish sys.path in the worker process (forked processes inherit
-    # it on Linux, but spawn-based (macOS/Windows) processes do not).
+    # Re-establish sys.path in the worker process (spawn starts fresh)
     _root = str(Path(__file__).resolve().parents[2])
     if _root not in sys.path:
         sys.path.insert(0, _root)
 
-    from PHASE1_JOB_SEARCH import search_boards  # type: ignore
-    return search_boards(**kwargs)
+    print(f"[WORKER] pid={os.getpid()} kwargs={kwargs}", flush=True)
+
+    try:
+        from PHASE1_JOB_SEARCH import search_boards  # type: ignore
+        print(f"[WORKER] PHASE1_JOB_SEARCH imported OK", flush=True)
+    except Exception as e:
+        print(f"[WORKER] IMPORT FAILED: {e}", flush=True)
+        print(traceback.format_exc(), flush=True)
+        return []
+
+    try:
+        results = search_boards(**kwargs)
+        print(f"[WORKER] search_boards returned {len(results)} results", flush=True)
+        return results
+    except Exception as e:
+        print(f"[WORKER] search_boards EXCEPTION: {e}", flush=True)
+        print(traceback.format_exc(), flush=True)
+        return []
 
 
 # ---------------------------------------------------------------------------
