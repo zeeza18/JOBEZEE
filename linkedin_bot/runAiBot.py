@@ -484,8 +484,7 @@ def get_job_description(
             experience_required = "Error in extraction"
             print_lg("[JD] Pulled OK but experience extraction failed")
             # print_lg(e)
-    finally:
-        return jobDescription, experience_required, skip, skipReason, skipMessage
+    return jobDescription, experience_required, skip, skipReason, skipMessage
         
 
 
