@@ -189,14 +189,25 @@ function _buildFetchOpts(method: string, body: unknown, headers: Record<string, 
 }
 
 async function _readError(res: Response): Promise<ApiError> {
-  let detail = res.statusText
+  let detail = res.statusText || `HTTP ${res.status}`
   let rawDetail: unknown
   try {
     const err = await res.json()
     rawDetail = err.detail
-    detail = typeof err.detail === 'string' ? err.detail : (err.detail?.message ?? res.statusText)
+    if (typeof err.detail === 'string') {
+      detail = err.detail
+    } else if (Array.isArray(err.detail)) {
+      // Pydantic v2 returns an array of {loc, msg, type} objects
+      detail = err.detail.map((e: { loc?: string[]; msg?: string }) =>
+        `${(e.loc ?? []).slice(1).join('.')}: ${e.msg ?? 'invalid'}`
+      ).join('; ')
+    } else if (err.detail?.message) {
+      detail = err.detail.message
+    } else if (err.message) {
+      detail = err.message
+    }
   } catch { /* ignore */ }
-  return new ApiError(res.status, detail, rawDetail)
+  return new ApiError(res.status, detail || `HTTP ${res.status}`, rawDetail)
 }
 
 async function request<T>(
