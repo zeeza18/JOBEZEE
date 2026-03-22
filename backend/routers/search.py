@@ -87,8 +87,9 @@ async def trigger_search(
         .where(SearchSession.user_id == current_user.id)
         .where(SearchSession.status == "running")
     )
-    if running_check.scalar_one_or_none():
-        raise HTTPException(409, "A search is already running for your profile. Wait for it to finish before starting a new one.")
+    running_session = running_check.scalar_one_or_none()
+    if running_session:
+        raise HTTPException(409, detail={"message": "A search is already running.", "session_id": running_session.id})
 
     session_id = str(uuid.uuid4())[:8].upper()
 

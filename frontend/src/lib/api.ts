@@ -148,9 +148,11 @@ export interface SearchStatusResponse {
 
 class ApiError extends Error {
   status: number
-  constructor(status: number, message: string) {
+  rawDetail?: unknown
+  constructor(status: number, message: string, rawDetail?: unknown) {
     super(message)
     this.status = status
+    this.rawDetail = rawDetail
     this.name = 'ApiError'
   }
 }
@@ -188,11 +190,13 @@ function _buildFetchOpts(method: string, body: unknown, headers: Record<string, 
 
 async function _readError(res: Response): Promise<ApiError> {
   let detail = res.statusText
+  let rawDetail: unknown
   try {
     const err = await res.json()
-    detail = err.detail ?? detail
+    rawDetail = err.detail
+    detail = typeof err.detail === 'string' ? err.detail : (err.detail?.message ?? res.statusText)
   } catch { /* ignore */ }
-  return new ApiError(res.status, detail)
+  return new ApiError(res.status, detail, rawDetail)
 }
 
 async function request<T>(

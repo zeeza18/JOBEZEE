@@ -29,10 +29,6 @@ const COLUMNS: { key: string; label: string; accent: string; dot: string }[] = [
   { key: 'rejected',     label: 'Rejected',    accent: 'border-t-red-400',     dot: 'bg-red-400' },
 ]
 
-const VALID_STATUSES = [
-  'applying', 'applied', 'interview_r1', 'interview_r2',
-  'interview_r3', 'offer', 'rejected', 'ghosted', 'failed',
-]
 
 const NEXT_STATUS: Record<string, string> = {
   applying:     'applied',

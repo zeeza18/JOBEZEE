@@ -1079,9 +1079,14 @@ export default function PulledJobsPage() {
       setPolling(true)
       pushToast({ title: `Searching for ${roleLabel}`, description: `in ${locLabel}`, type: 'success' })
     } catch (e: unknown) {
-      const msg = String(e)
-      if (!msg.includes('409')) {
-        pushToast({ title: 'Search failed', description: msg, type: 'error' })
+      // 409 = search already running — attach to the existing session and poll it
+      const err = e as { status?: number; rawDetail?: { session_id?: string } }
+      if (err?.status === 409 && err?.rawDetail?.session_id) {
+        sessionJobsCount.current = 0
+        setSessionId(err.rawDetail.session_id)
+        setPolling(true)
+      } else if (!String(e).includes('409')) {
+        pushToast({ title: 'Search failed', description: String(e), type: 'error' })
       }
     } finally { setSearching(false) }
   }, [pushToast])
