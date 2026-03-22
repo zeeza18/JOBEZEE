@@ -1386,6 +1386,15 @@ export default function PulledJobsPage() {
               {searching || polling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">Search</span>
             </button>
+            {/* Clear all jobs */}
+            <button
+              onClick={clearJobs}
+              disabled={clearing || searching || polling}
+              title="Clear all jobs and start fresh search"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-500 transition disabled:opacity-50"
+            >
+              {clearing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </button>
             {/* Refresh */}
             <button onClick={() => load()} disabled={loading} title="Refresh job list"
               className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-300 transition disabled:opacity-50">
