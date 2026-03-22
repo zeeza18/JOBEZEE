@@ -7,7 +7,25 @@ services:
       wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/google-chrome.deb &&
       apt-get install -y /tmp/google-chrome.deb &&
       pip install -r backend/requirements.txt &&
-      python -c "from webdriver_manager.chrome import ChromeDriverManager; p=ChromeDriverManager().install(); print('ChromeDriver cached at:', p)" || true
+      python -c "
+import os
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+o = Options()
+for cb in ['/opt/google/chrome/chrome', '/opt/google/chrome/google-chrome', '/usr/bin/google-chrome']:
+    if os.path.exists(cb):
+        o.binary_location = cb
+        print('Pre-warm using Chrome at:', cb)
+        break
+o.add_argument('--headless')
+o.add_argument('--no-sandbox')
+o.add_argument('--disable-dev-shm-usage')
+o.add_argument('--disable-gpu')
+o.add_argument('--window-size=1920,1080')
+d = webdriver.Chrome(options=o)
+d.quit()
+print('Chrome pre-warm OK — ChromeDriver cached')
+" || echo "Pre-warm failed (non-fatal)"
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:

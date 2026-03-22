@@ -18,6 +18,7 @@ import SettingsPage from '../pages/SettingsPage'
 import NotFoundPage from '../pages/NotFoundPage'
 import PrivacyPage from '../pages/PrivacyPage'
 import TermsPage from '../pages/TermsPage'
+import ResetPasswordPage from '../pages/ResetPasswordPage'
 import { useAuthStore } from '../store/useAuthStore'
 
 /** Blocks /app/* routes while the session is being verified, then redirects to /auth if unauthenticated. */
@@ -59,6 +60,7 @@ const AppRoutes = () => {
 
       <Route path="/portfolio/:username" element={<PortfolioPublic />} />
 
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms"   element={<TermsPage />} />
 

@@ -58,14 +58,26 @@ def createChromeSession(isRetry: bool = False):
         options.add_argument("--no-service-autorun")
         options.add_argument("--password-store=basic")
         # Point ChromeDriver to the exact Chrome binary installed on Render
-        for _cb in ("/usr/bin/google-chrome", "/usr/bin/google-chrome-stable",
-                    "/usr/bin/chromium-browser", "/usr/bin/chromium"):
+        for _cb in (
+            "/opt/google/chrome/chrome",
+            "/opt/google/chrome/google-chrome",
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chromium",
+        ):
             if os.path.exists(_cb):
                 options.binary_location = _cb
                 print_lg(f"Chrome binary: {_cb}")
                 break
         else:
-            print_lg("[WARN] Chrome binary not found at any standard path")
+            import subprocess as _sp
+            _found = _sp.run(["which", "google-chrome"], capture_output=True, text=True).stdout.strip()
+            if _found:
+                options.binary_location = _found
+                print_lg(f"Chrome binary (via which): {_found}")
+            else:
+                print_lg("[WARN] Chrome binary not found — ChromeDriver will try defaults")
 
     # Stability flags — suppress profile picker and first-run UI
     options.add_argument("--no-first-run")

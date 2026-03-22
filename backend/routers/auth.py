@@ -1,14 +1,16 @@
 """
-Auth router — register, login, refresh, logout, me.
+Auth router — register, login, refresh, logout, me, forgot/reset password.
 """
 from __future__ import annotations
 
 import logging
+import secrets
 import traceback
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, Request, status
 
 log = logging.getLogger(__name__)
 from pydantic import BaseModel, EmailStr
@@ -26,7 +28,7 @@ from ..auth import (
     create_access_token,
 )
 from ..database import get_db
-from ..models import User
+from ..models import PasswordResetToken, User
 
 router = APIRouter()
 
@@ -42,6 +44,15 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email    : EmailStr
     password : str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token        : str
+    new_password : str
 
 
 class AuthUserResponse(BaseModel):
@@ -148,3 +159,79 @@ async def logout(response: Response) -> dict:
 @router.get("/me", response_model=AuthUserResponse)
 async def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    body       : ForgotPasswordRequest,
+    background : BackgroundTasks,
+    db         : AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Always returns 200 regardless of whether the email exists — prevents
+    user enumeration. The reset email is sent in the background.
+    """
+    from ..config import get_settings
+    from ..services.email_service import send_password_reset_email
+
+    result = await db.execute(select(User).where(User.email == body.email))
+    user   = result.scalar_one_or_none()
+
+    if user:
+        token = secrets.token_urlsafe(48)
+        expires = datetime.now(timezone.utc) + timedelta(hours=1)
+
+        db.add(PasswordResetToken(
+            user_id    = user.id,
+            token      = token,
+            expires_at = expires,
+        ))
+        await db.commit()
+
+        cfg       = get_settings()
+        reset_url = f"{cfg.FRONTEND_URL}/reset-password?token={token}"
+
+        background.add_task(
+            send_password_reset_email,
+            user.email,
+            user.full_name or user.email,
+            reset_url,
+        )
+        log.info("Password reset email queued for user=%s", user.id)
+
+    return {"ok": True}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body : ResetPasswordRequest,
+    db   : AsyncSession = Depends(get_db),
+) -> dict:
+    result = await db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.token == body.token)
+    )
+    record = result.scalar_one_or_none()
+
+    if not record:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired reset link")
+
+    if record.used:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This reset link has already been used")
+
+    if datetime.now(timezone.utc) > record.expires_at:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Reset link has expired — please request a new one")
+
+    if len(body.new_password) < 8:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Password must be at least 8 characters")
+
+    user_result = await db.execute(select(User).where(User.id == record.user_id))
+    user        = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "User not found")
+
+    user.hashed_password = hash_password(body.new_password)
+    record.used          = True
+    await db.commit()
+
+    log.info("Password reset successfully for user=%s", user.id)
+    return {"ok": True}

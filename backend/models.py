@@ -492,3 +492,19 @@ class Feedback(Base):
     message    = Column(Text, default="")
     page       = Column(String(200), default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+# ---------------------------------------------------------------------------
+# Password reset tokens
+# ---------------------------------------------------------------------------
+
+class PasswordResetToken(Base):
+    """Short-lived tokens for the forgot-password flow."""
+    __tablename__ = "password_reset_tokens"
+
+    id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    token      = Column(String(128), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used       = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

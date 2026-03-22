@@ -33,6 +33,17 @@ class Settings(BaseSettings):
     GMAIL_USER:         str = ""
     GMAIL_APP_PASSWORD: str = ""
 
+    # ── SMTP (transactional email — forgot password etc.) ────────────────────
+    # Works with Gmail App Password, SendGrid, Resend, Mailgun, etc.
+    # Gmail:    SMTP_HOST=smtp.gmail.com  SMTP_PORT=587  SMTP_USER=you@gmail.com  SMTP_PASSWORD=<app-password>
+    # SendGrid: SMTP_HOST=smtp.sendgrid.net  SMTP_PORT=587  SMTP_USER=apikey  SMTP_PASSWORD=<SG.xxx>
+    # Resend:   SMTP_HOST=smtp.resend.com  SMTP_PORT=465  SMTP_USER=resend  SMTP_PASSWORD=<re_xxx>
+    SMTP_HOST:     str = ""
+    SMTP_PORT:     int = 587
+    SMTP_USER:     str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM:     str = "noreply@jobezee.org"   # display from address
+
     # ── LinkedIn OAuth ────────────────────────────────────────────────────────
     LINKEDIN_CLIENT_ID:     str = ""
     LINKEDIN_CLIENT_SECRET: str = ""
