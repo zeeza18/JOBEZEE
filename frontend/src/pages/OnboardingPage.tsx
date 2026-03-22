@@ -531,7 +531,7 @@ const OnboardingPage = () => {
             type="file"
             accept=".pdf,.docx,.doc"
             className="hidden"
-            onChange={(e) => {
+            onChange={async (e) => {
               const f = e.target.files?.[0]
               if (!f) return
               const ext = f.name.split('.').pop()?.toLowerCase()
@@ -541,6 +541,15 @@ const OnboardingPage = () => {
               }
               setResumeFile(f)
               setResumeUploaded(false)
+              setUploadingResume(true)
+              try {
+                const res = await profileApi.uploadResume(f)
+                setForm((prev) => ({ ...prev, resume_filename: res.filename, resume_url: res.url }))
+                setResumeUploaded(true)
+                pushToast({ title: 'Resume uploaded', type: 'success' })
+              } catch {
+                pushToast({ title: 'Upload failed — try again', type: 'error' })
+              } finally { setUploadingResume(false) }
             }}
           />
 
@@ -563,7 +572,7 @@ const OnboardingPage = () => {
               <Paperclip className="h-5 w-5 text-cyan-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-cyan-800">{resumeFile.name}</p>
-                <p className="text-xs text-cyan-600">Ready to upload — click Upload below</p>
+                <p className="text-xs text-cyan-600">Uploading…</p>
               </div>
               <button
                 onClick={() => { setResumeFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
@@ -592,26 +601,10 @@ const OnboardingPage = () => {
               {resumeFile || form.resume_filename ? 'Choose different file' : 'Choose file (PDF / DOCX)'}
             </button>
 
-            {resumeFile && !resumeUploaded && (
-              <button
-                type="button"
-                disabled={uploadingResume}
-                onClick={async () => {
-                  setUploadingResume(true)
-                  try {
-                    const res = await profileApi.uploadResume(resumeFile)
-                    setForm((prev) => ({ ...prev, resume_filename: res.filename, resume_url: res.url }))
-                    setResumeUploaded(true)
-                    pushToast({ title: 'Resume uploaded', type: 'success' })
-                  } catch {
-                    pushToast({ title: 'Upload failed — try again', type: 'error' })
-                  } finally { setUploadingResume(false) }
-                }}
-                className="flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-4 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:opacity-60"
-              >
-                {uploadingResume ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {uploadingResume ? 'Uploading…' : 'Upload'}
-              </button>
+            {uploadingResume && (
+              <div className="flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-4 text-sm font-semibold text-white opacity-60">
+                <Loader2 className="h-4 w-4 animate-spin" /> Uploading…
+              </div>
             )}
           </div>
 
