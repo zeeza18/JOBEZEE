@@ -88,9 +88,7 @@ def createChromeSession(isRetry: bool = False):
             driver = uc.Chrome(options=options)
     else:
         import threading, shutil
-        _cd = shutil.which("chromedriver")
-        print_lg(f"chromedriver on PATH: {_cd or 'NOT FOUND — selenium-manager will download'}")
-        print_lg(f"Launching Chrome via Selenium...")
+        from selenium.webdriver.chrome.service import Service as ChromeService
         _done = threading.Event()
         def _heartbeat():
             secs = 0
@@ -100,7 +98,21 @@ def createChromeSession(isRetry: bool = False):
                     secs += 10
                     print_lg(f"  [Chrome] still starting... ({secs}s elapsed)", flush=True)
         threading.Thread(target=_heartbeat, daemon=True).start()
-        driver = webdriver.Chrome(options=options)
+        # Use webdriver-manager if chromedriver not on PATH
+        _cd_path = shutil.which("chromedriver")
+        if _cd_path:
+            print_lg(f"Using chromedriver from PATH: {_cd_path}")
+            driver = webdriver.Chrome(service=ChromeService(_cd_path), options=options)
+        else:
+            print_lg("chromedriver not on PATH — using webdriver-manager to install...")
+            try:
+                from webdriver_manager.chrome import ChromeDriverManager
+                _installed = ChromeDriverManager().install()
+                print_lg(f"webdriver-manager installed chromedriver at: {_installed}")
+                driver = webdriver.Chrome(service=ChromeService(_installed), options=options)
+            except Exception as _wdm_err:
+                print_lg(f"webdriver-manager failed ({_wdm_err}), falling back to selenium-manager...")
+                driver = webdriver.Chrome(options=options)
         _done.set()
         print_lg("Chrome launched successfully")
 

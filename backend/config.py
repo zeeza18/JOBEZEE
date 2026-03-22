@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # ── App ──────────────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://jobezee.org,https://www.jobezee.org"
     DEBUG: bool = False
 
     model_config = {

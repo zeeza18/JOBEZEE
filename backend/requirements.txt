@@ -32,6 +32,7 @@ rich==13.9.4
 
 # ── LinkedIn bot / shared deps ────────────────────────────────────────────────
 selenium==4.21.0
+webdriver-manager==4.0.2
 pandas==2.2.3
 pyautogui==0.9.54
 pyvirtualdisplay==3.0
