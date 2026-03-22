@@ -108,9 +108,26 @@ const AutoApplyPage = () => {
         localStorage.removeItem(LI_JOB_KEY)
       }
     }
-    // On SSE disconnect: silently close — backend bot keeps running.
-    // Next time user visits this page the mount effect will reconnect.
-    es.onerror = () => es.close()
+    // On SSE disconnect: try to reconnect once after 3 s, then fall back to polling
+    es.onerror = () => {
+      es.close()
+      setTimeout(() => {
+        linkedinApi.status(id).then(s => {
+          if (s.status === 'running') {
+            // Bot still running — reopen the stream
+            openLinkedInStream(id)
+          } else if (s.status === 'complete') {
+            setLiStatus('complete')
+            setLiResult(s.result)
+            localStorage.removeItem(LI_JOB_KEY)
+          } else if (s.status === 'error') {
+            setLiStatus('error')
+            setLiError(s.error ?? 'Bot encountered an error')
+            localStorage.removeItem(LI_JOB_KEY)
+          }
+        }).catch(() => { /* backend gone — leave UI as-is */ })
+      }, 3000)
+    }
   }
 
   // On mount: reconnect to any bot that was running before navigation

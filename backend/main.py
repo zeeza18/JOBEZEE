@@ -160,7 +160,7 @@ def _start_global_chrome() -> None:
         from applypilot.apply.chrome import ensure_global_chrome
         load_env()
         ensure_dirs()
-        ensure_global_chrome(headless=False)
+        ensure_global_chrome(headless=True)
         _log.info("[Chrome] Global browser window started on port 9222")
     except Exception as exc:
         _log.warning("[Chrome] Could not start global browser at startup: %s", exc)

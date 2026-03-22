@@ -297,6 +297,7 @@ async def stream_apply(apply_job_id: str):
 
     async def event_generator():
         seen = 0
+        last_data = asyncio.get_event_loop().time()
         while True:
             job = get_apply_job(apply_job_id)
             if not job:
@@ -306,6 +307,7 @@ async def stream_apply(apply_job_id: str):
             events = job.get("progress", [])
             while seen < len(events):
                 yield f"data: {json.dumps({'line': events[seen]})}\n\n"
+                last_data = asyncio.get_event_loop().time()
                 seen += 1
 
             if job["status"] in ("complete", "error"):
@@ -318,6 +320,11 @@ async def stream_apply(apply_job_id: str):
                 }
                 yield f"data: {json.dumps(final)}\n\n"
                 return
+
+            # Keepalive comment every 20 s — prevents Render/proxy from cutting idle SSE
+            if asyncio.get_event_loop().time() - last_data > 20:
+                yield ": keepalive\n\n"
+                last_data = asyncio.get_event_loop().time()
 
             await asyncio.sleep(1)
 
@@ -355,7 +362,7 @@ async def browser_start(_user=Depends(get_current_user)):
         from applypilot.apply.chrome import ensure_global_chrome
         load_env()
         ensure_dirs()
-        ensure_global_chrome(headless=False)
+        ensure_global_chrome(headless=True)
 
     import threading
     threading.Thread(target=_launch, daemon=True).start()
@@ -633,6 +640,7 @@ async def linkedin_stream(job_id: str):
 
     async def event_generator():
         seen = 0
+        last_data = asyncio.get_event_loop().time()
         while True:
             job = get_linkedin_job(job_id)
             if not job:
@@ -644,6 +652,7 @@ async def linkedin_stream(job_id: str):
             while seen < len(events):
                 line = events[seen]
                 yield f"data: {json.dumps({'line': line})}\n\n"
+                last_data = asyncio.get_event_loop().time()
                 if uid and "successfully saved" in line.lower():
                     await _record_applied(line, uid, events, seen)
                 seen += 1
@@ -657,6 +666,11 @@ async def linkedin_stream(job_id: str):
                 }
                 yield f"data: {json.dumps(final)}\n\n"
                 return
+
+            # Keepalive comment every 20 s — prevents Render/proxy from cutting idle SSE
+            if asyncio.get_event_loop().time() - last_data > 20:
+                yield ": keepalive\n\n"
+                last_data = asyncio.get_event_loop().time()
 
             await asyncio.sleep(1)
 
