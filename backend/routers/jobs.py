@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import case, select, update, func as sqlfunc
+from sqlalchemy import case, delete, select, update, func as sqlfunc
 
 from ..auth import get_current_user
 from ..database import get_db
@@ -193,6 +193,22 @@ async def set_job_status(
     )
     await db.commit()
     return {"ok": True, "status": status}
+
+
+@router.delete("/clear")
+async def clear_jobs(
+    current_user : User          = Depends(get_current_user),
+    db           : AsyncSession  = Depends(get_db),
+) -> dict:
+    """Delete all pulled jobs for the current user."""
+    profile_id = uuid.UUID(current_user.id)
+    result = await db.execute(
+        delete(PulledJob).where(PulledJob.user_profile_id == profile_id)
+    )
+    await db.commit()
+    deleted = result.rowcount
+    log.info("[Jobs] Cleared %d jobs for user=%s", deleted, current_user.id)
+    return {"deleted": deleted}
 
 
 @router.get("/stats")

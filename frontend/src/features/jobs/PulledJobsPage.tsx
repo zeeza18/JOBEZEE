@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowUpRight, Bookmark, BookmarkCheck, Bot, CheckCircle2, ChevronRight,
   Download, Eye, EyeOff, FileText, Filter, Loader2, RefreshCw,
-  Search, Sparkles, X, XCircle, Zap,
+  Search, Sparkles, Trash2, X, XCircle, Zap,
 } from 'lucide-react'
 import { applyApi, jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
 import { useAppStore } from '../../store/useAppStore'
@@ -1090,6 +1090,24 @@ export default function PulledJobsPage() {
       }
     } finally { setSearching(false) }
   }, [pushToast])
+
+  // ── Clear all jobs then auto-trigger fresh search ────────────────────────────
+  const [clearing, setClearing] = useState(false)
+  const clearJobs = useCallback(async () => {
+    if (!confirm('Clear all pulled jobs and start a fresh search?')) return
+    setClearing(true)
+    try {
+      const res = await jobsApi.clearAll()
+      setJobs([])
+      setStats(null)
+      sessionJobsCount.current = 0
+      autoSearchFired.current = false
+      pushToast({ title: `Cleared ${res.deleted} jobs — searching now…`, type: 'success' })
+      await triggerSearch()
+    } catch {
+      pushToast({ title: 'Could not clear jobs', type: 'error' })
+    } finally { setClearing(false) }
+  }, [pushToast, triggerSearch])
 
   // ── Auto-search on first visit when DB is empty and profile has roles ─────────
   useEffect(() => {

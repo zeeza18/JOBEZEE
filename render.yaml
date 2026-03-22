@@ -3,7 +3,7 @@ services:
     name: jobezee-api
     runtime: python
     buildCommand: >-
-      apt-get install -y xvfb wget &&
+      apt-get install -y xvfb wget python3-tk python3-dev &&
       wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/google-chrome.deb &&
       apt-get install -y /tmp/google-chrome.deb &&
       pip install -r backend/requirements.txt

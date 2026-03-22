@@ -10,7 +10,7 @@ import re
 import time
 try:
     import pyautogui
-except Exception:
+except (Exception, SystemExit):
     pyautogui = None
 import pandas as pd
 

@@ -222,10 +222,11 @@ async function request<T>(
   return res.json() as Promise<T>
 }
 
-const get  = <T>(path: string)                   => request<T>('GET',   path)
-const post = <T>(path: string, body?: unknown)   => request<T>('POST',  path, body)
-const put  = <T>(path: string, body?: unknown)   => request<T>('PUT',   path, body)
-const patch = <T>(path: string, body?: unknown)  => request<T>('PATCH', path, body)
+const get   = <T>(path: string)                   => request<T>('GET',    path)
+const post  = <T>(path: string, body?: unknown)   => request<T>('POST',   path, body)
+const put   = <T>(path: string, body?: unknown)   => request<T>('PUT',    path, body)
+const patch = <T>(path: string, body?: unknown)   => request<T>('PATCH',  path, body)
+const del   = <T>(path: string)                   => request<T>('DELETE', path)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth
@@ -286,6 +287,8 @@ export const jobsApi = {
     patch<{ ok: boolean; status: string }>(`/api/jobs/${jobId}/status`, { status }),
 
   stats : () => get<JobStats>('/api/jobs/stats'),
+
+  clearAll : () => del<{ deleted: number }>('/api/jobs/clear'),
 
   fullDescription : (jobId: string) =>
     get<{ description: string; source: string }>(`/api/jobs/${jobId}/full-description`),
