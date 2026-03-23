@@ -57,23 +57,34 @@ def createChromeSession(isRetry: bool = False):
         options.add_argument("--disable-translate")
         options.add_argument("--no-service-autorun")
         options.add_argument("--password-store=basic")
+        # Debug: show what Chrome-like files exist on this system
+        import subprocess as _sp, shutil as _shutil
+        try:
+            _find_out = _sp.run(
+                ["find", "/usr", "/opt", "-name", "*chrome*", "-o", "-name", "*chromium*"],
+                capture_output=True, text=True, timeout=5
+            ).stdout.strip()
+            print_lg(f"[Chrome debug] binaries found:\n{_find_out[:800] or '(none)'}")
+        except Exception as _fe:
+            print_lg(f"[Chrome debug] find failed: {_fe}")
+
         # Point ChromeDriver to the exact Chrome binary installed on Render
         for _cb in (
-            "/opt/google/chrome/chrome",
-            "/opt/google/chrome/google-chrome",
             "/usr/bin/google-chrome",
             "/usr/bin/google-chrome-stable",
+            "/opt/google/chrome/google-chrome",
+            "/opt/google/chrome/chrome",
             "/usr/bin/chromium-browser",
             "/usr/bin/chromium",
         ):
+            print_lg(f"[Chrome debug] checking {_cb}: exists={os.path.exists(_cb)}")
             if os.path.exists(_cb):
                 options.binary_location = _cb
                 print_lg(f"Chrome binary: {_cb}")
                 break
         else:
-            import shutil as _shutil
-            _found = (_shutil.which("google-chrome") or _shutil.which("chromium-browser")
-                      or _shutil.which("chromium") or "")
+            _found = (_shutil.which("google-chrome") or _shutil.which("google-chrome-stable")
+                      or _shutil.which("chromium-browser") or _shutil.which("chromium") or "")
             if _found:
                 options.binary_location = _found
                 print_lg(f"Chrome binary (via which): {_found}")
