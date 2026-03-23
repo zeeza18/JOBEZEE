@@ -24,5 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
+# Explicit Chrome binary path so open_chrome.py never needs to search
+ENV CHROME_BIN=/usr/bin/google-chrome
 
 CMD uvicorn backend.main:app --host 0.0.0.0 --port $PORT
