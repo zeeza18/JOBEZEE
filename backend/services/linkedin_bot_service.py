@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -84,6 +85,32 @@ def _salary_bracket(salary_min: float) -> str:
         if salary_min <= threshold:
             return label
     return ""
+
+
+def _split_name(profile) -> tuple[str, str]:
+    """
+    Derive a non-empty first/last name pair from the profile.
+    Falls back to preferred_name or email local-part so validation never fails.
+    """
+    full_name  = (getattr(profile, "full_name", "") or "").strip()
+    pref_name  = (getattr(profile, "preferred_name", "") or "").strip()
+    name_src   = full_name or pref_name
+
+    if name_src:
+        parts = name_src.split()
+        first = parts[0] if parts else "User"
+        last  = " ".join(parts[1:]) or first
+        return first, last
+
+    email = (getattr(profile, "email", "") or "").strip()
+    if email and "@" in email:
+        local = email.split("@", 1)[0]
+        local_parts = [p for p in re.split(r"[._\s]+", local) if p]
+        first = local_parts[0] if local_parts else local or "User"
+        last  = " ".join(local_parts[1:]) or first
+        return first or "User", last or "User"
+
+    return "User", "Candidate"
 
 
 def build_config_overrides(profile, resume_pdf_path: str = "") -> dict:
@@ -250,16 +277,15 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
         overrides["settings"] = {
             "tailor_resume": tailor_before_apply,
             "jobezee_root":  str(_JOBEZEE_ROOT),
-            "run_in_background": True,
-            "safe_mode": True,          # use temp profile — avoids slow profile creation on server
-            "disable_extensions": True, # faster startup
+            "run_in_background": True,   # headless for stability (no DevToolsActivePort crash)
+            "safe_mode": True,           # temporary profile to reduce startup issues
+            "disable_extensions": True,  # faster startup
         }
 
         # ── Personals (config/personals.py is gitignored — inject from profile) ─
-        full_name  = (getattr(profile, "full_name", "") or "").strip()
-        name_parts = full_name.split(None, 1)
-        first_name = name_parts[0] if name_parts else ""
-        last_name  = name_parts[1] if len(name_parts) > 1 else ""
+        first_name, last_name = _split_name(profile)
+        first_name = (first_name or "User").strip()
+        last_name  = (last_name or first_name or "Candidate").strip()
         overrides["personals"] = {
             "first_name":        first_name,
             "middle_name":       "",
@@ -284,6 +310,7 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             tmp_config = f.name
 
         _append(job_id, f"[JOBEZEE] Config written to {tmp_config}")
+        _append(job_id, f"[JOBEZEE] Using name: {first_name} {last_name}")
         _append(job_id, f"[JOBEZEE] search_terms = {overrides['search']['search_terms']}")
         _append(job_id, f"[JOBEZEE] experience_level = {overrides['search']['experience_level']}")
         _append(job_id, f"[JOBEZEE] on_site = {overrides['search']['on_site']}")

@@ -44,6 +44,9 @@ def createChromeSession(isRetry: bool = False):
     options = uc.ChromeOptions() if stealth_mode else Options()
     if run_in_background:   options.add_argument("--headless")
     if disable_extensions:  options.add_argument("--disable-extensions")
+    # Stabilize ChromeDriver startup on newer Chrome builds
+    options.add_argument("--remote-allow-origins=*")
+    options.add_argument("--remote-debugging-port=0")  # let Chrome choose a free port
 
     # Required in containerised Linux (Render, Docker) — Chrome refuses to run as root otherwise
     if sys.platform.startswith("linux"):
@@ -95,6 +98,7 @@ def createChromeSession(isRetry: bool = False):
     options.add_argument("--disable-default-apps")
 
     print_lg("IF YOU HAVE MORE THAN 10 TABS OPENED, PLEASE CLOSE OR BOOKMARK THEM! Or it's highly likely that application will just open browser and not do anything!")
+    print_lg(f"[Chrome] safe_mode={safe_mode} run_in_background={run_in_background} isRetry={isRetry}")
 
     if not isRetry and not safe_mode:
         bot_dir = get_bot_profile_dir()
