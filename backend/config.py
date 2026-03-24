@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     # (requires backend to be on api.jobezee.org — add custom domain in Render)
     COOKIE_DOMAIN: str = ""   # empty = no domain attr (localhost default)
 
+    # ── Credential encryption (Fernet key — generate with crypto.Fernet.generate_key()) ──
+    CREDENTIALS_KEY: str = ""
+
+    # ── Hetzner bot worker ────────────────────────────────────────────────────
+    # If set, linkedin_bot_service delegates bot execution to the Hetzner worker.
+    # Leave empty for local development (runs subprocess directly).
+    BOT_WORKER_URL: str = ""    # e.g. http://5.161.60.37:8001
+    WORKER_SECRET:  str = ""    # shared bearer token between Render and Hetzner
+
     # ── App ──────────────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://jobezee.org,https://www.jobezee.org"

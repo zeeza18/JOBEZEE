@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, select
 
 from ..auth import get_current_user
+from ..crypto import decrypt, encrypt
 from ..database import get_db
 from ..models import PulledJob, SearchSession, User, UserProfile
 from ..schemas import UserProfileCreate, UserProfileResponse
@@ -58,9 +59,8 @@ def _masked_response(profile: UserProfile) -> dict:
     d = UserProfileResponse.model_validate(profile).model_dump(mode="json")
     credentials_set: dict[str, bool] = {}
     for field in _SENSITIVE:
-        raw = getattr(profile, field, "") or ""
+        raw = decrypt(getattr(profile, field, "") or "")
         credentials_set[field] = bool(raw.strip())
-        # Return actual value so user can view/edit what they saved
         d[field] = raw
     d["credentials_set"] = credentials_set
     return d
@@ -100,10 +100,13 @@ async def update_profile(
     profile = result.scalar_one_or_none()
 
     update_dict = data.model_dump()
-    # Never overwrite an existing sensitive value with an empty string
+    # Never overwrite an existing sensitive value with an empty string; encrypt non-empty values
     for field in _SENSITIVE:
-        if field in update_dict and not (update_dict[field] or "").strip():
-            update_dict.pop(field)
+        val = (update_dict.get(field) or "").strip()
+        if not val:
+            update_dict.pop(field, None)
+        else:
+            update_dict[field] = encrypt(val)
 
     # Detect if any search-relevant field changed
     search_changed = False

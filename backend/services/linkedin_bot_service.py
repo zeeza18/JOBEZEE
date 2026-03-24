@@ -6,6 +6,7 @@ Job lifecycle: pending -> running -> complete | error
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -16,6 +17,8 @@ import threading
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+import httpx
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 _JOBEZEE_ROOT = Path(__file__).resolve().parent.parent.parent   # JOBEZEE/
@@ -183,6 +186,7 @@ def build_config_overrides(profile, resume_pdf_path: str = "") -> dict:
             "sort_by":            "Most recent",
             "date_posted":        "Any time",
             "companies":          [],
+            "switch_number":      999999, # effectively unlimited — apply to all available jobs per search term
         },
         "questions": {
             "default_resume_path": str(Path(resume_pdf_path).resolve()) if resume_pdf_path else "",
@@ -227,8 +231,9 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
         # Build overrides — search preferences, secrets, and questions
         overrides = build_config_overrides(profile)
 
+        from ..crypto import decrypt as _decrypt
         li_email = (getattr(profile, "linkedin_email", "") or "").strip()
-        li_pass  = (getattr(profile, "linkedin_password", "") or "").strip()
+        li_pass  = _decrypt((getattr(profile, "linkedin_password", "") or "").strip())
         if not li_email or not li_pass:
             raise ValueError("LinkedIn email and password are required. Please add them in Settings → Credentials.")
 
@@ -274,11 +279,17 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             "user_information_all": resume_text or "User Information",
         }
 
+        import platform as _platform
+        _is_windows = _platform.system() == "Windows"
         overrides["settings"] = {
             "tailor_resume": tailor_before_apply,
             "jobezee_root":  str(_JOBEZEE_ROOT),
-            "run_in_background": True,   # headless for stability (no DevToolsActivePort crash)
-            "safe_mode": True,           # temporary profile to reduce startup issues
+            # Windows: run Chrome visibly (headless gets blocked by LinkedIn)
+            # Linux (Render/prod): stay headless
+            "run_in_background": not _is_windows,
+            # Windows: use persistent bot profile so LinkedIn stays logged in across runs
+            # Linux: use temp profile (no persistent home dir in containers)
+            "safe_mode": not _is_windows,
             "disable_extensions": True,  # faster startup
         }
 
@@ -302,14 +313,6 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             "veteran_status":    "Decline",
         }
 
-        # Write to a temp JSON file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8"
-        ) as f:
-            json.dump(overrides, f, indent=2)
-            tmp_config = f.name
-
-        _append(job_id, f"[JOBEZEE] Config written to {tmp_config}")
         _append(job_id, f"[JOBEZEE] Using name: {first_name} {last_name}")
         _append(job_id, f"[JOBEZEE] search_terms = {overrides['search']['search_terms']}")
         _append(job_id, f"[JOBEZEE] experience_level = {overrides['search']['experience_level']}")
@@ -318,57 +321,102 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
         _append(job_id, f"[JOBEZEE] salary = {overrides['search']['salary'] or '(any)'}")
         _append(job_id, f"[JOBEZEE] tailor_resume = {'ON' if tailor_before_apply else 'OFF'}")
 
-        # Launch subprocess
-        cmd = [sys.executable, "-u", str(_LAUNCHER), "--config", tmp_config]
-        proc = subprocess.Popen(
-            cmd,
-            cwd=str(_BOT_DIR),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            encoding="utf-8",
-            errors="replace",
-            env={
-                **os.environ,
-                "PYTHONUNBUFFERED":    "1",
-                "PYTHONIOENCODING":    "utf-8",
-                "PYTHONUTF8":          "1",
-                "OPENAI_API_KEY":      _openai_key,
-                "ANTHROPIC_API_KEY":   _anthropic_key,
-                "CLAUDE_API_KEY":      _anthropic_key,
-            },
-        )
+        from ..config import get_settings as _get_settings
+        _cfg = _get_settings()
 
-        if clean_resume_path:
-            _append(job_id, f"[Resume] Found and loaded: {Path(clean_resume_path).name}")
-        elif resume_url:
-            _append(job_id, f"[Resume] File missing on disk (url: {resume_url}) - bot will use previous LinkedIn upload")
+        if _cfg.BOT_WORKER_URL:
+            # ── Production: delegate to Hetzner worker ────────────────────────
+            _append(job_id, f"[JOBEZEE] Delegating to Hetzner worker at {_cfg.BOT_WORKER_URL}")
+
+            # Base64-encode resume so Hetzner can write it to a temp file
+            resume_b64      = ""
+            resume_filename = ""
+            if clean_resume_path and Path(clean_resume_path).exists():
+                resume_b64      = base64.b64encode(Path(clean_resume_path).read_bytes()).decode()
+                resume_filename = Path(clean_resume_path).name
+                _append(job_id, f"[Resume] Sending: {resume_filename}")
+            elif resume_url:
+                _append(job_id, f"[Resume] File missing on disk — bot will use previous LinkedIn upload")
+            else:
+                _append(job_id, "[Resume] No resume uploaded yet — bot will use previous LinkedIn upload")
+
+            from ..config import get_settings as _gs
+            _s = _gs()
+            callback_url = f"{_s.FRONTEND_URL.replace('www.jobezee.org', 'api.jobezee.org').replace('https://jobezee.org', 'https://api.jobezee.org')}/api/bot/internal/log"
+            # Always point callback at the API, not the frontend
+            callback_url = "https://api.jobezee.org/api/bot/internal/log"
+
+            payload = {
+                "job_id":          job_id,
+                "config":          overrides,
+                "resume_b64":      resume_b64,
+                "resume_filename": resume_filename,
+                "callback_url":    callback_url,
+            }
+            with httpx.Client(timeout=15) as client:
+                r = client.post(
+                    f"{_cfg.BOT_WORKER_URL}/run-bot",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {_cfg.WORKER_SECRET}"},
+                )
+            if r.status_code != 200:
+                raise RuntimeError(f"Hetzner worker rejected job: {r.status_code} {r.text}")
+            _append(job_id, "[JOBEZEE] Bot job accepted by Hetzner worker — streaming logs...")
+            # Logs arrive asynchronously via /api/bot/internal/log callback.
+            # This thread is done; status updates come from the callback endpoint.
+
         else:
-            _append(job_id, "[Resume] No resume uploaded to your profile yet - go to Profile > Resume to upload one")
-        _append(job_id, f"[JOBEZEE] Bot process started (PID {proc.pid})")
-        with _lock:
-            _procs[job_id] = proc
+            # ── Local / dev: run subprocess directly ──────────────────────────
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False, encoding="utf-8"
+            ) as f:
+                json.dump(overrides, f, indent=2)
+                tmp_config = f.name
 
-        # Stream stdout line-by-line
-        for line in proc.stdout:
-            line = line.rstrip()
-            if line:
-                _append(job_id, line)
+            _append(job_id, f"[JOBEZEE] Config written to {tmp_config}")
 
-        proc.wait()
-        exit_code = proc.returncode
+            cmd  = [sys.executable, "-u", str(_LAUNCHER), "--config", tmp_config]
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(_BOT_DIR),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                encoding="utf-8",
+                errors="replace",
+                env={
+                    **os.environ,
+                    "PYTHONUNBUFFERED":  "1",
+                    "PYTHONIOENCODING":  "utf-8",
+                    "PYTHONUTF8":        "1",
+                    "OPENAI_API_KEY":    _openai_key,
+                    "ANTHROPIC_API_KEY": _anthropic_key,
+                    "CLAUDE_API_KEY":    _anthropic_key,
+                },
+            )
 
-        if exit_code == 0:
-            result = "complete"
-        else:
-            result = f"exit_code_{exit_code}"
+            if clean_resume_path:
+                _append(job_id, f"[Resume] Found and loaded: {Path(clean_resume_path).name}")
+            elif resume_url:
+                _append(job_id, f"[Resume] File missing on disk (url: {resume_url}) — bot will use previous LinkedIn upload")
+            else:
+                _append(job_id, "[Resume] No resume uploaded to your profile yet")
+            _append(job_id, f"[JOBEZEE] Bot process started (PID {proc.pid})")
+            with _lock:
+                _procs[job_id] = proc
 
-        with _lock:
-            _jobs[job_id]["status"] = "complete"
-            _jobs[job_id]["result"] = result
+            for line in proc.stdout:
+                line = line.rstrip()
+                if line:
+                    _append(job_id, line)
 
-        _append(job_id, f"[JOBEZEE] Bot finished (exit code {exit_code})")
+            proc.wait()
+            exit_code = proc.returncode
+            with _lock:
+                _jobs[job_id]["status"] = "complete"
+                _jobs[job_id]["result"] = "complete" if exit_code == 0 else f"exit_code_{exit_code}"
+            _append(job_id, f"[JOBEZEE] Bot finished (exit code {exit_code})")
 
     except Exception as exc:
         with _lock:

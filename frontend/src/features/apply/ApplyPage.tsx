@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Calendar, NotebookPen, Send } from 'lucide-react'
+import { Calendar, NotebookPen, Send, MapPin, Briefcase, ExternalLink, Building2 } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
 import { Select } from '../../components/ui/Select'
 import { Input } from '../../components/ui/Input'
@@ -40,6 +40,48 @@ const ApplyPage = () => {
   return (
     <div className="space-y-6">
       <SectionHeader title="Apply" eyebrow="Action" />
+
+      {/* Job being applied to */}
+      {job ? (
+        <Card className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/10">
+              <Building2 className="h-5 w-5 text-brand" />
+            </div>
+            <div>
+              <p className="text-base font-semibold text-slate-900 leading-tight">{job.title}</p>
+              <p className="text-sm text-slate-500">{job.company}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                {job.location && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />{job.location}
+                  </span>
+                )}
+                {job.job_type && (
+                  <span className="flex items-center gap-1">
+                    <Briefcase className="h-3 w-3" />{job.job_type}
+                  </span>
+                )}
+                {job.salary_text && (
+                  <span className="text-emerald-600 font-medium">{job.salary_text}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          {job.url && (
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors shrink-0"
+            >
+              <ExternalLink className="h-3 w-3" /> View posting
+            </a>
+          )}
+        </Card>
+      ) : (
+        <Card className="text-sm text-slate-400">No job selected. Add jobs via the Search or Jobs tab.</Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="md:col-span-2 space-y-3">

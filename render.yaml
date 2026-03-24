@@ -34,3 +34,21 @@ services:
         value: uploads
       - key: DEBUG
         value: "false"
+      - key: CREDENTIALS_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: COOKIE_DOMAIN
+        sync: false
+      - key: BOT_WORKER_URL
+        value: "http://5.161.60.37:8001"
+      - key: WORKER_SECRET
+        sync: false

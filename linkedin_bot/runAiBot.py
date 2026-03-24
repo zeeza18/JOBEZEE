@@ -173,37 +173,50 @@ def get_applied_job_ids() -> set[str]:
 
 def search_jobs_via_ui(search_term: str) -> None:
     '''
-    Searches LinkedIn via the global search bar, then navigates to the jobs search URL.
-    Step 1: Type keyword in LinkedIn search bar → Enter (establishes search context)
-    Step 2: Navigate to jobs search URL with keyword (avoids Jobs label click crash)
+    LinkedIn job search:
+      1. Build URL with all filters encoded as params
+      2. Navigate directly — no UI panel interaction needed
+    Experience codes: 1=Internship 2=Entry 3=Associate 4=Mid-Senior 5=Director 6=Executive
+    Workplace codes:  1=On-site 2=Remote 3=Hybrid
+    Job type codes:   F=Full-time P=Part-time C=Contract T=Temporary V=Volunteer I=Internship
+    Sort:             DD=Most recent R=Most relevant
+    Date:             r86400=24h r604800=week r2592000=month (omit=Any time)
     '''
     import urllib.parse
 
-    # Step 1: Use LinkedIn's global search bar
-    try:
-        if "linkedin.com" not in driver.current_url:
-            driver.get("https://www.linkedin.com/feed/")
-            buffer(3)
+    _EXP = {"internship":"1","entry level":"2","associate":"3","mid-senior level":"4","director":"5","executive":"6"}
+    _WT  = {"on-site":"1","remote":"2","hybrid":"3"}
+    _JT  = {"full-time":"F","part-time":"P","contract":"C","temporary":"T","volunteer":"V","internship":"I","other":"O"}
+    _DATE= {"past 24 hours":"r86400","past week":"r604800","past month":"r2592000"}
 
-        search_bar = wait.until(EC.presence_of_element_located((By.XPATH,
-            '//input[contains(@class,"search-global-typeahead__input")]'
-        )))
-        driver.execute_script("arguments[0].click();", search_bar)
-        buffer(0.5)
-        search_bar.send_keys(Keys.CONTROL + "a")
-        search_bar.send_keys(search_term)
-        buffer(0.5)
-        search_bar.send_keys(Keys.ENTER)
-        buffer(3)
-        print_lg(f'Searched LinkedIn for: "{search_term}"')
-    except Exception as e:
-        print_lg(f'Search bar step failed: {e}')
+    params = {
+        "keywords": search_term,
+        "sortBy":   "DD" if (sort_by or "").lower() == "most recent" else "R",
+        "position": "1",
+        "pageNum":  "0",
+    }
 
-    # Step 2: Navigate directly to jobs search results with keyword
-    kw = urllib.parse.quote_plus(search_term)
-    driver.get(f"https://www.linkedin.com/jobs/search/?keywords={kw}")
-    buffer(3)
-    print_lg(f'Navigated to jobs results for: "{search_term}"')
+    exp = [_EXP[e.lower()] for e in (experience_level or []) if e.lower() in _EXP]
+    if exp:   params["f_E"]  = ",".join(exp)
+
+    wt = [_WT[w.lower()] for w in (on_site or []) if w.lower() in _WT]
+    if wt:    params["f_WT"] = ",".join(wt)
+
+    jt = [_JT[j.lower()] for j in (job_type or []) if j.lower() in _JT]
+    if jt:    params["f_JT"] = ",".join(jt)
+
+    if easy_apply_only:
+        params["f_AL"] = "true"
+
+    date_code = _DATE.get((date_posted or "").lower())
+    if date_code:
+        params["f_TPR"] = date_code
+
+    url = "https://www.linkedin.com/jobs/search/?" + urllib.parse.urlencode(params)
+    print_lg(f'[Search] Navigating to: {url}')
+    driver.get(url)
+    buffer(4)
+    print_lg(f'[Search] On LinkedIn Jobs for: "{search_term}"')
 
 
 def set_search_location() -> None:
@@ -237,15 +250,39 @@ def apply_filters() -> None:
     try:
         recommended_wait = 1 if click_gap < 1 else 0
 
+        # Wait for page to fully render after search navigation
+        buffer(3)
+        print_lg(f'[Filters] Current URL: {driver.current_url}')
+
         # Scroll down slightly so nav bar doesn't intercept the filters bar
         driver.execute_script("window.scrollBy(0, 150);")
-        buffer(0.5)
+        buffer(1)
 
-        # JS click bypasses interception from sticky nav bar
-        all_filters_btn = wait.until(EC.presence_of_element_located((By.XPATH, '//button[normalize-space()="All filters"]')))
+        # Find "All filters" button — try multiple label variants LinkedIn uses
+        print_lg('[Filters] Looking for "All filters" button...')
+        all_filters_btn = None
+        for xpath in [
+            '//button[normalize-space()="All filters"]',
+            '//button[contains(normalize-space(),"All filters")]',
+            '//button[@aria-label="All filters"]',
+            '//button[contains(@aria-label,"filters")]',
+        ]:
+            try:
+                all_filters_btn = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.XPATH, xpath))
+                )
+                print_lg(f'[Filters] Found "All filters" button via: {xpath}')
+                break
+            except Exception:
+                pass
+
+        if not all_filters_btn:
+            raise Exception('"All filters" button not found on page — skipping filters')
+
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", all_filters_btn)
         driver.execute_script("arguments[0].click();", all_filters_btn)
         buffer(recommended_wait)
+        print_lg('[Filters] Opened "All filters" panel')
 
         wait_span_click(driver, sort_by)
         wait_span_click(driver, date_posted)
@@ -938,25 +975,40 @@ def apply_to_jobs(search_terms: list[str]) -> None:
         print_lg(f'\n>>>> Now searching for "{searchTerm}" <<<<\n\n')
 
         search_jobs_via_ui(searchTerm)
-        apply_filters()
+        # Filters are already encoded in the URL by search_jobs_via_ui — skip UI panel
+        # apply_filters()  ← replaced by URL params (f_E, f_WT, f_JT, f_AL, f_TPR)
 
         current_count = 0
         try:
             while current_count < switch_number:
                 # Wait until job listings are loaded
-                wait.until(EC.presence_of_all_elements_located((By.XPATH, "//li[@data-occludable-job-id]")))
+                print_lg(f'[Jobs] Waiting for job listings... URL: {driver.current_url}')
+                try:
+                    wait.until(EC.presence_of_all_elements_located((By.XPATH, "//li[@data-occludable-job-id]")))
+                except Exception as wait_err:
+                    print_lg(f'[Jobs] Job listings not found, skipping search term: {wait_err}')
+                    break
 
                 pagination_element, current_page = get_page_info()
 
                 # Find all job listings in current page
                 buffer(3)
-                job_listings = driver.find_elements(By.XPATH, "//li[@data-occludable-job-id]")  
+                job_listings = driver.find_elements(By.XPATH, "//li[@data-occludable-job-id]")
+                # Collect IDs upfront so re-fetch avoids StaleElementReferenceException
+                job_ids = [el.get_dom_attribute("data-occludable-job-id") for el in job_listings]
+                print_lg(f'[Jobs] Found {len(job_ids)} job listings on page')
 
-            
-                for job in job_listings:
+                for jid in job_ids:
                     if keep_screen_awake and pyautogui: pyautogui.press('shiftright')
                     if current_count >= switch_number: break
                     print_lg("\n-@-\n")
+
+                    # Re-fetch element fresh to avoid stale reference after DOM refresh
+                    try:
+                        job = driver.find_element(By.XPATH, f"//li[@data-occludable-job-id='{jid}']")
+                    except Exception as stale_err:
+                        print_lg(f'[Jobs] Could not re-fetch job {jid}, skipping: {stale_err}')
+                        continue
 
                     job_id,title,company,work_location,work_style,skip = get_job_main_details(job, blacklisted_companies, rejected_jobs)
                     

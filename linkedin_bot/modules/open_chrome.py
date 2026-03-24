@@ -42,11 +42,10 @@ def createChromeSession(isRetry: bool = False):
     make_directories([file_name, failed_file_name, logs_folder_path+"/screenshots", default_resume_path, generated_resume_path+"/temp"])
 
     options = uc.ChromeOptions() if stealth_mode else Options()
-    if run_in_background:   options.add_argument("--headless")
+    if run_in_background:   options.add_argument("--headless=new")
     if disable_extensions:  options.add_argument("--disable-extensions")
     # Stabilize ChromeDriver startup on newer Chrome builds
     options.add_argument("--remote-allow-origins=*")
-    options.add_argument("--remote-debugging-port=0")  # let Chrome choose a free port
 
     # Required in containerised Linux (Render, Docker) — Chrome refuses to run as root otherwise
     if sys.platform.startswith("linux"):
@@ -107,7 +106,10 @@ def createChromeSession(isRetry: bool = False):
         options.add_argument("--profile-directory=Default")
     else:
         print_lg("Using temporary profile...")
-        options.add_argument(get_default_temp_profile())
+        import tempfile
+        _tmp_dir = tempfile.mkdtemp(prefix="jobezee_chrome_")
+        print_lg(f"[Chrome] Temp profile: {_tmp_dir}")
+        options.add_argument(f"--user-data-dir={_tmp_dir}")
 
     if stealth_mode:
         cached_driver = get_cached_driver_path()

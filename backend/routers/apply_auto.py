@@ -84,9 +84,10 @@ async def _get_resume_and_creds(user_id: str, db: AsyncSession) -> tuple[Path, s
     if not path.exists():
         raise HTTPException(404, f"Resume file not found on server ({path.name}).")
 
+    from ..crypto import decrypt as _decrypt
     account_email = (user.email if user else "") or ""
     db_apply_email = (profile.apply_email if profile else "") or ""
-    db_password    = (profile.apply_password if profile else "") or ""
+    db_password    = _decrypt((profile.apply_password if profile else "") or "")
 
     email    = db_apply_email or os.environ.get("JOB_APP_EMAIL", "") or account_email
     password = db_password    or os.environ.get("JOB_APP_PASSWORD", "")
@@ -96,13 +97,14 @@ async def _get_resume_and_creds(user_id: str, db: AsyncSession) -> tuple[Path, s
 
 def _resolve_platform_creds(url: str, profile, fallback_email: str, fallback_password: str) -> tuple[str, str]:
     """Pick per-platform email/password if set, otherwise fall back to defaults."""
+    from ..crypto import decrypt as _decrypt
     u = (url or "").lower()
     pairs = [
-        ("linkedin.com",   getattr(profile, "linkedin_email",      ""), getattr(profile, "linkedin_password",      "")),
-        ("indeed.com",     getattr(profile, "indeed_email",        ""), getattr(profile, "indeed_password",        "")),
-        ("greenhouse.io",  getattr(profile, "greenhouse_email",    ""), getattr(profile, "greenhouse_password",    "")),
-        ("myworkday.com",  getattr(profile, "workday_email",       ""), getattr(profile, "workday_password",       "")),
-        ("workday.com",    getattr(profile, "workday_email",       ""), getattr(profile, "workday_password",       "")),
+        ("linkedin.com",   getattr(profile, "linkedin_email",   ""), _decrypt(getattr(profile, "linkedin_password",   "") or "")),
+        ("indeed.com",     getattr(profile, "indeed_email",     ""), _decrypt(getattr(profile, "indeed_password",     "") or "")),
+        ("greenhouse.io",  getattr(profile, "greenhouse_email", ""), _decrypt(getattr(profile, "greenhouse_password", "") or "")),
+        ("myworkday.com",  getattr(profile, "workday_email",    ""), _decrypt(getattr(profile, "workday_password",    "") or "")),
+        ("workday.com",    getattr(profile, "workday_email",    ""), _decrypt(getattr(profile, "workday_password",    "") or "")),
     ]
     for domain, em, pw in pairs:
         if domain in u:
@@ -684,3 +686,38 @@ async def linkedin_stop(job_id: str, current_user=Depends(get_current_user)):
     if not killed:
         raise HTTPException(404, "No running bot found for this job ID")
     return {"stopped": True}
+
+
+# ── Hetzner worker callback ────────────────────────────────────────────────────
+
+class _LogCallback(BaseModel):
+    job_id: str
+    line:   str
+    status: str = "running"   # running | complete | error
+
+
+@router.post("/internal/log")
+async def internal_log(payload: _LogCallback, authorization: str = Header(...)):
+    """
+    Called by the Hetzner worker to push log lines back to Render.
+    Protected by the shared WORKER_SECRET bearer token.
+    """
+    from ..config import get_settings as _gs
+    from ..services.linkedin_bot_service import _append, _jobs, _lock
+    cfg = _gs()
+    if cfg.WORKER_SECRET and authorization != f"Bearer {cfg.WORKER_SECRET}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    _append(payload.job_id, payload.line)
+
+    if payload.status in ("complete", "error"):
+        with _lock:
+            job = _jobs.get(payload.job_id)
+            if job:
+                job["status"] = payload.status
+                if payload.status == "complete":
+                    job["result"] = "complete"
+                else:
+                    job["error"] = payload.line
+
+    return {"ok": True}
