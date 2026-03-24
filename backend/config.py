@@ -61,8 +61,9 @@ class Settings(BaseSettings):
     # ── Hetzner bot worker ────────────────────────────────────────────────────
     # If set, linkedin_bot_service delegates bot execution to the Hetzner worker.
     # Leave empty for local development (runs subprocess directly).
-    BOT_WORKER_URL: str = ""    # e.g. http://5.161.60.37:8001
-    WORKER_SECRET:  str = ""    # shared bearer token between Render and Hetzner
+    BOT_WORKER_URL: str = ""                            # e.g. http://5.161.60.37:8001
+    WORKER_SECRET:  str = ""                            # shared bearer token between Render and Hetzner
+    API_BASE_URL:   str = "https://jobezee-api.onrender.com"  # self URL for Hetzner callbacks
 
     # ── App ──────────────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"

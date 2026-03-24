@@ -4,8 +4,8 @@ Run from the JOBEZEE root: python hetzner_worker/test_worker.py
 
 Tests:
   1. Hetzner /health endpoint responds
-  2. Render /api/bot/internal/log callback accepts a log line with correct secret
-  3. Render /api/bot/internal/log rejects wrong secret with 401
+  2. Render /api/apply/internal/log callback accepts a log line with correct secret
+  3. Render /api/apply/internal/log rejects wrong secret with 401
 """
 import json
 import sys
@@ -13,7 +13,7 @@ import urllib.request
 import urllib.error
 
 WORKER_URL    = "http://5.161.60.37:8001"
-RENDER_URL    = "https://api.jobezee.org"
+RENDER_URL    = "https://jobezee-api.onrender.com"
 WORKER_SECRET = "0KjGN4CyApHlkxsPpxIG9QlYQfcaZsnQCP2jbA1kKLE"
 
 PASS = "\033[92m[PASS]\033[0m"
@@ -41,11 +41,11 @@ if status == 200 and body.get("status") == "ok":
     print(f"{PASS} Worker is up — active_jobs={body.get('active_jobs', 0)}")
 else:
     print(f"{FAIL} Expected 200 ok, got status={status} body={body}")
-    print(f"       → Make sure you've run setup.sh on 5.161.60.37 first")
+    print(f"       -> Make sure you've run setup.sh on 5.161.60.37 first")
     errors += 1
 
 
-# ── Test 2: Render /api/bot/internal/log — valid secret ───────────────────────
+# ── Test 2: Render /api/apply/internal/log — valid secret ───────────────────────
 print(f"\n{INFO} Test 2: Render callback endpoint — valid secret")
 payload = json.dumps({
     "job_id": "test-job-123",
@@ -53,7 +53,7 @@ payload = json.dumps({
     "status": "running",
 }).encode()
 status, body = _req(
-    f"{RENDER_URL}/api/bot/internal/log",
+    f"{RENDER_URL}/api/apply/internal/log",
     data=payload,
     headers={
         "Authorization": f"Bearer {WORKER_SECRET}",
@@ -68,10 +68,10 @@ else:
     errors += 1
 
 
-# ── Test 3: Render /api/bot/internal/log — wrong secret → 401 ─────────────────
+# ── Test 3: Render /api/apply/internal/log — wrong secret → 401 ─────────────────
 print(f"\n{INFO} Test 3: Render callback endpoint — wrong secret → 401")
 status, body = _req(
-    f"{RENDER_URL}/api/bot/internal/log",
+    f"{RENDER_URL}/api/apply/internal/log",
     data=payload,
     headers={
         "Authorization": "Bearer wrongsecret",

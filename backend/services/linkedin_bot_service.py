@@ -340,11 +340,7 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             else:
                 _append(job_id, "[Resume] No resume uploaded yet — bot will use previous LinkedIn upload")
 
-            from ..config import get_settings as _gs
-            _s = _gs()
-            callback_url = f"{_s.FRONTEND_URL.replace('www.jobezee.org', 'api.jobezee.org').replace('https://jobezee.org', 'https://api.jobezee.org')}/api/bot/internal/log"
-            # Always point callback at the API, not the frontend
-            callback_url = "https://api.jobezee.org/api/bot/internal/log"
+            callback_url = f"{_cfg.API_BASE_URL.rstrip('/')}/api/apply/internal/log"
 
             payload = {
                 "job_id":          job_id,
