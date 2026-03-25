@@ -268,14 +268,46 @@ def _inject_captcha_token(token: str, captcha_type: str = "recaptcha") -> None:
                 });
             """, token)
         else:
+            # 1. Fill all g-recaptcha-response textareas (including hidden ones)
+            # 2. Fire the grecaptcha callback so LinkedIn's JS validation passes
+            # 3. Submit the form
             driver.execute_script("""
-                var areas = document.querySelectorAll(
-                    "textarea[name='g-recaptcha-response'], #g-recaptcha-response");
-                for (var i = 0; i < areas.length; i++) {
-                    areas[i].innerHTML = arguments[0];
-                    areas[i].value = arguments[0];
-                }
+                var token = arguments[0];
+                // Fill textarea
+                document.querySelectorAll(
+                    "textarea[name='g-recaptcha-response'], #g-recaptcha-response"
+                ).forEach(function(el) {
+                    el.innerHTML = token;
+                    el.value     = token;
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                });
+                // Fire grecaptcha callback — this is what tells LinkedIn the checkbox passed
+                try {
+                    var cfg = window.___grecaptcha_cfg;
+                    if (cfg && cfg.clients) {
+                        Object.values(cfg.clients).forEach(function(client) {
+                            function findAndCall(obj, depth) {
+                                if (!obj || typeof obj !== 'object' || depth > 5) return;
+                                if (typeof obj.callback === 'function') {
+                                    try { obj.callback(token); } catch(e) {}
+                                    return;
+                                }
+                                Object.values(obj).forEach(function(v) { findAndCall(v, depth+1); });
+                            }
+                            findAndCall(client, 0);
+                        });
+                    }
+                } catch(e) {}
+                // Also try data-callback attribute
+                try {
+                    var el = document.querySelector('[data-callback]');
+                    if (el) {
+                        var cbName = el.getAttribute('data-callback');
+                        if (cbName && typeof window[cbName] === 'function') window[cbName](token);
+                    }
+                } catch(e) {}
             """, token)
+            import time as _time; _time.sleep(1)
             try:
                 driver.find_element(By.XPATH, '//button[@type="submit"]').click()
             except Exception:
