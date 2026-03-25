@@ -98,10 +98,8 @@ def createChromeSession(isRetry: bool = False):
                 else:
                     print_lg("[WARN] Chrome binary not found — ChromeDriver will try defaults")
 
-    # Anti-detection flags — hide automation fingerprint from LinkedIn
+    # Anti-detection: hide navigator.webdriver flag without breaking CDP
     options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
 
     # Stability flags — suppress profile picker and first-run UI
     options.add_argument("--no-first-run")
