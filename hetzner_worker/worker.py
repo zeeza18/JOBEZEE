@@ -113,8 +113,9 @@ def _run_bot_task(job: BotJobRequest) -> None:
         if resume_path and "questions" in config:
             config["questions"]["default_resume_path"] = resume_path
         if "settings" in config:
-            config["settings"]["run_in_background"] = True   # headless
-            config["settings"]["safe_mode"]         = False  # temp profile per run
+            config["settings"]["run_in_background"] = False  # use Xvfb display, not headless
+            config["settings"]["stealth_mode"]      = True   # undetected_chromedriver — bypasses LinkedIn bot detection
+            config["settings"]["safe_mode"]         = False  # use persistent bot profile
             config["settings"]["jobezee_root"]      = str(_JOBEZEE_ROOT)
 
         # Write config JSON
