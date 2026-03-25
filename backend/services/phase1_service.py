@@ -397,6 +397,7 @@ async def _save_jobs(
     jobs           : list[Any],
     profile_id     : uuid.UUID,
     session_id     : str,
+    hours_old      : int = 72,
 ) -> int:
     """
     Insert only genuinely new PulledJob rows (dedup against existing DB records).
@@ -404,12 +405,17 @@ async def _save_jobs(
     Jobs whose URL already exists in pulled_jobs for this user are skipped so
     that the 3-hour auto-search never creates duplicates and existing statuses
     (saved, applied, etc.) are preserved.  Only brand-new URLs land as "new".
+
+    Jobs with date_posted older than hours_old are also skipped — jobspy does
+    not always respect its own hours_old filter so we enforce it here.
     """
     from ..database import AsyncSessionLocal
     from ..models import PulledJob
     from sqlalchemy import select
+    from datetime import datetime, timezone, timedelta
 
-    BATCH_SIZE = 10
+    BATCH_SIZE  = 10
+    stale_limit = datetime.now(timezone.utc) - timedelta(hours=hours_old)
 
     # Single session: load existing URLs AND insert new ones.
     # Two separate sessions doubled connection usage and caused pool exhaustion
@@ -420,9 +426,29 @@ async def _save_jobs(
         )
         existing_urls: set[str] = {row[0] for row in existing_result.fetchall() if row[0]}
 
-        inserted = 0
-        skipped  = 0
+        inserted    = 0
+        skipped     = 0
+        skipped_old = 0
         for rec in jobs:
+            # ── Reject jobs posted before the hours_old window ───────────────
+            raw_posted = getattr(rec, "date_posted", None)
+            if raw_posted:
+                try:
+                    if isinstance(raw_posted, str):
+                        from dateutil.parser import parse as _parse_date
+                        posted_dt = _parse_date(raw_posted)
+                        if posted_dt.tzinfo is None:
+                            posted_dt = posted_dt.replace(tzinfo=timezone.utc)
+                    else:
+                        posted_dt = raw_posted
+                        if hasattr(posted_dt, 'tzinfo') and posted_dt.tzinfo is None:
+                            posted_dt = posted_dt.replace(tzinfo=timezone.utc)
+                    if posted_dt < stale_limit:
+                        skipped_old += 1
+                        continue
+                except Exception:
+                    pass  # unparseable date — let it through
+
             url = (getattr(rec, "job_url", "") or getattr(rec, "url", "") or "").strip()[:1000]
             if url and url in existing_urls:
                 skipped += 1
@@ -471,8 +497,8 @@ async def _save_jobs(
                 await db.commit()
                 await _update_session(session_id, "running", inserted, mark_finished=False)
         await db.commit()
-        log.info("[Phase1] session=%s final: inserted=%d skipped_dupes=%d",
-                 session_id, inserted, skipped)
+        log.info("[Phase1] session=%s final: inserted=%d skipped_dupes=%d skipped_old=%d (hours_old=%d)",
+                 session_id, inserted, skipped, skipped_old, hours_old)
         await _update_session(session_id, "running", inserted, mark_finished=False)
     return inserted
 
@@ -948,7 +974,7 @@ async def run_phase1_search(
                 t_idx, len(prefs.job_titles), len(title_unique), len(title_new),
             )
 
-            inserted = await _save_jobs(title_new, profile_id, session_id)
+            inserted = await _save_jobs(title_new, profile_id, session_id, prefs.hours_old)
             total_inserted += inserted
             await _update_session(session_id, "running", total_inserted, mark_finished=False)
             log.info(
@@ -1033,7 +1059,7 @@ async def run_phase1_search(
                 wd_unique = deduplicate(wd_new)
                 log.info("[Phase1][4] After internal dedup: %d unique Workday jobs — saving", len(wd_unique))
 
-                wd_inserted = await _save_jobs(wd_unique, profile_id, session_id)
+                wd_inserted = await _save_jobs(wd_unique, profile_id, session_id, prefs.hours_old)
                 total_inserted += wd_inserted
                 await _update_session(session_id, "running", total_inserted, mark_finished=False)
                 log.info("[Phase1][4] Workday phase complete — %d additional jobs", wd_inserted)
@@ -1123,7 +1149,7 @@ async def run_phase1_search(
                     smart_unique = deduplicate(smart_new)
                     log.info("[Phase1][5] SmartExtract after internal dedup: %d unique — saving", len(smart_unique))
 
-                    smart_inserted = await _save_jobs(smart_unique, profile_id, session_id)
+                    smart_inserted = await _save_jobs(smart_unique, profile_id, session_id, prefs.hours_old)
                     total_inserted += smart_inserted
                     await _update_session(session_id, "running", total_inserted, mark_finished=False)
                     log.info("[Phase1][5] SmartExtract complete — %d additional jobs", smart_inserted)
