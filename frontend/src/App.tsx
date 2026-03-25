@@ -18,8 +18,8 @@ const App = () => {
       if (user && !searchFired.current) {
         searchFired.current = true
         const last = Number(localStorage.getItem('lastSearchTrigger') || 0)
-        const THREE_HOURS = 3 * 60 * 60 * 1000
-        if (Date.now() - last > THREE_HOURS) {
+        const ONE_HOUR = 1 * 60 * 60 * 1000
+        if (Date.now() - last > ONE_HOUR) {
           localStorage.setItem('lastSearchTrigger', String(Date.now()))
           searchApi.trigger().catch(() => {})
         }
