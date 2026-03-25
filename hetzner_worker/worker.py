@@ -478,9 +478,7 @@ def connect_do_login(req: ConnectDoLoginRequest, authorization: str = Header(...
         li_cookies = [c for c in all_cookies if "linkedin.com" in c.get("domain", "")]
         return li_cookies, current_url
 
-    try:
-        _xdotool_login()
-    except Exception as exc:
+    def _kill_connect_chrome():
         with _connect_lock:
             s = _connect_sessions.pop(req.user_id, None)
         if s:
@@ -488,36 +486,35 @@ def connect_do_login(req: ConnectDoLoginRequest, authorization: str = Header(...
                 s["proc"].kill()
             except Exception:
                 pass
+
+    try:
+        _xdotool_login()
+    except Exception as exc:
+        _kill_connect_chrome()
         raise HTTPException(500, f"Login automation failed: {exc}")
 
-    # Wait for LinkedIn to process the login (redirect to feed or CAPTCHA checkpoint)
-    _t.sleep(10)
+    # Poll URL until it leaves /login (max 20 s) — more reliable than fixed sleep
+    _CAPTCHA_PATTERNS = ("checkpoint", "security", "challenge", "verification", "authwall")
+    for _ in range(20):
+        _t.sleep(1)
+        try:
+            _interim = _asyncio.run(_read_result_after_login())
+            _interim_url = _interim[1]
+            if "/login" not in _interim_url:
+                break
+        except Exception:
+            pass
 
     try:
         li_cookies, current_url = _asyncio.run(_read_result_after_login())
     except Exception as exc:
-        with _connect_lock:
-            s = _connect_sessions.pop(req.user_id, None)
-        if s:
-            try:
-                s["proc"].kill()
-            except Exception:
-                pass
+        _kill_connect_chrome()
         raise HTTPException(500, f"Cookie extraction failed: {exc}")
-
-    # Kill Chrome — cookies are now in the profile and we have them in memory
-    with _connect_lock:
-        s = _connect_sessions.pop(req.user_id, None)
-    if s:
-        try:
-            s["proc"].kill()
-        except Exception:
-            pass
 
     has_session = any(c.get("name") == "li_at" for c in li_cookies)
 
-    # CAPTCHA detected — keep Chrome alive so the user can solve it interactively
-    if "checkpoint" in current_url and not has_session:
+    # CAPTCHA / security challenge — keep Chrome alive so the user can solve it interactively
+    if not has_session and any(p in current_url for p in _CAPTCHA_PATTERNS):
         return {
             "success": False,
             "captcha": True,
@@ -525,14 +522,8 @@ def connect_do_login(req: ConnectDoLoginRequest, authorization: str = Header(...
             "message": "CAPTCHA detected — solve it in the screenshot panel",
         }
 
-    # Success or definitive failure — kill Chrome (cookies already in profile)
-    with _connect_lock:
-        s = _connect_sessions.pop(req.user_id, None)
-    if s:
-        try:
-            s["proc"].kill()
-        except Exception:
-            pass
+    # Success or definitive failure — kill Chrome now
+    _kill_connect_chrome()
 
     return {
         "success": has_session,
