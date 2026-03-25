@@ -1,5 +1,5 @@
 /**
- * Auth state — persisted to sessionStorage (cleared on tab close).
+ * Auth state — persisted to localStorage (user object only).
  * The real auth token lives in the httpOnly cookie managed by the backend.
  * We only store enough to show the user's name and guard routes client-side.
  */
@@ -10,7 +10,7 @@ import { authApi, type AuthUser } from '../lib/api'
 interface AuthState {
   user         : AuthUser | null
   loading      : boolean
-  initializing : boolean   // true during the first fetchMe; used by AuthGuard
+  initializing : boolean   // true only while session check is in-flight with no cached user
 
   login    : (email: string, password: string)                      => Promise<void>
   register : (email: string, password: string, full_name: string)   => Promise<void>
@@ -18,12 +18,21 @@ interface AuthState {
   fetchMe  : ()                                                      => Promise<void>
 }
 
+// Synchronously peek at localStorage so returning users skip the full-screen spinner.
+// If a user object is already cached, we start with initializing:false and verify in background.
+const _hasPersistedSession = (() => {
+  try {
+    const raw = localStorage.getItem('jobezee-auth')
+    return !!(raw && JSON.parse(raw)?.state?.user)
+  } catch { return false }
+})()
+
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user         : null,
       loading      : false,
-      initializing : true,   // starts true; cleared after first fetchMe
+      initializing : !_hasPersistedSession,  // false for returning users — renders immediately
 
       login: async (email, password) => {
         set({ loading: true })
@@ -53,10 +62,10 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // Called once on App mount.
-      // The api.ts request() function auto-refreshes on 401, so by the time
-      // this resolves the cookie is either fresh or truly expired.
+      // If user is already cached, verifies the session silently in the background
+      // (no spinner). If the session expired, user is cleared and AuthGuard redirects.
       fetchMe: async () => {
-        set({ initializing: true })
+        if (!get().user) set({ initializing: true })
         try {
           const user = await authApi.me()
           set({ user, initializing: false })
@@ -68,7 +77,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name      : 'jobezee-auth',
       storage   : createJSONStorage(() => localStorage),
-      // Do NOT persist initializing — it must always start as true on mount
+      // Do NOT persist initializing — it must be derived fresh on each mount
       partialize: (s) => ({ user: s.user }),
     }
   )

@@ -1,44 +1,47 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
-import AppShell from '../components/layout/AppShell'
-import LandingPage from '../pages/LandingPage'
-import AuthPage from '../pages/AuthPage'
-import OnboardingPage from '../pages/OnboardingPage'
-import DashboardPage from '../pages/DashboardPage'
-import CombinedJobsPage from '../features/jobs/PulledJobsPage'
-import TailorPage from '../features/tailor/TailorPage'
-import AutoApplyPage from '../features/apply/AutoApplyPage'
-import InterviewPage from '../features/interview/InterviewPage'
-import ApplicationsPage from '../features/applications/ApplicationsPage'
-import PortfolioPage   from '../features/portfolio/PortfolioPage'
-import PortfolioPublic from '../features/portfolio/PortfolioPublic'
-import ConnectorsPage from '../features/connectors/ConnectorsPage'
-import ProfilePage from '../features/profile/ProfilePage'
-import SettingsPage from '../pages/SettingsPage'
-import NotFoundPage from '../pages/NotFoundPage'
-import PrivacyPage from '../pages/PrivacyPage'
-import TermsPage from '../pages/TermsPage'
-import ResetPasswordPage from '../pages/ResetPasswordPage'
 import { useAuthStore } from '../store/useAuthStore'
+
+// ─── Each page is its own JS chunk — only downloaded when first visited ────────
+const LandingPage       = lazy(() => import('../pages/LandingPage'))
+const AuthPage          = lazy(() => import('../pages/AuthPage'))
+const OnboardingPage    = lazy(() => import('../pages/OnboardingPage'))
+const AppShell          = lazy(() => import('../components/layout/AppShell'))
+const DashboardPage     = lazy(() => import('../pages/DashboardPage'))
+const CombinedJobsPage  = lazy(() => import('../features/jobs/PulledJobsPage'))
+const TailorPage        = lazy(() => import('../features/tailor/TailorPage'))
+const AutoApplyPage     = lazy(() => import('../features/apply/AutoApplyPage'))
+const InterviewPage     = lazy(() => import('../features/interview/InterviewPage'))
+const ApplicationsPage  = lazy(() => import('../features/applications/ApplicationsPage'))
+const PortfolioPage     = lazy(() => import('../features/portfolio/PortfolioPage'))
+const PortfolioPublic   = lazy(() => import('../features/portfolio/PortfolioPublic'))
+const ConnectorsPage    = lazy(() => import('../features/connectors/ConnectorsPage'))
+const ProfilePage       = lazy(() => import('../features/profile/ProfilePage'))
+const SettingsPage      = lazy(() => import('../pages/SettingsPage'))
+const NotFoundPage      = lazy(() => import('../pages/NotFoundPage'))
+const PrivacyPage       = lazy(() => import('../pages/PrivacyPage'))
+const TermsPage         = lazy(() => import('../pages/TermsPage'))
+const ResetPasswordPage = lazy(() => import('../pages/ResetPasswordPage'))
+
+// ─── Shared loading spinner (used by Suspense and AuthGuard) ──────────────────
+const PageLoader = () => (
+  <div className="flex min-h-screen items-center justify-center bg-[#020817]">
+    <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
+  </div>
+)
 
 /** Blocks /app/* routes while the session is being verified, then redirects to /auth if unauthenticated. */
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, initializing } = useAuthStore()
 
-  if (initializing) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#020817]">
-        <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
-      </div>
-    )
-  }
-
+  if (initializing) return <PageLoader />
   if (!user) return <Navigate to="/auth" replace />
   return <>{children}</>
 }
 
-const AppRoutes = () => {
-  return (
+const AppRoutes = () => (
+  <Suspense fallback={<PageLoader />}>
     <Routes>
       <Route path="/"           element={<LandingPage />} />
       <Route path="/auth"       element={<AuthPage />} />
@@ -59,14 +62,12 @@ const AppRoutes = () => {
       </Route>
 
       <Route path="/portfolio/:username" element={<PortfolioPublic />} />
-
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/terms"   element={<TermsPage />} />
-
-      <Route path="*" element={<NotFoundPage />} />
+      <Route path="/reset-password"      element={<ResetPasswordPage />} />
+      <Route path="/privacy"             element={<PrivacyPage />} />
+      <Route path="/terms"               element={<TermsPage />} />
+      <Route path="*"                    element={<NotFoundPage />} />
     </Routes>
-  )
-}
+  </Suspense>
+)
 
 export default AppRoutes
