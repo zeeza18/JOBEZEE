@@ -160,7 +160,10 @@ def createChromeSession(isRetry: bool = False):
         _done.set()
         print_lg("Chrome launched successfully")
 
-    driver.maximize_window()
+    try:
+        driver.maximize_window()
+    except Exception:
+        pass  # maximize_window uses CDP Runtime.evaluate which fails on some Linux/Xvfb setups; --window-size=1920,1080 already set
     wait = WebDriverWait(driver, 5)
     actions = ActionChains(driver)
     return options, driver, actions, wait
