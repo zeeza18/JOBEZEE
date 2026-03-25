@@ -5,7 +5,7 @@ import { applyApi, linkedinApi, linkedinConnectApi } from '../../lib/api'
 import { useSettingsStore } from '../../store/useSettingsStore'
 
 type ApplyStatus = 'idle' | 'running' | 'complete' | 'error'
-type ConnectStatus = 'idle' | 'starting' | 'active' | 'saving'
+type ConnectStatus = 'idle' | 'starting' | 'active' | 'saving' | 'captcha'
 
 interface StreamEvent {
   line?   : string
@@ -79,6 +79,13 @@ const AutoApplyPage = () => {
   const [connectPass,    setConnectPass]    = useState('')
   const [connectError,   setConnectError]   = useState('')
   const connectPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // ── CAPTCHA solving state ────────────────────────────────────────────────────
+  const [captchaScreenshot,  setCaptchaScreenshot]  = useState<string | null>(null)
+  const [captchaClicks,      setCaptchaClicks]      = useState<{pctX: number; pctY: number}[]>([])
+  const captchaImgRef        = useRef<HTMLImageElement | null>(null)
+  const captchaSsPollRef     = useRef<ReturnType<typeof setInterval> | null>(null)
+  const captchaUrlPollRef    = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (liLogRef.current) liLogRef.current.scrollTop = liLogRef.current.scrollHeight
@@ -172,6 +179,8 @@ const AutoApplyPage = () => {
     if (warmPollRef.current) clearInterval(warmPollRef.current)
     if (ssIntervalRef.current) clearInterval(ssIntervalRef.current)
     if (connectPollRef.current) clearInterval(connectPollRef.current)
+    if (captchaSsPollRef.current) clearInterval(captchaSsPollRef.current)
+    if (captchaUrlPollRef.current) clearInterval(captchaUrlPollRef.current)
     // NOTE: do NOT clear LI_JOB_KEY here — bot keeps running on the server
   }, [])
 
@@ -182,21 +191,85 @@ const AutoApplyPage = () => {
       .catch(() => setHasCookies(false))
   }, [])
 
+  // ── CAPTCHA helpers ──────────────────────────────────────────────────────────
+  const stopCaptchaPolls = () => {
+    if (captchaSsPollRef.current) { clearInterval(captchaSsPollRef.current); captchaSsPollRef.current = null }
+    if (captchaUrlPollRef.current) { clearInterval(captchaUrlPollRef.current); captchaUrlPollRef.current = null }
+  }
+
+  const fetchCaptchaScreenshot = async () => {
+    try {
+      const data = await linkedinConnectApi.screenshot()
+      if (data.image_b64) setCaptchaScreenshot(`data:image/png;base64,${data.image_b64}`)
+    } catch { /* silent */ }
+  }
+
+  const startCaptchaMode = () => {
+    fetchCaptchaScreenshot()
+    captchaSsPollRef.current = setInterval(fetchCaptchaScreenshot, 1500)
+    captchaUrlPollRef.current = setInterval(async () => {
+      try {
+        const { url } = await linkedinConnectApi.pageUrl()
+        if (url && !url.includes('checkpoint') && url.includes('linkedin.com')) {
+          // CAPTCHA solved — save cookies automatically
+          stopCaptchaPolls()
+          setConnectStatus('saving')
+          try {
+            await linkedinConnectApi.saveCookies()
+            setHasCookies(true)
+            setConnectStatus('idle')
+            setCaptchaClicks([])
+            setCaptchaScreenshot(null)
+            setConnectEmail('')
+            setConnectPass('')
+          } catch (err: any) {
+            setConnectError(err.message ?? 'Failed to save session after CAPTCHA')
+            setConnectStatus('captcha')
+          }
+        }
+      } catch { /* ignore */ }
+    }, 2000)
+  }
+
+  const handleCaptchaClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+    const img = captchaImgRef.current
+    if (!img) return
+    const rect = img.getBoundingClientRect()
+    const offsetX = e.clientX - rect.left
+    const offsetY = e.clientY - rect.top
+    // Scale click to actual screenshot pixel coordinates
+    const serverX = Math.round(offsetX / rect.width  * (img.naturalWidth  || 1920))
+    const serverY = Math.round(offsetY / rect.height * (img.naturalHeight || 1080))
+    // Show red dot at percentage position (stays correct if image resizes)
+    setCaptchaClicks(prev => [...prev, {
+      pctX: (offsetX / rect.width)  * 100,
+      pctY: (offsetY / rect.height) * 100,
+    }])
+    try { await linkedinConnectApi.click(serverX, serverY) } catch { /* ignore */ }
+    // Refresh screenshot after click so user sees updated state
+    setTimeout(fetchCaptchaScreenshot, 700)
+  }
+
   const handleConnectLogin = async () => {
     if (!connectEmail.trim() || !connectPass.trim()) {
       setConnectError('Enter your LinkedIn email and password.')
       return
     }
     setConnectError('')
-    setConnectStatus('saving')  // "saving" = loading spinner while it runs
+    setConnectStatus('saving')
     try {
-      await linkedinConnectApi.doLogin(connectEmail.trim(), connectPass)
+      const data = await linkedinConnectApi.doLogin(connectEmail.trim(), connectPass) as any
+      if (data?.captcha) {
+        setConnectStatus('captcha')
+        startCaptchaMode()
+        return
+      }
       setHasCookies(true)
       setConnectStatus('idle')
       setConnectEmail('')
       setConnectPass('')
     } catch (err: any) {
-      setConnectStatus('active')  // keep form open
+      setConnectStatus('active')
       setConnectError(err.message ?? 'Login failed — check your credentials or try again.')
     }
   }
@@ -526,6 +599,84 @@ const AutoApplyPage = () => {
             )}
           </div>
         </div>
+
+        {/* CAPTCHA solving panel */}
+        {connectStatus === 'captcha' && (
+          <div className="px-4 md:px-6 py-4 space-y-3">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-semibold text-amber-800">Security check required</p>
+              <p className="text-xs text-amber-600 mt-1">
+                LinkedIn wants to verify you&apos;re human. Click the correct images on the screen below, then click <strong>VERIFY</strong>. Your session saves automatically once you&apos;re logged in.
+              </p>
+            </div>
+
+            {/* Screenshot with click overlay */}
+            <div
+              className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 cursor-crosshair select-none"
+              onClick={handleCaptchaClick}
+            >
+              {captchaScreenshot ? (
+                <>
+                  <img
+                    ref={captchaImgRef}
+                    src={captchaScreenshot}
+                    alt="LinkedIn security check"
+                    className="w-full block pointer-events-none"
+                    draggable={false}
+                  />
+                  {captchaClicks.map((c, i) => (
+                    <div
+                      key={i}
+                      className="absolute pointer-events-none rounded-full"
+                      style={{
+                        left: `${c.pctX}%`,
+                        top: `${c.pctY}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: 22,
+                        height: 22,
+                        background: 'rgba(239,68,68,0.85)',
+                        border: '2.5px solid white',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                      }}
+                    />
+                  ))}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 h-48">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                  <span className="text-xs text-slate-500">Loading screen…</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Auto-saving when solved…
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setCaptchaClicks([])}
+                  className="text-xs text-slate-400 hover:text-slate-600 transition"
+                >
+                  Clear clicks
+                </button>
+                <button
+                  onClick={() => {
+                    stopCaptchaPolls()
+                    linkedinConnectApi.stop().catch(() => {})
+                    setConnectStatus('idle')
+                    setCaptchaScreenshot(null)
+                    setCaptchaClicks([])
+                  }}
+                  className="text-xs text-red-400 hover:text-red-600 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Login form — shown when not yet connected or user wants to re-connect */}
         {(connectStatus === 'idle' || connectStatus === 'active' || connectStatus === 'saving') && (

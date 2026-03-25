@@ -295,6 +295,46 @@ def connect_status(user_id: str, authorization: str = Header(...)):
     return {"active": alive, "port": session.get("port")}
 
 
+@app.get("/connect/page-url")
+def connect_page_url(user_id: str, authorization: str = Header(...)):
+    """Return the current page URL from the connect-session Chrome (used to detect CAPTCHA solved)."""
+    _auth(authorization)
+    import asyncio as _asyncio, json as _j
+    from urllib.request import urlopen as _urlopen
+
+    with _connect_lock:
+        session = _connect_sessions.get(user_id)
+    if not session:
+        return {"url": ""}
+
+    port = session.get("port", _CONNECT_CDP_PORT)
+
+    async def _get_url():
+        try:
+            import websockets as _ws
+        except ImportError:
+            return ""
+        try:
+            raw = _urlopen(f"http://127.0.0.1:{port}/json", timeout=3).read()
+            tab = next((t for t in _j.loads(raw) if t.get("type") == "page"), None)
+            if not tab:
+                return ""
+            async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
+                await sock.send(_j.dumps({"id": 1, "method": "Runtime.evaluate",
+                                           "params": {"expression": "window.location.href",
+                                                      "returnByValue": True}}))
+                r = _j.loads(await _asyncio.wait_for(sock.recv(), 5))
+                return r.get("result", {}).get("result", {}).get("value", "")
+        except Exception:
+            return ""
+
+    try:
+        url = _asyncio.run(_get_url())
+    except Exception:
+        url = ""
+    return {"url": url}
+
+
 class ConnectDoLoginRequest(BaseModel):
     user_id: str
     email: str
@@ -475,15 +515,31 @@ def connect_do_login(req: ConnectDoLoginRequest, authorization: str = Header(...
             pass
 
     has_session = any(c.get("name") == "li_at" for c in li_cookies)
+
+    # CAPTCHA detected — keep Chrome alive so the user can solve it interactively
+    if "checkpoint" in current_url and not has_session:
+        return {
+            "success": False,
+            "captcha": True,
+            "current_url": current_url,
+            "message": "CAPTCHA detected — solve it in the screenshot panel",
+        }
+
+    # Success or definitive failure — kill Chrome (cookies already in profile)
+    with _connect_lock:
+        s = _connect_sessions.pop(req.user_id, None)
+    if s:
+        try:
+            s["proc"].kill()
+        except Exception:
+            pass
+
     return {
         "success": has_session,
         "cookies": li_cookies if has_session else [],
         "count": len(li_cookies) if has_session else 0,
         "current_url": current_url,
-        "message": "Login successful" if has_session else (
-            "CAPTCHA detected — please use the manual screenshot flow" if "checkpoint" in current_url
-            else "Login failed — check your email and password"
-        ),
+        "message": "Login successful" if has_session else "Login failed — check your email and password",
     }
 
 

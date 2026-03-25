@@ -533,6 +533,14 @@ export const linkedinConnectApi = {
 
   deleteCookies: () =>
     del<{ cleared: boolean }>('/api/apply/linkedin-connect/cookies'),
+
+  /** Screenshot of current Hetzner display (for CAPTCHA solving panel) */
+  screenshot: () =>
+    get<{ image_b64: string; width: number; height: number }>('/api/apply/linkedin-connect/screenshot'),
+
+  /** Current page URL from connect-session Chrome (poll to detect CAPTCHA solved) */
+  pageUrl: () =>
+    get<{ url: string }>('/api/apply/linkedin-connect/page-url'),
 }
 
 export const linkedinApi = {

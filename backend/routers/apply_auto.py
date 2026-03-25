@@ -798,6 +798,11 @@ async def li_connect_do_login(
         raise HTTPException(502, f"Worker error: {r.text}")
 
     data = r.json()
+
+    # CAPTCHA triggered — Chrome kept alive on worker for interactive solving
+    if data.get("captcha"):
+        return {"captcha": True, "message": data.get("message", "CAPTCHA required")}
+
     if not data.get("success"):
         raise HTTPException(400, data.get("message", "Login failed"))
 
@@ -930,6 +935,49 @@ async def li_connect_save_cookies(
         )
 
     return {"saved": True, "cookie_count": len(cookies)}
+
+
+@router.get("/linkedin-connect/screenshot")
+async def li_connect_screenshot(current_user=Depends(get_current_user)):
+    """Proxy a screenshot from the Hetzner worker for the CAPTCHA solving panel."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    try:
+        async with _httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                f"{cfg.BOT_WORKER_URL}/screenshot",
+                headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+            )
+        if r.is_success:
+            return r.json()
+    except Exception:
+        pass
+    raise HTTPException(502, "Screenshot unavailable")
+
+
+@router.get("/linkedin-connect/page-url")
+async def li_connect_page_url(current_user=Depends(get_current_user)):
+    """Poll the current page URL from connect-session Chrome (detects when CAPTCHA is solved)."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        return {"url": ""}
+    try:
+        async with _httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(
+                f"{cfg.BOT_WORKER_URL}/connect/page-url",
+                params={"user_id": current_user.id},
+                headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+            )
+        if r.is_success:
+            return r.json()
+    except Exception:
+        pass
+    return {"url": ""}
 
 
 @router.post("/linkedin-connect/stop")
