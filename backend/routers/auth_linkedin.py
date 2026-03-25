@@ -182,5 +182,5 @@ async def linkedin_callback(
         cfg["frontend_url"] + ("/onboarding" if is_new else "/app"),
         status_code=302,
     )
-    set_auth_cookies(redirect, user.id)
+    set_auth_cookies(redirect, user.id, request.url.hostname)
     return redirect

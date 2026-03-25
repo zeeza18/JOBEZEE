@@ -68,6 +68,7 @@ class AuthUserResponse(BaseModel):
 
 @router.post("/register", response_model=AuthUserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
+    request  : Request,
     body     : RegisterRequest,
     response : Response,
     db       : AsyncSession = Depends(get_db),
@@ -94,7 +95,7 @@ async def register(
         log.debug("REGISTER commit OK — id=%s", user.id)
 
         await db.refresh(user)
-        set_auth_cookies(response, user.id)
+        set_auth_cookies(response, user.id, request.url.hostname)
         log.debug("REGISTER cookies set OK — done")
         return user
 
@@ -107,6 +108,7 @@ async def register(
 
 @router.post("/login", response_model=AuthUserResponse)
 async def login(
+    request  : Request,
     body     : LoginRequest,
     response : Response,
     db       : AsyncSession = Depends(get_db),
@@ -117,7 +119,7 @@ async def login(
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
 
-    set_auth_cookies(response, user.id)
+    set_auth_cookies(response, user.id, request.url.hostname)
     return user
 
 
@@ -144,14 +146,14 @@ async def refresh_token(
         value   = create_access_token(user.id),
         max_age = ACCESS_EXPIRE_MINUTES * 60,
         path    = "/",
-        **_cookie_kwargs(),
+        **_cookie_kwargs(request.url.hostname),
     )
     return {"ok": True}
 
 
 @router.post("/logout")
-async def logout(response: Response) -> dict:
-    clear_auth_cookies(response)
+async def logout(request: Request, response: Response) -> dict:
+    clear_auth_cookies(response, request.url.hostname)
     return {"ok": True}
 
 

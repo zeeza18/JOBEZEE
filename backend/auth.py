@@ -100,9 +100,14 @@ def _decode_token(token: str, expected_type: str = "access") -> str:
 #     → SameSite=lax, Secure=False, no Domain
 #
 
-def _cookie_kwargs() -> dict:
+def _cookie_kwargs(request_host: str | None = None) -> dict:
     is_secure     = not _cfg.DEBUG
     cookie_domain = _cfg.COOKIE_DOMAIN or None   # None = no Domain attr
+    if cookie_domain and request_host:
+        # Only set Domain if it matches the current host; otherwise browsers drop the cookie.
+        domain_no_dot = cookie_domain.lstrip(".")
+        if not request_host.endswith(domain_no_dot):
+            cookie_domain = None
 
     if cookie_domain:
         # Same-site setup: api.jobezee.org + .jobezee.org domain
@@ -117,9 +122,9 @@ def _cookie_kwargs() -> dict:
     return {"secure": is_secure, "samesite": samesite, "domain": cookie_domain, "httponly": True}
 
 
-def set_auth_cookies(response: Response, user_id: str) -> None:
+def set_auth_cookies(response: Response, user_id: str, request_host: str | None = None) -> None:
     """Write both access and refresh tokens as httpOnly cookies."""
-    kw = _cookie_kwargs()
+    kw = _cookie_kwargs(request_host)
     response.set_cookie(
         key     = _ACCESS_COOKIE,
         value   = create_access_token(user_id),
@@ -136,8 +141,8 @@ def set_auth_cookies(response: Response, user_id: str) -> None:
     )
 
 
-def clear_auth_cookies(response: Response) -> None:
-    kw = _cookie_kwargs()
+def clear_auth_cookies(response: Response, request_host: str | None = None) -> None:
+    kw = _cookie_kwargs(request_host)
     response.delete_cookie(_ACCESS_COOKIE,  path="/",                 **kw)
     response.delete_cookie(_REFRESH_COOKIE, path="/api/auth/refresh", **kw)
 
