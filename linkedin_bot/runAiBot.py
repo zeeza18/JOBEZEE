@@ -212,11 +212,12 @@ def _solve_captcha_2captcha(page_url: str) -> tuple:
             }
         else:
             post_data = {
-                "key":       api_key,
-                "method":    "userrecaptcha",
-                "googlekey": sitekey,
-                "pageurl":   page_url,
-                "json":      1,
+                "key":        api_key,
+                "method":     "userrecaptcha",
+                "googlekey":  sitekey,
+                "pageurl":    page_url,
+                "enterprise": 1,   # LinkedIn uses reCAPTCHA Enterprise
+                "json":       1,
             }
 
         resp = _req.post("https://2captcha.com/in.php", data=post_data, timeout=30).json()
@@ -376,22 +377,40 @@ def login_LN() -> None:
     _checkpoint_hit = "checkpoint" in _cur or "captcha" in _cur.lower() or "challenge" in _cur
     if _checkpoint_hit:
         print_lg(f"[CAPTCHA] Checkpoint detected at: {_cur}")
-        _token, _ctype = _solve_captcha_2captcha(_cur)
-        if _token:
+        _solved = False
+        for _attempt in range(3):
+            _token, _ctype = _solve_captcha_2captcha(driver.current_url)
+            if not _token:
+                print_lg("[CAPTCHA] Could not auto-solve — will attempt manual login retry")
+                break
             _inject_captcha_token(_token, _ctype)
-            time.sleep(5)
-        else:
-            print_lg("[CAPTCHA] Could not auto-solve — will attempt manual login retry")
+            time.sleep(4)
+            # Dismiss any blocking error dialogs (e.g. "Something went wrong")
+            try:
+                _ok_btn = driver.find_element(By.XPATH,
+                    '//button[normalize-space()="OK" or normalize-space()="Dismiss" or normalize-space()="Close"]')
+                _ok_btn.click()
+                print_lg("[CAPTCHA] Dismissed error dialog")
+                time.sleep(2)
+            except Exception:
+                pass
+            _now = driver.current_url
+            if "checkpoint" not in _now and "challenge" not in _now:
+                print_lg("[CAPTCHA] Passed checkpoint!")
+                _solved = True
+                break
+            print_lg(f"[CAPTCHA] Still on checkpoint after attempt {_attempt + 1}, retrying…")
+            time.sleep(2)
+        if not _solved:
+            print_lg("[CAPTCHA] All CAPTCHA attempts failed — waiting for manual login")
 
     try:
-        # Use a longer timeout if we hit a checkpoint (captcha solving takes 30-60s)
         from selenium.webdriver.support.ui import WebDriverWait as _WDW
         _login_wait = _WDW(driver, 150 if _checkpoint_hit else 30)
         _login_wait.until(EC.url_to_be("https://www.linkedin.com/feed/"))
         return print_lg("Login successful!")
     except Exception as e:
         print_lg("Seems like login attempt failed! Possibly due to wrong credentials or already logged in! Try logging in manually!")
-        # print_lg(e)
         manual_login_retry(is_logged_in_LN, 2)
 #>
 
