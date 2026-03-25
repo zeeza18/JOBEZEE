@@ -386,12 +386,12 @@ def connect_do_login(req: ConnectDoLoginRequest, authorization: str = Header(...
         win_x = geo.get('X', 0)
         win_y = geo.get('Y', 0)
         win_w = geo.get('WIDTH', 1280)
-        header = 95  # Chrome title-bar + address-bar height in pixels
+        # Chrome title-bar(35) + address-bar(50) + --no-sandbox info-bar(30) = 115px
+        header = 115
 
-        # LinkedIn login page field positions at 1280×800
-        cx = win_x + win_w // 2
-        email_y  = win_y + header + 360   # email/username field
-        pass_y   = email_y + 60           # password field
+        # LinkedIn login page: email field center at viewport y≈415 (confirmed via screenshot)
+        cx      = win_x + win_w // 2
+        email_y = win_y + header + 415
 
         # Click email field, clear any pre-filled text, type email
         subprocess.run(["xdotool", "mousemove", str(cx), str(email_y)], env=env,
@@ -404,10 +404,8 @@ def connect_do_login(req: ConnectDoLoginRequest, authorization: str = Header(...
                          req.email], env=env, capture_output=True)
         _t.sleep(0.5)
 
-        # Click password field and type password
-        subprocess.run(["xdotool", "mousemove", str(cx), str(pass_y)], env=env,
-                       capture_output=True)
-        subprocess.run(["xdotool", "click", "1"], env=env, capture_output=True)
+        # Tab to password field (more reliable than coordinate click)
+        subprocess.run(["xdotool", "key", "Tab"], env=env, capture_output=True)
         _t.sleep(0.3)
         subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "40",
                          req.password], env=env, capture_output=True)
