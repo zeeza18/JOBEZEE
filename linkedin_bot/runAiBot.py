@@ -110,22 +110,54 @@ def _solve_recaptcha_2captcha(page_url: str) -> str:
         print_lg("[CAPTCHA] requests package not available")
         return ""
     try:
-        # Find reCAPTCHA sitekey in page source
-        sitekey = None
-        for attr in ["data-sitekey", "data-site-key"]:
-            try:
-                el = driver.find_element(By.XPATH, f'//*[@{attr}]')
-                sitekey = el.get_attribute(attr)
-                if sitekey:
-                    break
-            except Exception:
-                pass
-        if not sitekey:
-            # Fallback: parse from page source
-            import re as _re
-            m = _re.search(r'["\']sitekey["\']\s*:\s*["\']([^"\']+)["\']', driver.page_source)
-            if m:
-                sitekey = m.group(1)
+        import re as _re
+        time.sleep(4)  # let page fully render before searching
+
+        def _find_sitekey():
+            # 1. Direct element attributes
+            for attr in ["data-sitekey", "data-site-key"]:
+                try:
+                    el = driver.find_element(By.XPATH, f'//*[@{attr}]')
+                    sk = el.get_attribute(attr)
+                    if sk: return sk
+                except Exception:
+                    pass
+            # 2. Page source regex
+            src = driver.page_source
+            for pat in [r'data-sitekey=["\']([^"\']+)["\']',
+                        r'["\']sitekey["\']\s*:\s*["\']([^"\']+)["\']',
+                        r'grecaptcha\.render\([^)]*["\']([^"\']{20,})["\']']:
+                m = _re.search(pat, src)
+                if m: return m.group(1)
+            # 3. Search inside iframes
+            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            for iframe in iframes:
+                try:
+                    driver.switch_to.frame(iframe)
+                    for attr in ["data-sitekey", "data-site-key"]:
+                        try:
+                            el = driver.find_element(By.XPATH, f'//*[@{attr}]')
+                            sk = el.get_attribute(attr)
+                            if sk:
+                                driver.switch_to.default_content()
+                                return sk
+                        except Exception:
+                            pass
+                    isrc = driver.page_source
+                    m = _re.search(r'data-sitekey=["\']([^"\']+)["\']', isrc)
+                    if m:
+                        driver.switch_to.default_content()
+                        return m.group(1)
+                    driver.switch_to.default_content()
+                except Exception:
+                    driver.switch_to.default_content()
+            # 4. LinkedIn known fallback sitekey
+            if "linkedin.com/checkpoint" in page_url:
+                print_lg("[CAPTCHA] Using LinkedIn known checkpoint sitekey as fallback")
+                return "6LdaGNMUAAAAAGBs7OAlhz6PBZ6PYfLkCMQGFbMV"
+            return None
+
+        sitekey = _find_sitekey()
         if not sitekey:
             print_lg("[CAPTCHA] Could not find reCAPTCHA sitekey on page")
             return ""
@@ -240,18 +272,21 @@ def login_LN() -> None:
     # ── Captcha / checkpoint handling ─────────────────────────────────────────
     time.sleep(3)
     _cur = driver.current_url
-    if "checkpoint" in _cur or "captcha" in _cur.lower() or "challenge" in _cur:
+    _checkpoint_hit = "checkpoint" in _cur or "captcha" in _cur.lower() or "challenge" in _cur
+    if _checkpoint_hit:
         print_lg(f"[CAPTCHA] Checkpoint detected at: {_cur}")
         _token = _solve_recaptcha_2captcha(_cur)
         if _token:
             _inject_recaptcha_token(_token)
-            time.sleep(3)
+            time.sleep(5)
         else:
             print_lg("[CAPTCHA] Could not auto-solve — will attempt manual login retry")
 
     try:
-        # Wait until successful redirect, indicating successful login
-        wait.until(EC.url_to_be("https://www.linkedin.com/feed/")) # wait.until(EC.presence_of_element_located((By.XPATH, '//button[normalize-space(.)="Start a post"]')))
+        # Use a longer timeout if we hit a checkpoint (captcha solving takes 30-60s)
+        from selenium.webdriver.support.ui import WebDriverWait as _WDW
+        _login_wait = _WDW(driver, 150 if _checkpoint_hit else 30)
+        _login_wait.until(EC.url_to_be("https://www.linkedin.com/feed/"))
         return print_lg("Login successful!")
     except Exception as e:
         print_lg("Seems like login attempt failed! Possibly due to wrong credentials or already logged in! Try logging in manually!")
