@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     WORKER_SECRET:  str = ""                            # shared bearer token between Render and Hetzner
     API_BASE_URL:   str = "https://jobezee-api.onrender.com"  # self URL for Hetzner callbacks
 
+    # ── 2Captcha (automated CAPTCHA solving for LinkedIn bot) ─────────────────
+    TWOCAPTCHA_API_KEY: str = ""                        # 2captcha.com API key
+
     # ── App ──────────────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://jobezee.org,https://www.jobezee.org"

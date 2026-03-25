@@ -94,6 +94,101 @@ about_company_for_ai = None # TODO extract about company for AI
 
 
 #< Login Functions
+
+def _solve_recaptcha_2captcha(page_url: str) -> str:
+    """
+    Detect reCAPTCHA sitekey on current page, submit to 2captcha and return
+    the solved token string, or "" if solving failed / key not configured.
+    """
+    api_key = os.environ.get("TWOCAPTCHA_API_KEY", "").strip()
+    if not api_key:
+        print_lg("[CAPTCHA] TWOCAPTCHA_API_KEY not set — skipping auto-solve")
+        return ""
+    try:
+        import requests as _req
+    except ImportError:
+        print_lg("[CAPTCHA] requests package not available")
+        return ""
+    try:
+        # Find reCAPTCHA sitekey in page source
+        sitekey = None
+        for attr in ["data-sitekey", "data-site-key"]:
+            try:
+                el = driver.find_element(By.XPATH, f'//*[@{attr}]')
+                sitekey = el.get_attribute(attr)
+                if sitekey:
+                    break
+            except Exception:
+                pass
+        if not sitekey:
+            # Fallback: parse from page source
+            import re as _re
+            m = _re.search(r'["\']sitekey["\']\s*:\s*["\']([^"\']+)["\']', driver.page_source)
+            if m:
+                sitekey = m.group(1)
+        if not sitekey:
+            print_lg("[CAPTCHA] Could not find reCAPTCHA sitekey on page")
+            return ""
+
+        print_lg(f"[CAPTCHA] Found sitekey, submitting to 2captcha...")
+        resp = _req.post("https://2captcha.com/in.php", data={
+            "key":       api_key,
+            "method":    "userrecaptcha",
+            "googlekey": sitekey,
+            "pageurl":   page_url,
+            "json":      1,
+        }, timeout=30).json()
+
+        if resp.get("status") != 1:
+            print_lg(f"[CAPTCHA] 2captcha rejected submission: {resp}")
+            return ""
+
+        captcha_id = resp["request"]
+        print_lg(f"[CAPTCHA] Waiting for 2captcha to solve (id={captcha_id})...")
+        for _ in range(24):   # poll up to 120 s
+            time.sleep(5)
+            res = _req.get("https://2captcha.com/res.php", params={
+                "key":    api_key,
+                "action": "get",
+                "id":     captcha_id,
+                "json":   1,
+            }, timeout=10).json()
+            if res.get("status") == 1:
+                print_lg("[CAPTCHA] Solved!")
+                return res["request"]
+            if res.get("request") not in ("CAPCHA_NOT_READY", "CAPTCHA_NOT_READY"):
+                print_lg(f"[CAPTCHA] 2captcha error: {res}")
+                return ""
+            print_lg("[CAPTCHA] Still solving...")
+        print_lg("[CAPTCHA] Timed out waiting for 2captcha")
+        return ""
+    except Exception as e:
+        print_lg(f"[CAPTCHA] Solver error: {e}")
+        return ""
+
+
+def _inject_recaptcha_token(token: str) -> None:
+    """Inject a solved reCAPTCHA token into the page and submit the form."""
+    try:
+        driver.execute_script(
+            """
+            var areas = document.querySelectorAll("textarea[name='g-recaptcha-response'], #g-recaptcha-response");
+            for (var i = 0; i < areas.length; i++) {
+                areas[i].innerHTML = arguments[0];
+                areas[i].value = arguments[0];
+            }
+            """,
+            token,
+        )
+        try:
+            driver.find_element(By.XPATH, '//button[@type="submit"]').click()
+        except Exception:
+            driver.execute_script("var f = document.querySelector('form'); if(f) f.submit();")
+        print_lg("[CAPTCHA] Token injected and form submitted")
+    except Exception as e:
+        print_lg(f"[CAPTCHA] Token injection error: {e}")
+
+
 def is_logged_in_LN() -> bool:
     '''
     Function to check if user is logged-in in LinkedIn
@@ -141,6 +236,18 @@ def login_LN() -> None:
         except Exception as e2:
             # print_lg(e1, e2)
             print_lg("Couldn't Login!")
+
+    # ── Captcha / checkpoint handling ─────────────────────────────────────────
+    time.sleep(3)
+    _cur = driver.current_url
+    if "checkpoint" in _cur or "captcha" in _cur.lower() or "challenge" in _cur:
+        print_lg(f"[CAPTCHA] Checkpoint detected at: {_cur}")
+        _token = _solve_recaptcha_2captcha(_cur)
+        if _token:
+            _inject_recaptcha_token(_token)
+            time.sleep(3)
+        else:
+            print_lg("[CAPTCHA] Could not auto-solve — will attempt manual login retry")
 
     try:
         # Wait until successful redirect, indicating successful login

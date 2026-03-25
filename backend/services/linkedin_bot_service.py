@@ -383,12 +383,13 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
                 errors="replace",
                 env={
                     **os.environ,
-                    "PYTHONUNBUFFERED":  "1",
-                    "PYTHONIOENCODING":  "utf-8",
-                    "PYTHONUTF8":        "1",
-                    "OPENAI_API_KEY":    _openai_key,
-                    "ANTHROPIC_API_KEY": _anthropic_key,
-                    "CLAUDE_API_KEY":    _anthropic_key,
+                    "PYTHONUNBUFFERED":   "1",
+                    "PYTHONIOENCODING":   "utf-8",
+                    "PYTHONUTF8":         "1",
+                    "OPENAI_API_KEY":     _openai_key,
+                    "ANTHROPIC_API_KEY":  _anthropic_key,
+                    "CLAUDE_API_KEY":     _anthropic_key,
+                    "TWOCAPTCHA_API_KEY": _cfg.TWOCAPTCHA_API_KEY,
                 },
             )
 

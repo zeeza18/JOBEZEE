@@ -152,6 +152,7 @@ def _run_bot_task(job: BotJobRequest) -> None:
             "PYTHONIOENCODING": "utf-8",
             "PYTHONUTF8":       "1",
             "DISPLAY":          ":99",   # Xvfb virtual display
+            "TWOCAPTCHA_API_KEY": os.environ.get("TWOCAPTCHA_API_KEY", ""),
         }
 
         cmd  = [sys.executable, "-u", str(_LAUNCHER), "--config", tmp_config]
