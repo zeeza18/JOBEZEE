@@ -705,6 +705,28 @@ async def run_phase1_search(
     log.info("[Phase1][0]   _WORKDAY_AVAILABLE       = %s", _WORKDAY_AVAILABLE)
     log.info("[Phase1][0]   _SMARTEXTRACT_AVAILABLE  = %s", _SMARTEXTRACT_AVAILABLE)
 
+    # ── Auto-purge stale 'new' jobs so old postings don't pile up ────────────
+    # Only removes status='new' rows older than 7 days — saved/applied/favourite
+    # jobs are preserved regardless of age.
+    try:
+        from ..database import AsyncSessionLocal
+        from ..models import PulledJob as _PulledJob
+        from datetime import datetime, timezone, timedelta
+        from sqlalchemy import delete as _sa_delete
+        _stale_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        async with AsyncSessionLocal() as _db:
+            _res = await _db.execute(
+                _sa_delete(_PulledJob)
+                .where(_PulledJob.user_profile_id == profile_id)
+                .where(_PulledJob.status == "new")
+                .where(_PulledJob.pulled_at < _stale_cutoff)
+            )
+            await _db.commit()
+            log.info("[Phase1][0] Purged %d stale new jobs (>7d old) for user=%s",
+                     _res.rowcount, profile_id)
+    except Exception as _purge_exc:
+        log.warning("[Phase1][0] Stale job purge failed (non-fatal): %s", _purge_exc)
+
     if not _PHASE1_AVAILABLE:
         log.warning("[Phase1][0] Phase1 NOT available — using mock jobs")
         mock_jobs = _generate_mock_jobs(profile, session_id)
