@@ -282,18 +282,25 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             "user_information_all": resume_text or "User Information",
         }
 
+        # Decrypt saved LinkedIn session cookies if present
+        _li_cookies_raw = (getattr(profile, "linkedin_cookies", "") or "").strip()
+        _li_cookies_json = ""
+        if _li_cookies_raw:
+            try:
+                _li_cookies_json = _decrypt(_li_cookies_raw)
+                _append(job_id, "[JOBEZEE] Saved LinkedIn session cookies found — will inject on startup")
+            except Exception:
+                _append(job_id, "[JOBEZEE][WARN] Could not decrypt linkedin_cookies — logging in fresh")
+
         import platform as _platform
         _is_windows = _platform.system() == "Windows"
         overrides["settings"] = {
-            "tailor_resume": tailor_before_apply,
-            "jobezee_root":  str(_JOBEZEE_ROOT),
-            # Windows: run Chrome visibly (headless gets blocked by LinkedIn)
-            # Linux (Render/prod): stay headless
-            "run_in_background": not _is_windows,
-            # Windows: use persistent bot profile so LinkedIn stays logged in across runs
-            # Linux: use temp profile (no persistent home dir in containers)
-            "safe_mode": not _is_windows,
-            "disable_extensions": True,  # faster startup
+            "tailor_resume":        tailor_before_apply,
+            "jobezee_root":         str(_JOBEZEE_ROOT),
+            "run_in_background":    not _is_windows,
+            "safe_mode":            not _is_windows,
+            "disable_extensions":   True,
+            "linkedin_cookies_json": _li_cookies_json,
         }
 
         # ── Personals (config/personals.py is gitignored — inject from profile) ─

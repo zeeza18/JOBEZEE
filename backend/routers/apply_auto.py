@@ -15,6 +15,7 @@ import threading
 import uuid
 from pathlib import Path
 
+import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -736,6 +737,207 @@ async def worker_git_pull(_user=Depends(get_current_user)):
             return r.json()
         except Exception as e:
             raise HTTPException(status_code=502, detail=str(e))
+
+
+# ── LinkedIn Connect flow ──────────────────────────────────────────────────────
+# One-time interactive login: user logs in via live Chrome on Hetzner;
+# session cookies are extracted, encrypted, and saved to DB for all future bot runs.
+
+
+class ConnectClickReq(BaseModel):
+    x: int   # display pixel (1280 wide)
+    y: int   # display pixel (800 tall)
+
+
+class ConnectTypeReq(BaseModel):
+    text: str
+
+
+def _worker_client():
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    return httpx.AsyncClient(timeout=20), cfg
+
+
+@router.post("/linkedin-connect/start")
+async def li_connect_start(current_user=Depends(get_current_user)):
+    """Launch a Chrome session on Hetzner for the user to log in to LinkedIn interactively."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    async with _httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(
+            f"{cfg.BOT_WORKER_URL}/connect/start",
+            json={"user_id": current_user.id},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+    if not r.is_success:
+        raise HTTPException(502, f"Worker error: {r.text}")
+    return r.json()
+
+
+@router.post("/linkedin-connect/click")
+async def li_connect_click(req: ConnectClickReq, current_user=Depends(get_current_user)):
+    """Forward a mouse click to the user's connect-session Chrome."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    async with _httpx.AsyncClient(timeout=10) as client:
+        r = await client.post(
+            f"{cfg.BOT_WORKER_URL}/connect/click",
+            json={"user_id": current_user.id, "x": req.x, "y": req.y},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+    if not r.is_success:
+        raise HTTPException(502, f"Worker error: {r.text}")
+    return r.json()
+
+
+@router.post("/linkedin-connect/type")
+async def li_connect_type(req: ConnectTypeReq, current_user=Depends(get_current_user)):
+    """Forward keyboard input to the user's connect-session Chrome."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    async with _httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(
+            f"{cfg.BOT_WORKER_URL}/connect/type",
+            json={"user_id": current_user.id, "text": req.text},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+    if not r.is_success:
+        raise HTTPException(502, f"Worker error: {r.text}")
+    return r.json()
+
+
+@router.post("/linkedin-connect/save-cookies")
+async def li_connect_save_cookies(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Extract LinkedIn cookies from the active connect-session Chrome,
+    encrypt them, and save to the user's profile — then close Chrome.
+    """
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    from ..crypto import encrypt as _encrypt
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+
+    # 1. Extract cookies via CDP
+    async with _httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(
+            f"{cfg.BOT_WORKER_URL}/connect/cookies",
+            params={"user_id": current_user.id},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+    if not r.is_success:
+        raise HTTPException(502, f"Could not extract cookies: {r.text}")
+
+    data = r.json()
+    cookies = data.get("cookies", [])
+    if not cookies:
+        raise HTTPException(400, "No LinkedIn cookies found — are you logged in?")
+
+    # 2. Encrypt and save to DB
+    import json as _json
+    cookies_json = _json.dumps(cookies)
+    encrypted = _encrypt(cookies_json)
+
+    pid = uuid.UUID(current_user.id)
+    profile_res = await db.execute(select(UserProfile).where(UserProfile.id == pid))
+    profile = profile_res.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(404, "Profile not found")
+
+    profile.linkedin_cookies = encrypted
+    await db.commit()
+
+    # 3. Stop the connect-session Chrome
+    async with _httpx.AsyncClient(timeout=10) as client:
+        await client.post(
+            f"{cfg.BOT_WORKER_URL}/connect/stop",
+            params={"user_id": current_user.id},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+
+    return {"saved": True, "cookie_count": len(cookies)}
+
+
+@router.post("/linkedin-connect/stop")
+async def li_connect_stop(current_user=Depends(get_current_user)):
+    """Kill the connect-session Chrome (cancel without saving)."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    async with _httpx.AsyncClient(timeout=10) as client:
+        r = await client.post(
+            f"{cfg.BOT_WORKER_URL}/connect/stop",
+            params={"user_id": current_user.id},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+    return r.json() if r.is_success else {"stopped": False}
+
+
+@router.get("/linkedin-connect/status")
+async def li_connect_status(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return whether the user has saved cookies and whether a connect session is active."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+
+    # Check DB for saved cookies
+    pid = uuid.UUID(current_user.id)
+    profile_res = await db.execute(select(UserProfile).where(UserProfile.id == pid))
+    profile = profile_res.scalar_one_or_none()
+    has_cookies = bool((getattr(profile, "linkedin_cookies", "") or "").strip())
+
+    # Check worker for active session
+    session_active = False
+    if cfg.BOT_WORKER_URL:
+        try:
+            async with _httpx.AsyncClient(timeout=5) as client:
+                r = await client.get(
+                    f"{cfg.BOT_WORKER_URL}/connect/status",
+                    params={"user_id": current_user.id},
+                    headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+                )
+            if r.is_success:
+                session_active = r.json().get("active", False)
+        except Exception:
+            pass
+
+    return {"has_cookies": has_cookies, "session_active": session_active}
+
+
+@router.delete("/linkedin-connect/cookies")
+async def li_connect_delete_cookies(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Clear saved LinkedIn cookies (force re-connect next time)."""
+    pid = uuid.UUID(current_user.id)
+    profile_res = await db.execute(select(UserProfile).where(UserProfile.id == pid))
+    profile = profile_res.scalar_one_or_none()
+    if profile:
+        profile.linkedin_cookies = ""
+        await db.commit()
+    return {"cleared": True}
 
 
 # ── Hetzner worker callback ────────────────────────────────────────────────────

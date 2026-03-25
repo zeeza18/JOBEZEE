@@ -496,6 +496,33 @@ export const appliedJobsApi = {
     ),
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LinkedIn Connect (one-time interactive login to save session cookies)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const linkedinConnectApi = {
+  status: () =>
+    get<{ has_cookies: boolean; session_active: boolean }>('/api/apply/linkedin-connect/status'),
+
+  start: () =>
+    post<{ status: string; port: number }>('/api/apply/linkedin-connect/start'),
+
+  click: (x: number, y: number) =>
+    post<{ ok: boolean }>('/api/apply/linkedin-connect/click', { x, y }),
+
+  type: (text: string) =>
+    post<{ ok: boolean }>('/api/apply/linkedin-connect/type', { text }),
+
+  saveCookies: () =>
+    post<{ saved: boolean; cookie_count: number }>('/api/apply/linkedin-connect/save-cookies'),
+
+  stop: () =>
+    post<{ stopped: boolean }>('/api/apply/linkedin-connect/stop'),
+
+  deleteCookies: () =>
+    del<{ cleared: boolean }>('/api/apply/linkedin-connect/cookies'),
+}
+
 export const linkedinApi = {
   launch: (dry_run = false, tailor_before_apply = false) =>
     post<{ linkedin_job_id: string; status: string }>(

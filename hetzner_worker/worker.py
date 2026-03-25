@@ -29,6 +29,11 @@ _LAUNCHER     = _BOT_DIR / "linkedin_launcher.py"
 _procs: dict[str, subprocess.Popen] = {}
 _lock  = threading.Lock()
 
+# ── LinkedIn Connect sessions (per-user interactive login) ────────────────────
+_connect_sessions: dict[str, dict] = {}   # user_id -> {proc, port}
+_connect_lock = threading.Lock()
+_CONNECT_CDP_PORT = 9223   # fixed CDP port for connect-session Chrome
+
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -84,6 +89,201 @@ def screenshot(authorization: str = Header(...)):
         except Exception:
             continue
     return {"image_b64": "", "error": "Screenshot tools not available (install scrot or imagemagick)"}
+
+
+def _find_chrome_bin() -> str:
+    import shutil as _sh
+    env_bin = os.environ.get("CHROME_BIN", "")
+    if env_bin and os.path.exists(env_bin):
+        return env_bin
+    for cb in (
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/opt/google/chrome/google-chrome",
+        "/opt/google/chrome/chrome",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+    ):
+        if os.path.exists(cb):
+            return cb
+    found = _sh.which("google-chrome") or _sh.which("google-chrome-stable") or _sh.which("chromium-browser") or _sh.which("chromium") or ""
+    return found or "google-chrome"
+
+
+def _connect_profile_dir(user_id: str) -> str:
+    return os.path.expanduser(f"~/.config/google-chrome-li-connect-{user_id[:8]}")
+
+
+class ConnectStartRequest(BaseModel):
+    user_id: str
+
+
+@app.post("/connect/start")
+def connect_start(req: ConnectStartRequest, authorization: str = Header(...)):
+    """Launch a Chrome session on :99 for the user to log in to LinkedIn interactively."""
+    _auth(authorization)
+
+    # Kill any existing connect session for this user
+    with _connect_lock:
+        old = _connect_sessions.pop(req.user_id, None)
+    if old:
+        try:
+            old["proc"].kill()
+        except Exception:
+            pass
+    import time as _time
+    _time.sleep(0.5)
+
+    profile_dir = _connect_profile_dir(req.user_id)
+    os.makedirs(profile_dir, exist_ok=True)
+    # Remove stale Chrome singleton locks
+    for lock_file in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+        lp = os.path.join(profile_dir, lock_file)
+        try:
+            if os.path.exists(lp) or os.path.islink(lp):
+                os.remove(lp)
+        except Exception:
+            pass
+
+    chrome_bin = _find_chrome_bin()
+    cmd = [
+        chrome_bin,
+        f"--remote-debugging-port={_CONNECT_CDP_PORT}",
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-software-rasterizer",
+        "--window-size=1280,800",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-extensions",
+        "--disable-features=ProfilePickerOnStartupFeature",
+        "--disable-blink-features=AutomationControlled",
+        f"--user-data-dir={profile_dir}",
+        "--profile-directory=Default",
+        "https://www.linkedin.com/login",
+    ]
+    env = {**os.environ, "DISPLAY": ":99"}
+    proc = subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    with _connect_lock:
+        _connect_sessions[req.user_id] = {"proc": proc, "port": _CONNECT_CDP_PORT}
+
+    _time.sleep(3)   # give Chrome time to start
+    return {"status": "started", "port": _CONNECT_CDP_PORT}
+
+
+class ConnectClickRequest(BaseModel):
+    user_id: str
+    x: int   # display pixel coords (1280x800 window)
+    y: int
+
+
+@app.post("/connect/click")
+def connect_click(req: ConnectClickRequest, authorization: str = Header(...)):
+    """Inject a mouse click at display coordinates via xdotool."""
+    _auth(authorization)
+    env = {**os.environ, "DISPLAY": ":99"}
+    try:
+        subprocess.run(
+            ["xdotool", "mousemove", "--sync", str(req.x), str(req.y), "click", "1"],
+            env=env, timeout=5, check=True, capture_output=True,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"xdotool click failed: {e}")
+    return {"ok": True}
+
+
+class ConnectTypeRequest(BaseModel):
+    user_id: str
+    text: str
+
+
+@app.post("/connect/type")
+def connect_type(req: ConnectTypeRequest, authorization: str = Header(...)):
+    """Inject keyboard input via xdotool."""
+    _auth(authorization)
+    env = {**os.environ, "DISPLAY": ":99"}
+    try:
+        subprocess.run(
+            ["xdotool", "type", "--clearmodifiers", "--delay", "50", req.text],
+            env=env, timeout=15, check=True, capture_output=True,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"xdotool type failed: {e}")
+    return {"ok": True}
+
+
+@app.get("/connect/cookies")
+def connect_cookies(user_id: str, authorization: str = Header(...)):
+    """Extract LinkedIn session cookies from the connect-session Chrome via CDP."""
+    _auth(authorization)
+    with _connect_lock:
+        session = _connect_sessions.get(user_id)
+    if not session:
+        raise HTTPException(404, "No connect session for this user")
+
+    port = session["port"]
+    import asyncio as _asyncio
+    import json as _j
+    from urllib.request import urlopen as _urlopen
+
+    async def _get_cookies_cdp():
+        try:
+            import websockets as _ws
+        except ImportError:
+            raise RuntimeError("websockets not installed on worker")
+
+        raw = _urlopen(f"http://127.0.0.1:{port}/json", timeout=5).read()
+        targets = _j.loads(raw)
+        tab = next((t for t in targets if t.get("type") == "page"), None)
+        if not tab:
+            raise RuntimeError("No Chrome page found — is Chrome still running?")
+        ws_url = tab["webSocketDebuggerUrl"]
+        async with _ws.connect(ws_url) as sock:
+            await sock.send(_j.dumps({"id": 1, "method": "Network.getAllCookies", "params": {}}))
+            resp = await _asyncio.wait_for(sock.recv(), timeout=10)
+            result = _j.loads(resp)
+            return result.get("result", {}).get("cookies", [])
+
+    try:
+        all_cookies = _asyncio.run(_get_cookies_cdp())
+    except Exception as e:
+        raise HTTPException(500, f"Cookie extraction failed: {e}")
+
+    li_cookies = [c for c in all_cookies if "linkedin.com" in c.get("domain", "")]
+    return {"cookies": li_cookies, "count": len(li_cookies)}
+
+
+@app.post("/connect/stop")
+def connect_stop(user_id: str, authorization: str = Header(...)):
+    """Kill the connect-session Chrome for this user."""
+    _auth(authorization)
+    with _connect_lock:
+        session = _connect_sessions.pop(user_id, None)
+    if session:
+        try:
+            session["proc"].kill()
+        except Exception:
+            pass
+        return {"stopped": True}
+    return {"stopped": False}
+
+
+@app.get("/connect/status")
+def connect_status(user_id: str, authorization: str = Header(...)):
+    """Check if there's an active connect session for this user."""
+    _auth(authorization)
+    with _connect_lock:
+        session = _connect_sessions.get(user_id)
+    if not session:
+        return {"active": False}
+    proc = session["proc"]
+    alive = proc.poll() is None
+    if not alive:
+        with _connect_lock:
+            _connect_sessions.pop(user_id, None)
+    return {"active": alive, "port": session.get("port")}
 
 
 @app.post("/git-pull")

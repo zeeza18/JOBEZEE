@@ -1541,6 +1541,33 @@ def main() -> None:
             print_lg("[Resume] Not found in profile - bot will use your previously uploaded LinkedIn resume.")
             useNewResume = False
         
+        # Inject saved LinkedIn session cookies (Connect LinkedIn flow) before login
+        try:
+            import config.settings as _cfg_s
+            _li_cookies_json = getattr(_cfg_s, 'linkedin_cookies_json', '') or ''
+            if _li_cookies_json:
+                import json as _json
+                _saved_cookies = _json.loads(_li_cookies_json)
+                if _saved_cookies:
+                    print_lg(f"[JOBEZEE] Injecting {len(_saved_cookies)} saved LinkedIn session cookies...")
+                    driver.get("https://www.linkedin.com")
+                    time.sleep(2)
+                    for _ck in _saved_cookies:
+                        try:
+                            _c = {k: _ck[k] for k in ('name','value','domain','path','secure','httpOnly') if k in _ck}
+                            if 'sameSite' in _ck:
+                                _c['sameSite'] = _ck['sameSite']
+                            if 'expiry' in _ck:
+                                _c['expiry'] = int(_ck['expiry'])
+                            driver.add_cookie(_c)
+                        except Exception:
+                            pass
+                    print_lg("[JOBEZEE] Cookies injected — navigating to LinkedIn feed...")
+                    driver.get("https://www.linkedin.com/feed/")
+                    time.sleep(2)
+        except Exception as _inj_e:
+            print_lg(f"[JOBEZEE] Cookie injection failed (will login normally): {_inj_e}")
+
         # Login to LinkedIn
         tabs_count = len(driver.window_handles)
         driver.get("https://www.linkedin.com/login")

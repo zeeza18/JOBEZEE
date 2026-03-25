@@ -123,6 +123,7 @@ async def run_column_migrations() -> None:
         ("openai_api_key",            "TEXT          DEFAULT ''"),
         ("anthropic_api_key",         "TEXT          DEFAULT ''"),
         ("resume_bytes",              "TEXT          DEFAULT ''"),
+        ("linkedin_cookies",          "TEXT          DEFAULT ''"),
     ]
 
     # ── pulled_jobs ───────────────────────────────────────────────────────────

@@ -116,6 +116,9 @@ class UserProfile(Base):
     workday_email       = Column(String(200), default="")
     workday_password    = Column(String(200), default="")
 
+    # LinkedIn session cookies (encrypted Fernet JSON — set via Connect LinkedIn flow)
+    linkedin_cookies = Column(Text, default="")
+
     # Email integration
     gmail_api_key = Column(Text, default="")   # Gmail App Password for IMAP scanning
 

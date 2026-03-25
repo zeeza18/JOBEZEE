@@ -75,6 +75,7 @@ showAiErrorAlerts = False            # True or False, Note: True or False are ca
 # Tailor resume before applying (set by JOBEZEE backend via config override)
 tailor_resume = False                # True = run AI tailoring per job before applying
 jobezee_root  = ""                   # Absolute path to JOBEZEE root (injected by launcher)
+linkedin_cookies_json = ""           # JSON-encoded LinkedIn session cookies (injected by launcher)
 
 # Use ChatGPT for resume building (Experimental Feature can break the application. Recommended to leave it as False) 
 # use_resume_generator = False       # True or False, Note: True or False are case-sensitive ,   This feature may only work with 'stealth_mode = True'. As ChatGPT website is hosted by CloudFlare which is protected by Anti-bot protections!
