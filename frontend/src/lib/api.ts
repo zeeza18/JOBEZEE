@@ -4,9 +4,12 @@
  * are sent automatically on every request.
  */
 
-// Default to same-origin so Vite dev proxy can avoid CORS; override with VITE_API_URL for prod.
-// Empty = use Vite proxy (/api → localhost:8000). Set VITE_API_URL for prod.
-const BASE = import.meta.env.VITE_API_URL || ''
+// On first-party domains (jobezee.org / *.vercel.app), force same-origin so
+// auth cookies stay first-party even if VITE_API_URL is accidentally set.
+// Elsewhere (localhost, staging), allow explicit override.
+const HOST           = typeof window !== 'undefined' ? window.location.hostname : ''
+const IS_FIRST_PARTY = HOST.endsWith('jobezee.org') || HOST.endsWith('vercel.app')
+const BASE           = IS_FIRST_PARTY ? '' : (import.meta.env.VITE_API_URL || '')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types (mirror backend Pydantic schemas)
