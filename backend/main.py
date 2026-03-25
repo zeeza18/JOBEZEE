@@ -98,6 +98,66 @@ async def _auto_search_loop() -> None:
         await asyncio.sleep(60 * 60)   # 1 hour between cycles
 
 
+# ── 5-hour job digest email loop ─────────────────────────────────────────────
+
+async def _digest_email_loop() -> None:
+    """Every 5 hours, accumulate all jobs pulled in the last 5 hours and send one digest email per user."""
+    _log = logging.getLogger(__name__ + ".digestemail")
+    _log.info("[DigestEmail] loop started — first digest in 5 hours")
+    await asyncio.sleep(5 * 60 * 60)   # first digest after 5 hours
+    while True:
+        _log.info("[DigestEmail] running 5-hour digest cycle")
+        try:
+            from .database import AsyncSessionLocal
+            from .models import UserProfile, PulledJob
+            from .services.email_service import send_new_jobs_email
+            from .config import get_settings
+            from sqlalchemy import select
+            from datetime import datetime, timezone, timedelta
+
+            _cfg = get_settings()
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=5)
+
+            async with AsyncSessionLocal() as db:
+                res = await db.execute(select(UserProfile))
+                profiles = res.scalars().all()
+
+                for profile in profiles:
+                    if not getattr(profile, "desired_roles", None):
+                        continue
+                    if not getattr(profile, "email", ""):
+                        continue
+
+                    jobs_res = await db.execute(
+                        select(PulledJob)
+                        .where(PulledJob.user_profile_id == profile.id)
+                        .where(PulledJob.pulled_at >= cutoff)
+                        .order_by(PulledJob.pulled_at.desc())
+                        .limit(50)
+                    )
+                    new_jobs = jobs_res.scalars().all()
+                    if not new_jobs:
+                        _log.info("[DigestEmail] no new jobs for user=%s — skipping", profile.id)
+                        continue
+
+                    try:
+                        await send_new_jobs_email(
+                            to_email    = profile.email,
+                            name        = getattr(profile, "full_name", "") or profile.email,
+                            jobs        = new_jobs,
+                            total_count = len(new_jobs),
+                            app_url     = f"{_cfg.FRONTEND_URL}/app/search",
+                        )
+                        _log.info("[DigestEmail] sent → %s (%d jobs)", profile.email, len(new_jobs))
+                    except Exception as _exc:
+                        _log.warning("[DigestEmail] failed for %s: %s", profile.email, _exc)
+
+        except Exception as exc:
+            _log.exception("[DigestEmail] error: %s", exc)
+
+        await asyncio.sleep(5 * 60 * 60)   # repeat every 5 hours
+
+
 # ── 30-minute auto email scan background loop ─────────────────────────────────
 
 async def _auto_email_scan_loop() -> None:
@@ -198,11 +258,13 @@ async def lifespan(app: FastAPI):
 
     _bg_task = asyncio.create_task(_auto_search_loop())
     _email_task = asyncio.create_task(_auto_email_scan_loop())
+    _digest_task = asyncio.create_task(_digest_email_loop())
     yield
     _bg_task.cancel()
     _email_task.cancel()
+    _digest_task.cancel()
     try:
-        await asyncio.gather(_bg_task, _email_task, return_exceptions=True)
+        await asyncio.gather(_bg_task, _email_task, _digest_task, return_exceptions=True)
     except asyncio.CancelledError:
         pass
 

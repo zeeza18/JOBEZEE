@@ -115,52 +115,58 @@ _JOBS_HTML = """\
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>New jobs for you — JOBEZEE</title>
+  <title>Job Digest &mdash; JOBEZEE</title>
   <style>
-    body {{ margin:0; padding:0; background:#f1f5f9; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }}
-    .wrapper {{ max-width:600px; margin:40px auto; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.08); }}
-    .header {{ background:linear-gradient(135deg,#06b6d4,#0ea5e9); padding:36px 40px 28px; }}
-    .logo {{ font-size:20px; font-weight:900; letter-spacing:-0.5px; color:#ffffff; }}
-    .logo span {{ opacity:0.7; }}
-    .header-badge {{ display:inline-block; margin-top:14px; background:rgba(255,255,255,0.2); color:#ffffff; font-size:13px; font-weight:700; padding:5px 14px; border-radius:20px; letter-spacing:0.2px; }}
-    .header h1 {{ margin:10px 0 0; font-size:24px; font-weight:800; color:#ffffff; line-height:1.3; }}
-    .header p {{ margin:8px 0 0; font-size:14px; color:rgba(255,255,255,0.8); }}
-    .body {{ padding:32px 40px; }}
-    .intro {{ font-size:15px; color:#475569; margin:0 0 24px; line-height:1.6; }}
-    .intro strong {{ color:#0f172a; }}
-    .job-card {{ background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; margin-bottom:12px; }}
-    .job-title {{ font-size:15px; font-weight:700; color:#0f172a; margin:0 0 4px; }}
-    .job-company {{ font-size:13px; font-weight:600; color:#06b6d4; margin:0 0 8px; }}
+    body {{ margin:0; padding:0; background:#f1f5f9; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif; }}
+    .wrapper {{ max-width:600px; margin:32px auto; background:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 1px 8px rgba(0,0,0,0.07); }}
+    .accent-bar {{ background:#06b6d4; height:4px; }}
+    .header {{ background:#0f172a; padding:28px 36px 26px; }}
+    .logo {{ font-size:15px; font-weight:800; letter-spacing:2px; color:#ffffff; text-transform:uppercase; }}
+    .logo em {{ color:#06b6d4; font-style:normal; }}
+    .header-title {{ margin:18px 0 5px; font-size:20px; font-weight:700; color:#ffffff; line-height:1.4; }}
+    .header-sub {{ margin:0; font-size:12px; color:#64748b; letter-spacing:0.2px; }}
+    .body {{ padding:28px 36px; }}
+    .stat-row {{ display:flex; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:16px 20px; margin-bottom:28px; gap:14px; }}
+    .stat-num {{ font-size:30px; font-weight:800; color:#0f172a; line-height:1; }}
+    .stat-text {{ font-size:13px; color:#64748b; margin:3px 0 0; }}
+    .section-label {{ font-size:10px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; color:#94a3b8; margin:0 0 14px; }}
+    .job-card {{ border:1px solid #e2e8f0; border-left:3px solid #06b6d4; padding:14px 18px; margin-bottom:10px; background:#ffffff; }}
+    .job-title {{ font-size:14px; font-weight:700; color:#0f172a; margin:0 0 3px; }}
+    .job-company {{ font-size:13px; color:#64748b; margin:0 0 10px; }}
     .job-meta {{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }}
-    .tag {{ display:inline-block; background:#e0f2fe; color:#0369a1; font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; }}
-    .tag.salary {{ background:#dcfce7; color:#166534; }}
-    .tag.site {{ background:#f3e8ff; color:#7c3aed; }}
-    .view-btn {{ display:inline-block; background:linear-gradient(135deg,#06b6d4,#0ea5e9); color:#ffffff !important; text-decoration:none; font-size:12px; font-weight:700; padding:7px 16px; border-radius:8px; }}
-    .divider {{ border:none; border-top:1px solid #e2e8f0; margin:28px 0; }}
-    .cta-wrap {{ text-align:center; margin:28px 0 8px; }}
-    .cta-btn {{ display:inline-block; background:linear-gradient(135deg,#06b6d4,#0ea5e9); color:#ffffff !important; text-decoration:none; font-size:15px; font-weight:700; padding:14px 36px; border-radius:12px; box-shadow:0 4px 14px rgba(6,182,212,0.3); }}
-    .cta-sub {{ text-align:center; font-size:12px; color:#94a3b8; margin-top:10px; }}
-    .footer {{ padding:20px 40px 28px; font-size:12px; color:#94a3b8; background:#f8fafc; }}
-    .footer a {{ color:#06b6d4; text-decoration:none; }}
+    .tag {{ display:inline-block; font-size:11px; font-weight:500; padding:2px 8px; border-radius:3px; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }}
+    .tag.salary {{ background:#f0fdf4; color:#15803d; border-color:#bbf7d0; }}
+    .tag.source {{ background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }}
+    .view-link {{ font-size:12px; font-weight:600; color:#06b6d4; text-decoration:none; }}
+    .more-note {{ font-size:12px; color:#94a3b8; margin:12px 0 0; text-align:center; }}
+    .divider {{ border:none; border-top:1px solid #e2e8f0; margin:24px 0; }}
+    .cta-wrap {{ text-align:center; padding:4px 0 8px; }}
+    .cta-btn {{ display:inline-block; background:#0f172a; color:#ffffff !important; text-decoration:none; font-size:14px; font-weight:600; padding:12px 32px; border-radius:6px; letter-spacing:0.3px; }}
+    .cta-sub {{ text-align:center; font-size:12px; color:#94a3b8; margin:10px 0 0; }}
+    .footer {{ padding:18px 36px 24px; font-size:11px; color:#94a3b8; background:#f8fafc; border-top:1px solid #e2e8f0; line-height:1.9; }}
+    .footer a {{ color:#64748b; text-decoration:none; }}
     @media(max-width:480px){{
-      .body,.header {{ padding:24px 20px; }}
-      .footer {{ padding:16px 20px 24px; }}
+      .body,.header {{ padding:20px 18px; }}
+      .footer {{ padding:14px 18px 20px; }}
+      .stat-num {{ font-size:24px; }}
     }}
   </style>
 </head>
 <body>
   <div class="wrapper">
+    <div class="accent-bar"></div>
     <div class="header">
-      <div class="logo">JOBEZEE<span>.org</span></div>
-      <div class="header-badge">&#127381; {count} new jobs found</div>
-      <h1>Fresh opportunities just for you</h1>
-      <p>Your hourly search just completed — here's a preview of what we found.</p>
+      <div class="logo">JOB<em>EZEE</em></div>
+      <p class="header-title">{count} new roles in your digest</p>
+      <p class="header-sub">Compiled from hourly scans &mdash; delivered every 5 hours</p>
     </div>
     <div class="body">
-      <p class="intro">
-        Hi <strong>{name}</strong>, we scanned job boards in the last hour and found
-        <strong>{count} new listings</strong> matching your profile. Here's a quick preview:
-      </p>
+      <div class="stat-row">
+        <div class="stat-num">{count}</div>
+        <div class="stat-text">new listings matching your profile<br />since your last digest</div>
+      </div>
+
+      <div class="section-label">Top matches</div>
 
       {job_cards}
 
@@ -169,15 +175,16 @@ _JOBS_HTML = """\
       <hr class="divider" />
 
       <div class="cta-wrap">
-        <a href="{app_url}" class="cta-btn">View all {count} new jobs &rarr;</a>
+        <a href="{app_url}" class="cta-btn">Open full job list &rarr;</a>
       </div>
-      <p class="cta-sub">Tailor your resume and apply directly from the app.</p>
+      <p class="cta-sub">Review, tailor your resume, and apply directly from the app.</p>
     </div>
     <div class="footer">
-      You're receiving this because job alerts are enabled on your JOBEZEE account.<br />
-      &copy; 2026 JOBEZEE &middot;
-      <a href="{app_url}">Open app</a> &middot;
-      <a href="https://www.jobezee.org/privacy">Privacy</a>
+      Hi {name} &mdash; you&rsquo;re receiving this digest because job alerts are enabled on your account.<br />
+      &copy; 2026 JOBEZEE &nbsp;&middot;&nbsp;
+      <a href="{app_url}">Open app</a> &nbsp;&middot;&nbsp;
+      <a href="https://www.jobezee.org/privacy">Privacy</a> &nbsp;&middot;&nbsp;
+      <a href="https://www.jobezee.org/settings">Manage alerts</a>
     </div>
   </div>
 </body>
@@ -187,14 +194,13 @@ _JOBS_HTML = """\
 _JOB_CARD_HTML = """\
 <div class="job-card">
   <div class="job-title">{title}</div>
-  <div class="job-company">{company}</div>
+  <div class="job-company">{company} &middot; {location}</div>
   <div class="job-meta">
-    {location_tag}
     {type_tag}
     {salary_tag}
-    {site_tag}
+    {source_tag}
   </div>
-  <a href="{url}" class="view-btn">View Job &rarr;</a>
+  <a href="{url}" class="view-link">View listing &rarr;</a>
 </div>
 """
 
@@ -202,69 +208,67 @@ _JOB_CARD_HTML = """\
 def _build_job_cards(jobs: list) -> str:
     cards = []
     for j in jobs:
-        loc   = (j.location or "").strip() or "Not specified"
-        jtype = (j.job_type or "").replace("_", " ").title() or ""
-        sal   = (j.salary_text or "").strip()
-        site  = (j.site or j.source or "").title()
-        url   = j.url or "#"
+        loc    = (j.location or "").strip() or "Location not specified"
+        jtype  = (j.job_type or "").replace("_", " ").title() or ""
+        sal    = (j.salary_text or "").strip()
+        source = (j.site or j.source or "").title()
+        url    = j.url or "#"
 
-        location_tag = f'<span class="tag">{loc}</span>'
-        type_tag     = f'<span class="tag">{jtype}</span>' if jtype else ""
-        salary_tag   = f'<span class="tag salary">{sal}</span>' if sal else ""
-        site_tag     = f'<span class="tag site">{site}</span>' if site else ""
+        type_tag   = f'<span class="tag">{jtype}</span>' if jtype else ""
+        salary_tag = f'<span class="tag salary">{sal}</span>' if sal else ""
+        source_tag = f'<span class="tag source">{source}</span>' if source else ""
 
         cards.append(_JOB_CARD_HTML.format(
-            title        = j.title or "Untitled",
-            company      = j.company or "Unknown Company",
-            location_tag = location_tag,
-            type_tag     = type_tag,
-            salary_tag   = salary_tag,
-            site_tag     = site_tag,
-            url          = url,
+            title      = j.title or "Untitled",
+            company    = j.company or "Unknown Company",
+            location   = loc,
+            type_tag   = type_tag,
+            salary_tag = salary_tag,
+            source_tag = source_tag,
+            url        = url,
         ))
     return "\n".join(cards)
 
 
 async def send_new_jobs_email(
-    to_email  : str,
-    name      : str,
-    jobs      : list,   # list of PulledJob ORM objects
+    to_email   : str,
+    name       : str,
+    jobs       : list,   # list of PulledJob ORM objects
     total_count: int,
-    app_url   : str = "https://www.jobezee.org/app/search",
+    app_url    : str = "https://www.jobezee.org/app/search",
 ) -> None:
-    """Send the hourly new-jobs notification email."""
-    preview_jobs  = jobs[:5]
-    remaining     = total_count - len(preview_jobs)
-    more_line     = (
-        f'<p style="text-align:center;font-size:13px;color:#64748b;margin:4px 0 0;">'
-        f'…and <strong>{remaining} more</strong> waiting in the app.</p>'
+    """Send the 5-hour job digest notification email."""
+    preview_jobs = jobs[:5]
+    remaining    = total_count - len(preview_jobs)
+    more_line    = (
+        f'<p class="more-note">Plus <strong>{remaining} more</strong> listings available in the app.</p>'
     ) if remaining > 0 else ""
 
     job_cards_html = _build_job_cards(preview_jobs)
 
     html = _JOBS_HTML.format(
-        name       = name or "there",
-        count      = total_count,
-        job_cards  = job_cards_html,
-        more_line  = more_line,
-        app_url    = app_url,
+        name      = name or "there",
+        count     = total_count,
+        job_cards = job_cards_html,
+        more_line = more_line,
+        app_url   = app_url,
     )
 
     # Plain-text fallback
     lines = [
         f"Hi {name or 'there'},",
-        f"",
-        f"We found {total_count} new jobs matching your profile. Here's a preview:",
-        f"",
+        "",
+        f"Your 5-hour job digest: {total_count} new listings matching your profile.",
+        "",
     ]
     for j in preview_jobs:
         sal = f" · {j.salary_text}" if j.salary_text else ""
-        lines.append(f"• {j.title} at {j.company} ({j.location or 'Remote'}){sal}")
+        lines.append(f"  {j.title} — {j.company} ({j.location or 'Location not specified'}){sal}")
         lines.append(f"  {j.url}")
         lines.append("")
     if remaining > 0:
-        lines.append(f"...and {remaining} more in the app.")
-    lines += ["", f"View all jobs: {app_url}", "", "— The JOBEZEE Team"]
+        lines.append(f"  Plus {remaining} more listings in the app.")
+    lines += ["", f"  View all: {app_url}", "", "JOBEZEE"]
     text = "\n".join(lines)
 
     loop = asyncio.get_event_loop()
@@ -272,7 +276,7 @@ async def send_new_jobs_email(
         None,
         _send_smtp,
         to_email,
-        f"{total_count} new jobs found for you — JOBEZEE",
+        f"Your job digest: {total_count} new roles — JOBEZEE",
         html,
         text,
     )

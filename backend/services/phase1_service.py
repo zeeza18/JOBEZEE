@@ -1118,36 +1118,6 @@ async def run_phase1_search(
         log.info("[Phase1][6]   Phase C (smartextract): contributed to total")
         log.info("=" * 70)
 
-        # ── CHECKPOINT 7: send new-jobs notification email ───────────────────
-        if total_inserted > 0 and getattr(profile, "email", ""):
-            try:
-                from ..database import AsyncSessionLocal
-                from ..models import PulledJob
-                from ..config import get_settings
-                from ..services.email_service import send_new_jobs_email
-                from sqlalchemy import select as _select
-
-                async with AsyncSessionLocal() as _db:
-                    _res = await _db.execute(
-                        _select(PulledJob)
-                        .where(PulledJob.search_session_id == session_id)
-                        .order_by(PulledJob.pulled_at.desc())
-                        .limit(5)
-                    )
-                    preview_jobs = _res.scalars().all()
-
-                _cfg = get_settings()
-                await send_new_jobs_email(
-                    to_email    = profile.email,
-                    name        = getattr(profile, "full_name", "") or profile.email,
-                    jobs        = preview_jobs,
-                    total_count = total_inserted,
-                    app_url     = f"{_cfg.FRONTEND_URL}/app/search",
-                )
-                log.info("[Phase1][7] New-jobs email sent → %s (%d jobs)", profile.email, total_inserted)
-            except Exception as _email_exc:
-                log.warning("[Phase1][7] New-jobs email failed (non-fatal): %s", _email_exc)
-
     except Exception as exc:
         tb = _traceback.format_exc()
         log.error("[Phase1][ERR] session=%s CRASHED:\n%s", session_id, tb)

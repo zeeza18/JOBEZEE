@@ -284,8 +284,11 @@ const TailorPage = () => {
           {resumeMode === 'profile' && !resume && !extracting && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
               <User className="h-6 w-6 text-slate-400" />
-              <p className="text-sm text-slate-500">No resume found in profile.<br/>Upload one via <span className="font-semibold text-slate-700">Profile → Resume</span>.</p>
-              {extractErr && <p className="text-xs text-red-500 mt-1">{extractErr}</p>}
+              {extractErr ? (
+                <p className="text-sm text-red-500">{extractErr}<br/><span className="text-slate-500 text-xs">Go to <span className="font-semibold text-slate-700">Profile → Resume</span> and re-upload your file.</span></p>
+              ) : (
+                <p className="text-sm text-slate-500">No resume found in profile.<br/>Upload one via <span className="font-semibold text-slate-700">Profile → Resume</span>.</p>
+              )}
             </div>
           )}
 

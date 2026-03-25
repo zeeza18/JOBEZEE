@@ -751,34 +751,46 @@ export default function PortfolioPage() {
                 </div>
               </motion.div>
             ) : (
-              <div className="rounded-2xl p-5 border border-dashed text-center" style={{ borderColor: '#cbd5e1', background: '#f8fafc' }}>
-                <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center text-2xl" style={{ background: '#f1f5f9' }}>🚀</div>
-                <p className="text-sm font-bold text-slate-700 mb-1">No portfolio yet</p>
-                <p className="text-xs text-slate-400">Pick any template, open the Canva editor, convert to your profile, then save.</p>
+              <div className="rounded-xl p-5 border border-dashed text-center" style={{ borderColor: '#cbd5e1', background: '#f8fafc' }}>
+                <div className="w-10 h-10 rounded-lg mx-auto mb-3 flex items-center justify-center" style={{ background: '#e2e8f0' }}>
+                  <Layers className="h-5 w-5" style={{ color: '#64748b' }} />
+                </div>
+                <p className="text-sm font-semibold text-slate-700 mb-1">No portfolio yet</p>
+                <p className="text-xs text-slate-400">Pick a template, open the editor, convert to your profile, then save.</p>
               </div>
             )}
 
-            <div className="rounded-2xl p-5 border" style={{ borderColor: '#e2e8f0', background: '#fff' }}>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Canva Editor Features</p>
+            <div className="rounded-xl p-5 border" style={{ borderColor: '#e2e8f0', background: '#fff' }}>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Editor Features</p>
               <div className="space-y-3">
-                {[
-                  { emoji: '🎨', t: 'Themes', d: '8 preset color themes' },
-                  { emoji: '🖌️', t: 'Colors', d: 'Full primary & accent pickers' },
-                  { emoji: '🖼️', t: 'Images', d: 'Hero gradients & profile photo' },
-                  { emoji: '✏️', t: 'Text', d: 'Edit name, title & bio inline' },
-                  { emoji: '☑️', t: 'Sections', d: 'Toggle any section on/off' },
-                ].map(f => (
-                  <div key={f.t} className="flex items-start gap-3">
-                    <span className="text-lg">{f.emoji}</span>
-                    <div><p className="text-sm font-bold text-slate-700">{f.t}</p><p className="text-xs text-slate-400">{f.d}</p></div>
+                {([
+                  { Icon: Sparkles, t: 'Themes',   d: '8 preset color themes' },
+                  { Icon: Palette,  t: 'Colors',   d: 'Full primary & accent pickers' },
+                  { Icon: Image,    t: 'Images',   d: 'Hero gradients & profile photo' },
+                  { Icon: Type,     t: 'Text',     d: 'Edit name, title & bio inline' },
+                  { Icon: Layers,   t: 'Sections', d: 'Toggle any section on/off' },
+                ] as { Icon: React.ElementType; t: string; d: string }[]).map(f => (
+                  <div key={f.t} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#f1f5f9' }}>
+                      <f.Icon className="h-4 w-4" style={{ color: '#64748b' }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">{f.t}</p>
+                      <p className="text-xs text-slate-400">{f.d}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-2xl p-5 border flex items-center gap-4" style={{ borderColor: '#e2e8f0', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)' }}>
-              <div className="text-4xl font-black" style={{ color: '#06b6d4' }}>12</div>
-              <div><p className="text-sm font-bold text-slate-700">Templates available</p><p className="text-xs text-slate-400">6 categories · 2 styles each</p></div>
+            <div className="rounded-xl p-5 border flex items-center gap-4" style={{ borderColor: '#e2e8f0', background: '#f8fafc' }}>
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#e2e8f0' }}>
+                <Zap className="h-5 w-5" style={{ color: '#64748b' }} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-700">12 Templates available</p>
+                <p className="text-xs text-slate-400">6 categories · 2 styles each</p>
+              </div>
             </div>
           </aside>
         </div>
