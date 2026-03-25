@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, Chrome, KeyRound, Link2, Linkedin, Loader2, Settings2, ShieldCheck, Trash2, XCircle, Zap } from 'lucide-react'
+import { Camera, CheckCircle2, Chrome, KeyRound, Link2, Linkedin, Loader2, Settings2, ShieldCheck, Trash2, XCircle, Zap } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
 import { applyApi, linkedinApi, linkedinConnectApi } from '../../lib/api'
 import { useSettingsStore } from '../../store/useSettingsStore'
@@ -190,7 +190,7 @@ const AutoApplyPage = () => {
     setConnectError('')
     setConnectStatus('saving')  // "saving" = loading spinner while it runs
     try {
-      const res = await linkedinConnectApi.doLogin(connectEmail.trim(), connectPass)
+      await linkedinConnectApi.doLogin(connectEmail.trim(), connectPass)
       setHasCookies(true)
       setConnectStatus('idle')
       setConnectEmail('')
@@ -528,7 +528,7 @@ const AutoApplyPage = () => {
         </div>
 
         {/* Login form — shown when not yet connected or user wants to re-connect */}
-        {(connectStatus === 'idle' || connectStatus === 'active') && (
+        {(connectStatus === 'idle' || connectStatus === 'active' || connectStatus === 'saving') && (
           <div className="px-4 md:px-6 py-4 space-y-3">
             <p className="text-xs text-slate-500">
               Enter your LinkedIn credentials — the bot fills the form on Hetzner automatically (~15 s).

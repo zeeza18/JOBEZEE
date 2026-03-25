@@ -1326,6 +1326,11 @@ export default function PulledJobsPage() {
         const bApp = b.status === 'applied' ? 0 : 1
         if (aApp !== bApp) return bApp - aApp
       }
+      // Most recently posted first
+      const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0
+      const bTime = b.posted_at ? new Date(b.posted_at).getTime() : 0
+      if (bTime !== aTime) return bTime - aTime
+
       // Primary tier: how many of (salary / location / exp) the job actually has info for.
       // Tier 3 (all 3 present) → Tier 2 → Tier 1 → Tier 0 (nothing mentioned).
       const aInfo = jobInfoCount(a), bInfo = jobInfoCount(b)

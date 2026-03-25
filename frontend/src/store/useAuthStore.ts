@@ -66,14 +66,21 @@ export const useAuthStore = create<AuthState>()(
 
       // Called once on App mount.
       // If user is already cached, verifies the session silently in the background
-      // (no spinner). If the session is expired, user is cleared and AuthGuard redirects.
+      // (no spinner). Only clears the session on a definitive 401 — network errors /
+      // server blips keep the cached user so a bad request doesn't log you out.
       fetchMe: async () => {
         if (!get().user) set({ initializing: true })
         try {
           const user = await authApi.me()
           set({ user, initializing: false })
-        } catch {
-          set({ user: null, initializing: false })
+        } catch (err: unknown) {
+          const status = (err as { status?: number })?.status
+          if (status === 401 || status === 403) {
+            set({ user: null, initializing: false })
+          } else {
+            // Network / server error — keep user from localStorage, don't redirect
+            set({ initializing: false })
+          }
         }
       },
     }),
