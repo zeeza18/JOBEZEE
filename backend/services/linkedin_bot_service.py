@@ -97,6 +97,9 @@ def _split_name(profile) -> tuple[str, str]:
     """
     full_name  = (getattr(profile, "full_name", "") or "").strip()
     pref_name  = (getattr(profile, "preferred_name", "") or "").strip()
+    # Ignore full_name if it was accidentally set to an email address
+    if "@" in full_name:
+        full_name = ""
     name_src   = full_name or pref_name
 
     if name_src:
