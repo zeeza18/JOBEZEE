@@ -510,4 +510,7 @@ export const linkedinApi = {
 
   stop: (jobId: string) =>
     post<{ stopped: boolean }>(`/api/apply/linkedin-stop/${jobId}`),
+
+  screenshot: () =>
+    get<{ image_b64: string; format?: string; error?: string }>('/api/apply/bot-screenshot'),
 }

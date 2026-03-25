@@ -699,6 +699,24 @@ async def linkedin_stop(job_id: str, current_user=Depends(get_current_user)):
     return {"stopped": True}
 
 
+@router.get("/bot-screenshot")
+async def bot_screenshot(current_user=Depends(get_current_user)):
+    """Proxy a screenshot of the Hetzner Xvfb display (:99) back to the frontend."""
+    import httpx
+    cfg = get_settings()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "No worker URL configured")
+    try:
+        with httpx.Client(timeout=10) as client:
+            r = client.get(
+                f"{cfg.BOT_WORKER_URL}/screenshot",
+                headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+            )
+        return r.json()
+    except Exception as exc:
+        raise HTTPException(500, f"Could not reach worker: {exc}")
+
+
 # ── Hetzner worker callback ────────────────────────────────────────────────────
 
 class _LogCallback(BaseModel):

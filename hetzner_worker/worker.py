@@ -65,6 +65,27 @@ async def run_bot(
     return {"status": "started", "job_id": job.job_id}
 
 
+@app.get("/screenshot")
+def screenshot(authorization: str = Header(...)):
+    """Take a screenshot of the Xvfb display and return it as base64 PNG."""
+    _auth(authorization)
+    import subprocess, base64, tempfile
+    tmp = tempfile.mktemp(suffix=".png")
+    env = {**os.environ, "DISPLAY": ":99"}
+    for cmd in [["scrot", tmp], ["import", "-window", "root", tmp]]:
+        try:
+            subprocess.run(cmd, env=env, timeout=5, check=True, capture_output=True)
+            data = Path(tmp).read_bytes()
+            try:
+                Path(tmp).unlink()
+            except Exception:
+                pass
+            return {"image_b64": base64.b64encode(data).decode(), "format": "png"}
+        except Exception:
+            continue
+    return {"image_b64": "", "error": "Screenshot tools not available (install scrot or imagemagick)"}
+
+
 @app.post("/stop-bot/{job_id}")
 def stop_bot(job_id: str, authorization: str = Header(...)):
     _auth(authorization)

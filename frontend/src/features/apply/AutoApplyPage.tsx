@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, Chrome, Link2, Linkedin, Loader2, Settings2, XCircle, Zap } from 'lucide-react'
+import { Camera, CheckCircle2, Chrome, Link2, Linkedin, Loader2, Settings2, XCircle, Zap } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
 import { applyApi, linkedinApi } from '../../lib/api'
 import { useSettingsStore } from '../../store/useSettingsStore'
@@ -63,7 +63,9 @@ const AutoApplyPage = () => {
   const [liResult,  setLiResult]  = useState<string | null>(null)
   const [liError,   setLiError]   = useState<string | null>(null)
   const [liJobId,   setLiJobId]   = useState<string | null>(_initLiJobId)
-  const [liStopping, setLiStopping] = useState(false)
+  const [liStopping,         setLiStopping]         = useState(false)
+  const [liScreenshot,       setLiScreenshot]       = useState<string | null>(null)
+  const [liScreenshotLoading, setLiScreenshotLoading] = useState(false)
   const liEsRef  = useRef<EventSource | null>(null)
   const liLogRef = useRef<HTMLDivElement>(null)
 
@@ -239,6 +241,16 @@ const AutoApplyPage = () => {
     setLiError('Stopped by user')
     liEsRef.current?.close()
     localStorage.removeItem(LI_JOB_KEY)
+  }
+
+  const handleScreenshot = async () => {
+    setLiScreenshotLoading(true)
+    try {
+      const data = await linkedinApi.screenshot()
+      if (data.image_b64) setLiScreenshot(`data:image/png;base64,${data.image_b64}`)
+      else setLiScreenshot(null)
+    } catch { setLiScreenshot(null) }
+    finally { setLiScreenshotLoading(false) }
   }
 
   const handleLinkedIn = async () => {
@@ -426,11 +438,18 @@ const AutoApplyPage = () => {
             </div>
             <div className="flex items-center gap-2 sm:shrink-0">
               {liStatus === 'running' && (
-                <button onClick={handleLinkedInStop} disabled={liStopping}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
-                  {liStopping ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                  {liStopping ? 'Stopping…' : 'Stop Bot'}
-                </button>
+                <>
+                  <button onClick={handleScreenshot} disabled={liScreenshotLoading}
+                    title="Screenshot Hetzner display"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
+                    {liScreenshotLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  </button>
+                  <button onClick={handleLinkedInStop} disabled={liStopping}
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
+                    {liStopping ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                    {liStopping ? 'Stopping…' : 'Stop Bot'}
+                  </button>
+                </>
               )}
               <button onClick={handleLinkedIn} disabled={liStatus === 'running'}
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-2 text-sm font-bold text-[#0077B5] hover:bg-blue-50 transition disabled:opacity-60">
@@ -492,6 +511,19 @@ const AutoApplyPage = () => {
                       Add desired roles in Profile →
                     </a>
                   )}
+                </div>
+              )}
+
+              {/* Screenshot preview */}
+              {liScreenshot && (
+                <div className="relative rounded-xl overflow-hidden border border-slate-200">
+                  <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
+                    <span className="text-xs font-semibold text-slate-500">Hetzner display (:99)</span>
+                    <button onClick={() => setLiScreenshot(null)} className="text-slate-400 hover:text-slate-600 transition">
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <img src={liScreenshot} alt="Bot screen" className="w-full" />
                 </div>
               )}
             </>
