@@ -437,19 +437,19 @@ const AutoApplyPage = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:shrink-0">
+              {liJobId && (
+                <button onClick={handleScreenshot} disabled={liScreenshotLoading}
+                  title="Screenshot Hetzner display"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
+                  {liScreenshotLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                </button>
+              )}
               {liStatus === 'running' && (
-                <>
-                  <button onClick={handleScreenshot} disabled={liScreenshotLoading}
-                    title="Screenshot Hetzner display"
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
-                    {liScreenshotLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                  </button>
-                  <button onClick={handleLinkedInStop} disabled={liStopping}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
-                    {liStopping ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                    {liStopping ? 'Stopping…' : 'Stop Bot'}
-                  </button>
-                </>
+                <button onClick={handleLinkedInStop} disabled={liStopping}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
+                  {liStopping ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                  {liStopping ? 'Stopping…' : 'Stop Bot'}
+                </button>
               )}
               <button onClick={handleLinkedIn} disabled={liStatus === 'running'}
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-2 text-sm font-bold text-[#0077B5] hover:bg-blue-50 transition disabled:opacity-60">
