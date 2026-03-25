@@ -519,9 +519,15 @@ export const linkedinConnectApi = {
   doLogin: (email: string, password: string) =>
     post<{ saved: boolean; cookie_count: number }>('/api/apply/linkedin-connect/do-login', { email, password }),
 
-  // Legacy interactive endpoints (kept for manual fallback)
+  // Step-by-step interactive login
   start: () =>
     post<{ status: string; port: number }>('/api/apply/linkedin-connect/start'),
+  fillEmail: (email: string) =>
+    post<{ ok: boolean }>('/api/apply/linkedin-connect/fill-email', { text: email }),
+  fillPassword: (password: string) =>
+    post<{ ok: boolean }>('/api/apply/linkedin-connect/fill-password', { text: password }),
+  pressLogin: () =>
+    post<{ success: boolean; captcha?: boolean; message: string }>('/api/apply/linkedin-connect/press-login'),
   click: (x: number, y: number) =>
     post<{ ok: boolean }>('/api/apply/linkedin-connect/click', { x, y }),
   type: (text: string) =>

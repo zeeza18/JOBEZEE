@@ -5,7 +5,7 @@ import { applyApi, linkedinApi, linkedinConnectApi } from '../../lib/api'
 import { useSettingsStore } from '../../store/useSettingsStore'
 
 type ApplyStatus = 'idle' | 'running' | 'complete' | 'error'
-type ConnectStatus = 'idle' | 'starting' | 'active' | 'saving' | 'captcha'
+type ConnectStatus = 'idle' | 'starting' | 'screenshot' | 'email-sent' | 'password-sent' | 'submitting' | 'captcha' | 'saving'
 
 interface StreamEvent {
   line?   : string
@@ -191,39 +191,38 @@ const AutoApplyPage = () => {
       .catch(() => setHasCookies(false))
   }, [])
 
-  // ── CAPTCHA helpers ──────────────────────────────────────────────────────────
-  const stopCaptchaPolls = () => {
-    if (captchaSsPollRef.current) { clearInterval(captchaSsPollRef.current); captchaSsPollRef.current = null }
+  // ── Connect screen helpers ───────────────────────────────────────────────────
+  const stopConnectPolls = () => {
+    if (captchaSsPollRef.current)  { clearInterval(captchaSsPollRef.current);  captchaSsPollRef.current  = null }
     if (captchaUrlPollRef.current) { clearInterval(captchaUrlPollRef.current); captchaUrlPollRef.current = null }
   }
 
-  const fetchCaptchaScreenshot = async () => {
+  const fetchConnectScreenshot = async () => {
     try {
       const data = await linkedinConnectApi.screenshot()
       if (data.image_b64) setCaptchaScreenshot(`data:image/png;base64,${data.image_b64}`)
     } catch { /* silent */ }
   }
 
-  const startCaptchaMode = () => {
-    fetchCaptchaScreenshot()
-    captchaSsPollRef.current = setInterval(fetchCaptchaScreenshot, 1500)
+  // Start screenshot polling + URL watcher (used for all interactive states)
+  const startScreenshotPolling = () => {
+    fetchConnectScreenshot()
+    captchaSsPollRef.current = setInterval(fetchConnectScreenshot, 1500)
     captchaUrlPollRef.current = setInterval(async () => {
       try {
         const { url } = await linkedinConnectApi.pageUrl()
-        if (url && !url.includes('checkpoint') && url.includes('linkedin.com')) {
-          // CAPTCHA solved — save cookies automatically
-          stopCaptchaPolls()
+        // If URL moved away from checkpoint/security to a real LinkedIn page → auto-save
+        const isCaptchaUrl = url.includes('checkpoint') || url.includes('security') ||
+                             url.includes('challenge') || url.includes('verification') || url.includes('authwall')
+        if (url && url.includes('linkedin.com') && !isCaptchaUrl && !url.includes('/login')) {
+          stopConnectPolls()
           setConnectStatus('saving')
           try {
             await linkedinConnectApi.saveCookies()
             setHasCookies(true)
-            setConnectStatus('idle')
-            setCaptchaClicks([])
-            setCaptchaScreenshot(null)
-            setConnectEmail('')
-            setConnectPass('')
+            resetConnectState()
           } catch (err: any) {
-            setConnectError(err.message ?? 'Failed to save session after CAPTCHA')
+            setConnectError(err.message ?? 'Failed to save session')
             setConnectStatus('captcha')
           }
         }
@@ -231,47 +230,96 @@ const AutoApplyPage = () => {
     }, 2000)
   }
 
-  const handleCaptchaClick = async (e: React.MouseEvent<HTMLDivElement>) => {
+  const resetConnectState = () => {
+    stopConnectPolls()
+    setConnectStatus('idle')
+    setCaptchaScreenshot(null)
+    setCaptchaClicks([])
+    setConnectEmail('')
+    setConnectPass('')
+    setConnectError('')
+  }
+
+  // Step 1 — open Chrome on Hetzner, navigate to LinkedIn login, show screenshot
+  const handleConnectOpen = async () => {
+    setConnectError('')
+    setConnectStatus('starting')
+    try {
+      await linkedinConnectApi.start()
+      setConnectStatus('screenshot')
+      startScreenshotPolling()
+    } catch (err: any) {
+      setConnectStatus('idle')
+      setConnectError(err.message ?? 'Failed to open LinkedIn')
+    }
+  }
+
+  // Step 2 — inject email at the email field coordinate
+  const handleSendEmail = async () => {
+    if (!connectEmail.trim()) { setConnectError('Enter your LinkedIn email.'); return }
+    setConnectError('')
+    try {
+      await linkedinConnectApi.fillEmail(connectEmail.trim())
+      setConnectStatus('email-sent')
+    } catch (err: any) {
+      setConnectError(err.message ?? 'Failed to fill email')
+    }
+  }
+
+  // Step 3 — Tab to password field and inject password
+  const handleSendPassword = async () => {
+    if (!connectPass.trim()) { setConnectError('Enter your LinkedIn password.'); return }
+    setConnectError('')
+    try {
+      await linkedinConnectApi.fillPassword(connectPass)
+      setConnectStatus('password-sent')
+    } catch (err: any) {
+      setConnectError(err.message ?? 'Failed to fill password')
+    }
+  }
+
+  // Step 4 — press Enter, wait for redirect, handle result
+  const handlePressLogin = async () => {
+    setConnectError('')
+    setConnectStatus('submitting')
+    try {
+      const data = await linkedinConnectApi.pressLogin() as any
+      if (data?.captcha) {
+        setConnectStatus('captcha')
+        // Screenshot polling already running — nothing extra needed
+        return
+      }
+      if (data?.success) {
+        stopConnectPolls()
+        setConnectStatus('saving')
+        await linkedinConnectApi.saveCookies()
+        setHasCookies(true)
+        resetConnectState()
+      } else {
+        setConnectError(data?.message ?? 'Login failed — check your email and password')
+        setConnectStatus('password-sent')
+      }
+    } catch (err: any) {
+      setConnectError(err.message ?? 'Login failed')
+      setConnectStatus('password-sent')
+    }
+  }
+
+  // Click on screenshot → forward click to xdotool on server
+  const handleScreenshotClick = async (e: React.MouseEvent<HTMLDivElement>) => {
     const img = captchaImgRef.current
     if (!img) return
     const rect = img.getBoundingClientRect()
     const offsetX = e.clientX - rect.left
     const offsetY = e.clientY - rect.top
-    // Scale click to actual screenshot pixel coordinates
-    const serverX = Math.round(offsetX / rect.width  * (img.naturalWidth  || 1920))
-    const serverY = Math.round(offsetY / rect.height * (img.naturalHeight || 1080))
-    // Show red dot at percentage position (stays correct if image resizes)
+    const serverX = Math.round(offsetX / rect.width  * (img.naturalWidth  || 1280))
+    const serverY = Math.round(offsetY / rect.height * (img.naturalHeight || 800))
     setCaptchaClicks(prev => [...prev, {
       pctX: (offsetX / rect.width)  * 100,
       pctY: (offsetY / rect.height) * 100,
     }])
     try { await linkedinConnectApi.click(serverX, serverY) } catch { /* ignore */ }
-    // Refresh screenshot after click so user sees updated state
-    setTimeout(fetchCaptchaScreenshot, 700)
-  }
-
-  const handleConnectLogin = async () => {
-    if (!connectEmail.trim() || !connectPass.trim()) {
-      setConnectError('Enter your LinkedIn email and password.')
-      return
-    }
-    setConnectError('')
-    setConnectStatus('saving')
-    try {
-      const data = await linkedinConnectApi.doLogin(connectEmail.trim(), connectPass) as any
-      if (data?.captcha) {
-        setConnectStatus('captcha')
-        startCaptchaMode()
-        return
-      }
-      setHasCookies(true)
-      setConnectStatus('idle')
-      setConnectEmail('')
-      setConnectPass('')
-    } catch (err: any) {
-      setConnectStatus('active')
-      setConnectError(err.message ?? 'Login failed — check your credentials or try again.')
-    }
+    setTimeout(fetchConnectScreenshot, 700)
   }
 
   const handleConnectDelete = async () => {
@@ -600,45 +648,77 @@ const AutoApplyPage = () => {
           </div>
         </div>
 
-        {/* CAPTCHA solving panel */}
-        {connectStatus === 'captcha' && (
-          <div className="px-4 md:px-6 py-4 space-y-3">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <p className="text-sm font-semibold text-amber-800">Security check required</p>
-              <p className="text-xs text-amber-600 mt-1">
-                LinkedIn wants to verify you&apos;re human. Click the correct images on the screen below, then click <strong>VERIFY</strong>. Your session saves automatically once you&apos;re logged in.
-              </p>
-            </div>
+        {/* ── Step-by-step interactive login ── */}
 
-            {/* Screenshot with click overlay */}
+        {/* Step 0: idle — show "Open LinkedIn" button */}
+        {connectStatus === 'idle' && (
+          <div className="px-4 md:px-6 py-4 space-y-3">
+            <p className="text-xs text-slate-500">
+              Opens LinkedIn on our server — you enter credentials step by step and solve any security check interactively.
+              Only the encrypted session cookie is saved.
+            </p>
+            {connectError && <p className="text-xs text-red-600">{connectError}</p>}
+            <button
+              onClick={handleConnectOpen}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] transition"
+            >
+              <Linkedin className="h-4 w-4" />
+              {hasCookies ? 'Re-connect LinkedIn' : 'Open LinkedIn'}
+            </button>
+          </div>
+        )}
+
+        {/* Starting Chrome */}
+        {connectStatus === 'starting' && (
+          <div className="px-4 md:px-6 py-6 flex flex-col items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin text-[#0077B5]" />
+            <p className="text-sm text-slate-500">Opening LinkedIn on server…</p>
+          </div>
+        )}
+
+        {/* Screenshot panel — shown for screenshot / email-sent / password-sent / submitting / captcha / saving */}
+        {(['screenshot','email-sent','password-sent','submitting','captcha','saving'] as ConnectStatus[]).includes(connectStatus) && (
+          <div className="px-4 md:px-6 py-4 space-y-3">
+
+            {/* Status label */}
+            {connectStatus === 'captcha' && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-800">Security check</p>
+                <p className="text-xs text-amber-600 mt-1">
+                  Click the CAPTCHA on screen below, then click <strong>Verify</strong>. Session saves automatically once you pass.
+                </p>
+              </div>
+            )}
+            {connectStatus === 'saving' && (
+              <div className="flex items-center gap-2 text-sm text-emerald-700">
+                <Loader2 className="h-4 w-4 animate-spin" /> Saving session…
+              </div>
+            )}
+
+            {/* Live screenshot with click overlay */}
             <div
-              className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 cursor-crosshair select-none"
-              onClick={handleCaptchaClick}
+              className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 select-none"
+              style={{ cursor: connectStatus === 'captcha' ? 'crosshair' : 'default' }}
+              onClick={connectStatus === 'captcha' ? handleScreenshotClick : undefined}
             >
               {captchaScreenshot ? (
                 <>
                   <img
                     ref={captchaImgRef}
                     src={captchaScreenshot}
-                    alt="LinkedIn security check"
+                    alt="LinkedIn on server"
                     className="w-full block pointer-events-none"
                     draggable={false}
                   />
                   {captchaClicks.map((c, i) => (
-                    <div
-                      key={i}
-                      className="absolute pointer-events-none rounded-full"
-                      style={{
-                        left: `${c.pctX}%`,
-                        top: `${c.pctY}%`,
-                        transform: 'translate(-50%, -50%)',
-                        width: 22,
-                        height: 22,
-                        background: 'rgba(239,68,68,0.85)',
-                        border: '2.5px solid white',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-                      }}
-                    />
+                    <div key={i} className="absolute pointer-events-none rounded-full" style={{
+                      left: `${c.pctX}%`, top: `${c.pctY}%`,
+                      transform: 'translate(-50%,-50%)',
+                      width: 22, height: 22,
+                      background: 'rgba(239,68,68,0.85)',
+                      border: '2.5px solid white',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                    }} />
                   ))}
                 </>
               ) : (
@@ -649,74 +729,81 @@ const AutoApplyPage = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                Auto-saving when solved…
-              </span>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setCaptchaClicks([])}
-                  className="text-xs text-slate-400 hover:text-slate-600 transition"
-                >
-                  Clear clicks
-                </button>
-                <button
-                  onClick={() => {
-                    stopCaptchaPolls()
-                    linkedinConnectApi.stop().catch(() => {})
-                    setConnectStatus('idle')
-                    setCaptchaScreenshot(null)
-                    setCaptchaClicks([])
-                  }}
-                  className="text-xs text-red-400 hover:text-red-600 transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+            {connectError && <p className="text-xs text-red-600">{connectError}</p>}
 
-        {/* Login form — shown when not yet connected or user wants to re-connect */}
-        {(connectStatus === 'idle' || connectStatus === 'active' || connectStatus === 'saving') && (
-          <div className="px-4 md:px-6 py-4 space-y-3">
-            <p className="text-xs text-slate-500">
-              Enter your LinkedIn credentials — the bot fills the form on Hetzner automatically (~15 s).
-              Your credentials are never stored; only the encrypted session cookie is saved.
-            </p>
-            <div className="flex flex-col gap-2">
-              <input
-                type="email"
-                value={connectEmail}
-                onChange={e => setConnectEmail(e.target.value)}
-                disabled={connectStatus === 'saving'}
-                placeholder="LinkedIn email"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition disabled:opacity-50"
-              />
-              <input
-                type="password"
-                value={connectPass}
-                onChange={e => setConnectPass(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleConnectLogin() }}
-                disabled={connectStatus === 'saving'}
-                placeholder="LinkedIn password"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition disabled:opacity-50"
-              />
-            </div>
-            {connectError && (
-              <p className="text-xs text-red-600">{connectError}</p>
+            {/* Step controls below the screenshot */}
+            {connectStatus === 'screenshot' && (
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={connectEmail}
+                  onChange={e => setConnectEmail(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSendEmail() }}
+                  placeholder="LinkedIn email"
+                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition"
+                />
+                <button
+                  onClick={handleSendEmail}
+                  disabled={!connectEmail.trim()}
+                  className="rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] disabled:opacity-50 transition"
+                >Send</button>
+              </div>
             )}
-            <button
-              onClick={handleConnectLogin}
-              disabled={connectStatus === 'saving' || !connectEmail.trim() || !connectPass.trim()}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] disabled:opacity-50 transition"
-            >
-              {connectStatus === 'saving'
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Logging in &amp; saving session…</>
-                : <><Linkedin className="h-4 w-4" />{hasCookies ? 'Re-connect LinkedIn' : 'Login & Save Session'}</>
-              }
-            </button>
+
+            {connectStatus === 'email-sent' && (
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={connectPass}
+                  onChange={e => setConnectPass(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSendPassword() }}
+                  placeholder="LinkedIn password"
+                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition"
+                />
+                <button
+                  onClick={handleSendPassword}
+                  disabled={!connectPass.trim()}
+                  className="rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] disabled:opacity-50 transition"
+                >Send</button>
+              </div>
+            )}
+
+            {connectStatus === 'password-sent' && (
+              <button
+                onClick={handlePressLogin}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] transition"
+              >
+                <Linkedin className="h-4 w-4" /> Login
+              </button>
+            )}
+
+            {connectStatus === 'submitting' && (
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" /> Submitting login…
+              </div>
+            )}
+
+            {connectStatus === 'captcha' && (
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  Click the CAPTCHA above · Auto-saves when passed
+                </span>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setCaptchaClicks([])} className="text-xs text-slate-400 hover:text-slate-600 transition">Clear clicks</button>
+                  <button onClick={() => { stopConnectPolls(); linkedinConnectApi.stop().catch(() => {}); resetConnectState() }}
+                    className="text-xs text-red-400 hover:text-red-600 transition">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Cancel for non-captcha states */}
+            {(['screenshot','email-sent','password-sent'] as ConnectStatus[]).includes(connectStatus) && (
+              <button
+                onClick={() => { stopConnectPolls(); linkedinConnectApi.stop().catch(() => {}); resetConnectState() }}
+                className="text-xs text-slate-400 hover:text-slate-600 transition"
+              >Cancel</button>
+            )}
           </div>
         )}
       </Card>

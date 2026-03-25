@@ -223,6 +223,161 @@ def connect_type(req: ConnectTypeRequest, authorization: str = Header(...)):
     return {"ok": True}
 
 
+class ConnectFillEmailRequest(BaseModel):
+    user_id: str
+    email: str
+
+
+@app.post("/connect/fill-email")
+def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header(...)):
+    """Click the LinkedIn email field at known coordinates and type the email."""
+    _auth(authorization)
+    import time as _t
+    with _connect_lock:
+        session = _connect_sessions.get(req.user_id)
+    if not session:
+        raise HTTPException(400, "No active connect session")
+    env = {**os.environ, "DISPLAY": ":99"}
+
+    r = subprocess.run(["xdotool", "search", "--onlyvisible", "--class", "google-chrome"],
+                       env=env, capture_output=True, text=True)
+    win_ids = [w for w in r.stdout.strip().split() if w]
+    if not win_ids:
+        raise HTTPException(500, "Chrome window not found")
+    win_id = win_ids[-1]
+    subprocess.run(["xdotool", "windowactivate", "--sync", win_id], env=env, capture_output=True)
+    _t.sleep(0.3)
+
+    geo_r = subprocess.run(["xdotool", "getwindowgeometry", "--shell", win_id],
+                           env=env, capture_output=True, text=True)
+    geo: dict = {}
+    for line in geo_r.stdout.strip().splitlines():
+        if '=' in line:
+            k, v = line.split('=', 1)
+            try:
+                geo[k.strip()] = int(v.strip())
+            except ValueError:
+                pass
+    cx      = geo.get('X', 0) + geo.get('WIDTH', 1280) // 2
+    email_y = geo.get('Y', 0) + 115 + 415  # header(115) + viewport offset to email field
+
+    subprocess.run(["xdotool", "mousemove", str(cx), str(email_y)], env=env, capture_output=True)
+    subprocess.run(["xdotool", "click", "1"], env=env, capture_output=True)
+    _t.sleep(0.3)
+    subprocess.run(["xdotool", "key", "ctrl+a"], env=env, capture_output=True)
+    _t.sleep(0.1)
+    subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "40", req.email],
+                   env=env, capture_output=True)
+    return {"ok": True}
+
+
+class ConnectFillPasswordRequest(BaseModel):
+    user_id: str
+    password: str
+
+
+@app.post("/connect/fill-password")
+def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = Header(...)):
+    """Tab to the LinkedIn password field and type the password."""
+    _auth(authorization)
+    import time as _t
+    with _connect_lock:
+        session = _connect_sessions.get(req.user_id)
+    if not session:
+        raise HTTPException(400, "No active connect session")
+    env = {**os.environ, "DISPLAY": ":99"}
+    subprocess.run(["xdotool", "key", "Tab"], env=env, capture_output=True)
+    _t.sleep(0.3)
+    subprocess.run(["xdotool", "key", "ctrl+a"], env=env, capture_output=True)
+    _t.sleep(0.1)
+    subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "40", req.password],
+                   env=env, capture_output=True)
+    return {"ok": True}
+
+
+class ConnectPressLoginRequest(BaseModel):
+    user_id: str
+
+
+@app.post("/connect/press-login")
+def connect_press_login(req: ConnectPressLoginRequest, authorization: str = Header(...)):
+    """Press Enter to submit the LinkedIn login form, poll URL, return result or captcha flag."""
+    _auth(authorization)
+    import time as _t, asyncio as _asyncio, json as _j
+    from urllib.request import urlopen as _urlopen
+
+    with _connect_lock:
+        session = _connect_sessions.get(req.user_id)
+    if not session:
+        raise HTTPException(400, "No active connect session")
+
+    env = {**os.environ, "DISPLAY": ":99"}
+    subprocess.run(["xdotool", "key", "Return"], env=env, capture_output=True)
+
+    async def _get_state():
+        try:
+            import websockets as _ws
+        except ImportError:
+            return [], ""
+        raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
+        targets = _j.loads(raw)
+        tab = next((t for t in targets if t.get("type") == "page"), None)
+        if not tab:
+            return [], ""
+        async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
+            await sock.send(_j.dumps({"id": 10, "method": "Runtime.evaluate",
+                                      "params": {"expression": "window.location.href",
+                                                 "returnByValue": True}}))
+            r_url = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+            url = r_url.get("result", {}).get("result", {}).get("value", "") or ""
+            await sock.send(_j.dumps({"id": 11, "method": "Network.getAllCookies", "params": {}}))
+            r_ck = _j.loads(await _asyncio.wait_for(sock.recv(), 10))
+            cookies = [c for c in r_ck.get("result", {}).get("cookies", [])
+                       if "linkedin.com" in c.get("domain", "")]
+        return cookies, url
+
+    _CAPTCHA_PATTERNS = ("checkpoint", "security", "challenge", "verification", "authwall")
+
+    # Poll until URL leaves /login (max 20 s)
+    for _ in range(20):
+        _t.sleep(1)
+        try:
+            _, interim_url = _asyncio.run(_get_state())
+            if "/login" not in interim_url:
+                break
+        except Exception:
+            pass
+
+    try:
+        li_cookies, current_url = _asyncio.run(_get_state())
+    except Exception as exc:
+        raise HTTPException(500, f"Cookie extraction failed: {exc}")
+
+    has_session = any(c.get("name") == "li_at" for c in li_cookies)
+
+    if not has_session and any(p in current_url for p in _CAPTCHA_PATTERNS):
+        # Keep Chrome alive — user will solve CAPTCHA interactively
+        return {"success": False, "captcha": True, "current_url": current_url,
+                "message": "CAPTCHA detected — solve it in the screenshot panel"}
+
+    # Success or definitive failure — kill Chrome
+    with _connect_lock:
+        s = _connect_sessions.pop(req.user_id, None)
+    if s:
+        try:
+            s["proc"].kill()
+        except Exception:
+            pass
+
+    return {
+        "success": has_session,
+        "cookies": li_cookies if has_session else [],
+        "count": len(li_cookies) if has_session else 0,
+        "current_url": current_url,
+        "message": "Login successful" if has_session else "Login failed — wrong email or password",
+    }
+
+
 @app.get("/connect/cookies")
 def connect_cookies(user_id: str, authorization: str = Header(...)):
     """Extract LinkedIn session cookies from the connect-session Chrome via CDP."""

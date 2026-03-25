@@ -881,6 +881,63 @@ async def li_connect_type(req: ConnectTypeReq, current_user=Depends(get_current_
     return r.json()
 
 
+@router.post("/linkedin-connect/fill-email")
+async def li_connect_fill_email(req: ConnectTypeReq, current_user=Depends(get_current_user)):
+    """Click LinkedIn email field at known coords and type the email."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    async with _httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            f"{cfg.BOT_WORKER_URL}/connect/fill-email",
+            json={"user_id": current_user.id, "email": req.text},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+    if not r.is_success:
+        raise HTTPException(502, f"Worker error: {r.text}")
+    return r.json()
+
+
+@router.post("/linkedin-connect/fill-password")
+async def li_connect_fill_password(req: ConnectTypeReq, current_user=Depends(get_current_user)):
+    """Tab to LinkedIn password field and type the password."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    async with _httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            f"{cfg.BOT_WORKER_URL}/connect/fill-password",
+            json={"user_id": current_user.id, "password": req.text},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+    if not r.is_success:
+        raise HTTPException(502, f"Worker error: {r.text}")
+    return r.json()
+
+
+@router.post("/linkedin-connect/press-login")
+async def li_connect_press_login(current_user=Depends(get_current_user)):
+    """Press Enter to submit LinkedIn login, poll result, return success or captcha flag."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    async with _httpx.AsyncClient(timeout=35) as client:
+        r = await client.post(
+            f"{cfg.BOT_WORKER_URL}/connect/press-login",
+            json={"user_id": current_user.id},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+    if not r.is_success:
+        raise HTTPException(502, f"Worker error: {r.text}")
+    return r.json()
+
+
 @router.post("/linkedin-connect/save-cookies")
 async def li_connect_save_cookies(
     current_user=Depends(get_current_user),
