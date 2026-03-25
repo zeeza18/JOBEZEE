@@ -152,11 +152,23 @@ def _solve_captcha_2captcha(page_url: str) -> tuple:
                 m = _re.search(pat, src)
                 if m: return m.group(1), "recaptcha"
 
-            # 5. Search inside iframes
+            # 5. reCAPTCHA iframe src — sitekey is in URL param ?k=
             for iframe in driver.find_elements(By.TAG_NAME, "iframe"):
                 try:
                     src_attr = iframe.get_attribute("src") or ""
                     is_hc = "hcaptcha.com" in src_attr
+                    is_rc = "recaptcha" in src_attr or "google.com/recaptcha" in src_attr
+                    # reCAPTCHA sitekey lives in the iframe src as ?k=SITEKEY
+                    if is_rc:
+                        m = _re.search(r'[?&]k=([^&]+)', src_attr)
+                        if m:
+                            return m.group(1), "recaptcha"
+                    # hCaptcha sitekey in iframe src as ?sitekey=
+                    if is_hc:
+                        m = _re.search(r'[?&]sitekey=([^&]+)', src_attr)
+                        if m:
+                            return m.group(1), "hcaptcha"
+                    # Fall through to DOM inspection inside the iframe
                     driver.switch_to.frame(iframe)
                     for attr in ["data-sitekey", "data-site-key"]:
                         try:
@@ -176,10 +188,10 @@ def _solve_captcha_2captcha(page_url: str) -> tuple:
                 except Exception:
                     driver.switch_to.default_content()
 
-            # 6. LinkedIn known fallback — checkpoint pages use hCaptcha
+            # 6. LinkedIn known fallback — checkpoint reCAPTCHA v2
             if "linkedin.com/checkpoint" in page_url:
-                print_lg("[CAPTCHA] Using LinkedIn known hCaptcha sitekey as fallback")
-                return LI_HCAPTCHA_KEY, "hcaptcha"
+                print_lg("[CAPTCHA] Using LinkedIn known reCAPTCHA sitekey as fallback")
+                return LI_RECAPTCHA_KEY, "recaptcha"
 
             return None, None
 

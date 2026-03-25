@@ -717,6 +717,27 @@ async def bot_screenshot(current_user=Depends(get_current_user)):
         raise HTTPException(500, f"Could not reach worker: {exc}")
 
 
+# ── Hetzner worker admin ──────────────────────────────────────────────────────
+
+@router.post("/worker/git-pull")
+async def worker_git_pull(_user=Depends(get_current_user)):
+    """Trigger a git pull on the Hetzner worker to deploy latest bot code."""
+    from ..config import get_settings as _gs
+    import httpx as _httpx
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(status_code=400, detail="BOT_WORKER_URL not configured")
+    async with _httpx.AsyncClient(timeout=30) as client:
+        try:
+            r = await client.post(
+                f"{cfg.BOT_WORKER_URL}/git-pull",
+                headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+            )
+            return r.json()
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+
 # ── Hetzner worker callback ────────────────────────────────────────────────────
 
 class _LogCallback(BaseModel):

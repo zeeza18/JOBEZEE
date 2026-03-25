@@ -86,6 +86,25 @@ def screenshot(authorization: str = Header(...)):
     return {"image_b64": "", "error": "Screenshot tools not available (install scrot or imagemagick)"}
 
 
+@app.post("/git-pull")
+def git_pull(authorization: str = Header(...)):
+    """Pull latest code from origin and return output."""
+    _auth(authorization)
+    try:
+        result = subprocess.run(
+            ["git", "pull", "--ff-only"],
+            cwd=str(_JOBEZEE_ROOT),
+            capture_output=True, text=True, timeout=60,
+        )
+        return {
+            "returncode": result.returncode,
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+        }
+    except Exception as e:
+        return {"returncode": -1, "stdout": "", "stderr": str(e)}
+
+
 @app.post("/stop-bot/{job_id}")
 def stop_bot(job_id: str, authorization: str = Header(...)):
     _auth(authorization)
