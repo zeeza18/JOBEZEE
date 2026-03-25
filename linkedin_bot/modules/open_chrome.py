@@ -146,8 +146,13 @@ def createChromeSession(isRetry: bool = False):
                     print_lg(f"  [Chrome] still starting... ({secs}s elapsed)", flush=True)
         threading.Thread(target=_heartbeat, daemon=True).start()
         _cd_path = shutil.which("chromedriver")
+        if not _cd_path and sys.platform.startswith("linux"):
+            import glob as _glob
+            _matches = sorted(_glob.glob(os.path.expanduser("~/.cache/selenium/chromedriver/linux64/*/chromedriver")), reverse=True)
+            if _matches:
+                _cd_path = _matches[0]
         if _cd_path:
-            print_lg(f"Using chromedriver from PATH: {_cd_path}")
+            print_lg(f"Using chromedriver: {_cd_path}")
             driver = webdriver.Chrome(service=ChromeService(_cd_path), options=options)
         else:
             print_lg("chromedriver not on PATH — letting selenium-manager auto-download matching version...")
