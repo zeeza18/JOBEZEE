@@ -38,6 +38,18 @@ print("[Bot] importing open_chrome (starts Chrome)...", flush=True)
 from modules.open_chrome import *
 print("[Bot] Chrome session ready", flush=True)
 from modules.helpers import *
+
+# Hide Selenium automation fingerprint BEFORE any LinkedIn navigation
+try:
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": (
+            "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+            "window.chrome=window.chrome||{runtime:{}};"
+        )
+    })
+    print_lg("[Bot] Stealth: navigator.webdriver hidden from PerimeterX")
+except Exception as _se:
+    print_lg(f"[Bot] Stealth patch skipped: {_se}")
 from modules.clickers_and_finders import *
 from modules.validator import validate_config
 
@@ -1542,6 +1554,7 @@ def main() -> None:
             useNewResume = False
         
         # Inject saved LinkedIn session cookies (Connect LinkedIn flow) before login
+        _cookies_injected_ok = False
         try:
             import config.settings as _cfg_s
             _li_cookies_json = getattr(_cfg_s, 'linkedin_cookies_json', '') or ''
@@ -1562,15 +1575,17 @@ def main() -> None:
                             driver.add_cookie(_c)
                         except Exception:
                             pass
-                    print_lg("[JOBEZEE] Cookies injected — navigating to LinkedIn feed...")
+                    print_lg("[JOBEZEE] Cookies injected — navigating to feed...")
                     driver.get("https://www.linkedin.com/feed/")
-                    time.sleep(2)
+                    time.sleep(3)
+                    _cookies_injected_ok = True
         except Exception as _inj_e:
             print_lg(f"[JOBEZEE] Cookie injection failed (will login normally): {_inj_e}")
 
-        # Login to LinkedIn
+        # Login to LinkedIn (skip navigation if already at feed via cookies)
         tabs_count = len(driver.window_handles)
-        driver.get("https://www.linkedin.com/login")
+        if not _cookies_injected_ok:
+            driver.get("https://www.linkedin.com/login")
         if not is_logged_in_LN(): login_LN()
         
         linkedIn_tab = driver.current_window_handle

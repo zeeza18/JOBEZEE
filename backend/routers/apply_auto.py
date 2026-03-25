@@ -761,6 +761,64 @@ def _worker_client():
     return httpx.AsyncClient(timeout=20), cfg
 
 
+class ConnectDoLoginReq(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/linkedin-connect/do-login")
+async def li_connect_do_login(
+    req: ConnectDoLoginReq,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    All-in-one: start Chrome on Hetzner, fill LinkedIn login via CDP,
+    wait for session cookies, encrypt + save to DB. Returns success/error.
+    """
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    from ..crypto import encrypt as _encrypt
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+
+    # Call worker — this takes ~15s
+    try:
+        async with _httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                f"{cfg.BOT_WORKER_URL}/connect/do-login",
+                json={"user_id": current_user.id, "email": req.email, "password": req.password},
+                headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+            )
+    except _httpx.TimeoutException:
+        raise HTTPException(504, "Worker timed out — LinkedIn may be slow. Try again.")
+
+    if not r.is_success:
+        raise HTTPException(502, f"Worker error: {r.text}")
+
+    data = r.json()
+    if not data.get("success"):
+        raise HTTPException(400, data.get("message", "Login failed"))
+
+    cookies = data.get("cookies", [])
+    if not cookies:
+        raise HTTPException(400, "No LinkedIn cookies received")
+
+    # Encrypt and save to DB
+    import json as _json
+    encrypted = _encrypt(_json.dumps(cookies))
+    pid = uuid.UUID(current_user.id)
+    profile_res = await db.execute(select(UserProfile).where(UserProfile.id == pid))
+    profile = profile_res.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(404, "Profile not found")
+    profile.linkedin_cookies = encrypted
+    await db.commit()
+
+    return {"saved": True, "cookie_count": len(cookies)}
+
+
 @router.post("/linkedin-connect/start")
 async def li_connect_start(current_user=Depends(get_current_user)):
     """Launch a Chrome session on Hetzner for the user to log in to LinkedIn interactively."""

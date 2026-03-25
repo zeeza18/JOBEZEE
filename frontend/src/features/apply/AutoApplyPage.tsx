@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera, CheckCircle2, Chrome, KeyRound, Link2, Linkedin, Loader2, Settings2, ShieldCheck, Trash2, XCircle, Zap } from 'lucide-react'
+import { CheckCircle2, Chrome, KeyRound, Link2, Linkedin, Loader2, Settings2, ShieldCheck, Trash2, XCircle, Zap } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
 import { applyApi, linkedinApi, linkedinConnectApi } from '../../lib/api'
 import { useSettingsStore } from '../../store/useSettingsStore'
@@ -73,11 +73,11 @@ const AutoApplyPage = () => {
   const ssIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // ── LinkedIn Connect state ───────────────────────────────────────────────────
-  const [hasCookies,      setHasCookies]      = useState<boolean | null>(null)
-  const [connectStatus,   setConnectStatus]   = useState<ConnectStatus>('idle')
-  const [connectScreen,   setConnectScreen]   = useState<string | null>(null)
-  const [connectInput,    setConnectInput]    = useState('')
-  const [connectSending,  setConnectSending]  = useState(false)
+  const [hasCookies,     setHasCookies]     = useState<boolean | null>(null)
+  const [connectStatus,  setConnectStatus]  = useState<ConnectStatus>('idle')
+  const [connectEmail,   setConnectEmail]   = useState('')
+  const [connectPass,    setConnectPass]    = useState('')
+  const [connectError,   setConnectError]   = useState('')
   const connectPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -182,77 +182,23 @@ const AutoApplyPage = () => {
       .catch(() => setHasCookies(false))
   }, [])
 
-  const startConnectPoll = () => {
-    if (connectPollRef.current) clearInterval(connectPollRef.current)
-    connectPollRef.current = setInterval(async () => {
-      try {
-        const data = await linkedinApi.screenshot()
-        if (data.image_b64) setConnectScreen(`data:image/png;base64,${data.image_b64}`)
-      } catch { /* silent */ }
-    }, 4000)
-  }
-
-  const stopConnectPoll = () => {
-    if (connectPollRef.current) { clearInterval(connectPollRef.current); connectPollRef.current = null }
-  }
-
-  const handleConnectStart = async () => {
-    setConnectStatus('starting')
-    setConnectScreen(null)
-    try {
-      await linkedinConnectApi.start()
-      setConnectStatus('active')
-      startConnectPoll()
-      // Grab first screenshot immediately
-      setTimeout(async () => {
-        try {
-          const d = await linkedinApi.screenshot()
-          if (d.image_b64) setConnectScreen(`data:image/png;base64,${d.image_b64}`)
-        } catch { /* ignore */ }
-      }, 4000)
-    } catch (err: any) {
-      setConnectStatus('idle')
-      alert(err.message ?? 'Failed to start connect session')
+  const handleConnectLogin = async () => {
+    if (!connectEmail.trim() || !connectPass.trim()) {
+      setConnectError('Enter your LinkedIn email and password.')
+      return
     }
-  }
-
-  const handleConnectClick = async (e: React.MouseEvent<HTMLImageElement>) => {
-    const img = e.currentTarget
-    const rect = img.getBoundingClientRect()
-    const x = Math.round((e.clientX - rect.left) * (1280 / rect.width))
-    const y = Math.round((e.clientY - rect.top)  * (800  / rect.height))
-    try { await linkedinConnectApi.click(x, y) } catch { /* silent */ }
-  }
-
-  const handleConnectType = async () => {
-    if (!connectInput.trim()) return
-    setConnectSending(true)
-    try { await linkedinConnectApi.type(connectInput) } catch { /* silent */ }
-    setConnectInput('')
-    setConnectSending(false)
-  }
-
-  const handleConnectSave = async () => {
-    setConnectStatus('saving')
-    stopConnectPoll()
+    setConnectError('')
+    setConnectStatus('saving')  // "saving" = loading spinner while it runs
     try {
-      const res = await linkedinConnectApi.saveCookies()
+      const res = await linkedinConnectApi.doLogin(connectEmail.trim(), connectPass)
       setHasCookies(true)
       setConnectStatus('idle')
-      setConnectScreen(null)
-      alert(`Session saved! ${res.cookie_count} cookies stored. Future bot runs won't need to log in.`)
+      setConnectEmail('')
+      setConnectPass('')
     } catch (err: any) {
-      setConnectStatus('active')
-      startConnectPoll()
-      alert(err.message ?? 'Failed to save cookies — are you logged in to LinkedIn?')
+      setConnectStatus('active')  // keep form open
+      setConnectError(err.message ?? 'Login failed — check your credentials or try again.')
     }
-  }
-
-  const handleConnectCancel = async () => {
-    stopConnectPoll()
-    try { await linkedinConnectApi.stop() } catch { /* ignore */ }
-    setConnectStatus('idle')
-    setConnectScreen(null)
   }
 
   const handleConnectDelete = async () => {
@@ -578,89 +524,48 @@ const AutoApplyPage = () => {
                 Not connected
               </span>
             )}
-            {connectStatus === 'idle' && (
-              <button onClick={handleConnectStart} disabled={connectStatus !== 'idle'}
-                className="flex items-center gap-1.5 rounded-xl bg-[#0077B5] px-4 py-2 text-sm font-semibold text-white hover:bg-[#005f8f] transition disabled:opacity-50">
-                <Linkedin className="h-4 w-4" />
-                {hasCookies ? 'Re-connect' : 'Connect'}
-              </button>
-            )}
           </div>
         </div>
 
-        {/* Active connect session */}
-        {connectStatus !== 'idle' && (
+        {/* Login form — shown when not yet connected or user wants to re-connect */}
+        {(connectStatus === 'idle' || connectStatus === 'active') && (
           <div className="px-4 md:px-6 py-4 space-y-3">
-            {/* Screenshot / loading */}
-            <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-900">
-              <div className="flex items-center justify-between px-3 py-2 bg-slate-900 border-b border-slate-700">
-                <div className="flex items-center gap-2">
-                  {connectStatus === 'active' && (
-                    <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
-                    </span>
-                  )}
-                  <span className="text-xs text-slate-400">LinkedIn • Hetzner display</span>
-                </div>
-                <span className="text-[10px] text-slate-500">Click anywhere on the page to interact</span>
-              </div>
-              {connectScreen ? (
-                <img
-                  src={connectScreen}
-                  alt="LinkedIn connect screen"
-                  className="w-full block cursor-crosshair"
-                  onClick={handleConnectClick}
-                  draggable={false}
-                />
-              ) : (
-                <div className="flex items-center gap-3 px-4 py-8 justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
-                  <span className="text-sm text-slate-500">
-                    {connectStatus === 'starting' ? 'Starting Chrome…' : 'Loading screen…'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Type input */}
-            {connectStatus === 'active' && (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={connectInput}
-                  onChange={e => setConnectInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleConnectType() }}
-                  placeholder="Type text and press Enter (e.g. email, password)"
-                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
-                />
-                <button onClick={handleConnectType} disabled={connectSending || !connectInput.trim()}
-                  className="shrink-0 flex items-center gap-1.5 rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-40 transition">
-                  {connectSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Send'}
-                </button>
-              </div>
-            )}
-
-            {/* Action buttons */}
-            <div className="flex flex-wrap gap-2">
-              {connectStatus === 'active' && (
-                <button onClick={handleConnectSave}
-                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition">
-                  <ShieldCheck className="h-4 w-4" /> Logged in? Save Session
-                </button>
-              )}
-              {connectStatus === 'saving' && (
-                <span className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white opacity-70">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Saving cookies…
-                </span>
-              )}
-              <button onClick={handleConnectCancel}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">
-                <XCircle className="h-4 w-4" /> Cancel
-              </button>
-            </div>
-            <p className="text-xs text-slate-400">
-              After logging in to LinkedIn, click <strong>"Logged in? Save Session"</strong> — your cookies will be encrypted and stored. Next bot run skips login entirely.
+            <p className="text-xs text-slate-500">
+              Enter your LinkedIn credentials — the bot fills the form on Hetzner automatically (~15 s).
+              Your credentials are never stored; only the encrypted session cookie is saved.
             </p>
+            <div className="flex flex-col gap-2">
+              <input
+                type="email"
+                value={connectEmail}
+                onChange={e => setConnectEmail(e.target.value)}
+                disabled={connectStatus === 'saving'}
+                placeholder="LinkedIn email"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition disabled:opacity-50"
+              />
+              <input
+                type="password"
+                value={connectPass}
+                onChange={e => setConnectPass(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleConnectLogin() }}
+                disabled={connectStatus === 'saving'}
+                placeholder="LinkedIn password"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition disabled:opacity-50"
+              />
+            </div>
+            {connectError && (
+              <p className="text-xs text-red-600">{connectError}</p>
+            )}
+            <button
+              onClick={handleConnectLogin}
+              disabled={connectStatus === 'saving' || !connectEmail.trim() || !connectPass.trim()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] disabled:opacity-50 transition"
+            >
+              {connectStatus === 'saving'
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Logging in &amp; saving session…</>
+                : <><Linkedin className="h-4 w-4" />{hasCookies ? 'Re-connect LinkedIn' : 'Login & Save Session'}</>
+              }
+            </button>
           </div>
         )}
       </Card>

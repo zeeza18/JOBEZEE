@@ -515,18 +515,19 @@ export const linkedinConnectApi = {
   status: () =>
     get<{ has_cookies: boolean; session_active: boolean }>('/api/apply/linkedin-connect/status'),
 
+  /** One-shot: starts Chrome on Hetzner, fills login form via CDP, saves cookies (~15s) */
+  doLogin: (email: string, password: string) =>
+    post<{ saved: boolean; cookie_count: number }>('/api/apply/linkedin-connect/do-login', { email, password }),
+
+  // Legacy interactive endpoints (kept for manual fallback)
   start: () =>
     post<{ status: string; port: number }>('/api/apply/linkedin-connect/start'),
-
   click: (x: number, y: number) =>
     post<{ ok: boolean }>('/api/apply/linkedin-connect/click', { x, y }),
-
   type: (text: string) =>
     post<{ ok: boolean }>('/api/apply/linkedin-connect/type', { text }),
-
   saveCookies: () =>
     post<{ saved: boolean; cookie_count: number }>('/api/apply/linkedin-connect/save-cookies'),
-
   stop: () =>
     post<{ stopped: boolean }>('/api/apply/linkedin-connect/stop'),
 
@@ -551,5 +552,7 @@ export const linkedinApi = {
     post<{ stopped: boolean }>(`/api/apply/linkedin-stop/${jobId}`),
 
   screenshot: () =>
-    get<{ image_b64: string; format?: string; error?: string }>('/api/apply/bot-screenshot'),
+    get<{ image_b64: string; format?: string; width?: number; height?: number; error?: string }>(
+      '/api/apply/bot-screenshot'
+    ),
 }

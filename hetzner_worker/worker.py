@@ -81,11 +81,19 @@ def screenshot(authorization: str = Header(...)):
         try:
             subprocess.run(cmd, env=env, timeout=5, check=True, capture_output=True)
             data = Path(tmp).read_bytes()
+            # Extract PNG width/height without extra deps (bytes 16-24)
+            width  = int.from_bytes(data[16:20], "big")
+            height = int.from_bytes(data[20:24], "big")
             try:
                 Path(tmp).unlink()
             except Exception:
                 pass
-            return {"image_b64": base64.b64encode(data).decode(), "format": "png"}
+            return {
+                "image_b64": base64.b64encode(data).decode(),
+                "format": "png",
+                "width": width,
+                "height": height,
+            }
         except Exception:
             continue
     return {"image_b64": "", "error": "Screenshot tools not available (install scrot or imagemagick)"}
@@ -111,7 +119,8 @@ def _find_chrome_bin() -> str:
 
 
 def _connect_profile_dir(user_id: str) -> str:
-    return os.path.expanduser(f"~/.config/google-chrome-li-connect-{user_id[:8]}")
+    # Use the bot's own profile dir — cookies persist natively for all bot runs
+    return os.path.expanduser("~/.config/google-chrome-linkedin-bot")
 
 
 class ConnectStartRequest(BaseModel):
@@ -284,6 +293,188 @@ def connect_status(user_id: str, authorization: str = Header(...)):
         with _connect_lock:
             _connect_sessions.pop(user_id, None)
     return {"active": alive, "port": session.get("port")}
+
+
+class ConnectDoLoginRequest(BaseModel):
+    user_id: str
+    email: str
+    password: str
+
+
+@app.post("/connect/do-login")
+def connect_do_login(req: ConnectDoLoginRequest, authorization: str = Header(...)):
+    """
+    All-in-one: start Chrome on bot profile, navigate to LinkedIn login,
+    fill email+password via CDP JS injection, wait for redirect, return cookies.
+    Uses the bot's persistent profile so cookies are stored natively.
+    """
+    _auth(authorization)
+    import time as _t, asyncio as _asyncio, json as _j
+    from urllib.request import urlopen as _urlopen
+
+    # Kill any existing connect session
+    with _connect_lock:
+        old = _connect_sessions.pop(req.user_id, None)
+    if old:
+        try:
+            old["proc"].kill()
+        except Exception:
+            pass
+    _t.sleep(0.5)
+
+    profile_dir = _connect_profile_dir(req.user_id)
+    os.makedirs(profile_dir, exist_ok=True)
+    for lf in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+        lp = os.path.join(profile_dir, lf)
+        try:
+            if os.path.exists(lp) or os.path.islink(lp):
+                os.remove(lp)
+        except Exception:
+            pass
+
+    chrome_bin = _find_chrome_bin()
+    cmd = [
+        chrome_bin,
+        f"--remote-debugging-port={_CONNECT_CDP_PORT}",
+        "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
+        "--window-size=1280,800", "--no-first-run", "--no-default-browser-check",
+        "--disable-extensions", "--disable-blink-features=AutomationControlled",
+        "--disable-features=ProfilePickerOnStartupFeature",
+        f"--user-data-dir={profile_dir}", "--profile-directory=Default",
+        "https://www.linkedin.com/login",
+    ]
+    env = {**os.environ, "DISPLAY": ":99"}
+    proc = subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with _connect_lock:
+        _connect_sessions[req.user_id] = {"proc": proc, "port": _CONNECT_CDP_PORT}
+
+    _t.sleep(6)   # wait for LinkedIn login page to fully load
+
+    # ── CDP helpers ──────────────────────────────────────────────────────────
+    async def _cdp_session():
+        try:
+            import websockets as _ws
+        except ImportError:
+            raise RuntimeError("websockets package not installed on worker")
+        raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
+        targets = _j.loads(raw)
+        tab = next((t for t in targets if t.get("type") == "page"), None)
+        if not tab:
+            raise RuntimeError("No Chrome page found")
+        return _ws, tab["webSocketDebuggerUrl"]
+
+    async def _eval(sock, msg_id: int, expr: str):
+        await sock.send(_j.dumps({"id": msg_id, "method": "Runtime.evaluate",
+                                  "params": {"expression": expr, "returnByValue": True}}))
+        return _j.loads(await _asyncio.wait_for(sock.recv(), timeout=8))
+
+    async def _do_login():
+        _ws, ws_url = await _cdp_session()
+        async with _ws.connect(ws_url) as sock:
+            # Dismiss any restore-pages dialog
+            await sock.send(_j.dumps({"id": 0, "method": "Input.dispatchKeyEvent",
+                                       "params": {"type": "keyDown", "key": "Escape",
+                                                  "windowsVirtualKeyCode": 27}}))
+            await _asyncio.sleep(0.4)
+            await sock.send(_j.dumps({"id": 0, "method": "Input.dispatchKeyEvent",
+                                       "params": {"type": "keyUp", "key": "Escape",
+                                                  "windowsVirtualKeyCode": 27}}))
+            await _asyncio.sleep(0.3)
+
+            # React-safe value setter for email
+            email_js = _j.dumps(req.email)
+            await _eval(sock, 1, f"""
+                (function() {{
+                    var el = document.querySelector('#username')
+                          || document.querySelector('input[name="session_key"]')
+                          || document.querySelector('input[autocomplete="username"]')
+                          || document.querySelector('input[type="email"]');
+                    if (!el) return 'NOT_FOUND';
+                    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                    setter.call(el, {email_js});
+                    el.dispatchEvent(new Event('input',  {{bubbles:true}}));
+                    el.dispatchEvent(new Event('change', {{bubbles:true}}));
+                    return 'OK';
+                }})()
+            """)
+            await _asyncio.sleep(0.4)
+
+            # React-safe value setter for password
+            pwd_js = _j.dumps(req.password)
+            await _eval(sock, 2, f"""
+                (function() {{
+                    var el = document.querySelector('#password')
+                          || document.querySelector('input[name="session_password"]')
+                          || document.querySelector('input[type="password"]');
+                    if (!el) return 'NOT_FOUND';
+                    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                    setter.call(el, {pwd_js});
+                    el.dispatchEvent(new Event('input',  {{bubbles:true}}));
+                    el.dispatchEvent(new Event('change', {{bubbles:true}}));
+                    return 'OK';
+                }})()
+            """)
+            await _asyncio.sleep(0.4)
+
+            # Click Sign-in button
+            await _eval(sock, 3, """
+                (function() {
+                    var btn = document.querySelector('[data-litms-control-urn="login-submit"]')
+                           || document.querySelector('.btn__primary--large[type="submit"]')
+                           || document.querySelector('button[type="submit"]');
+                    if (btn) { btn.click(); return 'CLICKED'; }
+                    return 'NOT_FOUND';
+                })()
+            """)
+
+        # Wait for LinkedIn to redirect after login (CAPTCHA or feed)
+        await _asyncio.sleep(8)
+
+        # Re-open CDP to check URL and grab cookies
+        _ws2, ws_url2 = await _cdp_session()
+        async with _ws2.connect(ws_url2) as sock2:
+            r_url = await _eval(sock2, 10, "window.location.href")
+            current_url = (r_url.get("result", {}).get("result", {}).get("value", "") or "")
+
+            await sock2.send(_j.dumps({"id": 11, "method": "Network.getAllCookies", "params": {}}))
+            r_ck = _j.loads(await _asyncio.wait_for(sock2.recv(), timeout=10))
+            all_cookies = r_ck.get("result", {}).get("cookies", [])
+
+        li_cookies = [c for c in all_cookies if "linkedin.com" in c.get("domain", "")]
+        return li_cookies, current_url
+
+    try:
+        li_cookies, current_url = _asyncio.run(_do_login())
+    except Exception as exc:
+        with _connect_lock:
+            s = _connect_sessions.pop(req.user_id, None)
+        if s:
+            try:
+                s["proc"].kill()
+            except Exception:
+                pass
+        raise HTTPException(500, f"Login automation failed: {exc}")
+
+    # Kill Chrome — cookies are now in the profile and we have them in memory
+    with _connect_lock:
+        s = _connect_sessions.pop(req.user_id, None)
+    if s:
+        try:
+            s["proc"].kill()
+        except Exception:
+            pass
+
+    has_session = any(c.get("name") == "li_at" for c in li_cookies)
+    return {
+        "success": has_session,
+        "cookies": li_cookies if has_session else [],
+        "count": len(li_cookies) if has_session else 0,
+        "current_url": current_url,
+        "message": "Login successful" if has_session else (
+            "CAPTCHA detected — please use the manual screenshot flow" if "checkpoint" in current_url
+            else "Login failed — check your email and password"
+        ),
+    }
 
 
 @app.post("/git-pull")
