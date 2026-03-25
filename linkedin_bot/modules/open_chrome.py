@@ -116,6 +116,17 @@ def createChromeSession(isRetry: bool = False):
     if not isRetry and not safe_mode:
         bot_dir = get_bot_profile_dir()
         print_lg(f"Using dedicated bot profile: {bot_dir}")
+        # Remove stale Chrome singleton lock files left by a crashed/killed previous run.
+        # Without this, Chrome immediately exits with "session not created: Chrome instance exited".
+        if sys.platform.startswith("linux"):
+            for _lock in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+                _lp = os.path.join(bot_dir, _lock)
+                try:
+                    if os.path.exists(_lp) or os.path.islink(_lp):
+                        os.remove(_lp)
+                        print_lg(f"[Chrome] Removed stale lock: {_lock}")
+                except Exception:
+                    pass
         options.add_argument(f"--user-data-dir={bot_dir}")
         options.add_argument("--profile-directory=Default")
     else:

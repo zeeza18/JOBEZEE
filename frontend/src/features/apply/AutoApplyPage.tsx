@@ -63,11 +63,13 @@ const AutoApplyPage = () => {
   const [liResult,  setLiResult]  = useState<string | null>(null)
   const [liError,   setLiError]   = useState<string | null>(null)
   const [liJobId,   setLiJobId]   = useState<string | null>(_initLiJobId)
-  const [liStopping,         setLiStopping]         = useState(false)
-  const [liScreenshot,       setLiScreenshot]       = useState<string | null>(null)
-  const [liScreenshotLoading, setLiScreenshotLoading] = useState(false)
-  const liEsRef  = useRef<EventSource | null>(null)
-  const liLogRef = useRef<HTMLDivElement>(null)
+  const [liStopping,           setLiStopping]           = useState(false)
+  const [liScreenshot,         setLiScreenshot]         = useState<string | null>(null)
+  const [liScreenshotLoading,  setLiScreenshotLoading]  = useState(false)
+  const [liScreenshotTs,       setLiScreenshotTs]       = useState<Date | null>(null)
+  const liEsRef        = useRef<EventSource | null>(null)
+  const liLogRef       = useRef<HTMLDivElement>(null)
+  const ssIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (liLogRef.current) liLogRef.current.scrollTop = liLogRef.current.scrollHeight
@@ -159,6 +161,7 @@ const AutoApplyPage = () => {
     esRef.current?.close()
     liEsRef.current?.close()
     if (warmPollRef.current) clearInterval(warmPollRef.current)
+    if (ssIntervalRef.current) clearInterval(ssIntervalRef.current)
     // NOTE: do NOT clear LI_JOB_KEY here — bot keeps running on the server
   }, [])
 
@@ -243,15 +246,40 @@ const AutoApplyPage = () => {
     localStorage.removeItem(LI_JOB_KEY)
   }
 
-  const handleScreenshot = async () => {
-    setLiScreenshotLoading(true)
+  const fetchScreenshot = async (silent = false) => {
+    if (!silent) setLiScreenshotLoading(true)
     try {
       const data = await linkedinApi.screenshot()
-      if (data.image_b64) setLiScreenshot(`data:image/png;base64,${data.image_b64}`)
-      else setLiScreenshot(null)
-    } catch { setLiScreenshot(null) }
-    finally { setLiScreenshotLoading(false) }
+      if (data.image_b64) {
+        setLiScreenshot(`data:image/png;base64,${data.image_b64}`)
+        setLiScreenshotTs(new Date())
+      }
+    } catch { /* silent fail during auto-poll */ }
+    finally { if (!silent) setLiScreenshotLoading(false) }
   }
+
+  const handleScreenshot = () => fetchScreenshot(false)
+
+  // Auto-poll screenshot every 5s while bot is running
+  useEffect(() => {
+    if (liStatus === 'running' && liJobId) {
+      // Fetch immediately, then every 5s
+      fetchScreenshot(true)
+      ssIntervalRef.current = setInterval(() => fetchScreenshot(true), 5000)
+    } else {
+      if (ssIntervalRef.current) {
+        clearInterval(ssIntervalRef.current)
+        ssIntervalRef.current = null
+      }
+    }
+    return () => {
+      if (ssIntervalRef.current) {
+        clearInterval(ssIntervalRef.current)
+        ssIntervalRef.current = null
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liStatus, liJobId])
 
   const handleLinkedIn = async () => {
     setLiStatus('running')
@@ -437,13 +465,6 @@ const AutoApplyPage = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:shrink-0">
-              {liJobId && (
-                <button onClick={handleScreenshot} disabled={liScreenshotLoading}
-                  title="Screenshot Hetzner display"
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
-                  {liScreenshotLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                </button>
-              )}
               {liStatus === 'running' && (
                 <button onClick={handleLinkedInStop} disabled={liStopping}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
@@ -474,8 +495,46 @@ const AutoApplyPage = () => {
 
           {liStatus !== 'idle' && (
             <>
+              {/* Live screenshot — shown above log when available */}
+              {liScreenshot ? (
+                <div className="relative rounded-xl overflow-hidden border border-slate-200">
+                  <div className="flex items-center justify-between px-3 py-2 bg-slate-900 border-b border-slate-700">
+                    <div className="flex items-center gap-2">
+                      {liStatus === 'running' && (
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
+                        </span>
+                      )}
+                      <span className="text-xs text-slate-400">Hetzner display</span>
+                      {liScreenshotTs && (
+                        <span className="text-[10px] text-slate-600">
+                          {liScreenshotTs.toLocaleTimeString()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={handleScreenshot} disabled={liScreenshotLoading}
+                        className="rounded-md p-1 text-slate-400 hover:text-white transition disabled:opacity-40" title="Refresh">
+                        {liScreenshotLoading
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Camera className="h-3.5 w-3.5" />}
+                      </button>
+                      <button onClick={() => setLiScreenshot(null)} className="rounded-md p-1 text-slate-400 hover:text-white transition">
+                        <XCircle className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <img src={liScreenshot} alt="Bot screen" className="w-full block" />
+                </div>
+              ) : liStatus === 'running' && (
+                <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />
+                  <span className="text-xs text-slate-500">Loading live preview…</span>
+                </div>
+              )}
+
               <div ref={liLogRef}
-                className="h-56 overflow-y-auto rounded-xl bg-slate-950 px-4 py-3 font-mono text-xs leading-relaxed space-y-0.5">
+                className="h-48 overflow-y-auto rounded-xl bg-slate-950 px-4 py-3 font-mono text-xs leading-relaxed space-y-0.5">
                 {liLines.length === 0 && <span className="text-slate-600">Starting bot…</span>}
                 {liLines.map((line, i) => {
                   const cls =
@@ -499,7 +558,7 @@ const AutoApplyPage = () => {
                 <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
                   <p className="text-sm font-semibold text-emerald-700 flex-1">{liResult ?? 'Bot finished successfully'}</p>
-                  <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); localStorage.removeItem(LI_JOB_KEY) }}
+                  <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); setLiScreenshot(null); localStorage.removeItem(LI_JOB_KEY) }}
                     className="text-xs font-medium text-slate-400 hover:text-slate-600 transition">Clear</button>
                 </div>
               )}
@@ -511,19 +570,6 @@ const AutoApplyPage = () => {
                       Add desired roles in Profile →
                     </a>
                   )}
-                </div>
-              )}
-
-              {/* Screenshot preview */}
-              {liScreenshot && (
-                <div className="relative rounded-xl overflow-hidden border border-slate-200">
-                  <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
-                    <span className="text-xs font-semibold text-slate-500">Hetzner display (:99)</span>
-                    <button onClick={() => setLiScreenshot(null)} className="text-slate-400 hover:text-slate-600 transition">
-                      <XCircle className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <img src={liScreenshot} alt="Bot screen" className="w-full" />
                 </div>
               )}
             </>
