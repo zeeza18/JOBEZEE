@@ -95,44 +95,68 @@ about_company_for_ai = None # TODO extract about company for AI
 
 #< Login Functions
 
-def _solve_recaptcha_2captcha(page_url: str) -> str:
+def _solve_captcha_2captcha(page_url: str) -> tuple:
     """
-    Detect reCAPTCHA sitekey on current page, submit to 2captcha and return
-    the solved token string, or "" if solving failed / key not configured.
+    Detect CAPTCHA type (hCaptcha or reCAPTCHA v2) on the current page,
+    submit to 2captcha and return (token, captcha_type) or ("", "").
+    LinkedIn checkpoints use hCaptcha — tries that first.
     """
     api_key = os.environ.get("TWOCAPTCHA_API_KEY", "").strip()
     if not api_key:
         print_lg("[CAPTCHA] TWOCAPTCHA_API_KEY not set — skipping auto-solve")
-        return ""
+        return "", ""
     try:
         import requests as _req
     except ImportError:
         print_lg("[CAPTCHA] requests package not available")
-        return ""
+        return "", ""
     try:
         import re as _re
         time.sleep(4)  # let page fully render before searching
 
-        def _find_sitekey():
-            # 1. Direct element attributes
+        # LinkedIn known sitekeys
+        LI_HCAPTCHA_KEY  = "13257c76-22d2-4002-ab59-b3e350e4dbef"
+        LI_RECAPTCHA_KEY = "6LdaGNMUAAAAAGBs7OAlhz6PBZ6PYfLkCMQGFbMV"
+
+        def _find_sitekey_and_type():
+            src = driver.page_source
+
+            # 1. hCaptcha element
+            for attr in ["data-sitekey", "data-site-key"]:
+                try:
+                    el = driver.find_element(By.XPATH, f'//div[@class and contains(@class,"h-captcha")]//*[@{attr}] | //*[contains(@class,"h-captcha") and @{attr}]')
+                    sk = el.get_attribute(attr)
+                    if sk: return sk, "hcaptcha"
+                except Exception:
+                    pass
+
+            # 2. hCaptcha in page source
+            for pat in [r'hcaptcha\.com/[^"\']*["\']sitekey["\']\s*:\s*["\']([^"\']+)["\']',
+                        r'data-sitekey=["\']([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})["\']']:
+                m = _re.search(pat, src)
+                if m: return m.group(1), "hcaptcha"
+
+            # 3. reCAPTCHA element attributes
             for attr in ["data-sitekey", "data-site-key"]:
                 try:
                     el = driver.find_element(By.XPATH, f'//*[@{attr}]')
                     sk = el.get_attribute(attr)
-                    if sk: return sk
+                    if sk: return sk, "recaptcha"
                 except Exception:
                     pass
-            # 2. Page source regex
-            src = driver.page_source
+
+            # 4. reCAPTCHA in page source
             for pat in [r'data-sitekey=["\']([^"\']+)["\']',
                         r'["\']sitekey["\']\s*:\s*["\']([^"\']+)["\']',
                         r'grecaptcha\.render\([^)]*["\']([^"\']{20,})["\']']:
                 m = _re.search(pat, src)
-                if m: return m.group(1)
-            # 3. Search inside iframes
-            iframes = driver.find_elements(By.TAG_NAME, "iframe")
-            for iframe in iframes:
+                if m: return m.group(1), "recaptcha"
+
+            # 5. Search inside iframes
+            for iframe in driver.find_elements(By.TAG_NAME, "iframe"):
                 try:
+                    src_attr = iframe.get_attribute("src") or ""
+                    is_hc = "hcaptcha.com" in src_attr
                     driver.switch_to.frame(iframe)
                     for attr in ["data-sitekey", "data-site-key"]:
                         try:
@@ -140,44 +164,58 @@ def _solve_recaptcha_2captcha(page_url: str) -> str:
                             sk = el.get_attribute(attr)
                             if sk:
                                 driver.switch_to.default_content()
-                                return sk
+                                return sk, "hcaptcha" if is_hc else "recaptcha"
                         except Exception:
                             pass
                     isrc = driver.page_source
                     m = _re.search(r'data-sitekey=["\']([^"\']+)["\']', isrc)
                     if m:
                         driver.switch_to.default_content()
-                        return m.group(1)
+                        return m.group(1), "hcaptcha" if is_hc else "recaptcha"
                     driver.switch_to.default_content()
                 except Exception:
                     driver.switch_to.default_content()
-            # 4. LinkedIn known fallback sitekey
+
+            # 6. LinkedIn known fallback — checkpoint pages use hCaptcha
             if "linkedin.com/checkpoint" in page_url:
-                print_lg("[CAPTCHA] Using LinkedIn known checkpoint sitekey as fallback")
-                return "6LdaGNMUAAAAAGBs7OAlhz6PBZ6PYfLkCMQGFbMV"
-            return None
+                print_lg("[CAPTCHA] Using LinkedIn known hCaptcha sitekey as fallback")
+                return LI_HCAPTCHA_KEY, "hcaptcha"
 
-        sitekey = _find_sitekey()
+            return None, None
+
+        sitekey, captcha_type = _find_sitekey_and_type()
         if not sitekey:
-            print_lg("[CAPTCHA] Could not find reCAPTCHA sitekey on page")
-            return ""
+            print_lg("[CAPTCHA] Could not find CAPTCHA sitekey on page")
+            return "", ""
 
-        print_lg(f"[CAPTCHA] Found sitekey, submitting to 2captcha...")
-        resp = _req.post("https://2captcha.com/in.php", data={
-            "key":       api_key,
-            "method":    "userrecaptcha",
-            "googlekey": sitekey,
-            "pageurl":   page_url,
-            "json":      1,
-        }, timeout=30).json()
+        print_lg(f"[CAPTCHA] Detected {captcha_type}, sitekey={sitekey[:16]}… — submitting to 2captcha")
+
+        if captcha_type == "hcaptcha":
+            post_data = {
+                "key":     api_key,
+                "method":  "hcaptcha",
+                "sitekey": sitekey,
+                "pageurl": page_url,
+                "json":    1,
+            }
+        else:
+            post_data = {
+                "key":       api_key,
+                "method":    "userrecaptcha",
+                "googlekey": sitekey,
+                "pageurl":   page_url,
+                "json":      1,
+            }
+
+        resp = _req.post("https://2captcha.com/in.php", data=post_data, timeout=30).json()
 
         if resp.get("status") != 1:
             print_lg(f"[CAPTCHA] 2captcha rejected submission: {resp}")
-            return ""
+            return "", ""
 
         captcha_id = resp["request"]
         print_lg(f"[CAPTCHA] Waiting for 2captcha to solve (id={captcha_id})...")
-        for _ in range(24):   # poll up to 120 s
+        for _ in range(36):   # poll up to 180 s (hcaptcha can be slower)
             time.sleep(5)
             res = _req.get("https://2captcha.com/res.php", params={
                 "key":    api_key,
@@ -187,38 +225,57 @@ def _solve_recaptcha_2captcha(page_url: str) -> str:
             }, timeout=10).json()
             if res.get("status") == 1:
                 print_lg("[CAPTCHA] Solved!")
-                return res["request"]
+                return res["request"], captcha_type
             if res.get("request") not in ("CAPCHA_NOT_READY", "CAPTCHA_NOT_READY"):
                 print_lg(f"[CAPTCHA] 2captcha error: {res}")
-                return ""
+                return "", ""
             print_lg("[CAPTCHA] Still solving...")
         print_lg("[CAPTCHA] Timed out waiting for 2captcha")
-        return ""
+        return "", ""
     except Exception as e:
         print_lg(f"[CAPTCHA] Solver error: {e}")
-        return ""
+        return "", ""
+
+# keep old name as alias so nothing else breaks
+def _solve_recaptcha_2captcha(page_url: str) -> str:
+    token, _ = _solve_captcha_2captcha(page_url)
+    return token
 
 
-def _inject_recaptcha_token(token: str) -> None:
-    """Inject a solved reCAPTCHA token into the page and submit the form."""
+def _inject_captcha_token(token: str, captcha_type: str = "recaptcha") -> None:
+    """Inject a solved CAPTCHA token into the page and submit the form."""
     try:
-        driver.execute_script(
-            """
-            var areas = document.querySelectorAll("textarea[name='g-recaptcha-response'], #g-recaptcha-response");
-            for (var i = 0; i < areas.length; i++) {
-                areas[i].innerHTML = arguments[0];
-                areas[i].value = arguments[0];
-            }
-            """,
-            token,
-        )
-        try:
-            driver.find_element(By.XPATH, '//button[@type="submit"]').click()
-        except Exception:
-            driver.execute_script("var f = document.querySelector('form'); if(f) f.submit();")
+        if captcha_type == "hcaptcha":
+            driver.execute_script("""
+                var areas = document.querySelectorAll(
+                    "textarea[name='h-captcha-response'], [name='h-captcha-response']");
+                for (var a of areas) { a.innerHTML = arguments[0]; a.value = arguments[0]; }
+                document.querySelectorAll("form").forEach(function(f) {
+                    var inp = f.querySelector("[name='h-captcha-response']");
+                    if (inp) { try { f.submit(); } catch(e) {} }
+                });
+            """, token)
+        else:
+            driver.execute_script("""
+                var areas = document.querySelectorAll(
+                    "textarea[name='g-recaptcha-response'], #g-recaptcha-response");
+                for (var i = 0; i < areas.length; i++) {
+                    areas[i].innerHTML = arguments[0];
+                    areas[i].value = arguments[0];
+                }
+            """, token)
+            try:
+                driver.find_element(By.XPATH, '//button[@type="submit"]').click()
+            except Exception:
+                driver.execute_script("var f = document.querySelector('form'); if(f) f.submit();")
         print_lg("[CAPTCHA] Token injected and form submitted")
     except Exception as e:
         print_lg(f"[CAPTCHA] Token injection error: {e}")
+
+
+def _inject_recaptcha_token(token: str) -> None:
+    """Backward-compat alias."""
+    _inject_captcha_token(token, "recaptcha")
 
 
 def is_logged_in_LN() -> bool:
@@ -275,9 +332,9 @@ def login_LN() -> None:
     _checkpoint_hit = "checkpoint" in _cur or "captcha" in _cur.lower() or "challenge" in _cur
     if _checkpoint_hit:
         print_lg(f"[CAPTCHA] Checkpoint detected at: {_cur}")
-        _token = _solve_recaptcha_2captcha(_cur)
+        _token, _ctype = _solve_captcha_2captcha(_cur)
         if _token:
-            _inject_recaptcha_token(_token)
+            _inject_captcha_token(_token, _ctype)
             time.sleep(5)
         else:
             print_lg("[CAPTCHA] Could not auto-solve — will attempt manual login retry")
