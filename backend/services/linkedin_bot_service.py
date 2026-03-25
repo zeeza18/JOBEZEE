@@ -237,9 +237,9 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
         if not li_email or not li_pass:
             raise ValueError("LinkedIn email and password are required. Please add them in Settings → Credentials.")
 
-        # API keys: prefer DB profile value, fall back to process env
-        _openai_key    = (getattr(profile, "openai_api_key",    "") or "").strip() or os.environ.get("OPENAI_API_KEY",    "")
-        _anthropic_key = (getattr(profile, "anthropic_api_key", "") or "").strip() or os.environ.get("ANTHROPIC_API_KEY", "")
+        # API keys: prefer DB profile value (decrypt it), fall back to process env
+        _openai_key    = _decrypt((getattr(profile, "openai_api_key",    "") or "").strip()) or os.environ.get("OPENAI_API_KEY",    "")
+        _anthropic_key = _decrypt((getattr(profile, "anthropic_api_key", "") or "").strip()) or os.environ.get("ANTHROPIC_API_KEY", "")
 
         overrides["secrets"] = {
             "username":    li_email,
