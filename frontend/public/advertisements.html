@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JOBEZEE Campaign Landing</title>
+    <meta name="description" content="Discover JOBEZEE — AI-powered job search, resume tailoring, and one-click apply." />
+    <link rel="canonical" href="https://www.jobezee.org/advertisements.html" />
+    <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+    <style>
+      :root {
+        --bg: radial-gradient(circle at 20% 20%, #0ea5e9 0, transparent 25%), radial-gradient(circle at 80% 0%, #22d3ee 0, transparent 20%), #0b1220;
+        --card: rgba(255, 255, 255, 0.06);
+        --text: #e2e8f0;
+        --accent: #22d3ee;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Inter", system-ui, -apple-system, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+      }
+      .wrap {
+        width: min(960px, 100%);
+        background: var(--card);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 32px;
+        box-shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(10px);
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(34, 211, 238, 0.12);
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      h1 {
+        margin: 12px 0 8px;
+        font-size: clamp(32px, 4vw, 44px);
+        color: #f8fafc;
+      }
+      p {
+        margin: 0 0 16px;
+        color: rgba(226, 232, 240, 0.8);
+        line-height: 1.6;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin: 24px 0;
+      }
+      .card {
+        padding: 16px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #06b6d4, #22d3ee);
+        color: #0b1220;
+        font-weight: 800;
+        border: none;
+        text-decoration: none;
+        box-shadow: 0 10px 30px rgba(34, 211, 238, 0.35);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      .cta:hover { transform: translateY(-1px); box-shadow: 0 12px 36px rgba(34, 211, 238, 0.45); }
+      .cta:active { transform: translateY(0); }
+      .foot { margin-top: 12px; font-size: 12px; color: rgba(226, 232, 240, 0.65); }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <span class="badge">Campaign</span>
+      <h1>Meet JOBEZEE — your AI job search copilot.</h1>
+      <p>Find fresh roles, tailor your resume to every job, and apply faster with one workspace built for serious job seekers.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>Live job discovery</h3>
+          <p>Aggregated roles from top boards with smart filters for location, seniority, and salary.</p>
+        </div>
+        <div class="card">
+          <h3>AI resume tailoring</h3>
+          <p>Instantly rewrite your resume per job so your skills match the description.</p>
+        </div>
+        <div class="card">
+          <h3>One-click apply</h3>
+          <p>Auto-fill applications and track status across every role from one dashboard.</p>
+        </div>
+      </div>
+      <a class="cta" href="https://www.jobezee.org/app">Launch JOBEZEE</a>
+      <div class="foot">UTM-friendly landing for ads — duplicate this page per campaign in /public.</div>
+    </main>
+  </body>
+</html>
