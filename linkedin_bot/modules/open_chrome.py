@@ -35,6 +35,17 @@ def get_cached_driver_path() -> str | None:
         path = os.path.join(os.path.expandvars("%APPDATA%"), "undetected_chromedriver", "undetected_chromedriver.exe")
         if os.path.exists(path):
             return path
+    elif sys.platform.startswith('linux'):
+        # Use selenium-manager cached chromedriver if available (avoids uc version mismatch)
+        import glob as _glob
+        patterns = [
+            os.path.expanduser("~/.cache/selenium/chromedriver/linux64/*/chromedriver"),
+            "/root/.cache/selenium/chromedriver/linux64/*/chromedriver",
+        ]
+        for pat in patterns:
+            matches = sorted(_glob.glob(pat), reverse=True)
+            if matches:
+                return matches[0]
     return None
 
 
