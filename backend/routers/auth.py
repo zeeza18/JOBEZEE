@@ -164,7 +164,7 @@ async def me(
 ) -> dict:
     from ..models import UserProfile
     result = await db.execute(
-        select(UserProfile).where(UserProfile.user_id == str(current_user.id))
+        select(UserProfile).where(UserProfile.id == uuid.UUID(str(current_user.id)))
     )
     profile = result.scalar_one_or_none()
     return {

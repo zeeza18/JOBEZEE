@@ -101,22 +101,30 @@ def _decode_token(token: str, expected_type: str = "access") -> str:
 #
 
 def _cookie_kwargs(request_host: str | None = None) -> dict:
-    is_secure     = not _cfg.DEBUG
+    host          = (request_host or "").lower()
+    is_localhost  = host in {"localhost", "127.0.0.1"} or host.endswith(".localhost")
+
+    # Local dev should never set Secure or Domain so cookies stick over http://localhost
+    is_secure     = False if is_localhost else (not _cfg.DEBUG)
     cookie_domain = _cfg.COOKIE_DOMAIN or None   # None = no Domain attr
-    if cookie_domain and request_host:
+
+    if cookie_domain and host:
         # Only set Domain if it matches the current host; otherwise browsers drop the cookie.
-        domain_no_dot = cookie_domain.lstrip(".")
-        if not request_host.endswith(domain_no_dot):
+        domain_no_dot = cookie_domain.lstrip(".").lower()
+        if not host.endswith(domain_no_dot):
             cookie_domain = None
 
-    if cookie_domain:
+    if is_localhost:
+        samesite = "lax"
+        cookie_domain = None
+    elif cookie_domain:
         # Same-site setup: api.jobezee.org + .jobezee.org domain
         samesite = "lax"
     elif is_secure:
         # Cross-domain fallback (onrender.com ↔ jobezee.org)
         samesite = "none"
     else:
-        # Local dev
+        # Local dev or explicitly insecure env
         samesite = "lax"
 
     return {"secure": is_secure, "samesite": samesite, "domain": cookie_domain, "httponly": True}

@@ -4,12 +4,20 @@
  * are sent automatically on every request.
  */
 
-// On first-party domains (jobezee.org / *.vercel.app), force same-origin so
-// auth cookies stay first-party even if VITE_API_URL is accidentally set.
-// Elsewhere (localhost, staging), allow explicit override.
+// On first-party domains (jobezee.org / *.vercel.app) and localhost, force
+// same-origin so auth cookies stay first-party even if VITE_API_URL is set.
+// Elsewhere (staging), allow explicit override.
 const HOST           = typeof window !== 'undefined' ? window.location.hostname : ''
-const IS_FIRST_PARTY = HOST.endsWith('jobezee.org') || HOST.endsWith('vercel.app')
-const BASE           = IS_FIRST_PARTY ? '' : (import.meta.env.VITE_API_URL || '')
+const IS_LOCAL       = HOST === 'localhost' || HOST === '127.0.0.1'
+const ENV_API        = (import.meta.env.VITE_API_URL || '').trim()
+const IS_FIRST_PARTY = IS_LOCAL || HOST.endsWith('jobezee.org') || HOST.endsWith('vercel.app')
+
+// Local override: if you explicitly set VITE_API_URL to a localhost URL, use it
+// (skips Vite proxy in case it interferes with Set-Cookie). Otherwise, force
+// same-origin on first-party/local domains so cookies stay first-party.
+const BASE = (IS_LOCAL && ENV_API && ENV_API.includes('localhost'))
+  ? ENV_API
+  : (IS_FIRST_PARTY ? '' : ENV_API)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types (mirror backend Pydantic schemas)
