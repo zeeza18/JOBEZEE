@@ -56,9 +56,10 @@ class ResetPasswordRequest(BaseModel):
 
 
 class AuthUserResponse(BaseModel):
-    id        : str
-    email     : str
-    full_name : str
+    id             : str
+    email          : str
+    full_name      : str
+    preferred_name : str = ""
 
     model_config = {"from_attributes": True}
 
@@ -155,8 +156,21 @@ async def logout(response: Response) -> dict:
 
 
 @router.get("/me", response_model=AuthUserResponse)
-async def me(current_user: User = Depends(get_current_user)) -> User:
-    return current_user
+async def me(
+    current_user : User = Depends(get_current_user),
+    db           : AsyncSession = Depends(get_db),
+) -> dict:
+    from ..models import UserProfile
+    result = await db.execute(
+        select(UserProfile).where(UserProfile.user_id == str(current_user.id))
+    )
+    profile = result.scalar_one_or_none()
+    return {
+        "id":             str(current_user.id),
+        "email":          current_user.email,
+        "full_name":      current_user.full_name or "",
+        "preferred_name": (profile.preferred_name or "") if profile else "",
+    }
 
 
 @router.post("/forgot-password")

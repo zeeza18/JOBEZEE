@@ -24,11 +24,12 @@ const TopNav = () => {
     navigate('/')
   }
 
-  const initials = user?.full_name
-    ? user.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+  const _name = user?.preferred_name || (user?.full_name?.includes('@') ? '' : user?.full_name) || ''
+  const initials = _name
+    ? _name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? 'U'
 
-  const displayName = user?.full_name || user?.email?.split('@')[0] || 'User'
+  const displayName = _name || user?.email?.split('@')[0] || 'User'
 
   return (
     <>

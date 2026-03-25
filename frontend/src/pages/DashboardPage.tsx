@@ -16,8 +16,9 @@ async function apiFetch<T>(path: string): Promise<T> {
 }
 
 interface Profile {
-  full_name: string
-  desired_roles: string[]
+  full_name      : string
+  preferred_name : string
+  desired_roles  : string[]
   years_experience: string
   avatar_url: string
   linkedin: string
@@ -268,8 +269,11 @@ const DashboardPage = () => {
     return () => clearInterval(interval)
   }, [])
 
-  const displayName  = profile?.full_name || user?.full_name || 'You'
-  const primaryRole  = profile?.desired_roles?.[0] ?? null
+  const _pname       = profile?.preferred_name || (profile?.full_name?.includes('@') ? '' : profile?.full_name) || ''
+  const displayName  = _pname || user?.preferred_name || (user?.full_name?.includes('@') ? '' : user?.full_name) || 'You'
+  const _ACRONYMS    = new Set(['ai','ml','ui','ux','api','ios','hr','it','sql','aws','gcp','llm'])
+  const fmtRole      = (r: string) => r.split(' ').map(w => _ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  const primaryRole  = profile?.desired_roles?.[0] ? fmtRole(profile.desired_roles[0]) : null
   const yearsExp     = profile?.years_experience ?? null
   const avatarUrl    = profile?.avatar_url
     ? (profile.avatar_url.startsWith('http') ? profile.avatar_url : `${BASE}${profile.avatar_url}`)

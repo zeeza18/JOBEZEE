@@ -105,7 +105,7 @@ export default function FeedbackWidget() {
       {/* Floating trigger */}
       <button
         onClick={() => { setOpen(v => !v); if (!open) reset() }}
-        className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full shadow-lg px-4 py-2.5 text-sm font-semibold transition-all
+        className={`hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-2 rounded-full shadow-lg px-4 py-2.5 text-sm font-semibold transition-all
           ${open
             ? 'bg-slate-800 text-slate-300 border border-white/10'
             : 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:-translate-y-0.5'
@@ -119,7 +119,7 @@ export default function FeedbackWidget() {
 
       {/* Panel */}
       {open && (
-        <div className="fixed bottom-20 right-6 z-50 w-80 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+        <div className="hidden md:block fixed bottom-20 right-6 z-50 w-80 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
           {/* Header */}
           <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
             <MessageSquarePlus className="h-4 w-4 text-cyan-500" />

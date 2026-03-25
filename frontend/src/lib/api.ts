@@ -13,9 +13,10 @@ const BASE = import.meta.env.VITE_API_URL || ''
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface AuthUser {
-  id        : string
-  email     : string
-  full_name : string
+  id             : string
+  email          : string
+  full_name      : string
+  preferred_name : string
 }
 
 export interface UserProfile {

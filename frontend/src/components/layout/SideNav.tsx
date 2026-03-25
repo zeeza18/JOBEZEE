@@ -51,11 +51,12 @@ const SideNav = () => {
     navigate('/')
   }
 
-  const initials = user?.full_name
-    ? user.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+  const _name = user?.preferred_name || (user?.full_name?.includes('@') ? '' : user?.full_name) || ''
+  const initials = _name
+    ? _name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? 'U'
 
-  const displayName = user?.full_name || user?.email?.split('@')[0] || 'User'
+  const displayName = _name || user?.email?.split('@')[0] || 'User'
 
   return (
     <aside className="fixed inset-y-0 left-0 w-60 bg-[#0d1117] border-r border-white/[0.06] flex flex-col z-40 hidden md:flex">
