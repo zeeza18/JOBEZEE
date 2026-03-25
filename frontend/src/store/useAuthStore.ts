@@ -18,21 +18,24 @@ interface AuthState {
   fetchMe  : ()                                                      => Promise<void>
 }
 
-// Synchronously peek at localStorage so returning users skip the full-screen spinner.
-// If a user object is already cached, we start with initializing:false and verify in background.
-const _hasPersistedSession = (() => {
+// Read the persisted user synchronously at module load time.
+// zustand persist rehydrates asynchronously — without this the AuthGuard would
+// briefly see user:null and redirect to /auth on every page refresh.
+const _getPersistedUser = (): AuthUser | null => {
   try {
     const raw = localStorage.getItem('jobezee-auth')
-    return !!(raw && JSON.parse(raw)?.state?.user)
-  } catch { return false }
-})()
+    return raw ? (JSON.parse(raw)?.state?.user ?? null) : null
+  } catch { return null }
+}
+
+const _persistedUser = _getPersistedUser()
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      user         : null,
+      user         : _persistedUser,           // pre-populated so refresh never flashes /auth
       loading      : false,
-      initializing : !_hasPersistedSession,  // false for returning users — renders immediately
+      initializing : !_persistedUser,          // false for returning users — renders immediately
 
       login: async (email, password) => {
         set({ loading: true })
@@ -63,7 +66,7 @@ export const useAuthStore = create<AuthState>()(
 
       // Called once on App mount.
       // If user is already cached, verifies the session silently in the background
-      // (no spinner). If the session expired, user is cleared and AuthGuard redirects.
+      // (no spinner). If the session is expired, user is cleared and AuthGuard redirects.
       fetchMe: async () => {
         if (!get().user) set({ initializing: true })
         try {
