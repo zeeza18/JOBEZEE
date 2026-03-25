@@ -57,20 +57,20 @@ const ApplyPage = () => {
                     <MapPin className="h-3 w-3" />{job.location}
                   </span>
                 )}
-                {job.job_type && (
+                {job.type && (
                   <span className="flex items-center gap-1">
-                    <Briefcase className="h-3 w-3" />{job.job_type}
+                    <Briefcase className="h-3 w-3" />{job.type}
                   </span>
                 )}
-                {job.salary_text && (
-                  <span className="text-emerald-600 font-medium">{job.salary_text}</span>
+                {job.salaryRange && (
+                  <span className="text-emerald-600 font-medium">{job.salaryRange}</span>
                 )}
               </div>
             </div>
           </div>
-          {job.url && (
+          {(job as { url?: string }).url && (
             <a
-              href={job.url}
+              href={(job as { url?: string }).url}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors shrink-0"
