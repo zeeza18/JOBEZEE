@@ -506,8 +506,19 @@ async def linkedin_launch(
         if _path.exists():
             resume_pdf_path = str(_path)
         else:
-            import logging as _log
-            _log.warning("LinkedIn bot: resume file not on disk at %s (url=%s)", _path, resume_url)
+            # File wiped from ephemeral disk — recover from DB-stored base64 bytes
+            _bytes_b64 = getattr(profile, "resume_bytes", "") or ""
+            if _bytes_b64:
+                import base64 as _b64, tempfile as _tmp, logging as _log
+                _tmp_dir = Path(_tmp.mkdtemp())
+                _orig_name = resume_url.split("/")[-1]
+                _tmp_path = _tmp_dir / _orig_name
+                _tmp_path.write_bytes(_b64.b64decode(_bytes_b64))
+                resume_pdf_path = str(_tmp_path)
+                _log.info("LinkedIn bot: recovered resume from DB bytes → %s", _tmp_path)
+            else:
+                import logging as _log
+                _log.warning("LinkedIn bot: resume not on disk and no DB bytes (url=%s)", resume_url)
 
     job_id = create_linkedin_job(user_profile_id=str(pid))
     start_linkedin_bot(job_id, profile, resume_pdf_path, resume_url, tailor_before_apply=req.tailor_before_apply)

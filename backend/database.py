@@ -122,6 +122,7 @@ async def run_column_migrations() -> None:
         ("tailor_resume",             "BOOLEAN       DEFAULT false"),
         ("openai_api_key",            "TEXT          DEFAULT ''"),
         ("anthropic_api_key",         "TEXT          DEFAULT ''"),
+        ("resume_bytes",              "TEXT          DEFAULT ''"),
     ]
 
     # ── pulled_jobs ───────────────────────────────────────────────────────────

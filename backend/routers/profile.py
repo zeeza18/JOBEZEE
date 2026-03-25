@@ -164,8 +164,9 @@ async def upload_resume(
     safe_name = f"{uuid.uuid4()}_{file.filename}"
     dest_path = os.path.join(upload_dir, safe_name)
 
+    contents = await file.read()
     with open(dest_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+        f.write(contents)
 
     pid    = _profile_id_for(current_user)
     result = await db.execute(select(UserProfile).where(UserProfile.id == pid))
@@ -175,8 +176,10 @@ async def upload_resume(
         profile = UserProfile(id=pid, full_name=current_user.full_name, email=current_user.email)
         db.add(profile)
 
+    import base64 as _b64
     profile.resume_filename = file.filename or ""
     profile.resume_url      = f"/uploads/resumes/{safe_name}"
+    profile.resume_bytes    = _b64.b64encode(contents).decode()
     await db.commit()
 
     return {"filename": file.filename, "url": f"/uploads/resumes/{safe_name}"}

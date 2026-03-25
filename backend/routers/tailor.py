@@ -281,7 +281,16 @@ async def profile_resume_text(
     rel = rel[len("uploads/"):]           # "resumes/<filename>"
     file_path = upload_root / rel
     if not file_path.exists():
-        raise HTTPException(404, f"Resume file not found on server ({file_path.name}).")
+        # File wiped from ephemeral disk — recover from DB-stored base64 bytes
+        _bytes_b64 = getattr(profile, "resume_bytes", "") or ""
+        if _bytes_b64:
+            import base64 as _b64, tempfile as _tmp
+            _tmp_dir = Path(_tmp.mkdtemp())
+            _tmp_path = _tmp_dir / file_path.name
+            _tmp_path.write_bytes(_b64.b64decode(_bytes_b64))
+            file_path = _tmp_path
+        else:
+            raise HTTPException(404, f"Resume file not found on server ({file_path.name}). Please re-upload via Profile → Resume.")
     suffix = file_path.suffix.lower()
     if suffix == ".txt":
         text = file_path.read_text(errors="replace")

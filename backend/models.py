@@ -99,6 +99,7 @@ class UserProfile(Base):
     # ── Resume ───────────────────────────────────────────────────────────────
     resume_filename = Column(String(300), default="")
     resume_url      = Column(String(500), default="")
+    resume_bytes    = Column(Text,        default="")   # base64-encoded PDF — persists across deploys
     avatar_url      = Column(String(500), default="")
 
     # ── Auto-apply credentials ────────────────────────────────────────────────
