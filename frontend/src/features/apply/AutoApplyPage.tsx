@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera, CheckCircle2, Chrome, KeyRound, Link2, Linkedin, Loader2, Settings2, ShieldCheck, Trash2, XCircle, Zap } from 'lucide-react'
+import { Camera, CheckCircle2, Chrome, Eye, EyeOff, KeyRound, Link2, Linkedin, Loader2, Settings2, ShieldCheck, Trash2, XCircle, Zap } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
 import { applyApi, linkedinApi, linkedinConnectApi } from '../../lib/api'
 import { useSettingsStore } from '../../store/useSettingsStore'
@@ -78,6 +78,7 @@ const AutoApplyPage = () => {
   const [connectEmail,   setConnectEmail]   = useState('')
   const [connectPass,    setConnectPass]    = useState('')
   const [connectError,   setConnectError]   = useState('')
+  const [showPass,       setShowPass]       = useState(false)
   const connectPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // ── CAPTCHA solving state ────────────────────────────────────────────────────
@@ -279,7 +280,14 @@ const AutoApplyPage = () => {
         setConnectStatus('screenshot')
       }
     } catch (err: any) {
-      setConnectError(err.message ?? 'Login failed')
+      const msg = err.message ?? 'Login failed'
+      if (msg.toLowerCase().includes('no active connect session')) {
+        stopConnectPolls()
+        resetConnectState()
+        setConnectError('Session expired — click Open LinkedIn to start again.')
+        return
+      }
+      setConnectError(msg)
       setConnectStatus('screenshot')
     }
   }
@@ -720,15 +728,25 @@ const AutoApplyPage = () => {
                   disabled={connectStatus === 'submitting'}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition disabled:opacity-50"
                 />
-                <input
-                  type="password"
-                  value={connectPass}
-                  onChange={e => setConnectPass(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleSignIn() }}
-                  placeholder="LinkedIn password"
-                  disabled={connectStatus === 'submitting'}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition disabled:opacity-50"
-                />
+                <div className="relative">
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    value={connectPass}
+                    onChange={e => setConnectPass(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSignIn() }}
+                    placeholder="LinkedIn password"
+                    disabled={connectStatus === 'submitting'}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-10 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                    tabIndex={-1}
+                  >
+                    {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 <button
                   onClick={handleSignIn}
                   disabled={connectStatus === 'submitting' || !connectEmail.trim() || !connectPass.trim()}
