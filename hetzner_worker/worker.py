@@ -260,26 +260,31 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
             return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
 
         async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
-            # 1) JS: find field, force-clear any auto-filled value, return coords
-            res = await send(sock, "Runtime.evaluate", {
-                "expression": """
-                (function() {
-                    var el = document.querySelector('#username')
-                          || document.querySelector('input[name="session_key"]')
-                          || document.querySelector('input[autocomplete="username"]')
-                          || document.querySelector('input[type="email"]');
-                    if (!el) return null;
-                    var native = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-                    native.set.call(el, '');
-                    el.dispatchEvent(new Event('input',  {bubbles: true}));
-                    el.dispatchEvent(new Event('change', {bubbles: true}));
-                    var r = el.getBoundingClientRect();
-                    return {x: r.left + r.width/2, y: r.top + r.height/2};
-                })()
-                """,
-                "returnByValue": True,
-            })
-            coords = (res.get("result", {}).get("result", {}) or {}).get("value")
+            # 1) Wait up to 15s for the email field to appear (page may still be loading)
+            coords = None
+            for _ in range(30):
+                res = await send(sock, "Runtime.evaluate", {
+                    "expression": """
+                    (function() {
+                        var el = document.querySelector('#username')
+                              || document.querySelector('input[name="session_key"]')
+                              || document.querySelector('input[autocomplete="username"]')
+                              || document.querySelector('input[type="email"]');
+                        if (!el) return null;
+                        var native = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+                        native.set.call(el, '');
+                        el.dispatchEvent(new Event('input',  {bubbles: true}));
+                        el.dispatchEvent(new Event('change', {bubbles: true}));
+                        var r = el.getBoundingClientRect();
+                        return {x: r.left + r.width/2, y: r.top + r.height/2};
+                    })()
+                    """,
+                    "returnByValue": True,
+                })
+                coords = (res.get("result", {}).get("result", {}) or {}).get("value")
+                if coords:
+                    break
+                await _asyncio.sleep(0.5)
             if not coords:
                 raise RuntimeError("Email field not found on page")
 
@@ -341,25 +346,30 @@ def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = 
             return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
 
         async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
-            # 1) JS: find password field, force-clear auto-filled value, return coords
-            res = await send(sock, "Runtime.evaluate", {
-                "expression": """
-                (function() {
-                    var el = document.querySelector('#password')
-                          || document.querySelector('input[name="session_password"]')
-                          || document.querySelector('input[type="password"]');
-                    if (!el) return null;
-                    var native = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-                    native.set.call(el, '');
-                    el.dispatchEvent(new Event('input',  {bubbles: true}));
-                    el.dispatchEvent(new Event('change', {bubbles: true}));
-                    var r = el.getBoundingClientRect();
-                    return {x: r.left + r.width/2, y: r.top + r.height/2};
-                })()
-                """,
-                "returnByValue": True,
-            })
-            coords = (res.get("result", {}).get("result", {}) or {}).get("value")
+            # 1) Wait up to 10s for password field to appear
+            coords = None
+            for _ in range(20):
+                res = await send(sock, "Runtime.evaluate", {
+                    "expression": """
+                    (function() {
+                        var el = document.querySelector('#password')
+                              || document.querySelector('input[name="session_password"]')
+                              || document.querySelector('input[type="password"]');
+                        if (!el) return null;
+                        var native = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+                        native.set.call(el, '');
+                        el.dispatchEvent(new Event('input',  {bubbles: true}));
+                        el.dispatchEvent(new Event('change', {bubbles: true}));
+                        var r = el.getBoundingClientRect();
+                        return {x: r.left + r.width/2, y: r.top + r.height/2};
+                    })()
+                    """,
+                    "returnByValue": True,
+                })
+                coords = (res.get("result", {}).get("result", {}) or {}).get("value")
+                if coords:
+                    break
+                await _asyncio.sleep(0.5)
             if not coords:
                 raise RuntimeError("Password field not found on page")
 
