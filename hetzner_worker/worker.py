@@ -260,7 +260,7 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
             return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
 
         async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
-            # Find email field bounding rect via JS
+            # 1) JS: find field, force-clear any auto-filled value, return coords
             res = await send(sock, "Runtime.evaluate", {
                 "expression": """
                 (function() {
@@ -269,6 +269,10 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
                           || document.querySelector('input[autocomplete="username"]')
                           || document.querySelector('input[type="email"]');
                     if (!el) return null;
+                    var native = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+                    native.set.call(el, '');
+                    el.dispatchEvent(new Event('input',  {bubbles: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
                     var r = el.getBoundingClientRect();
                     return {x: r.left + r.width/2, y: r.top + r.height/2};
                 })()
@@ -281,27 +285,15 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
 
             x, y = coords["x"], coords["y"]
 
-            # CDP mouse click to focus the field
+            # 2) Click to focus
             await send(sock, "Input.dispatchMouseEvent",
-                       {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1})
+                       {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 3})
             await _asyncio.sleep(0.1)
             await send(sock, "Input.dispatchMouseEvent",
-                       {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1})
+                       {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 3})
             await _asyncio.sleep(0.15)
 
-            # Select all existing text and delete it
-            await send(sock, "Input.dispatchKeyEvent",
-                       {"type": "keyDown", "key": "a", "code": "KeyA", "modifiers": 2})
-            await send(sock, "Input.dispatchKeyEvent",
-                       {"type": "keyUp",   "key": "a", "code": "KeyA", "modifiers": 2})
-            await _asyncio.sleep(0.05)
-            await send(sock, "Input.dispatchKeyEvent",
-                       {"type": "keyDown", "key": "Delete", "code": "Delete"})
-            await send(sock, "Input.dispatchKeyEvent",
-                       {"type": "keyUp",   "key": "Delete", "code": "Delete"})
-            await _asyncio.sleep(0.05)
-
-            # Type the email — visually appears in the field and shows in screenshots
+            # 3) Type — renders visually in the field and shows in screenshots
             await send(sock, "Input.insertText", {"text": req.email})
 
         return {"ok": True}
@@ -349,6 +341,7 @@ def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = 
             return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
 
         async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
+            # 1) JS: find password field, force-clear auto-filled value, return coords
             res = await send(sock, "Runtime.evaluate", {
                 "expression": """
                 (function() {
@@ -356,6 +349,10 @@ def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = 
                           || document.querySelector('input[name="session_password"]')
                           || document.querySelector('input[type="password"]');
                     if (!el) return null;
+                    var native = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+                    native.set.call(el, '');
+                    el.dispatchEvent(new Event('input',  {bubbles: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
                     var r = el.getBoundingClientRect();
                     return {x: r.left + r.width/2, y: r.top + r.height/2};
                 })()
@@ -367,22 +364,14 @@ def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = 
                 raise RuntimeError("Password field not found on page")
 
             x, y = coords["x"], coords["y"]
+            # 2) Triple-click to focus + select all
             await send(sock, "Input.dispatchMouseEvent",
-                       {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1})
+                       {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 3})
             await _asyncio.sleep(0.1)
             await send(sock, "Input.dispatchMouseEvent",
-                       {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1})
+                       {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 3})
             await _asyncio.sleep(0.15)
-            await send(sock, "Input.dispatchKeyEvent",
-                       {"type": "keyDown", "key": "a", "code": "KeyA", "modifiers": 2})
-            await send(sock, "Input.dispatchKeyEvent",
-                       {"type": "keyUp",   "key": "a", "code": "KeyA", "modifiers": 2})
-            await _asyncio.sleep(0.05)
-            await send(sock, "Input.dispatchKeyEvent",
-                       {"type": "keyDown", "key": "Delete", "code": "Delete"})
-            await send(sock, "Input.dispatchKeyEvent",
-                       {"type": "keyUp",   "key": "Delete", "code": "Delete"})
-            await _asyncio.sleep(0.05)
+            # 3) Type password
             await send(sock, "Input.insertText", {"text": req.password})
 
         return {"ok": True}
