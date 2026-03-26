@@ -256,8 +256,12 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
         async def send(sock, method, params=None):
             nonlocal _id
             _id += 1
-            await sock.send(_j.dumps({"id": _id, "method": method, "params": params or {}}))
-            return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+            msg_id = _id
+            await sock.send(_j.dumps({"id": msg_id, "method": method, "params": params or {}}))
+            while True:
+                raw = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+                if raw.get("id") == msg_id:
+                    return raw
 
         async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
             # 1) Wait up to 15s for the email field to appear (page may still be loading)
@@ -342,8 +346,12 @@ def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = 
         async def send(sock, method, params=None):
             nonlocal _id
             _id += 1
-            await sock.send(_j.dumps({"id": _id, "method": method, "params": params or {}}))
-            return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+            msg_id = _id
+            await sock.send(_j.dumps({"id": msg_id, "method": method, "params": params or {}}))
+            while True:
+                raw = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+                if raw.get("id") == msg_id:
+                    return raw
 
         async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
             # 1) Wait up to 10s for password field to appear
@@ -423,8 +431,12 @@ def connect_press_login(req: ConnectPressLoginRequest, authorization: str = Head
                 _id_c = [0]
                 async def _s(method, params=None):
                     _id_c[0] += 1
-                    await sock.send(_j.dumps({"id": _id_c[0], "method": method, "params": params or {}}))
-                    return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+                    mid = _id_c[0]
+                    await sock.send(_j.dumps({"id": mid, "method": method, "params": params or {}}))
+                    while True:
+                        raw = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+                        if raw.get("id") == mid:
+                            return raw
 
                 # Find Sign In button coords via JS
                 res = await _s("Runtime.evaluate", {
