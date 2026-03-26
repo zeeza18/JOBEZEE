@@ -254,7 +254,7 @@ const AutoApplyPage = () => {
     }
   }
 
-  // Step 2 — inject email at the email field coordinate
+  // Step 2 — fill email field via CDP (no coordinates needed)
   const handleSendEmail = async () => {
     if (!connectEmail.trim()) { setConnectError('Enter your LinkedIn email.'); return }
     setConnectError('')
@@ -286,7 +286,6 @@ const AutoApplyPage = () => {
       const data = await linkedinConnectApi.pressLogin() as any
       if (data?.captcha) {
         setConnectStatus('captcha')
-        // Screenshot polling already running — nothing extra needed
         return
       }
       if (data?.success) {

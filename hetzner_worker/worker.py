@@ -230,45 +230,58 @@ class ConnectFillEmailRequest(BaseModel):
 
 @app.post("/connect/fill-email")
 def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header(...)):
-    """Click the LinkedIn email field at known coordinates and type the email."""
+    """Fill LinkedIn email field via CDP JavaScript — no coordinates needed."""
     _auth(authorization)
-    import time as _t
+    import asyncio as _asyncio, json as _j, time as _t
+    from urllib.request import urlopen as _urlopen
+
     with _connect_lock:
         session = _connect_sessions.get(req.user_id)
     if not session:
         raise HTTPException(400, "No active connect session")
-    env = {**os.environ, "DISPLAY": ":99"}
 
-    r = subprocess.run(["xdotool", "search", "--onlyvisible", "--class", "google-chrome"],
-                       env=env, capture_output=True, text=True)
-    win_ids = [w for w in r.stdout.strip().split() if w]
-    if not win_ids:
-        raise HTTPException(500, "Chrome window not found")
-    win_id = win_ids[-1]
-    subprocess.run(["xdotool", "windowactivate", "--sync", win_id], env=env, capture_output=True)
-    _t.sleep(0.3)
+    async def _fill():
+        try:
+            import websockets as _ws
+        except ImportError:
+            raise RuntimeError("websockets not installed on worker")
 
-    geo_r = subprocess.run(["xdotool", "getwindowgeometry", "--shell", win_id],
-                           env=env, capture_output=True, text=True)
-    geo: dict = {}
-    for line in geo_r.stdout.strip().splitlines():
-        if '=' in line:
-            k, v = line.split('=', 1)
-            try:
-                geo[k.strip()] = int(v.strip())
-            except ValueError:
-                pass
-    cx      = geo.get('X', 0) + geo.get('WIDTH', 1280) // 2
-    email_y = geo.get('Y', 0) + 115 + 415  # header(115) + viewport offset to email field
+        raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
+        targets = _j.loads(raw)
+        tab = next((t for t in targets if t.get("type") == "page"), None)
+        if not tab:
+            raise RuntimeError("No active Chrome tab found")
 
-    subprocess.run(["xdotool", "mousemove", str(cx), str(email_y)], env=env, capture_output=True)
-    subprocess.run(["xdotool", "click", "1"], env=env, capture_output=True)
-    _t.sleep(0.3)
-    subprocess.run(["xdotool", "key", "ctrl+a"], env=env, capture_output=True)
-    _t.sleep(0.1)
-    subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "40", req.email],
-                   env=env, capture_output=True)
-    return {"ok": True}
+        email_js = req.email.replace("'", "\\'")
+        script = f"""
+        (function() {{
+            var el = document.querySelector('#username')
+                  || document.querySelector('input[name="session_key"]')
+                  || document.querySelector('input[autocomplete="username"]')
+                  || document.querySelector('input[type="email"]');
+            if (!el) return 'not_found';
+            el.focus();
+            var nativeInput = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+            nativeInput.set.call(el, '{email_js}');
+            el.dispatchEvent(new Event('input',  {{bubbles: true}}));
+            el.dispatchEvent(new Event('change', {{bubbles: true}}));
+            return 'ok';
+        }})()
+        """
+
+        async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
+            await sock.send(_j.dumps({"id": 1, "method": "Runtime.evaluate",
+                                      "params": {"expression": script, "returnByValue": True}}))
+            result = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+            val = (result.get("result", {}).get("result", {}).get("value", "") or "")
+            if val != "ok":
+                raise RuntimeError(f"Email field not found on page (got: {val!r})")
+        return {"ok": True}
+
+    try:
+        return _asyncio.run(_fill())
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc))
 
 
 class ConnectFillPasswordRequest(BaseModel):
