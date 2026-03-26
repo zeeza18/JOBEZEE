@@ -230,7 +230,7 @@ class ConnectFillEmailRequest(BaseModel):
 
 @app.post("/connect/fill-email")
 def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header(...)):
-    """Fill LinkedIn email field via CDP JavaScript — no coordinates needed."""
+    """Fill LinkedIn email field via CDP click + insertText so it renders visually."""
     _auth(authorization)
     import asyncio as _asyncio, json as _j, time as _t
     from urllib.request import urlopen as _urlopen
@@ -252,30 +252,58 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
         if not tab:
             raise RuntimeError("No active Chrome tab found")
 
-        email_js = req.email.replace("'", "\\'")
-        script = f"""
-        (function() {{
-            var el = document.querySelector('#username')
-                  || document.querySelector('input[name="session_key"]')
-                  || document.querySelector('input[autocomplete="username"]')
-                  || document.querySelector('input[type="email"]');
-            if (!el) return 'not_found';
-            el.focus();
-            var nativeInput = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-            nativeInput.set.call(el, '{email_js}');
-            el.dispatchEvent(new Event('input',  {{bubbles: true}}));
-            el.dispatchEvent(new Event('change', {{bubbles: true}}));
-            return 'ok';
-        }})()
-        """
+        _id = 0
+        async def send(sock, method, params=None):
+            nonlocal _id
+            _id += 1
+            await sock.send(_j.dumps({"id": _id, "method": method, "params": params or {}}))
+            return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
 
         async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
-            await sock.send(_j.dumps({"id": 1, "method": "Runtime.evaluate",
-                                      "params": {"expression": script, "returnByValue": True}}))
-            result = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
-            val = (result.get("result", {}).get("result", {}).get("value", "") or "")
-            if val != "ok":
-                raise RuntimeError(f"Email field not found on page (got: {val!r})")
+            # Find email field bounding rect via JS
+            res = await send(sock, "Runtime.evaluate", {
+                "expression": """
+                (function() {
+                    var el = document.querySelector('#username')
+                          || document.querySelector('input[name="session_key"]')
+                          || document.querySelector('input[autocomplete="username"]')
+                          || document.querySelector('input[type="email"]');
+                    if (!el) return null;
+                    var r = el.getBoundingClientRect();
+                    return {x: r.left + r.width/2, y: r.top + r.height/2};
+                })()
+                """,
+                "returnByValue": True,
+            })
+            coords = (res.get("result", {}).get("result", {}) or {}).get("value")
+            if not coords:
+                raise RuntimeError("Email field not found on page")
+
+            x, y = coords["x"], coords["y"]
+
+            # CDP mouse click to focus the field
+            await send(sock, "Input.dispatchMouseEvent",
+                       {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1})
+            await _asyncio.sleep(0.1)
+            await send(sock, "Input.dispatchMouseEvent",
+                       {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1})
+            await _asyncio.sleep(0.15)
+
+            # Select all existing text and delete it
+            await send(sock, "Input.dispatchKeyEvent",
+                       {"type": "keyDown", "key": "a", "code": "KeyA", "modifiers": 2})
+            await send(sock, "Input.dispatchKeyEvent",
+                       {"type": "keyUp",   "key": "a", "code": "KeyA", "modifiers": 2})
+            await _asyncio.sleep(0.05)
+            await send(sock, "Input.dispatchKeyEvent",
+                       {"type": "keyDown", "key": "Delete", "code": "Delete"})
+            await send(sock, "Input.dispatchKeyEvent",
+                       {"type": "keyUp",   "key": "Delete", "code": "Delete"})
+            await _asyncio.sleep(0.05)
+
+            # Type the email — visually appears in the field and shows in screenshots
+            await send(sock, "Input.insertText", {"text": req.email})
+
         return {"ok": True}
 
     try:
