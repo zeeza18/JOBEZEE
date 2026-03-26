@@ -398,8 +398,51 @@ def connect_press_login(req: ConnectPressLoginRequest, authorization: str = Head
     if not session:
         raise HTTPException(400, "No active connect session")
 
-    env = {**os.environ, "DISPLAY": ":99"}
-    subprocess.run(["xdotool", "key", "Return"], env=env, capture_output=True)
+    async def _click_signin():
+        try:
+            import websockets as _ws
+        except ImportError:
+            return
+        try:
+            raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
+            targets = _j.loads(raw)
+            tab = next((t for t in targets if t.get("type") == "page"), None)
+            if not tab:
+                return
+            async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
+                _id_c = [0]
+                async def _s(method, params=None):
+                    _id_c[0] += 1
+                    await sock.send(_j.dumps({"id": _id_c[0], "method": method, "params": params or {}}))
+                    return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+
+                # Find Sign In button coords via JS
+                res = await _s("Runtime.evaluate", {
+                    "expression": """
+                    (function() {
+                        var btn = document.querySelector('button[data-litms-control-urn*="login"]')
+                               || document.querySelector('button[aria-label*="Sign in"]')
+                               || document.querySelector('.btn__primary--large')
+                               || document.querySelector('button[type="submit"]');
+                        if (!btn) return null;
+                        var r = btn.getBoundingClientRect();
+                        return {x: r.left + r.width/2, y: r.top + r.height/2};
+                    })()
+                    """,
+                    "returnByValue": True,
+                })
+                coords = (res.get("result", {}).get("result", {}) or {}).get("value")
+                if coords:
+                    x, y = coords["x"], coords["y"]
+                    await _s("Input.dispatchMouseEvent",
+                             {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1})
+                    await _asyncio.sleep(0.1)
+                    await _s("Input.dispatchMouseEvent",
+                             {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1})
+        except Exception:
+            pass
+
+    _asyncio.run(_click_signin())
 
     async def _get_state():
         try:
