@@ -688,25 +688,13 @@ const AutoApplyPage = () => {
               onClick={connectStatus === 'captcha' ? handleScreenshotClick : undefined}
             >
               {captchaScreenshot ? (
-                <>
-                  <img
-                    ref={captchaImgRef}
-                    src={captchaScreenshot}
-                    alt="LinkedIn on server"
-                    className="w-full block pointer-events-none"
-                    draggable={false}
-                  />
-                  {captchaClicks.map((c, i) => (
-                    <div key={i} className="absolute pointer-events-none rounded-full" style={{
-                      left: `${c.pctX}%`, top: `${c.pctY}%`,
-                      transform: 'translate(-50%,-50%)',
-                      width: 22, height: 22,
-                      background: 'rgba(239,68,68,0.85)',
-                      border: '2.5px solid white',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-                    }} />
-                  ))}
-                </>
+                <img
+                  ref={captchaImgRef}
+                  src={captchaScreenshot}
+                  alt="LinkedIn on server"
+                  className="w-full block pointer-events-none"
+                  draggable={false}
+                />
               ) : (
                 <div className="flex flex-col items-center justify-center gap-2 h-48">
                   <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
@@ -770,8 +758,7 @@ const AutoApplyPage = () => {
                   Click the CAPTCHA above · Auto-saves when passed
                 </span>
                 <div className="flex items-center gap-3">
-                  <button onClick={() => setCaptchaClicks([])} className="text-xs text-slate-400 hover:text-slate-600 transition">Clear clicks</button>
-                  <button onClick={() => { stopConnectPolls(); linkedinConnectApi.stop().catch(() => {}); resetConnectState() }}
+<button onClick={() => { stopConnectPolls(); linkedinConnectApi.stop().catch(() => {}); resetConnectState() }}
                     className="text-xs text-red-400 hover:text-red-600 transition">Cancel</button>
                 </div>
               </div>
