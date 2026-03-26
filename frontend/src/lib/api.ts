@@ -528,6 +528,8 @@ export const linkedinConnectApi = {
     post<{ ok: boolean }>('/api/apply/linkedin-connect/fill-password', { text: password }),
   pressLogin: () =>
     post<{ success: boolean; captcha?: boolean; message: string }>('/api/apply/linkedin-connect/press-login'),
+  fillCode: (code: string) =>
+    post<{ ok: boolean }>('/api/apply/linkedin-connect/fill-code', { text: code }),
   click: (x: number, y: number) =>
     post<{ ok: boolean }>('/api/apply/linkedin-connect/click', { x, y }),
   type: (text: string) =>

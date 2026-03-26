@@ -452,6 +452,111 @@ async def connect_fill_password(req: ConnectFillPasswordRequest, authorization: 
         raise HTTPException(500, str(exc))
 
 
+class ConnectFillCodeRequest(BaseModel):
+    user_id: str
+    code: str
+
+
+@app.post("/connect/fill-code")
+async def connect_fill_code(req: ConnectFillCodeRequest, authorization: str = Header(...)):
+    """Fill verification/OTP code into any visible input and click Submit."""
+    _auth(authorization)
+    import asyncio as _asyncio, json as _j
+    from urllib.request import urlopen as _urlopen
+
+    with _connect_lock:
+        session = _connect_sessions.get(req.user_id)
+    if not session:
+        raise HTTPException(400, "No active connect session")
+
+    try:
+        import websockets as _ws
+    except ImportError:
+        raise HTTPException(500, "websockets not installed on worker")
+
+    try:
+        raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
+        targets = _j.loads(raw)
+        tab = next((t for t in targets if t.get("type") == "page"), None)
+        if not tab:
+            raise HTTPException(500, "No active Chrome tab found")
+
+        _id = 0
+        async def send(sock, method, params=None):
+            nonlocal _id
+            _id += 1
+            mid = _id
+            await sock.send(_j.dumps({"id": mid, "method": method, "params": params or {}}))
+            while True:
+                raw2 = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+                if raw2.get("id") == mid:
+                    return raw2
+
+        async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
+            # Find first visible text/number input, click it, clear it, type code
+            res = await send(sock, "Runtime.evaluate", {
+                "expression": """
+                (function() {
+                    var el = document.querySelector('input[type="text"]')
+                          || document.querySelector('input[type="number"]')
+                          || document.querySelector('input[type="tel"]')
+                          || document.querySelector('input:not([type="hidden"]):not([type="submit"]):not([type="button"])');
+                    if (!el) return null;
+                    var native = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+                    native.set.call(el, '');
+                    el.dispatchEvent(new Event('input', {bubbles: true}));
+                    var r = el.getBoundingClientRect();
+                    return {x: r.left + r.width/2, y: r.top + r.height/2};
+                })()
+                """,
+                "returnByValue": True,
+            })
+            coords = (res.get("result", {}).get("result", {}) or {}).get("value")
+            if not coords:
+                raise HTTPException(500, "Code input field not found on page")
+
+            x, y = coords["x"], coords["y"]
+            await send(sock, "Input.dispatchMouseEvent",
+                       {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 3})
+            await _asyncio.sleep(0.1)
+            await send(sock, "Input.dispatchMouseEvent",
+                       {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 3})
+            await _asyncio.sleep(0.15)
+            await send(sock, "Input.insertText", {"text": req.code})
+            await _asyncio.sleep(0.3)
+
+            # Click Submit button
+            res2 = await send(sock, "Runtime.evaluate", {
+                "expression": """
+                (function() {
+                    var btn = document.querySelector('button[type="submit"]')
+                           || Array.from(document.querySelectorAll('button')).find(function(b){
+                               var t = b.innerText.trim().toLowerCase();
+                               return t === 'submit' || t === 'verify' || t === 'continue';
+                           });
+                    if (!btn) return null;
+                    var r = btn.getBoundingClientRect();
+                    return {x: r.left + r.width/2, y: r.top + r.height/2};
+                })()
+                """,
+                "returnByValue": True,
+            })
+            btn_coords = (res2.get("result", {}).get("result", {}) or {}).get("value")
+            if btn_coords:
+                bx, by = btn_coords["x"], btn_coords["y"]
+                await send(sock, "Input.dispatchMouseEvent",
+                           {"type": "mousePressed", "x": bx, "y": by, "button": "left", "clickCount": 1})
+                await _asyncio.sleep(0.1)
+                await send(sock, "Input.dispatchMouseEvent",
+                           {"type": "mouseReleased", "x": bx, "y": by, "button": "left", "clickCount": 1})
+
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+
 class ConnectPressLoginRequest(BaseModel):
     user_id: str
 

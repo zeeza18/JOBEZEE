@@ -84,6 +84,8 @@ const AutoApplyPage = () => {
   // ── CAPTCHA solving state ────────────────────────────────────────────────────
   const [captchaScreenshot,  setCaptchaScreenshot]  = useState<string | null>(null)
   const [captchaClicks,      setCaptchaClicks]      = useState<{pctX: number; pctY: number}[]>([])
+  const [verifyCode,         setVerifyCode]         = useState('')
+  const [codeSubmitting,     setCodeSubmitting]     = useState(false)
   const captchaImgRef        = useRef<HTMLImageElement | null>(null)
   const captchaSsPollRef     = useRef<ReturnType<typeof setInterval> | null>(null)
   const captchaUrlPollRef    = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -236,6 +238,8 @@ const AutoApplyPage = () => {
     setConnectStatus('idle')
     setCaptchaScreenshot(null)
     setCaptchaClicks([])
+    setVerifyCode('')
+    setCodeSubmitting(false)
     setConnectEmail('')
     setConnectPass('')
     setConnectError('')
@@ -289,6 +293,23 @@ const AutoApplyPage = () => {
       }
       setConnectError(msg)
       setConnectStatus('screenshot')
+    }
+  }
+
+  // Submit verification/OTP code
+  const handleSubmitCode = async () => {
+    if (!verifyCode.trim()) return
+    setCodeSubmitting(true)
+    setConnectError('')
+    try {
+      await linkedinConnectApi.fillCode(verifyCode.trim())
+      setVerifyCode('')
+      setTimeout(fetchConnectScreenshot, 1000)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setConnectError(msg)
+    } finally {
+      setCodeSubmitting(false)
     }
   }
 
@@ -752,13 +773,31 @@ const AutoApplyPage = () => {
             )}
 
             {connectStatus === 'captcha' && (
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  Click the CAPTCHA above · Auto-saves when passed
-                </span>
-                <div className="flex items-center gap-3">
-<button onClick={() => { stopConnectPolls(); linkedinConnectApi.stop().catch(() => {}); resetConnectState() }}
+              <div className="space-y-2">
+                {/* Verification code input for email OTP challenges */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={verifyCode}
+                    onChange={e => setVerifyCode(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSubmitCode() }}
+                    placeholder="Verification code from email"
+                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition"
+                  />
+                  <button
+                    onClick={handleSubmitCode}
+                    disabled={codeSubmitting || !verifyCode.trim()}
+                    className="flex items-center gap-1.5 rounded-xl bg-[#0077B5] px-4 py-2 text-sm font-semibold text-white hover:bg-[#005f8f] disabled:opacity-50 transition"
+                  >
+                    {codeSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit'}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Click CAPTCHA tiles above · or enter code · Auto-saves when passed
+                  </span>
+                  <button onClick={() => { stopConnectPolls(); linkedinConnectApi.stop().catch(() => {}); resetConnectState() }}
                     className="text-xs text-red-400 hover:text-red-600 transition">Cancel</button>
                 </div>
               </div>

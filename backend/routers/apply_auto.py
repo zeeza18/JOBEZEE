@@ -919,6 +919,25 @@ async def li_connect_fill_password(req: ConnectTypeReq, current_user=Depends(get
     return r.json()
 
 
+@router.post("/linkedin-connect/fill-code")
+async def li_connect_fill_code(req: ConnectTypeReq, current_user=Depends(get_current_user)):
+    """Fill verification/OTP code and click Submit."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        raise HTTPException(400, "BOT_WORKER_URL not configured")
+    async with _httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            f"{cfg.BOT_WORKER_URL}/connect/fill-code",
+            json={"user_id": current_user.id, "code": req.text},
+            headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+        )
+    if not r.is_success:
+        raise HTTPException(502, f"Worker error: {r.text}")
+    return r.json()
+
+
 @router.post("/linkedin-connect/press-login")
 async def li_connect_press_login(current_user=Depends(get_current_user)):
     """Press Enter to submit LinkedIn login, poll result, return success or captcha flag."""
