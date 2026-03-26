@@ -140,7 +140,8 @@ def connect_start(req: ConnectStartRequest, authorization: str = Header(...)):
             old["proc"].kill()
         except Exception:
             pass
-    import time as _time
+    import time as _time, asyncio as _asyncio, json as _j
+    from urllib.request import urlopen as _urlopen
     _time.sleep(0.5)
 
     profile_dir = _connect_profile_dir(req.user_id)
@@ -151,6 +152,15 @@ def connect_start(req: ConnectStartRequest, authorization: str = Header(...)):
         try:
             if os.path.exists(lp) or os.path.islink(lp):
                 os.remove(lp)
+        except Exception:
+            pass
+    # Remove Chrome session files to prevent crash-restore bubble
+    default_dir = os.path.join(profile_dir, "Default")
+    for session_file in ("Last Session", "Last Tabs"):
+        sf = os.path.join(default_dir, session_file)
+        try:
+            if os.path.exists(sf):
+                os.remove(sf)
         except Exception:
             pass
 
@@ -166,6 +176,7 @@ def connect_start(req: ConnectStartRequest, authorization: str = Header(...)):
         "--no-first-run",
         "--no-default-browser-check",
         "--disable-extensions",
+        "--disable-session-crashed-bubble",
         "--disable-features=ProfilePickerOnStartupFeature",
         "--disable-blink-features=AutomationControlled",
         f"--user-data-dir={profile_dir}",
@@ -178,7 +189,50 @@ def connect_start(req: ConnectStartRequest, authorization: str = Header(...)):
     with _connect_lock:
         _connect_sessions[req.user_id] = {"proc": proc, "port": _CONNECT_CDP_PORT}
 
-    _time.sleep(3)   # give Chrome time to start
+    _time.sleep(4)   # give Chrome time to start + load page
+
+    # Dismiss any LinkedIn "Something went wrong" popup
+    async def _dismiss_popup():
+        try:
+            import websockets as _ws
+            raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
+            targets = _j.loads(raw)
+            tab = next((t for t in targets if t.get("type") == "page"), None)
+            if not tab:
+                return
+            async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
+                _id2 = [0]
+                async def _s(method, params=None):
+                    _id2[0] += 1
+                    mid = _id2[0]
+                    await sock.send(_j.dumps({"id": mid, "method": method, "params": params or {}}))
+                    while True:
+                        r = _j.loads(await _asyncio.wait_for(sock.recv(), 5))
+                        if r.get("id") == mid:
+                            return r
+                await _s("Runtime.evaluate", {
+                    "expression": """
+                    (function() {
+                        var btns = Array.from(document.querySelectorAll('button'));
+                        for (var i = 0; i < btns.length; i++) {
+                            var t = btns[i].innerText.trim().toLowerCase();
+                            if (t === 'ok' || t === 'dismiss' || t === 'close' || t === 'got it') {
+                                btns[i].click();
+                            }
+                        }
+                        var dismiss = document.querySelector('[data-test-artdeco-toast-item-dismiss]')
+                                   || document.querySelector('.artdeco-toast-item__dismiss')
+                                   || document.querySelector('[aria-label="Dismiss"]');
+                        if (dismiss) dismiss.click();
+                        return 'done';
+                    })()
+                    """,
+                    "returnByValue": True,
+                })
+        except Exception:
+            pass
+    _asyncio.run(_dismiss_popup())
+
     return {"status": "started", "port": _CONNECT_CDP_PORT}
 
 
@@ -229,10 +283,10 @@ class ConnectFillEmailRequest(BaseModel):
 
 
 @app.post("/connect/fill-email")
-def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header(...)):
+async def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header(...)):
     """Fill LinkedIn email field via CDP click + insertText so it renders visually."""
     _auth(authorization)
-    import asyncio as _asyncio, json as _j, time as _t
+    import asyncio as _asyncio, json as _j
     from urllib.request import urlopen as _urlopen
 
     with _connect_lock:
@@ -240,17 +294,17 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
     if not session:
         raise HTTPException(400, "No active connect session")
 
-    async def _fill():
-        try:
-            import websockets as _ws
-        except ImportError:
-            raise RuntimeError("websockets not installed on worker")
+    try:
+        import websockets as _ws
+    except ImportError:
+        raise HTTPException(500, "websockets not installed on worker")
 
+    try:
         raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
         targets = _j.loads(raw)
         tab = next((t for t in targets if t.get("type") == "page"), None)
         if not tab:
-            raise RuntimeError("No active Chrome tab found")
+            raise HTTPException(500, "No active Chrome tab found")
 
         _id = 0
         async def send(sock, method, params=None):
@@ -259,9 +313,9 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
             msg_id = _id
             await sock.send(_j.dumps({"id": msg_id, "method": method, "params": params or {}}))
             while True:
-                raw = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
-                if raw.get("id") == msg_id:
-                    return raw
+                raw2 = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+                if raw2.get("id") == msg_id:
+                    return raw2
 
         async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
             # 1) Wait up to 15s for the email field to appear (page may still be loading)
@@ -290,7 +344,7 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
                     break
                 await _asyncio.sleep(0.5)
             if not coords:
-                raise RuntimeError("Email field not found on page")
+                raise HTTPException(500, "Email field not found on page")
 
             x, y = coords["x"], coords["y"]
 
@@ -306,10 +360,9 @@ def connect_fill_email(req: ConnectFillEmailRequest, authorization: str = Header
             await send(sock, "Input.insertText", {"text": req.email})
 
         return {"ok": True}
-
-    try:
-        return _asyncio.run(_fill())
-    except RuntimeError as exc:
+    except HTTPException:
+        raise
+    except Exception as exc:
         raise HTTPException(500, str(exc))
 
 
@@ -319,7 +372,7 @@ class ConnectFillPasswordRequest(BaseModel):
 
 
 @app.post("/connect/fill-password")
-def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = Header(...)):
+async def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = Header(...)):
     """Fill LinkedIn password field via CDP click + insertText so it renders visually."""
     _auth(authorization)
     import asyncio as _asyncio, json as _j
@@ -330,17 +383,17 @@ def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = 
     if not session:
         raise HTTPException(400, "No active connect session")
 
-    async def _fill():
-        try:
-            import websockets as _ws
-        except ImportError:
-            raise RuntimeError("websockets not installed on worker")
+    try:
+        import websockets as _ws
+    except ImportError:
+        raise HTTPException(500, "websockets not installed on worker")
 
+    try:
         raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
         targets = _j.loads(raw)
         tab = next((t for t in targets if t.get("type") == "page"), None)
         if not tab:
-            raise RuntimeError("No active Chrome tab found")
+            raise HTTPException(500, "No active Chrome tab found")
 
         _id = 0
         async def send(sock, method, params=None):
@@ -349,9 +402,9 @@ def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = 
             msg_id = _id
             await sock.send(_j.dumps({"id": msg_id, "method": method, "params": params or {}}))
             while True:
-                raw = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
-                if raw.get("id") == msg_id:
-                    return raw
+                raw2 = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+                if raw2.get("id") == msg_id:
+                    return raw2
 
         async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
             # 1) Wait up to 10s for password field to appear
@@ -379,7 +432,7 @@ def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = 
                     break
                 await _asyncio.sleep(0.5)
             if not coords:
-                raise RuntimeError("Password field not found on page")
+                raise HTTPException(500, "Password field not found on page")
 
             x, y = coords["x"], coords["y"]
             # 2) Triple-click to focus + select all
@@ -393,10 +446,9 @@ def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = 
             await send(sock, "Input.insertText", {"text": req.password})
 
         return {"ok": True}
-
-    try:
-        return _asyncio.run(_fill())
-    except RuntimeError as exc:
+    except HTTPException:
+        raise
+    except Exception as exc:
         raise HTTPException(500, str(exc))
 
 
@@ -405,10 +457,10 @@ class ConnectPressLoginRequest(BaseModel):
 
 
 @app.post("/connect/press-login")
-def connect_press_login(req: ConnectPressLoginRequest, authorization: str = Header(...)):
-    """Press Enter to submit the LinkedIn login form, poll URL, return result or captcha flag."""
+async def connect_press_login(req: ConnectPressLoginRequest, authorization: str = Header(...)):
+    """Click Sign In button via CDP, poll URL, return result or captcha flag."""
     _auth(authorization)
-    import time as _t, asyncio as _asyncio, json as _j
+    import asyncio as _asyncio, json as _j
     from urllib.request import urlopen as _urlopen
 
     with _connect_lock:
@@ -416,92 +468,89 @@ def connect_press_login(req: ConnectPressLoginRequest, authorization: str = Head
     if not session:
         raise HTTPException(400, "No active connect session")
 
-    async def _click_signin():
-        try:
-            import websockets as _ws
-        except ImportError:
-            return
-        try:
-            raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
-            targets = _j.loads(raw)
-            tab = next((t for t in targets if t.get("type") == "page"), None)
-            if not tab:
-                return
-            async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
-                _id_c = [0]
-                async def _s(method, params=None):
-                    _id_c[0] += 1
-                    mid = _id_c[0]
-                    await sock.send(_j.dumps({"id": mid, "method": method, "params": params or {}}))
-                    while True:
-                        raw = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
-                        if raw.get("id") == mid:
-                            return raw
+    try:
+        import websockets as _ws
+    except ImportError:
+        raise HTTPException(500, "websockets not installed on worker")
 
-                # Find Sign In button coords via JS
-                res = await _s("Runtime.evaluate", {
-                    "expression": """
-                    (function() {
-                        var btn = document.querySelector('button[data-litms-control-urn*="login"]')
-                               || document.querySelector('button[aria-label*="Sign in"]')
-                               || document.querySelector('.btn__primary--large')
-                               || document.querySelector('button[type="submit"]');
-                        if (!btn) return null;
-                        var r = btn.getBoundingClientRect();
-                        return {x: r.left + r.width/2, y: r.top + r.height/2};
-                    })()
-                    """,
-                    "returnByValue": True,
-                })
-                coords = (res.get("result", {}).get("result", {}) or {}).get("value")
-                if coords:
-                    x, y = coords["x"], coords["y"]
-                    await _s("Input.dispatchMouseEvent",
-                             {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1})
-                    await _asyncio.sleep(0.1)
-                    await _s("Input.dispatchMouseEvent",
-                             {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1})
-        except Exception:
-            pass
+    _CAPTCHA_PATTERNS = ("checkpoint", "security", "challenge", "verification", "authwall")
 
-    _asyncio.run(_click_signin())
+    # Click Sign In button via CDP
+    raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
+    targets = _j.loads(raw)
+    tab = next((t for t in targets if t.get("type") == "page"), None)
+    if tab:
+        async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
+            _id_c = 0
+            async def _s(method, params=None):
+                nonlocal _id_c
+                _id_c += 1
+                mid = _id_c
+                await sock.send(_j.dumps({"id": mid, "method": method, "params": params or {}}))
+                while True:
+                    r = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+                    if r.get("id") == mid:
+                        return r
+            res = await _s("Runtime.evaluate", {
+                "expression": """
+                (function() {
+                    var btn = document.querySelector('button[data-litms-control-urn*="login"]')
+                           || document.querySelector('button[aria-label*="Sign in"]')
+                           || document.querySelector('.btn__primary--large')
+                           || document.querySelector('button[type="submit"]');
+                    if (!btn) return null;
+                    var r = btn.getBoundingClientRect();
+                    return {x: r.left + r.width/2, y: r.top + r.height/2};
+                })()
+                """,
+                "returnByValue": True,
+            })
+            coords = (res.get("result", {}).get("result", {}) or {}).get("value")
+            if coords:
+                x, y = coords["x"], coords["y"]
+                await _s("Input.dispatchMouseEvent",
+                         {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1})
+                await _asyncio.sleep(0.1)
+                await _s("Input.dispatchMouseEvent",
+                         {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1})
 
+    # Poll until URL leaves /login (max 20 s)
     async def _get_state():
-        try:
-            import websockets as _ws
-        except ImportError:
-            return [], ""
         raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
         targets = _j.loads(raw)
-        tab = next((t for t in targets if t.get("type") == "page"), None)
-        if not tab:
+        tab2 = next((t for t in targets if t.get("type") == "page"), None)
+        if not tab2:
             return [], ""
-        async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
-            await sock.send(_j.dumps({"id": 10, "method": "Runtime.evaluate",
-                                      "params": {"expression": "window.location.href",
-                                                 "returnByValue": True}}))
-            r_url = _j.loads(await _asyncio.wait_for(sock.recv(), 8))
-            url = r_url.get("result", {}).get("result", {}).get("value", "") or ""
-            await sock.send(_j.dumps({"id": 11, "method": "Network.getAllCookies", "params": {}}))
-            r_ck = _j.loads(await _asyncio.wait_for(sock.recv(), 10))
+        async with _ws.connect(tab2["webSocketDebuggerUrl"]) as sock2:
+            _id_s = 0
+            async def _s2(method, params=None):
+                nonlocal _id_s
+                _id_s += 1
+                mid = _id_s
+                await sock2.send(_j.dumps({"id": mid, "method": method, "params": params or {}}))
+                while True:
+                    r = _j.loads(await _asyncio.wait_for(sock2.recv(), 8))
+                    if r.get("id") == mid:
+                        return r
+            r_url = await _s2("Runtime.evaluate",
+                              {"expression": "window.location.href", "returnByValue": True})
+            url = (r_url.get("result", {}).get("result", {}) or {}).get("value", "") or ""
+            r_ck = await _s2("Network.getAllCookies")
             cookies = [c for c in r_ck.get("result", {}).get("cookies", [])
                        if "linkedin.com" in c.get("domain", "")]
         return cookies, url
 
-    _CAPTCHA_PATTERNS = ("checkpoint", "security", "challenge", "verification", "authwall")
-
-    # Poll until URL leaves /login (max 20 s)
     for _ in range(20):
-        _t.sleep(1)
+        await _asyncio.sleep(1)
         try:
-            _, interim_url = _asyncio.run(_get_state())
+            _, interim_url = await _get_state()
             if "/login" not in interim_url:
                 break
         except Exception:
             pass
 
     try:
-        li_cookies, current_url = _asyncio.run(_get_state())
+        li_cookies, current_url = await _get_state()
     except Exception as exc:
         raise HTTPException(500, f"Cookie extraction failed: {exc}")
 
