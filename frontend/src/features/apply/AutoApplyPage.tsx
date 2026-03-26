@@ -5,7 +5,7 @@ import { applyApi, linkedinApi, linkedinConnectApi } from '../../lib/api'
 import { useSettingsStore } from '../../store/useSettingsStore'
 
 type ApplyStatus = 'idle' | 'running' | 'complete' | 'error'
-type ConnectStatus = 'idle' | 'starting' | 'screenshot' | 'email-sent' | 'password-sent' | 'submitting' | 'captcha' | 'saving'
+type ConnectStatus = 'idle' | 'starting' | 'screenshot' | 'submitting' | 'captcha' | 'saving'
 
 interface StreamEvent {
   line?   : string
@@ -240,7 +240,7 @@ const AutoApplyPage = () => {
     setConnectError('')
   }
 
-  // Step 1 — open Chrome on Hetzner, navigate to LinkedIn login, show screenshot
+  // Open Chrome on Hetzner and navigate to LinkedIn login
   const handleConnectOpen = async () => {
     setConnectError('')
     setConnectStatus('starting')
@@ -254,35 +254,15 @@ const AutoApplyPage = () => {
     }
   }
 
-  // Step 2 — fill email field via CDP (no coordinates needed)
-  const handleSendEmail = async () => {
+  // Fill email → password → press Sign In — all serially
+  const handleSignIn = async () => {
     if (!connectEmail.trim()) { setConnectError('Enter your LinkedIn email.'); return }
-    setConnectError('')
-    try {
-      await linkedinConnectApi.fillEmail(connectEmail.trim())
-      setConnectStatus('email-sent')
-    } catch (err: any) {
-      setConnectError(err.message ?? 'Failed to fill email')
-    }
-  }
-
-  // Step 3 — Tab to password field and inject password
-  const handleSendPassword = async () => {
-    if (!connectPass.trim()) { setConnectError('Enter your LinkedIn password.'); return }
-    setConnectError('')
-    try {
-      await linkedinConnectApi.fillPassword(connectPass)
-      setConnectStatus('password-sent')
-    } catch (err: any) {
-      setConnectError(err.message ?? 'Failed to fill password')
-    }
-  }
-
-  // Step 4 — press Enter, wait for redirect, handle result
-  const handlePressLogin = async () => {
+    if (!connectPass.trim())  { setConnectError('Enter your LinkedIn password.'); return }
     setConnectError('')
     setConnectStatus('submitting')
     try {
+      await linkedinConnectApi.fillEmail(connectEmail.trim())
+      await linkedinConnectApi.fillPassword(connectPass)
       const data = await linkedinConnectApi.pressLogin() as any
       if (data?.captcha) {
         setConnectStatus('captcha')
@@ -296,11 +276,11 @@ const AutoApplyPage = () => {
         resetConnectState()
       } else {
         setConnectError(data?.message ?? 'Login failed — check your email and password')
-        setConnectStatus('password-sent')
+        setConnectStatus('screenshot')
       }
     } catch (err: any) {
       setConnectError(err.message ?? 'Login failed')
-      setConnectStatus('password-sent')
+      setConnectStatus('screenshot')
     }
   }
 
@@ -675,16 +655,15 @@ const AutoApplyPage = () => {
           </div>
         )}
 
-        {/* Screenshot panel — shown for screenshot / email-sent / password-sent / submitting / captcha / saving */}
-        {(['screenshot','email-sent','password-sent','submitting','captcha','saving'] as ConnectStatus[]).includes(connectStatus) && (
+        {/* Screenshot panel */}
+        {(['screenshot','submitting','captcha','saving'] as ConnectStatus[]).includes(connectStatus) && (
           <div className="px-4 md:px-6 py-4 space-y-3">
 
-            {/* Status label */}
             {connectStatus === 'captcha' && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-sm font-semibold text-amber-800">Security check</p>
                 <p className="text-xs text-amber-600 mt-1">
-                  Click the CAPTCHA on screen below, then click <strong>Verify</strong>. Session saves automatically once you pass.
+                  Click the CAPTCHA on screen below. Session saves automatically once you pass.
                 </p>
               </div>
             )}
@@ -694,7 +673,7 @@ const AutoApplyPage = () => {
               </div>
             )}
 
-            {/* Live screenshot with click overlay */}
+            {/* Live screenshot */}
             <div
               className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 select-none"
               style={{ cursor: connectStatus === 'captcha' ? 'crosshair' : 'default' }}
@@ -730,55 +709,39 @@ const AutoApplyPage = () => {
 
             {connectError && <p className="text-xs text-red-600">{connectError}</p>}
 
-            {/* Step controls below the screenshot */}
-            {connectStatus === 'screenshot' && (
-              <div className="flex gap-2">
+            {/* Email + Password + Sign In — all shown together */}
+            {(connectStatus === 'screenshot' || connectStatus === 'submitting') && (
+              <div className="space-y-2">
                 <input
                   type="email"
                   value={connectEmail}
                   onChange={e => setConnectEmail(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleSendEmail() }}
                   placeholder="LinkedIn email"
-                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition"
+                  disabled={connectStatus === 'submitting'}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition disabled:opacity-50"
                 />
-                <button
-                  onClick={handleSendEmail}
-                  disabled={!connectEmail.trim()}
-                  className="rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] disabled:opacity-50 transition"
-                >Send</button>
-              </div>
-            )}
-
-            {connectStatus === 'email-sent' && (
-              <div className="flex gap-2">
                 <input
                   type="password"
                   value={connectPass}
                   onChange={e => setConnectPass(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleSendPassword() }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSignIn() }}
                   placeholder="LinkedIn password"
-                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition"
+                  disabled={connectStatus === 'submitting'}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[#0077B5] focus:ring-2 focus:ring-[#0077B5]/10 transition disabled:opacity-50"
                 />
                 <button
-                  onClick={handleSendPassword}
-                  disabled={!connectPass.trim()}
-                  className="rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] disabled:opacity-50 transition"
-                >Send</button>
-              </div>
-            )}
-
-            {connectStatus === 'password-sent' && (
-              <button
-                onClick={handlePressLogin}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] transition"
-              >
-                <Linkedin className="h-4 w-4" /> Login
-              </button>
-            )}
-
-            {connectStatus === 'submitting' && (
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <Loader2 className="h-4 w-4 animate-spin" /> Submitting login…
+                  onClick={handleSignIn}
+                  disabled={connectStatus === 'submitting' || !connectEmail.trim() || !connectPass.trim()}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0077B5] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#005f8f] disabled:opacity-50 transition"
+                >
+                  {connectStatus === 'submitting'
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>
+                    : <><Linkedin className="h-4 w-4" /> Sign In</>}
+                </button>
+                <button
+                  onClick={() => { stopConnectPolls(); linkedinConnectApi.stop().catch(() => {}); resetConnectState() }}
+                  className="w-full text-xs text-slate-400 hover:text-slate-600 transition py-1"
+                >Cancel</button>
               </div>
             )}
 
@@ -794,14 +757,6 @@ const AutoApplyPage = () => {
                     className="text-xs text-red-400 hover:text-red-600 transition">Cancel</button>
                 </div>
               </div>
-            )}
-
-            {/* Cancel for non-captcha states */}
-            {(['screenshot','email-sent','password-sent'] as ConnectStatus[]).includes(connectStatus) && (
-              <button
-                onClick={() => { stopConnectPolls(); linkedinConnectApi.stop().catch(() => {}); resetConnectState() }}
-                className="text-xs text-slate-400 hover:text-slate-600 transition"
-              >Cancel</button>
             )}
           </div>
         )}

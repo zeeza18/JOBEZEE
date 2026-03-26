@@ -319,21 +319,78 @@ class ConnectFillPasswordRequest(BaseModel):
 
 @app.post("/connect/fill-password")
 def connect_fill_password(req: ConnectFillPasswordRequest, authorization: str = Header(...)):
-    """Tab to the LinkedIn password field and type the password."""
+    """Fill LinkedIn password field via CDP click + insertText so it renders visually."""
     _auth(authorization)
-    import time as _t
+    import asyncio as _asyncio, json as _j
+    from urllib.request import urlopen as _urlopen
+
     with _connect_lock:
         session = _connect_sessions.get(req.user_id)
     if not session:
         raise HTTPException(400, "No active connect session")
-    env = {**os.environ, "DISPLAY": ":99"}
-    subprocess.run(["xdotool", "key", "Tab"], env=env, capture_output=True)
-    _t.sleep(0.3)
-    subprocess.run(["xdotool", "key", "ctrl+a"], env=env, capture_output=True)
-    _t.sleep(0.1)
-    subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "40", req.password],
-                   env=env, capture_output=True)
-    return {"ok": True}
+
+    async def _fill():
+        try:
+            import websockets as _ws
+        except ImportError:
+            raise RuntimeError("websockets not installed on worker")
+
+        raw = _urlopen(f"http://127.0.0.1:{_CONNECT_CDP_PORT}/json", timeout=5).read()
+        targets = _j.loads(raw)
+        tab = next((t for t in targets if t.get("type") == "page"), None)
+        if not tab:
+            raise RuntimeError("No active Chrome tab found")
+
+        _id = 0
+        async def send(sock, method, params=None):
+            nonlocal _id
+            _id += 1
+            await sock.send(_j.dumps({"id": _id, "method": method, "params": params or {}}))
+            return _j.loads(await _asyncio.wait_for(sock.recv(), 8))
+
+        async with _ws.connect(tab["webSocketDebuggerUrl"]) as sock:
+            res = await send(sock, "Runtime.evaluate", {
+                "expression": """
+                (function() {
+                    var el = document.querySelector('#password')
+                          || document.querySelector('input[name="session_password"]')
+                          || document.querySelector('input[type="password"]');
+                    if (!el) return null;
+                    var r = el.getBoundingClientRect();
+                    return {x: r.left + r.width/2, y: r.top + r.height/2};
+                })()
+                """,
+                "returnByValue": True,
+            })
+            coords = (res.get("result", {}).get("result", {}) or {}).get("value")
+            if not coords:
+                raise RuntimeError("Password field not found on page")
+
+            x, y = coords["x"], coords["y"]
+            await send(sock, "Input.dispatchMouseEvent",
+                       {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1})
+            await _asyncio.sleep(0.1)
+            await send(sock, "Input.dispatchMouseEvent",
+                       {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1})
+            await _asyncio.sleep(0.15)
+            await send(sock, "Input.dispatchKeyEvent",
+                       {"type": "keyDown", "key": "a", "code": "KeyA", "modifiers": 2})
+            await send(sock, "Input.dispatchKeyEvent",
+                       {"type": "keyUp",   "key": "a", "code": "KeyA", "modifiers": 2})
+            await _asyncio.sleep(0.05)
+            await send(sock, "Input.dispatchKeyEvent",
+                       {"type": "keyDown", "key": "Delete", "code": "Delete"})
+            await send(sock, "Input.dispatchKeyEvent",
+                       {"type": "keyUp",   "key": "Delete", "code": "Delete"})
+            await _asyncio.sleep(0.05)
+            await send(sock, "Input.insertText", {"text": req.password})
+
+        return {"ok": True}
+
+    try:
+        return _asyncio.run(_fill())
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc))
 
 
 class ConnectPressLoginRequest(BaseModel):
