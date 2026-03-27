@@ -1,4 +1,0 @@
-# Never commit personal profile data to git
-user_profile.json
-*.json
-!sample_profile.json

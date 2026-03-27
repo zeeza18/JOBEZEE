@@ -5,7 +5,8 @@ set -e
 
 REPO="https://github.com/zeeza18/JOBEZEE.git"
 INSTALL_DIR="/opt/jobezee"
-WORKER_SECRET="${WORKER_SECRET:-0KjGN4CyApHlkxsPpxIG9QlYQfcaZsnQCP2jbA1kKLE}"
+# Pass WORKER_SECRET as env var: WORKER_SECRET=your_secret bash setup.sh
+WORKER_SECRET="${WORKER_SECRET:?ERROR: Set WORKER_SECRET env var before running setup.sh}"
 
 echo "=== [1/7] System packages ==="
 apt-get update -q

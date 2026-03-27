@@ -74,8 +74,25 @@ applypilot/
 
 # ── Dev/util scripts with hardcoded credentials ───────────────────────────────
 reset.py
+fix_db.py
+check_render.py
 setup_test_user.py
 test_apply_linkedin.py
+test_render_callback.py
+test_concurrent.py
+test_full_search.py
+hetzner_worker/test_worker.py
+
+# ── One-off env / secret files ────────────────────────────────────────────────
+render.env
+*.env.local
+
+# ── Old phase directories (legacy code) ──────────────────────────────────────
+PHASE1_JOB_SEARCH/
+PHASE2_JOB_TAILOR/
+local/
+output/
+docs/
 
 # ── Personal resume LaTeX source (contains PII) ───────────────────────────────
 docs/latex/
