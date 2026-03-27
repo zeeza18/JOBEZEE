@@ -453,10 +453,12 @@ def search_jobs_via_ui(search_term: str) -> None:
       3. Click the "Jobs" tab in search results
       4. Filters are applied by apply_filters() via "All filters" panel
     '''
-    # Step 1 — go to LinkedIn feed so the search bar is available
-    if "linkedin.com" not in driver.current_url:
+    # Step 1 — always navigate to LinkedIn feed so the global search bar is present
+    current = driver.current_url
+    if "linkedin.com/feed" not in current:
+        print_lg('[Search] Navigating to LinkedIn feed to access search bar...')
         driver.get("https://www.linkedin.com/feed/")
-        buffer(3)
+        buffer(4)
 
     print_lg(f'[Search] Typing "{search_term}" into LinkedIn search bar')
 
@@ -464,15 +466,18 @@ def search_jobs_via_ui(search_term: str) -> None:
     search_input = None
     for selector in [
         (By.CSS_SELECTOR, '[data-testid="typeahead-input"]'),
-        (By.CSS_SELECTOR, 'input[placeholder="I\'m looking for…"]'),
         (By.XPATH,        '//input[@data-testid="typeahead-input"]'),
-        (By.XPATH,        '//input[contains(@placeholder,"looking for")]'),
+        (By.CSS_SELECTOR, 'input.search-global-typeahead__input'),
         (By.XPATH,        '//input[contains(@class,"search-global-typeahead__input")]'),
+        (By.CSS_SELECTOR, 'input[placeholder="I\'m looking for\u2026"]'),
+        (By.XPATH,        '//input[contains(@placeholder,"looking for")]'),
+        (By.XPATH,        '//input[contains(@placeholder,"Search")]'),
     ]:
         try:
-            search_input = WebDriverWait(driver, 5).until(
+            search_input = WebDriverWait(driver, 8).until(
                 EC.element_to_be_clickable(selector)
             )
+            print_lg(f'[Search] Found search bar via: {selector}')
             break
         except Exception:
             pass
@@ -481,7 +486,7 @@ def search_jobs_via_ui(search_term: str) -> None:
         # Fallback: navigate directly to jobs search URL
         import urllib.parse
         url = f"https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote(search_term)}"
-        print_lg(f'[Search] Search bar not found — falling back to URL: {url}')
+        print_lg(f'[Search] Search bar not found — falling back to direct URL')
         driver.get(url)
         buffer(4)
         return
@@ -619,8 +624,25 @@ def apply_filters() -> None:
         multi_sel_noWait(driver, commitments)
         if benefits or commitments: buffer(recommended_wait)
 
-        show_results_button: WebElement = driver.find_element(By.XPATH, '//button[contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "apply current filters to show")]')
-        show_results_button.click()
+        show_results_button = None
+        for _xp in [
+            '//button[contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "apply current filters to show")]',
+            '//button[contains(@aria-label,"Show") and contains(@aria-label,"result")]',
+            '//button[normalize-space()="Show results"]',
+            '//button[contains(normalize-space(),"Show")]',
+        ]:
+            try:
+                show_results_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, _xp))
+                )
+                break
+            except Exception:
+                pass
+        if show_results_button:
+            driver.execute_script("arguments[0].click();", show_results_button)
+            print_lg('[Filters] Clicked "Show results" — filters applied')
+        else:
+            print_lg('[Filters] "Show results" button not found — filters may not have applied')
 
     except Exception as e:
         print_lg(f"Setting the preferences failed! {e}")

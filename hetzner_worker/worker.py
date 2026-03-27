@@ -1021,11 +1021,24 @@ def stop_bot(job_id: str, authorization: str = Header(...)):
         proc = _procs.get(job_id)
     if proc:
         try:
-            proc.kill()
+            # Kill entire process group (launcher + selenium + chrome children)
+            import signal as _sig
+            try:
+                os.killpg(os.getpgid(proc.pid), _sig.SIGKILL)
+            except Exception:
+                proc.kill()
         except Exception:
             pass
         with _lock:
             _procs.pop(job_id, None)
+        # Also kill any bot Chrome sessions that may have been left open
+        try:
+            subprocess.run(
+                ["pkill", "-9", "-f", "google-chrome.*linkedin-bot"],
+                capture_output=True, timeout=5,
+            )
+        except Exception:
+            pass
         return {"stopped": True}
     return {"stopped": False}
 
@@ -1094,6 +1107,7 @@ def _run_bot_task(job: BotJobRequest) -> None:
             encoding="utf-8",
             errors="replace",
             env=env,
+            start_new_session=True,  # new process group — lets killpg kill launcher + chrome
         )
 
         with _lock:

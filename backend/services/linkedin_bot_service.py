@@ -368,6 +368,9 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             if r.status_code != 200:
                 raise RuntimeError(f"Hetzner worker rejected job: {r.status_code} {r.text}")
             _append(job_id, "[JOBEZEE] Bot job accepted by Hetzner worker — streaming logs...")
+            # Store sentinel so stop_linkedin_bot knows to call Hetzner stop API
+            with _lock:
+                _procs[job_id] = {"hetzner": True, "worker_url": _cfg.BOT_WORKER_URL, "secret": _cfg.WORKER_SECRET}
             # Logs arrive asynchronously via /api/bot/internal/log callback.
             # This thread is done; status updates come from the callback endpoint.
 
@@ -445,12 +448,25 @@ def stop_linkedin_bot(job_id: str) -> bool:
     with _lock:
         proc = _procs.get(job_id)
         job  = _jobs.get(job_id)
-    if proc is None or job is None:
+    if job is None:
         return False
-    try:
-        proc.kill()
-    except Exception:
-        pass
+    if isinstance(proc, dict) and proc.get("hetzner"):
+        # Running on Hetzner — call the worker's stop endpoint
+        try:
+            with httpx.Client(timeout=10) as client:
+                client.post(
+                    f"{proc['worker_url']}/stop-bot/{job_id}",
+                    headers={"Authorization": f"Bearer {proc['secret']}"},
+                )
+        except Exception:
+            pass
+    elif proc is not None:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    else:
+        return False
     with _lock:
         if _jobs.get(job_id, {}).get("status") == "running":
             _jobs[job_id]["status"] = "error"
