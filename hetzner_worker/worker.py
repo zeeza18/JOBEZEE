@@ -21,6 +21,15 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
+# Load .env file if present (so secret survives worker restarts without re-passing env var)
+_env_file = Path(__file__).parent / ".env"
+if _env_file.exists():
+    for _line in _env_file.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+
 WORKER_SECRET = os.environ.get("WORKER_SECRET", "")
 _JOBEZEE_ROOT = Path(__file__).resolve().parent.parent
 _BOT_DIR      = _JOBEZEE_ROOT / "linkedin_bot"
@@ -997,18 +1006,23 @@ def connect_do_login(req: ConnectDoLoginRequest, authorization: str = Header(...
 
 @app.post("/git-pull")
 def git_pull(authorization: str = Header(...)):
-    """Pull latest code from origin and return output."""
+    """Pull latest code from origin and return output. Force-resets to origin/main."""
     _auth(authorization)
     try:
-        result = subprocess.run(
-            ["git", "pull", "--ff-only"],
+        fetch = subprocess.run(
+            ["git", "fetch", "origin"],
+            cwd=str(_JOBEZEE_ROOT),
+            capture_output=True, text=True, timeout=60,
+        )
+        reset = subprocess.run(
+            ["git", "reset", "--hard", "origin/main"],
             cwd=str(_JOBEZEE_ROOT),
             capture_output=True, text=True, timeout=60,
         )
         return {
-            "returncode": result.returncode,
-            "stdout": result.stdout.strip(),
-            "stderr": result.stderr.strip(),
+            "returncode": reset.returncode,
+            "stdout": (fetch.stdout + reset.stdout).strip(),
+            "stderr": (fetch.stderr + reset.stderr).strip(),
         }
     except Exception as e:
         return {"returncode": -1, "stdout": "", "stderr": str(e)}
