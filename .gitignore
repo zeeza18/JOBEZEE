@@ -87,12 +87,9 @@ hetzner_worker/test_worker.py
 render.env
 *.env.local
 
-# ── Old phase directories (legacy code) ──────────────────────────────────────
-PHASE1_JOB_SEARCH/
-PHASE2_JOB_TAILOR/
+# ── Dev artifacts ─────────────────────────────────────────────────────────────
 local/
 output/
-docs/
 
 # ── Personal resume LaTeX source (contains PII) ───────────────────────────────
 docs/latex/
