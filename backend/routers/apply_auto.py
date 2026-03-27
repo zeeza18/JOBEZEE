@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re as _re
 import threading
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -24,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
 from ..config import get_settings
-from ..database import get_db
+from ..database import get_db, AsyncSessionLocal
 from ..models import PulledJob, UserProfile
 from ..services.apply_service import (
     create_apply_job,
@@ -40,6 +42,107 @@ from ..services.linkedin_bot_service import (
 from .applied_jobs import watch_email_for_confirmation
 
 router = APIRouter()
+
+
+# ── Applied-job recording helpers (used by SSE stream AND /internal/log) ──────
+
+_SAVED_RE = _re.compile(
+    r'Successfully saved "(.+?)" job\. Job ID: (\d+)',
+    _re.IGNORECASE,
+)
+_SALARY_RE = _re.compile(
+    r'\$[\d,]+(?:\.?\d+)?[kK]?\s*(?:[-–]\s*\$[\d,]+(?:\.?\d+)?[kK]?)?\s*(?:/\s*(?:yr|year|hour|hr))?',
+)
+_TIME_RE = _re.compile(
+    r'(\d+)\s*(minute|hour|day|week|month)s?\s*ago',
+    _re.IGNORECASE,
+)
+
+
+def _parse_time_posted(text: str) -> datetime | None:
+    m = _TIME_RE.search(text)
+    if not m:
+        return None
+    n, unit = int(m.group(1)), m.group(2).lower()
+    now = datetime.now(timezone.utc)
+    deltas = {
+        "minute": timedelta(minutes=n),
+        "hour":   timedelta(hours=n),
+        "day":    timedelta(days=n),
+        "week":   timedelta(weeks=n),
+        "month":  timedelta(days=n * 30),
+    }
+    return now - deltas.get(unit, timedelta(0))
+
+
+def _extract_from_context(events: list, idx: int):
+    """Scan the events list backwards from idx to find location, salary, posted_at."""
+    location = ""
+    salary_text = ""
+    posted_at = None
+    for ln in reversed(events[max(0, idx - 30): idx + 1]):
+        if not location and "Time Posted:" in ln:
+            after = ln.split("Time Posted:", 1)[1].strip()
+            segments = [s.strip() for s in after.split("·")]
+            if segments:
+                location = segments[0]
+            for seg in segments[1:]:
+                posted_at = _parse_time_posted(seg)
+                if posted_at:
+                    break
+        if not salary_text:
+            sal = _SALARY_RE.search(ln)
+            if sal:
+                salary_text = sal.group(0).strip()
+        if "Trying to Apply to" in ln:
+            break
+    return location, salary_text, posted_at
+
+
+async def _record_applied(line: str, user_profile_id: str, events: list, idx: int) -> None:
+    """Write a PulledJob row for a freshly applied LinkedIn job."""
+    m = _SAVED_RE.search(line)
+    if not m:
+        return
+    raw_title, li_job_id = m.group(1), m.group(2)
+    parts   = [p.strip() for p in raw_title.split("|", 1)]
+    title   = parts[0]
+    company = parts[1] if len(parts) > 1 else ""
+    li_url  = f"https://www.linkedin.com/jobs/view/{li_job_id}"
+
+    try:
+        pid = uuid.UUID(user_profile_id)
+    except (ValueError, AttributeError):
+        return
+
+    location, salary_text, posted_at = _extract_from_context(events, idx)
+
+    try:
+        async with AsyncSessionLocal() as db:
+            existing = await db.execute(
+                select(PulledJob).where(
+                    PulledJob.user_profile_id == pid,
+                    PulledJob.url == li_url,
+                )
+            )
+            if existing.scalar_one_or_none():
+                return
+            db.add(PulledJob(
+                user_profile_id   = pid,
+                search_session_id = "linkedin-bot",
+                title             = title,
+                company           = company,
+                location          = location,
+                salary_text       = salary_text,
+                posted_at         = posted_at.isoformat() if posted_at else None,
+                url               = li_url,
+                status            = "applied",
+                source            = "linkedin",
+                site              = "linkedin",
+            ))
+            await db.commit()
+    except Exception:
+        pass   # never crash over DB errors
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -542,115 +645,6 @@ async def linkedin_status(job_id: str, _user=Depends(get_current_user)):
 @router.get("/linkedin-stream/{job_id}")
 async def linkedin_stream(job_id: str):
     """SSE stream for LinkedIn bot progress — no auth needed for EventSource."""
-    import re as _re
-    from datetime import datetime, timedelta, timezone
-    from ..database import AsyncSessionLocal
-    from sqlalchemy import select as _select
-
-    _SAVED_RE = _re.compile(
-        r'Successfully saved "(.+?)" job\. Job ID: (\d+)',
-        _re.IGNORECASE,
-    )
-    _SALARY_RE = _re.compile(
-        r'\$[\d,]+(?:\.?\d+)?[kK]?\s*(?:[-–]\s*\$[\d,]+(?:\.?\d+)?[kK]?)?\s*(?:/\s*(?:yr|year|hour|hr))?',
-    )
-    _TIME_RE = _re.compile(
-        r'(\d+)\s*(minute|hour|day|week|month)s?\s*ago',
-        _re.IGNORECASE,
-    )
-
-    def _parse_time_posted(text: str) -> datetime | None:
-        """Parse 'X hours/days/weeks ago' into an absolute UTC datetime."""
-        now = datetime.now(timezone.utc)
-        m = _TIME_RE.search(text)
-        if not m:
-            return now
-        n, unit = int(m.group(1)), m.group(2).lower()
-        delta = {
-            "minute": timedelta(minutes=n),
-            "hour":   timedelta(hours=n),
-            "day":    timedelta(days=n),
-            "week":   timedelta(weeks=n),
-            "month":  timedelta(days=n * 30),
-        }.get(unit, timedelta(0))
-        return now - delta
-
-    def _extract_from_context(events: list, saved_idx: int) -> tuple[str, str, datetime | None]:
-        """Scan back from saved_idx to find Time Posted + salary in the same job block."""
-        location = ""
-        salary_text = ""
-        posted_at: datetime | None = None
-
-        # Only scan within the current job's lines (back to the "Trying to Apply" marker)
-        for i in range(saved_idx - 1, max(0, saved_idx - 200) - 1, -1):
-            ln = events[i]
-
-            if "Time Posted:" in ln and not posted_at:
-                # Format: "Time Posted: Denver Metropolitan Area · 10 hours ago · 6 applicants"
-                after = ln.split("Time Posted:", 1)[1].strip()
-                segments = [s.strip() for s in after.split("·")]
-                if segments:
-                    location = segments[0]
-                for seg in segments[1:]:
-                    posted_at = _parse_time_posted(seg)
-                    if posted_at:
-                        break
-
-            if not salary_text:
-                sal = _SALARY_RE.search(ln)
-                if sal:
-                    salary_text = sal.group(0).strip()
-
-            # Stop scanning when we hit the start of this job's block
-            if "Trying to Apply to" in ln:
-                break
-
-        return location, salary_text, posted_at
-
-    async def _record_applied(line: str, user_profile_id: str, events: list, idx: int) -> None:
-        """Write a PulledJob row for a freshly applied LinkedIn job."""
-        m = _SAVED_RE.search(line)
-        if not m:
-            return
-        raw_title, li_job_id = m.group(1), m.group(2)
-        parts   = [p.strip() for p in raw_title.split("|", 1)]
-        title   = parts[0]
-        company = parts[1] if len(parts) > 1 else ""
-        li_url  = f"https://www.linkedin.com/jobs/view/{li_job_id}"
-
-        try:
-            pid = uuid.UUID(user_profile_id)
-        except (ValueError, AttributeError):
-            return
-
-        location, salary_text, posted_at = _extract_from_context(events, idx)
-
-        try:
-            async with AsyncSessionLocal() as db:
-                existing = await db.execute(
-                    _select(PulledJob).where(
-                        PulledJob.user_profile_id == pid,
-                        PulledJob.url == li_url,
-                    )
-                )
-                if existing.scalar_one_or_none():
-                    return
-                db.add(PulledJob(
-                    user_profile_id   = pid,
-                    search_session_id = "linkedin-bot",
-                    title             = title,
-                    company           = company,
-                    location          = location,
-                    salary_text       = salary_text,
-                    posted_at         = posted_at.isoformat() if posted_at else None,
-                    url               = li_url,
-                    status            = "applied",
-                    source            = "linkedin",
-                    site              = "linkedin",
-                ))
-                await db.commit()
-        except Exception:
-            pass   # never crash the SSE stream over DB errors
 
     async def event_generator():
         seen = 0
@@ -1143,6 +1137,16 @@ async def internal_log(payload: _LogCallback, authorization: str = Header(...)):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     _append(payload.job_id, payload.line)
+
+    # Save applied job to DB as soon as bot confirms it (works even when SSE stream is closed)
+    if "successfully saved" in payload.line.lower():
+        with _lock:
+            job_meta = _jobs.get(payload.job_id, {})
+        uid = job_meta.get("user_profile_id", "")
+        if uid:
+            progress = job_meta.get("progress", [])
+            idx = len(progress) - 1
+            asyncio.create_task(_record_applied(payload.line, uid, progress, idx))
 
     if payload.status in ("complete", "error"):
         with _lock:

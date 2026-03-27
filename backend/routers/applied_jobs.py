@@ -167,8 +167,38 @@ async def update_status(
 
 # ── IMAP Gmail helper ─────────────────────────────────────────────────────────
 
+_JOB_EMAIL_DOMAINS = (
+    "linkedin.com", "greenhouse.io", "lever.co", "workday.com",
+    "myworkdayjobs.com", "taleo.net", "icims.com", "jobvite.com",
+    "bamboohr.com", "smartrecruiters.com", "ashbyhq.com", "rippling.com",
+    "indeed.com", "glassdoor.com", "ziprecruiter.com", "angellist.com",
+    "wellfound.com", "ycombinator.com", "hiringthing.com", "breezyhr.com",
+    "recruitee.com", "applytojob.com", "workable.com", "pinpointhq.com",
+)
+
+_JOB_SUBJECT_KEYWORDS = (
+    "application", "applied", "thank you for applying", "your application",
+    "we received", "application received", "application submitted",
+    "application confirmation", "interview", "position", "role", "opportunity",
+    "recruiter", "hiring", "offer", "rejected", "not moving forward",
+)
+
+
+def _is_job_email(msg) -> bool:
+    """Return True only if this email looks like a job-related message."""
+    sender = (msg.get("from") or "").lower()
+    subject = (msg.get("subject") or "").lower()
+    # Accept if sender is from a known job platform
+    if any(d in sender for d in _JOB_EMAIL_DOMAINS):
+        return True
+    # Accept if subject contains job-related keywords
+    if any(kw in subject for kw in _JOB_SUBJECT_KEYWORDS):
+        return True
+    return False
+
+
 def _imap_search(query: str, max_results: int = 5) -> str:
-    """Search Gmail via IMAP using App Password. Returns combined email text."""
+    """Search Gmail via IMAP using App Password. Returns combined email text (job emails only)."""
     cfg = get_settings()
     if not cfg.GMAIL_USER or not cfg.GMAIL_APP_PASSWORD:
         return ""
@@ -177,15 +207,20 @@ def _imap_search(query: str, max_results: int = 5) -> str:
         mail.login(cfg.GMAIL_USER, cfg.GMAIL_APP_PASSWORD)
         mail.select("inbox")
 
-        # Search subject + body for the query terms
-        search_str = " ".join(f'"{w}"' for w in query.split() if w)
-        _, data = mail.search(None, f'(OR SUBJECT {search_str} BODY {search_str})')
-        ids = data[0].split()[-max_results:]  # newest N
+        # Search by company name in subject only (more precise than body search)
+        company_word = query.split()[0] if query.strip() else query
+        _, data = mail.search(None, f'SUBJECT "{company_word}"')
+        ids = data[0].split()[-max_results * 3:]  # fetch extra to filter
 
         combined = ""
-        for uid in ids:
+        kept = 0
+        for uid in reversed(ids):  # newest first
+            if kept >= max_results:
+                break
             _, msg_data = mail.fetch(uid, "(RFC822)")
             msg = _email_lib.message_from_bytes(msg_data[0][1])
+            if not _is_job_email(msg):
+                continue
             subject = msg.get("subject", "")
             body = ""
             if msg.is_multipart():
@@ -196,6 +231,7 @@ def _imap_search(query: str, max_results: int = 5) -> str:
             else:
                 body = msg.get_payload(decode=True).decode(errors="ignore")
             combined += f" {subject} {body}"
+            kept += 1
 
         mail.logout()
         return combined
