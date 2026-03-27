@@ -303,10 +303,10 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             "linkedin_cookies_json": _li_cookies_json,
         }
         # On Hetzner there's no human watching — never pause, always skip stuck jobs
-        overrides["questions"] = {
+        overrides["questions"].update({
             "pause_at_failed_question": False,
             "pause_before_submit":      False,
-        }
+        })
 
         # ── Personals (config/personals.py is gitignored — inject from profile) ─
         first_name, last_name = _split_name(profile)
