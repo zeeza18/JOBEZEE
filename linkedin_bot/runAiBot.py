@@ -454,11 +454,8 @@ def search_jobs_via_ui(search_term: str) -> None:
       4. Filters are applied by apply_filters() via "All filters" panel
     '''
     # Step 1 — always navigate to LinkedIn feed so the global search bar is present
-    current = driver.current_url
-    if "linkedin.com/feed" not in current:
-        print_lg('[Search] Navigating to LinkedIn feed to access search bar...')
-        driver.get("https://www.linkedin.com/feed/")
-        buffer(4)
+    driver.get("https://www.linkedin.com/feed/")
+    buffer(5)
 
     print_lg(f'[Search] Typing "{search_term}" into LinkedIn search bar')
 
