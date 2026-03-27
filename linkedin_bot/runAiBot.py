@@ -524,49 +524,19 @@ def apply_filters() -> None:
     try:
         recommended_wait = 1 if click_gap < 1 else 0
 
-        print_lg(f'[Filters] Current URL: {driver.current_url}')
-
-        # Wait for the filter pill bar to appear (confirms page is ready)
-        print_lg('[Filters] Waiting for filter bar to load...')
-        try:
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR,
-                    'div.search-reusables__filters-bar, div.jobs-search-box__filters, .artdeco-pill'))
-            )
-        except Exception:
-            pass
-        buffer(2)
-
         # Scroll down slightly so nav bar doesn't intercept the filters bar
-        driver.execute_script("window.scrollBy(0, 100);")
-        buffer(1)
+        driver.execute_script("window.scrollBy(0, 150);")
+        buffer(0.5)
 
-        # Find "All filters" button — exact aria-label from live LinkedIn HTML
+        # JS click bypasses interception from sticky nav bar (same as reference)
         print_lg('[Filters] Looking for "All filters" button...')
-        all_filters_btn = None
-        for xpath in [
-            '//button[contains(@aria-label,"Show all filters")]',
-            '//button[normalize-space()="All filters"]',
-            '//button[contains(normalize-space(),"All filters")]',
-            '//button[contains(@class,"search-reusables__all-filters-pill-button")]',
-            '//button[contains(@aria-label,"filters")]',
-        ]:
-            try:
-                all_filters_btn = WebDriverWait(driver, 8).until(
-                    EC.element_to_be_clickable((By.XPATH, xpath))
-                )
-                print_lg(f'[Filters] Found "All filters" button via: {xpath}')
-                break
-            except Exception:
-                pass
-
-        if not all_filters_btn:
-            raise Exception('"All filters" button not found on page — skipping filters')
-
+        all_filters_btn = WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.XPATH, '//button[normalize-space()="All filters"]'))
+        )
+        print_lg('[Filters] Found "All filters" — clicking...')
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", all_filters_btn)
         driver.execute_script("arguments[0].click();", all_filters_btn)
         buffer(recommended_wait)
-        print_lg('[Filters] Opened "All filters" panel')
 
         wait_span_click(driver, sort_by)
         wait_span_click(driver, date_posted)
@@ -582,7 +552,6 @@ def apply_filters() -> None:
 
         if easy_apply_only: boolean_button_click(driver, actions, "Easy Apply")
 
-        # Location: try span click first, fall back to dynamic search
         for loc in location:
             if not wait_span_click(driver, loc, 2):
                 dynamic_filter_search(driver, actions, loc, "Add a location")
@@ -594,34 +563,17 @@ def apply_filters() -> None:
 
         wait_span_click(driver, salary)
         buffer(recommended_wait)
-        
+
         multi_sel_noWait(driver, benefits)
         multi_sel_noWait(driver, commitments)
         if benefits or commitments: buffer(recommended_wait)
 
-        show_results_button = None
-        for _xp in [
-            '//button[contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "apply current filters to show")]',
-            '//button[contains(@aria-label,"Show") and contains(@aria-label,"result")]',
-            '//button[normalize-space()="Show results"]',
-            '//button[contains(normalize-space(),"Show")]',
-        ]:
-            try:
-                show_results_button = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable((By.XPATH, _xp))
-                )
-                break
-            except Exception:
-                pass
-        if show_results_button:
-            driver.execute_script("arguments[0].click();", show_results_button)
-            print_lg('[Filters] Clicked "Show results" — filters applied')
-        else:
-            print_lg('[Filters] "Show results" button not found — filters may not have applied')
+        show_results_button: WebElement = driver.find_element(By.XPATH, '//button[contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "apply current filters to show")]')
+        show_results_button.click()
+        print_lg('[Filters] Filters applied — Show results clicked')
 
     except Exception as e:
         print_lg(f"Setting the preferences failed! {e}")
-        # print_lg(e)
 
 
 
