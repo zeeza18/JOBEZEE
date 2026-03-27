@@ -38,6 +38,36 @@ _LAUNCHER     = _BOT_DIR / "linkedin_launcher.py"
 _procs: dict[str, subprocess.Popen] = {}
 _lock  = threading.Lock()
 
+# ── Concurrency limit + queue ─────────────────────────────────────────────────
+MAX_CONCURRENT_BOTS = 2          # safe limit for 2 GB RAM (each Chrome ~400 MB)
+_queue: list[BotJobRequest] = [] # jobs waiting for a free slot
+_queue_lock = threading.Lock()
+
+def _queue_position(job_id: str) -> int:
+    """Return 1-based queue position, or 0 if not queued."""
+    with _queue_lock:
+        for i, j in enumerate(_queue):
+            if j.job_id == job_id:
+                return i + 1
+    return 0
+
+def _maybe_start_next() -> None:
+    """If a slot is free, pop the next queued job and start it."""
+    with _queue_lock:
+        if not _queue:
+            return
+        with _lock:
+            if len(_procs) >= MAX_CONCURRENT_BOTS:
+                return
+        job = _queue.pop(0)
+    # Notify backend that job is starting (left the queue)
+    try:
+        _post_log(job.callback_url, job.job_id, "[JOBEZEE] Slot available — starting bot now")
+    except Exception:
+        pass
+    t = threading.Thread(target=_run_bot_task, args=(job,), daemon=True)
+    t.start()
+
 # ── LinkedIn Connect sessions (per-user interactive login) ────────────────────
 _connect_sessions: dict[str, dict] = {}   # user_id -> {proc, port}
 _connect_lock = threading.Lock()
@@ -65,7 +95,11 @@ class BotJobRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "active_jobs": len(_procs)}
+    with _lock:
+        active = len(_procs)
+    with _queue_lock:
+        queued = len(_queue)
+    return {"status": "ok", "active_jobs": active, "queued_jobs": queued, "max_concurrent": MAX_CONCURRENT_BOTS}
 
 
 @app.post("/run-bot")
@@ -75,8 +109,32 @@ async def run_bot(
     authorization: str = Header(...),
 ):
     _auth(authorization)
-    background_tasks.add_task(_run_bot_task, job)
-    return {"status": "started", "job_id": job.job_id}
+    with _lock:
+        active = len(_procs)
+    if active < MAX_CONCURRENT_BOTS:
+        background_tasks.add_task(_run_bot_task, job)
+        return {"status": "started", "job_id": job.job_id}
+    else:
+        with _queue_lock:
+            _queue.append(job)
+            position = len(_queue)
+        return {"status": "queued", "job_id": job.job_id, "queue_position": position}
+
+
+@app.get("/queue-status/{job_id}")
+def queue_status(job_id: str, authorization: str = Header(...)):
+    """Check if a job is queued and its position."""
+    _auth(authorization)
+    pos = _queue_position(job_id)
+    with _lock:
+        active = len(_procs)
+    return {
+        "job_id":         job_id,
+        "queued":         pos > 0,
+        "queue_position": pos,
+        "active_bots":    active,
+        "max_bots":       MAX_CONCURRENT_BOTS,
+    }
 
 
 @app.get("/screenshot")
@@ -1153,3 +1211,5 @@ def _run_bot_task(job: BotJobRequest) -> None:
                 shutil.rmtree(tmp_resume_dir, ignore_errors=True)
             except Exception:
                 pass
+        # Slot freed — start next queued job if any
+        _maybe_start_next()

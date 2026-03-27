@@ -372,7 +372,15 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
                 )
             if r.status_code != 200:
                 raise RuntimeError(f"Hetzner worker rejected job: {r.status_code} {r.text}")
-            _append(job_id, "[JOBEZEE] Bot job accepted by Hetzner worker — streaming logs...")
+            resp_json = r.json()
+            if resp_json.get("status") == "queued":
+                pos = resp_json.get("queue_position", 1)
+                _append(job_id, f"[JOBEZEE] High demand — you're #{pos} in queue. Bot will start automatically when a slot opens.")
+                with _lock:
+                    _jobs[job_id]["status"] = "queued"
+                    _jobs[job_id]["queue_position"] = pos
+            else:
+                _append(job_id, "[JOBEZEE] Bot job accepted by Hetzner worker — streaming logs...")
             # Store sentinel so stop_linkedin_bot knows to call Hetzner stop API
             with _lock:
                 _procs[job_id] = {"hetzner": True, "worker_url": _cfg.BOT_WORKER_URL, "secret": _cfg.WORKER_SECRET}
