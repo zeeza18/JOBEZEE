@@ -694,6 +694,32 @@ async def linkedin_stop(job_id: str, current_user=Depends(get_current_user)):
     return {"stopped": True}
 
 
+@router.get("/worker-status")
+async def worker_status(current_user=Depends(get_current_user)):
+    """Check Hetzner worker health — returns status, active/queued jobs, and any error."""
+    cfg = get_settings()
+    if not cfg.BOT_WORKER_URL:
+        return {"configured": False, "status": "not_configured"}
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            r = await client.get(f"{cfg.BOT_WORKER_URL}/health")
+        if r.status_code == 200:
+            data = r.json()
+            return {
+                "configured": True,
+                "status": "ok",
+                "active_jobs": data.get("active_jobs", 0),
+                "queued_jobs": data.get("queued_jobs", 0),
+                "max_concurrent": data.get("max_concurrent", 2),
+                "worker_url": cfg.BOT_WORKER_URL,
+            }
+        return {"configured": True, "status": "error", "detail": f"Worker returned {r.status_code}"}
+    except httpx.ConnectError:
+        return {"configured": True, "status": "unreachable", "detail": "Cannot connect to worker"}
+    except httpx.TimeoutException:
+        return {"configured": True, "status": "timeout", "detail": "Worker did not respond in time"}
+
+
 @router.get("/bot-screenshot")
 async def bot_screenshot(current_user=Depends(get_current_user)):
     """Proxy a screenshot of the Hetzner Xvfb display (:99) back to the frontend."""

@@ -343,6 +343,22 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             # ── Production: delegate to Hetzner worker ────────────────────────
             _append(job_id, f"[JOBEZEE] Delegating to Hetzner worker at {_cfg.BOT_WORKER_URL}")
 
+            # Pre-flight: ping /health to catch connectivity + secret mismatch early
+            try:
+                with httpx.Client(timeout=8) as _hc:
+                    _hr = _hc.get(f"{_cfg.BOT_WORKER_URL}/health")
+                if _hr.status_code != 200:
+                    raise RuntimeError(f"Worker health check failed ({_hr.status_code}) — is the Hetzner server running?")
+            except httpx.ConnectError:
+                raise RuntimeError(
+                    f"Cannot reach Hetzner worker at {_cfg.BOT_WORKER_URL} — "
+                    "check that the server is up and BOT_WORKER_URL is correct in Render env vars."
+                )
+            except httpx.TimeoutException:
+                raise RuntimeError(
+                    f"Hetzner worker timed out — server may be overloaded or unreachable."
+                )
+
             # Base64-encode resume so Hetzner can write it to a temp file
             resume_b64      = ""
             resume_filename = ""
@@ -369,6 +385,13 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
                     f"{_cfg.BOT_WORKER_URL}/run-bot",
                     json=payload,
                     headers={"Authorization": f"Bearer {_cfg.WORKER_SECRET}"},
+                )
+            if r.status_code == 401:
+                raise RuntimeError(
+                    "Worker secret mismatch (401) — WORKER_SECRET in Render env vars does not match "
+                    "the secret on the Hetzner server. "
+                    "Fix: SSH into Hetzner and run: "
+                    f"echo 'WORKER_SECRET={_cfg.WORKER_SECRET}' > /opt/jobezee/hetzner_worker/.env && systemctl restart jobezee-worker"
                 )
             if r.status_code != 200:
                 raise RuntimeError(f"Hetzner worker rejected job: {r.status_code} {r.text}")

@@ -72,6 +72,24 @@ const AutoApplyPage = () => {
   const liLogRef       = useRef<HTMLDivElement>(null)
   const ssIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // ── Hetzner worker status ───────────────────────────────────────────────────
+  const [workerStatus, setWorkerStatus] = useState<'ok' | 'unreachable' | 'timeout' | 'error' | 'not_configured' | null>(null)
+  const [workerJobs, setWorkerJobs] = useState({ active: 0, queued: 0, max: 2 })
+
+  useEffect(() => {
+    const checkWorker = async () => {
+      try {
+        const r = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/apply/worker-status`, { credentials: 'include' })
+        const d = await r.json()
+        setWorkerStatus(d.status)
+        setWorkerJobs({ active: d.active_jobs ?? 0, queued: d.queued_jobs ?? 0, max: d.max_concurrent ?? 2 })
+      } catch { setWorkerStatus('unreachable') }
+    }
+    checkWorker()
+    const t = setInterval(checkWorker, 30_000)
+    return () => clearInterval(t)
+  }, [])
+
   // ── LinkedIn Connect state ───────────────────────────────────────────────────
   const [hasCookies,     setHasCookies]     = useState<boolean | null>(null)
   const [connectStatus,  setConnectStatus]  = useState<ConnectStatus>('idle')
@@ -821,6 +839,19 @@ const AutoApplyPage = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:shrink-0">
+              {/* Worker health pill */}
+              {workerStatus && (
+                <span className={`hidden sm:flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold
+                  ${workerStatus === 'ok' ? 'bg-emerald-500/20 text-emerald-200' :
+                    workerStatus === 'not_configured' ? 'bg-slate-500/20 text-slate-300' :
+                    'bg-red-500/20 text-red-300'}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${workerStatus === 'ok' ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                  {workerStatus === 'ok'
+                    ? `Worker ${workerJobs.active}/${workerJobs.max} active`
+                    : workerStatus === 'not_configured' ? 'Local mode'
+                    : 'Worker offline'}
+                </span>
+              )}
               {liStatus === 'running' && (
                 <button onClick={handleLinkedInStop} disabled={liStopping}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
