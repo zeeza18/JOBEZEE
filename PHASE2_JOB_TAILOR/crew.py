@@ -23,12 +23,17 @@ _OUTPUT_DIR  = _MODULE_ROOT / "output"
 class ResumeCrew:
     """Complete resume processor with all 3 tools and iterative process"""
 
-    def __init__(self):
-        """Initialize the crew with all 3 tools"""
-        self.keyword_extractor = KeywordExtractor()
+    def __init__(self, openai_api_key: str | None = None):
+        """Initialize the crew with all 3 tools.
+
+        Args:
+            openai_api_key: Per-request OpenAI key so concurrent users don't
+                            race on os.environ (if omitted, falls back to env var).
+        """
+        self.keyword_extractor = KeywordExtractor(api_key=openai_api_key)
         self.resume_tailor = ResumeTailor()
-        self.resume_evaluator = ResumeEvaluator()
-        self.latex_formatter = LatexResumeFormatter()
+        self.resume_evaluator = ResumeEvaluator(api_key=openai_api_key)
+        self.latex_formatter = LatexResumeFormatter(api_key=openai_api_key)
         self.analyzer = ResumeAnalyzer()
         self.process_log = []
 

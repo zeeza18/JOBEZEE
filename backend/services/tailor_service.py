@@ -64,9 +64,6 @@ def start_tailor_job(job_id: str, job_description: str, resume: str, openai_api_
 
 def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "") -> None:
     """Runs inside background thread."""
-    import os as _os
-    if openai_api_key:
-        _os.environ["OPENAI_API_KEY"] = openai_api_key
     with _lock:
         _jobs[job_id]["status"] = "running"
 
@@ -97,7 +94,7 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
         job_dir = _JOB_OUTPUTS / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
 
-        crew = ResumeCrew()
+        crew = ResumeCrew(openai_api_key=openai_api_key or None)
         result = crew.run_tailoring_process(_clean_jd, _resume, progress_callback, output_dir=job_dir)
 
         final_score = result.get("final_score")
@@ -163,9 +160,6 @@ def _run_tailor_for_job(
     company: str,
     openai_api_key: str = "",
 ) -> None:
-    import os as _os
-    if openai_api_key:
-        _os.environ["OPENAI_API_KEY"] = openai_api_key
     with _lock:
         _jobs[tailor_job_id]["status"] = "running"
 
@@ -218,7 +212,7 @@ def _run_tailor_for_job(
         job_dir = _JOB_OUTPUTS / tailor_job_id
         job_dir.mkdir(parents=True, exist_ok=True)
 
-        crew = ResumeCrew()
+        crew = ResumeCrew(openai_api_key=openai_api_key or None)
         result = crew.run_tailoring_process(clean_jd, resume_text, progress_callback, output_dir=job_dir)
 
         final_score = result.get("final_score")
