@@ -1167,6 +1167,14 @@ async def internal_log(payload: _LogCallback, authorization: str = Header(...)):
 
     _append(payload.job_id, payload.line)
 
+    # Detect LinkedIn daily rate limit
+    if "DAILY_LIMIT_REACHED" in payload.line or "daily easy apply limit reached" in payload.line.lower():
+        with _lock:
+            job = _jobs.get(payload.job_id)
+            if job:
+                job["status"] = "rate_limited"
+                job["error"] = "LinkedIn daily Easy Apply limit reached. The bot has stopped — try again tomorrow."
+
     # Save applied job to DB as soon as bot confirms it (works even when SSE stream is closed)
     if "successfully saved" in payload.line.lower():
         with _lock:

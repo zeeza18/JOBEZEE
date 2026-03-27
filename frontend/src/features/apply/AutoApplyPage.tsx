@@ -59,7 +59,7 @@ const AutoApplyPage = () => {
   const LI_JOB_KEY = 'jobezee_li_job_id'
   const _initLiJobId = localStorage.getItem(LI_JOB_KEY)
 
-  const [liStatus,  setLiStatus]  = useState<'idle' | 'running' | 'complete' | 'error'>(_initLiJobId ? 'running' : 'idle')
+  const [liStatus,  setLiStatus]  = useState<'idle' | 'running' | 'complete' | 'error' | 'rate_limited'>(_initLiJobId ? 'running' : 'idle')
   const [liLines,   setLiLines]   = useState<string[]>([])
   const [liResult,  setLiResult]  = useState<string | null>(null)
   const [liError,   setLiError]   = useState<string | null>(null)
@@ -160,6 +160,10 @@ const AutoApplyPage = () => {
           } else if (s.status === 'complete') {
             setLiStatus('complete')
             setLiResult(s.result)
+            localStorage.removeItem(LI_JOB_KEY)
+          } else if (s.status === 'rate_limited') {
+            setLiStatus('rate_limited')
+            setLiError(s.error ?? "LinkedIn daily Easy Apply limit reached — try again tomorrow.")
             localStorage.removeItem(LI_JOB_KEY)
           } else if (s.status === 'error') {
             setLiStatus('error')
@@ -947,6 +951,14 @@ const AutoApplyPage = () => {
                   <p className="text-sm font-semibold text-emerald-700 flex-1">{liResult ?? 'Bot finished successfully'}</p>
                   <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); setLiScreenshot(null); localStorage.removeItem(LI_JOB_KEY) }}
                     className="text-xs font-medium text-slate-400 hover:text-slate-600 transition">Clear</button>
+                </div>
+              )}
+              {liStatus === 'rate_limited' && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
+                  <p className="text-sm font-semibold text-amber-800">⚠️ LinkedIn daily Easy Apply limit reached</p>
+                  <p className="text-xs text-amber-700">LinkedIn limits the number of Easy Apply applications per day to prevent spam. The bot has stopped. You can try again tomorrow.</p>
+                  <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); setLiScreenshot(null); localStorage.removeItem(LI_JOB_KEY) }}
+                    className="text-xs font-medium text-amber-600 hover:text-amber-800 transition underline">Dismiss</button>
                 </div>
               )}
               {liStatus === 'error' && (

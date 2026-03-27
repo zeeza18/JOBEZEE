@@ -1428,10 +1428,30 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                     uploaded = False
                     # Case 1: Easy Apply Button
                     if try_xp(driver, ".//button[contains(@class,'jobs-apply-button') and contains(@class, 'artdeco-button--3') and contains(@aria-label, 'Easy')]"):
-                        try: 
+                        try:
                             try:
                                 errored = ""
                                 modal = find_by_class(driver, "jobs-easy-apply-modal")
+                                # Detect LinkedIn daily rate limit BEFORE filling the form
+                                try:
+                                    modal_text = modal.text
+                                    _rate_limit_phrases = [
+                                        "apply tomorrow",
+                                        "limit daily submissions",
+                                        "save this job and apply",
+                                        "exceeded the daily",
+                                        "daily application limit",
+                                    ]
+                                    if any(p in modal_text.lower() for p in _rate_limit_phrases):
+                                        global dailyEasyApplyLimitReached
+                                        dailyEasyApplyLimitReached = True
+                                        print_lg("\n[JOBEZEE] ⛔ LinkedIn daily Easy Apply limit reached — stopping bot for today.\n")
+                                        print_lg("[JOBEZEE] DAILY_LIMIT_REACHED")
+                                        discard_job()
+                                        raise Exception("LinkedIn daily Easy Apply limit reached")
+                                except Exception as _rl:
+                                    if "daily" in str(_rl).lower() or dailyEasyApplyLimitReached:
+                                        raise
                                 wait_span_click(modal, "Next", 1)
                                 # if description != "Unknown":
                                 #     resume = create_custom_resume(description)
