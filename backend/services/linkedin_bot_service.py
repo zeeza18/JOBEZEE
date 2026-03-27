@@ -301,6 +301,7 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             "safe_mode":            not _is_windows,
             "disable_extensions":   True,
             "linkedin_cookies_json": _li_cookies_json,
+            "user_profile_id":      user_profile_id,   # for per-user Chrome profile isolation
         }
         # On Hetzner there's no human watching — never pause, always skip stuck jobs
         overrides["questions"].update({

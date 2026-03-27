@@ -39,6 +39,11 @@ if str(_bot_dir) not in sys.path:
 if _jobezee_root not in sys.path:
     sys.path.insert(0, _jobezee_root)
 
+# ── Set per-user env vars BEFORE any module imports ──────────────────────────
+_uid = overrides.get("settings", {}).get("user_profile_id", "")
+if _uid:
+    os.environ["JOBEZEE_USER_ID"] = _uid
+
 # ── Patch config modules BEFORE runAiBot imports them ─────────────────────────
 
 def _patch_module(module_name: str, patch: dict) -> None:

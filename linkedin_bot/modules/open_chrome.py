@@ -19,11 +19,16 @@ def get_bot_profile_dir() -> str:
     Returns a dedicated Chrome profile directory only for this bot.
     Completely separate from the user's Chrome — no conflicts even when Chrome is open.
     Saves login session so LinkedIn stays logged in across runs.
+    On Linux (Hetzner) each user gets an isolated profile via JOBEZEE_USER_ID env var.
     '''
     if sys.platform.startswith('win'):
         return os.path.join(os.path.expandvars("%LOCALAPPDATA%"), "Google", "Chrome", "LinkedInBotData")
     elif sys.platform.startswith('linux'):
-        return os.path.expanduser("~/.config/google-chrome-linkedin-bot")
+        import re as _re
+        uid = os.environ.get("JOBEZEE_USER_ID", "").strip()
+        safe_id = _re.sub(r'[^a-zA-Z0-9-]', '', uid)[:16] if uid else ""
+        suffix = f"-{safe_id}" if safe_id else "-bot"
+        return os.path.expanduser(f"~/.config/google-chrome-linkedin{suffix}")
     return os.path.expanduser("~/Library/Application Support/Google/Chrome/LinkedInBotData")
 
 

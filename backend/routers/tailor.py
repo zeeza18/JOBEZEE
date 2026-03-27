@@ -125,6 +125,7 @@ async def start_tailor_for_job(
 
 @router.get("/status/{job_id}")
 async def get_status(job_id: str, _user=Depends(get_current_user)):
+    import shutil
     job = get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
@@ -136,6 +137,7 @@ async def get_status(job_id: str, _user=Depends(get_current_user)):
         "filename": job.get("filename"),
         "error": job.get("error"),
         "progress_count": len(job.get("progress", [])),
+        "pdflatex_available": shutil.which("pdflatex") is not None,
     }
 
 

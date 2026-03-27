@@ -186,8 +186,10 @@ def _find_chrome_bin() -> str:
 
 
 def _connect_profile_dir(user_id: str) -> str:
-    # Use the bot's own profile dir — cookies persist natively for all bot runs
-    return os.path.expanduser("~/.config/google-chrome-linkedin-bot")
+    # Per-user isolated Chrome profile — prevents session cross-contamination
+    import re as _re
+    safe_id = _re.sub(r'[^a-zA-Z0-9-]', '', user_id)[:16] or "default"
+    return os.path.expanduser(f"~/.config/google-chrome-linkedin-{safe_id}")
 
 
 class ConnectStartRequest(BaseModel):
@@ -1159,6 +1161,7 @@ def _run_bot_task(job: BotJobRequest) -> None:
             json.dump(config, f)
             tmp_config = f.name
 
+        _uid = config.get("settings", {}).get("user_profile_id", "")
         env = {
             **os.environ,
             "PYTHONUNBUFFERED": "1",
@@ -1166,6 +1169,7 @@ def _run_bot_task(job: BotJobRequest) -> None:
             "PYTHONUTF8":       "1",
             "DISPLAY":          ":99",   # Xvfb virtual display
             "TWOCAPTCHA_API_KEY": os.environ.get("TWOCAPTCHA_API_KEY", ""),
+            "JOBEZEE_USER_ID":  _uid,    # per-user Chrome profile isolation
         }
 
         cmd  = [sys.executable, "-u", str(_LAUNCHER), "--config", tmp_config]
