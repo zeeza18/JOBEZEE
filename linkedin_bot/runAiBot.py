@@ -1206,8 +1206,26 @@ def submitted_jobs(job_id: str, title: str, company: str, work_location: str, wo
 
 # Function to discard the job application
 def discard_job() -> None:
-    actions.send_keys(Keys.ESCAPE).perform()
-    wait_span_click(driver, 'Discard', 2)
+    """Close the Easy Apply modal — try multiple fallbacks so a stuck modal never crashes Chrome."""
+    try:
+        actions.send_keys(Keys.ESCAPE).perform()
+        buffer(0.5)
+    except Exception:
+        pass
+    # Try "Discard" span click first (normal LinkedIn confirm dialog)
+    if not wait_span_click(driver, 'Discard', 2):
+        # Fallback 1: "Dismiss" aria-label button (X button on modal)
+        try:
+            btn = driver.find_element(By.XPATH, "//button[@aria-label='Dismiss']")
+            driver.execute_script("arguments[0].click();", btn)
+            buffer(0.5)
+        except Exception:
+            pass
+        # Fallback 2: press Escape again to close any remaining overlay
+        try:
+            actions.send_keys(Keys.ESCAPE).perform()
+        except Exception:
+            pass
 
 
 
@@ -1452,19 +1470,12 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                     print_lg("[AUTO] pause_before_submit skipped — auto-submitting application.")
                                     pause_before_submit = False
                                 follow_company(modal)
-                                # Try "Submit application" (normal click then JS fallback)
-                                submitted = False
-                                submit_btn = wait_span_click(driver, "Submit application", 4, click=False, scrollTop=True)
-                                if submit_btn:
-                                    try:
-                                        submit_btn.click()
-                                        submitted = True
-                                    except Exception:
-                                        try:
-                                            driver.execute_script("arguments[0].click();", submit_btn.find_element(By.XPATH, "./ancestor::button"))
-                                            submitted = True
-                                        except Exception:
-                                            pass
+                                # Try to submit — "Submit application" is the normal button text;
+                                # some forms use "Submit" (no "application") so try both.
+                                submitted = (
+                                    wait_span_click(driver, "Submit application", 4, scrollTop=True)
+                                    or wait_span_click(driver, "Submit", 2, scrollTop=True)
+                                )
                                 if submitted:
                                     date_applied = datetime.now()
                                     if not wait_span_click(driver, "Done", 3): actions.send_keys(Keys.ESCAPE).perform()
@@ -1504,11 +1515,22 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                 if pagination_element == None:
                     print_lg("Couldn't find pagination element, probably at the end page of results!")
                     break
-                try:
-                    pagination_element.find_element(By.XPATH, f"//button[@aria-label='Page {current_page+1}']").click()
-                    print_lg(f"\n>-> Now on Page {current_page+1} \n")
-                except NoSuchElementException:
-                    print_lg(f"\n>-> Didn't find Page {current_page+1}. Probably at the end page of results!\n")
+                next_page = current_page + 1 if current_page else 2
+                # Try multiple aria-label formats LinkedIn uses across UI versions
+                next_btn = None
+                for label in [f"Page {next_page}", str(next_page)]:
+                    try:
+                        next_btn = driver.find_element(By.XPATH, f"//button[@aria-label='{label}']")
+                        break
+                    except NoSuchElementException:
+                        pass
+                if next_btn:
+                    scroll_to_view(driver, next_btn)
+                    next_btn.click()
+                    print_lg(f"\n>-> Now on Page {next_page} \n")
+                    buffer(2)
+                else:
+                    print_lg(f"\n>-> Didn't find Page {next_page}. Probably at the end page of results!\n")
                     break
 
         except (NoSuchWindowException, WebDriverException) as e:
