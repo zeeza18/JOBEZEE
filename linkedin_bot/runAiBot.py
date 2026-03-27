@@ -447,82 +447,50 @@ def get_applied_job_ids() -> set[str]:
 
 def search_jobs_via_ui(search_term: str) -> None:
     '''
-    LinkedIn job search using the LinkedIn search bar UI:
-      1. Navigate to LinkedIn feed
-      2. Click the main search bar, type the role, press Enter
-      3. Click the "Jobs" tab in search results
-      4. Filters are applied by apply_filters() via "All filters" panel
+    LinkedIn job search:
+      1. Navigate to LinkedIn feed, type in typeahead search bar (human-like)
+      2. Immediately navigate to the canonical jobs search URL — guarantees
+         the filter bar ("All filters") is always present on the next step.
     '''
-    # Step 1 — always navigate to LinkedIn feed so the global search bar is present
-    driver.get("https://www.linkedin.com/feed/")
-    buffer(5)
+    import urllib.parse as _up
+    jobs_url = f"https://www.linkedin.com/jobs/search/?keywords={_up.quote(search_term)}&refresh=true"
 
-    print_lg(f'[Search] Typing "{search_term}" into LinkedIn search bar')
-
-    # Step 2 — find and click the search bar (typeahead input)
-    search_input = None
-    for selector in [
-        (By.CSS_SELECTOR, '[data-testid="typeahead-input"]'),
-        (By.XPATH,        '//input[@data-testid="typeahead-input"]'),
-        (By.CSS_SELECTOR, 'input.search-global-typeahead__input'),
-        (By.XPATH,        '//input[contains(@class,"search-global-typeahead__input")]'),
-        (By.CSS_SELECTOR, 'input[placeholder="I\'m looking for\u2026"]'),
-        (By.XPATH,        '//input[contains(@placeholder,"looking for")]'),
-        (By.XPATH,        '//input[contains(@placeholder,"Search")]'),
-    ]:
-        try:
-            search_input = WebDriverWait(driver, 8).until(
-                EC.element_to_be_clickable(selector)
-            )
-            print_lg(f'[Search] Found search bar via: {selector}')
-            break
-        except Exception:
-            pass
-
-    if not search_input:
-        # Fallback: navigate directly to jobs search URL
-        import urllib.parse
-        url = f"https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote(search_term)}"
-        print_lg(f'[Search] Search bar not found — falling back to direct URL')
-        driver.get(url)
+    # Step 1 — go to feed and type in the search bar (visible, human-like)
+    try:
+        driver.get("https://www.linkedin.com/feed/")
         buffer(4)
-        return
+        search_input = None
+        for selector in [
+            (By.CSS_SELECTOR, '[data-testid="typeahead-input"]'),
+            (By.CSS_SELECTOR, 'input.search-global-typeahead__input'),
+            (By.XPATH,        '//input[contains(@class,"search-global-typeahead__input")]'),
+        ]:
+            try:
+                search_input = WebDriverWait(driver, 6).until(
+                    EC.element_to_be_clickable(selector)
+                )
+                break
+            except Exception:
+                pass
+        if search_input:
+            search_input.click()
+            buffer(0.5)
+            search_input.send_keys(Keys.CONTROL + "a")
+            search_input.send_keys(search_term)
+            buffer(0.5)
+            search_input.send_keys(Keys.RETURN)
+            buffer(2)
+            print_lg(f'[Search] Typed "{search_term}" in LinkedIn search bar')
+        else:
+            print_lg('[Search] Typeahead not found on feed — skipping to direct URL')
+    except Exception as _e:
+        print_lg(f'[Search] Feed step error: {_e}')
 
-    # Clear and type the search term
-    search_input.click()
-    buffer(1)
-    search_input.send_keys(Keys.CONTROL + "a")
-    search_input.send_keys(Keys.DELETE)
-    search_input.send_keys(search_term)
-    buffer(1)
-    search_input.send_keys(Keys.RETURN)
-    buffer(3)
-    print_lg(f'[Search] Searched for: "{search_term}"')
-
-    # Step 3 — click "Jobs" tab in search results
-    jobs_tab = None
-    for selector in [
-        (By.XPATH, '//label[normalize-space()="Jobs"]'),
-        (By.XPATH, '//button[normalize-space()="Jobs"]'),
-        (By.XPATH, '//a[normalize-space()="Jobs"]'),
-        (By.XPATH, '//*[normalize-space()="Jobs" and (self::label or self::button or self::a)]'),
-    ]:
-        try:
-            jobs_tab = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable(selector)
-            )
-            break
-        except Exception:
-            pass
-
-    if jobs_tab:
-        driver.execute_script("arguments[0].click();", jobs_tab)
-        buffer(3)
-        print_lg('[Search] Clicked "Jobs" tab')
-    else:
-        print_lg('[Search] "Jobs" tab not found — continuing on current results page')
-
-    print_lg(f'[Search] On LinkedIn Jobs for: "{search_term}"')
+    # Step 2 — always land on the canonical jobs URL so "All filters" is present
+    print_lg(f'[Search] Navigating to Jobs search URL for: "{search_term}"')
+    driver.get(jobs_url)
+    buffer(4)
+    print_lg(f'[Search] Ready — URL: {driver.current_url}')
 
 
 def set_search_location() -> None:
@@ -556,26 +524,36 @@ def apply_filters() -> None:
     try:
         recommended_wait = 1 if click_gap < 1 else 0
 
-        # Wait for page to fully render after search navigation
-        buffer(3)
         print_lg(f'[Filters] Current URL: {driver.current_url}')
 
+        # Wait for the filter pill bar to appear (confirms page is ready)
+        print_lg('[Filters] Waiting for filter bar to load...')
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR,
+                    'div.search-reusables__filters-bar, div.jobs-search-box__filters, .artdeco-pill'))
+            )
+        except Exception:
+            pass
+        buffer(2)
+
         # Scroll down slightly so nav bar doesn't intercept the filters bar
-        driver.execute_script("window.scrollBy(0, 150);")
+        driver.execute_script("window.scrollBy(0, 100);")
         buffer(1)
 
-        # Find "All filters" button — try multiple label variants LinkedIn uses
+        # Find "All filters" button — exact aria-label from live LinkedIn HTML
         print_lg('[Filters] Looking for "All filters" button...')
         all_filters_btn = None
         for xpath in [
+            '//button[contains(@aria-label,"Show all filters")]',
             '//button[normalize-space()="All filters"]',
             '//button[contains(normalize-space(),"All filters")]',
-            '//button[@aria-label="All filters"]',
+            '//button[contains(@class,"search-reusables__all-filters-pill-button")]',
             '//button[contains(@aria-label,"filters")]',
         ]:
             try:
-                all_filters_btn = WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.XPATH, xpath))
+                all_filters_btn = WebDriverWait(driver, 8).until(
+                    EC.element_to_be_clickable((By.XPATH, xpath))
                 )
                 print_lg(f'[Filters] Found "All filters" button via: {xpath}')
                 break
