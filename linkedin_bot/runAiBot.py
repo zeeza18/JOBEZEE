@@ -447,49 +447,79 @@ def get_applied_job_ids() -> set[str]:
 
 def search_jobs_via_ui(search_term: str) -> None:
     '''
-    LinkedIn job search:
-      1. Build URL with all filters encoded as params
-      2. Navigate directly — no UI panel interaction needed
-    Experience codes: 1=Internship 2=Entry 3=Associate 4=Mid-Senior 5=Director 6=Executive
-    Workplace codes:  1=On-site 2=Remote 3=Hybrid
-    Job type codes:   F=Full-time P=Part-time C=Contract T=Temporary V=Volunteer I=Internship
-    Sort:             DD=Most recent R=Most relevant
-    Date:             r86400=24h r604800=week r2592000=month (omit=Any time)
+    LinkedIn job search using the LinkedIn search bar UI:
+      1. Navigate to LinkedIn feed
+      2. Click the main search bar, type the role, press Enter
+      3. Click the "Jobs" tab in search results
+      4. Filters are applied by apply_filters() via "All filters" panel
     '''
-    import urllib.parse
+    # Step 1 — go to LinkedIn feed so the search bar is available
+    if "linkedin.com" not in driver.current_url:
+        driver.get("https://www.linkedin.com/feed/")
+        buffer(3)
 
-    _EXP = {"internship":"1","entry level":"2","associate":"3","mid-senior level":"4","director":"5","executive":"6"}
-    _WT  = {"on-site":"1","remote":"2","hybrid":"3"}
-    _JT  = {"full-time":"F","part-time":"P","contract":"C","temporary":"T","volunteer":"V","internship":"I","other":"O"}
-    _DATE= {"past 24 hours":"r86400","past week":"r604800","past month":"r2592000"}
+    print_lg(f'[Search] Typing "{search_term}" into LinkedIn search bar')
 
-    params = {
-        "keywords": search_term,
-        "sortBy":   "DD" if (sort_by or "").lower() == "most recent" else "R",
-        "position": "1",
-        "pageNum":  "0",
-    }
+    # Step 2 — find and click the search bar (typeahead input)
+    search_input = None
+    for selector in [
+        (By.CSS_SELECTOR, '[data-testid="typeahead-input"]'),
+        (By.CSS_SELECTOR, 'input[placeholder="I\'m looking for…"]'),
+        (By.XPATH,        '//input[@data-testid="typeahead-input"]'),
+        (By.XPATH,        '//input[contains(@placeholder,"looking for")]'),
+        (By.XPATH,        '//input[contains(@class,"search-global-typeahead__input")]'),
+    ]:
+        try:
+            search_input = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable(selector)
+            )
+            break
+        except Exception:
+            pass
 
-    exp = [_EXP[e.lower()] for e in (experience_level or []) if e.lower() in _EXP]
-    if exp:   params["f_E"]  = ",".join(exp)
+    if not search_input:
+        # Fallback: navigate directly to jobs search URL
+        import urllib.parse
+        url = f"https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote(search_term)}"
+        print_lg(f'[Search] Search bar not found — falling back to URL: {url}')
+        driver.get(url)
+        buffer(4)
+        return
 
-    wt = [_WT[w.lower()] for w in (on_site or []) if w.lower() in _WT]
-    if wt:    params["f_WT"] = ",".join(wt)
+    # Clear and type the search term
+    search_input.click()
+    buffer(1)
+    search_input.send_keys(Keys.CONTROL + "a")
+    search_input.send_keys(Keys.DELETE)
+    search_input.send_keys(search_term)
+    buffer(1)
+    search_input.send_keys(Keys.RETURN)
+    buffer(3)
+    print_lg(f'[Search] Searched for: "{search_term}"')
 
-    jt = [_JT[j.lower()] for j in (job_type or []) if j.lower() in _JT]
-    if jt:    params["f_JT"] = ",".join(jt)
+    # Step 3 — click "Jobs" tab in search results
+    jobs_tab = None
+    for selector in [
+        (By.XPATH, '//label[normalize-space()="Jobs"]'),
+        (By.XPATH, '//button[normalize-space()="Jobs"]'),
+        (By.XPATH, '//a[normalize-space()="Jobs"]'),
+        (By.XPATH, '//*[normalize-space()="Jobs" and (self::label or self::button or self::a)]'),
+    ]:
+        try:
+            jobs_tab = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable(selector)
+            )
+            break
+        except Exception:
+            pass
 
-    if easy_apply_only:
-        params["f_AL"] = "true"
+    if jobs_tab:
+        driver.execute_script("arguments[0].click();", jobs_tab)
+        buffer(3)
+        print_lg('[Search] Clicked "Jobs" tab')
+    else:
+        print_lg('[Search] "Jobs" tab not found — continuing on current results page')
 
-    date_code = _DATE.get((date_posted or "").lower())
-    if date_code:
-        params["f_TPR"] = date_code
-
-    url = "https://www.linkedin.com/jobs/search/?" + urllib.parse.urlencode(params)
-    print_lg(f'[Search] Navigating to: {url}')
-    driver.get(url)
-    buffer(4)
     print_lg(f'[Search] On LinkedIn Jobs for: "{search_term}"')
 
 
@@ -1249,8 +1279,7 @@ def apply_to_jobs(search_terms: list[str]) -> None:
         print_lg(f'\n>>>> Now searching for "{searchTerm}" <<<<\n\n')
 
         search_jobs_via_ui(searchTerm)
-        # Filters are already encoded in the URL by search_jobs_via_ui — skip UI panel
-        # apply_filters()  ← replaced by URL params (f_E, f_WT, f_JT, f_AL, f_TPR)
+        apply_filters()
 
         current_count = 0
         try:
