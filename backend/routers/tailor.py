@@ -164,6 +164,7 @@ async def stream_job(job_id: str):
 
     async def event_generator():
         seen = 0
+        heartbeat = 0
         while True:
             job = get_job(job_id)
             if not job:
@@ -187,9 +188,22 @@ async def stream_job(job_id: str):
                 yield f"data: {json.dumps(final)}\n\n"
                 return
 
+            # Send a comment every 15 s to keep proxy/firewall from closing idle stream
+            heartbeat += 1
+            if heartbeat % 15 == 0:
+                yield ": keepalive\n\n"
+
             await asyncio.sleep(1)
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # tells nginx not to buffer SSE
+            "Connection": "keep-alive",
+        },
+    )
 
 
 # ── Download PDF ──────────────────────────────────────────────────────────────
