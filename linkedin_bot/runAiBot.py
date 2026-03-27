@@ -1325,12 +1325,31 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                         # print_lg(e)
 
 
+                    # Salary (log before Time Posted so _extract_from_context can find it)
+                    try:
+                        salary_selectors = [
+                            './/div[contains(@class,"salary")]//span',
+                            './/span[contains(@class,"salary")]',
+                            './/li[contains(@class,"job-insight")]//span[contains(text(),"$")]',
+                            './/span[contains(text(),"$") and (contains(text(),"/yr") or contains(text(),"/hour") or contains(text(),"K"))]',
+                        ]
+                        salary_text = ""
+                        for sel in salary_selectors:
+                            try:
+                                salary_text = jobs_top_card.find_element(By.XPATH, sel).text.strip()
+                                if salary_text and "$" in salary_text:
+                                    break
+                            except Exception:
+                                pass
+                        if salary_text:
+                            print_lg("Salary: " + salary_text)
+                    except Exception:
+                        pass
+
                     # Calculation of date posted
                     try:
-                        # try: time_posted_text = find_by_class(driver, "jobs-unified-top-card__posted-date", 2).text
-                        # except: 
                         time_posted_text = jobs_top_card.find_element(By.XPATH, './/span[contains(normalize-space(), " ago")]').text
-                        print("Time Posted: " + time_posted_text)
+                        print_lg("Time Posted: " + time_posted_text)
                         if time_posted_text.__contains__("Reposted"):
                             reposted = True
                             time_posted_text = time_posted_text.replace("Reposted", "")
@@ -1426,24 +1445,31 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                             finally:
                                 if questions_list and errored != "stuck":
                                     print_lg(f"[Form] Filled {len(questions_list)} question(s) successfully")
-                                wait_span_click(driver, "Review", 1, scrollTop=True)
+                                wait_span_click(driver, "Review", 3, scrollTop=True)
                                 cur_pause_before_submit = pause_before_submit
                                 if errored != "stuck" and cur_pause_before_submit:
                                     decision = "Submit Application"
                                     print_lg("[AUTO] pause_before_submit skipped — auto-submitting application.")
                                     pause_before_submit = False
-                                    # try_xp(modal, ".//span[normalize-space(.)='Review']")
                                 follow_company(modal)
-                                if wait_span_click(driver, "Submit application", 2, scrollTop=True): 
+                                # Try "Submit application" (normal click then JS fallback)
+                                submitted = False
+                                submit_btn = wait_span_click(driver, "Submit application", 4, click=False, scrollTop=True)
+                                if submit_btn:
+                                    try:
+                                        submit_btn.click()
+                                        submitted = True
+                                    except Exception:
+                                        try:
+                                            driver.execute_script("arguments[0].click();", submit_btn.find_element(By.XPATH, "./ancestor::button"))
+                                            submitted = True
+                                        except Exception:
+                                            pass
+                                if submitted:
                                     date_applied = datetime.now()
-                                    if not wait_span_click(driver, "Done", 2): actions.send_keys(Keys.ESCAPE).perform()
-                                elif False:
-                                    date_applied = datetime.now()
-                                    wait_span_click(driver, "Done", 2)
+                                    if not wait_span_click(driver, "Done", 3): actions.send_keys(Keys.ESCAPE).perform()
                                 else:
                                     print_lg("Since, Submit Application failed, discarding the job application...")
-                                    # if screenshot_name == "Not Available":  screenshot_name = screenshot(driver, job_id, "Failed to click Submit application")
-                                    # else:   screenshot_name = [screenshot_name, screenshot(driver, job_id, "Failed to click Submit application")]
                                     if errored == "nose": raise Exception("Failed to click Submit application 😑")
 
 

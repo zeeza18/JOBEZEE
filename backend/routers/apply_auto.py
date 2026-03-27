@@ -80,7 +80,8 @@ def _extract_from_context(events: list, idx: int):
     location = ""
     salary_text = ""
     posted_at = None
-    for ln in reversed(events[max(0, idx - 30): idx + 1]):
+    # Use a wide window (100 lines) — Time Posted: and Salary: are logged before apply starts
+    for ln in reversed(events[max(0, idx - 100): idx + 1]):
         if not location and "Time Posted:" in ln:
             after = ln.split("Time Posted:", 1)[1].strip()
             segments = [s.strip() for s in after.split("·")]
@@ -90,6 +91,8 @@ def _extract_from_context(events: list, idx: int):
                 posted_at = _parse_time_posted(seg)
                 if posted_at:
                     break
+        if not salary_text and "Salary:" in ln:
+            salary_text = ln.split("Salary:", 1)[1].strip()
         if not salary_text:
             sal = _SALARY_RE.search(ln)
             if sal:
