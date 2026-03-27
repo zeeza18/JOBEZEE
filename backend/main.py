@@ -169,10 +169,41 @@ async def _auto_email_scan_loop() -> None:
         _log.info("[EmailScan] running 30-min email scan cycle")
         try:
             from .database import AsyncSessionLocal
-            from .models import PulledJob
-            from .routers.applied_jobs import _imap_search, _detect_status_from_text, _gpt_detect_status
+            from .models import PulledJob, UserProfile
+            from .routers.applied_jobs import (
+                _imap_search, _detect_status_from_text, _gpt_detect_status,
+                sync_linkedin_emails_for_user,
+            )
             from sqlalchemy import select
 
+            # Step 1: sync LinkedIn confirmation emails (uses server Gmail config)
+            from .config import get_settings as _cfg
+            if _cfg().GMAIL_USER and _cfg().GMAIL_APP_PASSWORD:
+                async with AsyncSessionLocal() as db:
+                    # Sync for any user that has at least one applied LinkedIn job
+                    res = await db.execute(
+                        select(UserProfile.id).distinct()
+                        .join(PulledJob, PulledJob.user_profile_id == UserProfile.id)
+                        .where(PulledJob.site == "linkedin")
+                        .limit(50)
+                    )
+                    user_ids = [str(row[0]) for row in res.all()]
+
+                # Also sync for all users (catches jobs applied manually outside the bot)
+                if not user_ids:
+                    async with AsyncSessionLocal() as db:
+                        res = await db.execute(select(UserProfile.id).limit(50))
+                        user_ids = [str(row[0]) for row in res.all()]
+
+                for uid in user_ids:
+                    try:
+                        added = await sync_linkedin_emails_for_user(uid)
+                        if added:
+                            _log.info("[EmailScan] synced %d new LinkedIn apps for user %s", added, uid)
+                    except Exception as ue:
+                        _log.error("[EmailScan] LinkedIn sync error for user %s: %s", uid, ue)
+
+            # Step 2: update statuses of applied jobs via keyword/GPT scan
             async with AsyncSessionLocal() as db:
                 res = await db.execute(
                     select(PulledJob).where(PulledJob.status == "applied").limit(100)

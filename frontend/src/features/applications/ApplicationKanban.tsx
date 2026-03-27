@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
+import { ExternalLink, Loader2, Mail, RefreshCw } from 'lucide-react'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -44,6 +44,8 @@ export function ApplicationKanban() {
   const [jobs,    setJobs]    = useState<TrackedJob[]>([])
   const [loading, setLoading] = useState(true)
   const [moving,  setMoving]  = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
 
   const load = () => {
     setLoading(true)
@@ -51,6 +53,24 @@ export function ApplicationKanban() {
       .then(r => r.json())
       .then(d => { setJobs(d.jobs ?? []); setLoading(false) })
       .catch(() => setLoading(false))
+  }
+
+  const syncEmails = async () => {
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const r = await fetch(`${BASE}/api/applied-jobs/sync-linkedin-emails`, {
+        method: 'POST', credentials: 'include',
+      })
+      const d = await r.json()
+      setSyncMsg(d.added > 0 ? `+${d.added} new jobs synced` : 'Already up to date')
+      if (d.added > 0) load()
+    } catch {
+      setSyncMsg('Sync failed')
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(''), 4000)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -75,10 +95,18 @@ export function ApplicationKanban() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs text-slate-400">{jobs.length} applications · click a card to advance its stage</p>
-        <button onClick={load} disabled={loading}
-          className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-40">
-          <RefreshCw className={`h-3.5 w-3.5 text-slate-400 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          {syncMsg && <span className="text-[10px] text-cyan-500 font-medium">{syncMsg}</span>}
+          <button onClick={syncEmails} disabled={syncing || loading} title="Sync from Gmail"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-40">
+            <Mail className={`h-3.5 w-3.5 ${syncing ? 'animate-pulse text-cyan-400' : ''}`} />
+            {syncing ? 'Syncing…' : 'Sync Gmail'}
+          </button>
+          <button onClick={load} disabled={loading}
+            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-40">
+            <RefreshCw className={`h-3.5 w-3.5 text-slate-400 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {loading && jobs.length === 0 ? (

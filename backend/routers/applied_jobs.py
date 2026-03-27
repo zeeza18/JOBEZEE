@@ -337,3 +337,167 @@ async def watch_email_for_confirmation(
             return
 
     log.info("[EmailWatch] job %s timed out after 24 hrs — no confirmation email found", pulled_job_id)
+
+
+# ── LinkedIn application confirmation email sync ──────────────────────────────
+# Pattern (from jobs-noreply@linkedin.com):
+#   Subject : "MOHAMMED, your application was sent to {Company}"
+#   Body    : "Your application was sent to {Company}\n{Title}\n{Company}\n{Location}\nView job: https://www.linkedin.com/comm/jobs/view/{JOB_ID}/..."
+
+_LI_CONFIRM_RE = re.compile(r"your application was sent to", re.IGNORECASE)
+_LI_JOB_URL_RE = re.compile(r"linkedin\.com/(?:comm/)?jobs/view/(\d+)")
+
+
+def _parse_linkedin_confirmation(msg) -> dict | None:
+    """Parse a LinkedIn 'application sent' email and return extracted job fields."""
+    subject = msg.get("subject", "")
+    if not _LI_CONFIRM_RE.search(subject):
+        return None
+    sender = (msg.get("from") or "").lower()
+    if "linkedin.com" not in sender:
+        return None
+
+    body = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                body = part.get_payload(decode=True).decode(errors="ignore")
+                break
+    else:
+        body = msg.get_payload(decode=True).decode(errors="ignore")
+
+    # Extract LinkedIn job ID from URL in body
+    url_match = _LI_JOB_URL_RE.search(body)
+    if not url_match:
+        return None
+    job_id = url_match.group(1)
+    li_url = f"https://www.linkedin.com/jobs/view/{job_id}"
+
+    # Parse body lines: "Your application was sent to {Company}\n{Title}\n{Company}\n{Location}"
+    lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
+    title = ""
+    company = ""
+    location = ""
+    for i, ln in enumerate(lines):
+        if _LI_CONFIRM_RE.search(ln):
+            # Next non-empty line = title, then company, then location
+            remaining = lines[i + 1:]
+            if len(remaining) >= 1:
+                title = remaining[0]
+            if len(remaining) >= 2:
+                company = remaining[1]
+            if len(remaining) >= 3 and not remaining[2].startswith("View job"):
+                location = remaining[2]
+            break
+
+    return {"title": title, "company": company, "location": location, "url": li_url, "job_id": job_id}
+
+
+def _fetch_linkedin_confirmation_emails(since_days: int = 7) -> list[dict]:
+    """Fetch LinkedIn 'application was sent' emails from the last N days."""
+    cfg = get_settings()
+    if not cfg.GMAIL_USER or not cfg.GMAIL_APP_PASSWORD:
+        return []
+    try:
+        import datetime as _dt
+        mail = imaplib.IMAP4_SSL("imap.gmail.com")
+        mail.login(cfg.GMAIL_USER, cfg.GMAIL_APP_PASSWORD)
+        mail.select("inbox")
+
+        since = (_dt.datetime.now() - _dt.timedelta(days=since_days)).strftime("%d-%b-%Y")
+        _, data = mail.search(None, f'FROM "jobs-noreply@linkedin.com" SUBJECT "your application was sent" SINCE {since}')
+        ids = data[0].split()
+
+        results = []
+        for uid in reversed(ids):  # newest first
+            _, msg_data = mail.fetch(uid, "(RFC822)")
+            msg = _email_lib.message_from_bytes(msg_data[0][1])
+            parsed = _parse_linkedin_confirmation(msg)
+            if parsed:
+                results.append(parsed)
+
+        mail.logout()
+        return results
+    except Exception:
+        return []
+
+
+@router.post("/sync-linkedin-emails")
+async def sync_linkedin_emails(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sync LinkedIn application confirmation emails → create PulledJob rows.
+    Scans Gmail for 'your application was sent' emails from LinkedIn (last 7 days).
+    """
+    pid = uuid.UUID(current_user.id)
+    loop = asyncio.get_event_loop()
+    emails = await loop.run_in_executor(None, _fetch_linkedin_confirmation_emails, 7)
+
+    added = 0
+    for e in emails:
+        # Skip if already tracked
+        existing = await db.execute(
+            select(PulledJob).where(
+                PulledJob.user_profile_id == pid,
+                PulledJob.url == e["url"],
+            )
+        )
+        if existing.scalar_one_or_none():
+            continue
+        db.add(PulledJob(
+            user_profile_id   = pid,
+            search_session_id = "email-sync",
+            title             = e["title"],
+            company           = e["company"],
+            location          = e["location"],
+            url               = e["url"],
+            status            = "applied",
+            source            = "linkedin",
+            site              = "linkedin",
+        ))
+        added += 1
+
+    if added:
+        await db.commit()
+
+    return {"scanned": len(emails), "added": added}
+
+
+async def sync_linkedin_emails_for_user(user_profile_id: str) -> int:
+    """Background helper: sync LinkedIn confirmation emails for a specific user. Returns count added."""
+    try:
+        pid = uuid.UUID(user_profile_id)
+    except (ValueError, AttributeError):
+        return 0
+
+    loop = asyncio.get_event_loop()
+    emails = await loop.run_in_executor(None, _fetch_linkedin_confirmation_emails, 7)
+
+    added = 0
+    async with AsyncSessionLocal() as db:
+        for e in emails:
+            existing = await db.execute(
+                select(PulledJob).where(
+                    PulledJob.user_profile_id == pid,
+                    PulledJob.url == e["url"],
+                )
+            )
+            if existing.scalar_one_or_none():
+                continue
+            db.add(PulledJob(
+                user_profile_id   = pid,
+                search_session_id = "email-sync",
+                title             = e["title"],
+                company           = e["company"],
+                location          = e["location"],
+                url               = e["url"],
+                status            = "applied",
+                source            = "linkedin",
+                site              = "linkedin",
+            ))
+            added += 1
+        if added:
+            await db.commit()
+    return added
