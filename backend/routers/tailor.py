@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
+from ..crypto import decrypt
 from ..database import get_db
 from ..models import PulledJob, UserProfile
 from ..services.tailor_service import (
@@ -58,7 +59,7 @@ async def start_tailor(
     _pid = _uuid.UUID(current_user.id)
     _prof_res = await db.execute(select(UserProfile).where(UserProfile.id == _pid))
     _profile = _prof_res.scalar_one_or_none()
-    openai_key = (getattr(_profile, "openai_api_key", "") or "").strip()
+    openai_key = decrypt((getattr(_profile, "openai_api_key", "") or "")).strip()
 
     job_id = create_job()
     start_tailor_job(job_id, req.job_description, req.resume, openai_api_key=openai_key)
@@ -107,7 +108,7 @@ async def start_tailor_for_job(
     username = name_raw.replace(" ", "_")
     company = pulled_job.company or "company"
 
-    openai_key = (getattr(profile, "openai_api_key", "") or "").strip()
+    openai_key = decrypt((getattr(profile, "openai_api_key", "") or "")).strip()
 
     tailor_job_id = create_job()
     start_tailor_job_for_job(
