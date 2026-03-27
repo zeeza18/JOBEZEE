@@ -4,24 +4,22 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { ScorePanel } from './ScorePanel'
 import { useSettingsStore } from '../../store/useSettingsStore'
+import { useTailorStore } from '../../store/useTailorStore'
 
-type JobStatus    = 'idle' | 'running' | 'complete' | 'error'
-type ResumeMode   = 'text' | 'file' | 'profile'
-
-interface ProgressEvent {
-  event?: string
-  status?: string
-  round?: number
-  evaluation?: { score?: number }
-  score?: number
-  has_pdf?: boolean
-  error?: string
-}
+type ResumeMode = 'text' | 'file' | 'profile'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
 const TailorPage = () => {
   const { tailor: tailorSettings } = useSettingsStore()
+
+  // ── Global tailor state (persists across navigation) ──────────────────────
+  const {
+    jobId, jobStatus, progressLines, score, hasPdf, hasTex, errorMsg,
+    startJob, reset,
+  } = useTailorStore()
+
+  // ── Local input state (doesn't need to persist) ───────────────────────────
   const [jd, setJd]               = useState('')
   const [resume, setResume]       = useState('')
   const [resumeMode, setResumeMode] = useState<ResumeMode>('profile')
@@ -30,22 +28,13 @@ const TailorPage = () => {
   const [extractErr, setExtractErr] = useState<string | null>(null)
   const [profileFilename, setProfileFilename] = useState<string | null>(null)
 
-  const [jobId, setJobId]           = useState<string | null>(null)
-  const [jobStatus, setJobStatus]   = useState<JobStatus>('idle')
-  const [progressLines, setProgressLines] = useState<string[]>([])
-  const [score, setScore]           = useState<number | null>(null)
-  const [hasPdf, setHasPdf]         = useState(false)
-  const [hasTex, setHasTex]         = useState(false)
-  const [errorMsg, setErrorMsg]     = useState<string | null>(null)
-  const esRef  = useRef<EventSource | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Auto-scroll log
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [progressLines])
-
-  useEffect(() => () => { esRef.current?.close() }, [])
 
   // Auto-load profile resume on mount
   useEffect(() => { loadFromProfile() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -106,14 +95,6 @@ const TailorPage = () => {
 
   const handleRun = async () => {
     if (!jd.trim() || !resume.trim()) return
-    setJobStatus('running')
-    setProgressLines([])
-    setScore(null)
-    setHasPdf(false)
-    setHasTex(false)
-    setErrorMsg(null)
-    setJobId(null)
-    esRef.current?.close()
     try {
       const res = await fetch(`${BASE}/api/tailor/run`, {
         method: 'POST',
@@ -123,72 +104,11 @@ const TailorPage = () => {
       })
       if (!res.ok) throw new Error(`Server error ${res.status}`)
       const data = await res.json()
-      const id: string = data.job_id
-      setJobId(id)
-      addLine('Job started — connecting to stream...')
-      openStream(id)
+      startJob(data.job_id)
     } catch (err: any) {
-      setJobStatus('error')
-      setErrorMsg(err.message ?? 'Failed to start job')
+      // Set error via store so it shows even if user navigates away and back
+      useTailorStore.getState().setError(err.message ?? 'Failed to start job')
     }
-  }
-
-  const addLine = (line: string) => setProgressLines((prev) => [...prev, line])
-
-  const openStream = (id: string) => {
-    const es = new EventSource(`${BASE}/api/tailor/stream/${id}`)
-    esRef.current = es
-    es.onmessage = (e) => {
-      const data: ProgressEvent = JSON.parse(e.data)
-      if (data.event === 'keywords_extracted') {
-        addLine('Tool 1 (GPT-4o): Keywords extracted')
-      } else if (data.event === 'round_complete') {
-        const s = data.evaluation?.score ?? 0
-        addLine(`Round ${data.round} complete — score ${s}/100`)
-        setScore(s)
-      } else if (data.event === 'done') {
-        if (data.status === 'error') {
-          setJobStatus('error')
-          setErrorMsg(data.error ?? 'Unknown error')
-        } else {
-          setJobStatus('complete')
-          if (data.score != null) setScore(data.score)
-          setHasPdf(data.has_pdf ?? false)
-          addLine('Done! Resume tailored successfully.')
-        }
-        es.close()
-        fetch(`${BASE}/api/tailor/status/${id}`, { credentials: 'include' })
-          .then((r) => r.json())
-          .then((s) => {
-            setHasTex(s.has_tex ?? false)
-            setHasPdf(s.has_pdf ?? false)
-            if (s.score != null) setScore(s.score)
-          })
-          .catch(() => {})
-      }
-    }
-    es.onerror = () => { es.close(); pollStatus(id) }
-  }
-
-  const pollStatus = (id: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`${BASE}/api/tailor/status/${id}`, { credentials: 'include' })
-        const s = await res.json()
-        if (s.score != null) setScore(s.score)
-        if (s.status === 'complete') {
-          setJobStatus('complete')
-          setHasPdf(s.has_pdf ?? false)
-          setHasTex(s.has_tex ?? false)
-          addLine('Done! Resume tailored successfully.')
-          clearInterval(interval)
-        } else if (s.status === 'error') {
-          setJobStatus('error')
-          setErrorMsg(s.error ?? 'Unknown error')
-          clearInterval(interval)
-        }
-      } catch { clearInterval(interval) }
-    }, 3000)
   }
 
   const downloadFile = (endpoint: string, filename: string) => {
@@ -199,14 +119,14 @@ const TailorPage = () => {
     a.click()
   }
 
-  const stageLabel: Record<JobStatus, string> = {
+  const stageLabel: Record<typeof jobStatus, string> = {
     idle: '', running: 'Running…', complete: 'Complete', error: 'Failed',
   }
 
   const MODES: { key: ResumeMode; label: string; icon: React.ReactNode }[] = [
-    { key: 'text',    label: 'Paste Text',     icon: <FileText className="h-3.5 w-3.5" /> },
-    { key: 'file',    label: 'Upload File',    icon: <Upload   className="h-3.5 w-3.5" /> },
-    { key: 'profile', label: 'From Profile',   icon: <User     className="h-3.5 w-3.5" /> },
+    { key: 'text',    label: 'Paste Text',   icon: <FileText className="h-3.5 w-3.5" /> },
+    { key: 'file',    label: 'Upload File',  icon: <Upload   className="h-3.5 w-3.5" /> },
+    { key: 'profile', label: 'From Profile', icon: <User     className="h-3.5 w-3.5" /> },
   ]
 
   return (
@@ -236,7 +156,6 @@ const TailorPage = () => {
         <Card className="space-y-3 p-4 md:p-5">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-sm md:text-base font-semibold text-slate-800">Your Resume</p>
-            {/* Mode toggle tabs */}
             <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 gap-0.5">
               {MODES.map(m => (
                 <button
@@ -255,7 +174,6 @@ const TailorPage = () => {
             </div>
           </div>
 
-          {/* File upload mode */}
           {resumeMode === 'file' && (
             <div
               onClick={() => !extracting && fileRef.current?.click()}
@@ -280,7 +198,6 @@ const TailorPage = () => {
             </div>
           )}
 
-          {/* Profile mode */}
           {resumeMode === 'profile' && !resume && !extracting && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
               <User className="h-6 w-6 text-slate-400" />
@@ -299,7 +216,6 @@ const TailorPage = () => {
             </div>
           )}
 
-          {/* Extracted / text area — shown for all modes once text is ready */}
           {(resumeMode === 'text' || (resume && !extracting)) && (
             <>
               {(resumeMode === 'file' || resumeMode === 'profile') && resume && (
@@ -327,16 +243,23 @@ const TailorPage = () => {
         </Card>
       </div>
 
-      {/* Tailor button */}
-      <Button
-        onClick={handleRun}
-        disabled={jobStatus === 'running' || !jd.trim() || !resume.trim()}
-        className="w-full py-3 text-sm md:text-base"
-      >
-        {jobStatus === 'running' ? 'Tailoring...' : 'Tailor Resume'}
-      </Button>
+      {/* Tailor / Reset buttons */}
+      <div className="flex gap-3">
+        <Button
+          onClick={handleRun}
+          disabled={jobStatus === 'running' || !jd.trim() || !resume.trim()}
+          className="flex-1 py-3 text-sm md:text-base"
+        >
+          {jobStatus === 'running' ? 'Tailoring...' : 'Tailor Resume'}
+        </Button>
+        {jobStatus !== 'idle' && jobStatus !== 'running' && (
+          <Button variant="ghost" onClick={reset} className="py-3 text-sm">
+            New
+          </Button>
+        )}
+      </div>
 
-      {/* Output */}
+      {/* Output — visible even after navigating away and back */}
       {(jobStatus !== 'idle' || progressLines.length > 0 || score !== null) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div className="space-y-4">
