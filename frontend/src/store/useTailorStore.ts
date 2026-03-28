@@ -153,10 +153,12 @@ function _openStream(jobId: string) {
     const store = useTailorStore.getState()
 
     if (data.event === 'keywords_extracted') {
-      const kw: string[] = [
+      const raw: string[] = [
         ...(data.keyword_analysis?.keywords ?? []),
         ...(data.keyword_analysis?.needs ?? []),
       ]
+      // Filter out tool-1 error fallback strings
+      const kw = raw.filter(k => !k.toLowerCase().startsWith('error') && !k.toLowerCase().startsWith('please check'))
       store.setKeywords(kw)
       store.addLine(`[STEP] ${kw.length} keywords extracted — starting Round 1...`)
       store.updateRound({ round: 1, score: null, status: 'running' })

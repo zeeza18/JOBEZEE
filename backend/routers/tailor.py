@@ -54,12 +54,16 @@ async def start_tailor(
     if not req.resume.strip():
         raise HTTPException(400, "resume is required")
 
-    # Fetch user's API key from profile
-    import uuid as _uuid
+    # Fetch user's OpenAI key (encrypted in DB); fall back to server env var
+    import os as _os, uuid as _uuid
     _pid = _uuid.UUID(current_user.id)
     _prof_res = await db.execute(select(UserProfile).where(UserProfile.id == _pid))
     _profile = _prof_res.scalar_one_or_none()
     openai_key = decrypt((getattr(_profile, "openai_api_key", "") or "")).strip()
+    if not openai_key:
+        openai_key = (_os.getenv("OPENAI_API_KEY") or "").strip()
+    if not openai_key:
+        raise HTTPException(400, "OpenAI API key not configured. Add it in Settings → Credentials.")
 
     job_id = create_job()
     start_tailor_job(job_id, req.job_description, req.resume, openai_api_key=openai_key)
@@ -108,7 +112,12 @@ async def start_tailor_for_job(
     username = name_raw.replace(" ", "_")
     company = pulled_job.company or "company"
 
+    import os as _os
     openai_key = decrypt((getattr(profile, "openai_api_key", "") or "")).strip()
+    if not openai_key:
+        openai_key = (_os.getenv("OPENAI_API_KEY") or "").strip()
+    if not openai_key:
+        raise HTTPException(400, "OpenAI API key not configured. Add it in Settings → Credentials.")
 
     tailor_job_id = create_job()
     start_tailor_job_for_job(

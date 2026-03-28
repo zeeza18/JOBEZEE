@@ -107,13 +107,7 @@ class ResumeCrew:
             print(f"[OK] Found {len(keyword_analysis.get('results', []))} result patterns")
 
         except Exception as e:
-            print(f"[ERROR] Error in keyword extraction: {e}")
-            keyword_analysis = {
-                "keywords": [],
-                "needs": [],
-                "results": [],
-                "error": str(e)
-            }
+            raise RuntimeError(f"Keyword extraction failed (check OpenAI API key): {e}") from e
 
         if progress_callback:
             progress_callback({
