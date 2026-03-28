@@ -52,18 +52,19 @@ def get_job(job_id: str) -> Optional[Dict[str, Any]]:
 
 # ─── Original: run from plain text (TailorPage) ───────────────────────────────
 
-def start_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "") -> None:
+def start_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "") -> None:
     """Launch crew in a daemon thread (plain text resume — for TailorPage)."""
     t = threading.Thread(
         target=_run_tailor_job,
-        args=(job_id, job_description, resume, openai_api_key),
+        args=(job_id, job_description, resume, openai_api_key, username),
         daemon=True,
     )
     t.start()
 
 
-def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "") -> None:
+def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "") -> None:
     """Runs inside background thread."""
+    import sys as _sys
     with _lock:
         _jobs[job_id]["status"] = "running"
 
@@ -76,6 +77,8 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
                     _jobs[job_id]["score"] = score
 
     def _cp1252_safe(s: str) -> str:
+        if _sys.platform != "win32":
+            return s  # Linux/Render: UTF-8 default, no stripping needed
         out = []
         for c in (s or ""):
             try:
@@ -104,16 +107,23 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
         tex_path: Optional[Path] = None
         pdf_path: Optional[Path] = None
 
+        # Build filename: username_company (from Tool 1 keyword_analysis)
+        company_raw = result.get("keyword_analysis", {}).get("company_name", "") or "company"
+        safe_name = _safe_filename(username or "resume", company_raw)
+
         if latex_summary.get("status") == "success":
             candidate = job_dir / "final_tailored_resume.tex"
             if candidate.exists():
-                tex_path = candidate
-                compiled = _compile_pdf(tex_path)
+                dest_tex = job_dir / f"{safe_name}.tex"
+                if candidate != dest_tex:
+                    shutil.copy2(candidate, dest_tex)
+                tex_path = dest_tex
+                compiled = _compile_pdf(dest_tex)
                 if compiled:
                     pdf_path = compiled
 
         if not pdf_path and final_resume:
-            pdf_path = _generate_pdf_from_text(final_resume, job_dir / "tailored_resume.pdf")
+            pdf_path = _generate_pdf_from_text(final_resume, job_dir / f"{safe_name}.pdf")
 
         with _lock:
             _jobs[job_id].update({
@@ -122,6 +132,7 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
                 "final_resume": final_resume,
                 "tex_path": str(tex_path) if tex_path else None,
                 "pdf_path": str(pdf_path) if pdf_path else None,
+                "filename": safe_name,
             })
 
     except Exception as exc:
@@ -203,17 +214,20 @@ def _run_tailor_for_job(
             )
 
         # Sanitize chars Windows cp1252 can't encode (arrows, emojis, curly chars)
-        def _cp1252_safe(s: str) -> str:
-            out = []
-            for c in (s or ""):
-                try:
-                    c.encode('cp1252')
-                    out.append(c)
-                except (UnicodeEncodeError, LookupError):
-                    out.append(' ')
-            return ''.join(out)
-        clean_jd    = _cp1252_safe(clean_jd)
-        resume_text = _cp1252_safe(resume_text)
+        # Only needed on Windows — Linux/Render uses UTF-8 natively
+        import sys as _sys
+        if _sys.platform == "win32":
+            def _cp1252_safe(s: str) -> str:
+                out = []
+                for c in (s or ""):
+                    try:
+                        c.encode('cp1252')
+                        out.append(c)
+                    except (UnicodeEncodeError, LookupError):
+                        out.append(' ')
+                return ''.join(out)
+            clean_jd    = _cp1252_safe(clean_jd)
+            resume_text = _cp1252_safe(resume_text)
 
         from PHASE2_JOB_TAILOR.crew import ResumeCrew
 

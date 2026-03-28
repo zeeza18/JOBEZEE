@@ -68,8 +68,9 @@ async def start_tailor(
     # Prepend profile contact header so Tool 4 renders correct links in LaTeX
     resume_with_header = _inject_contact_header(req.resume, _profile, current_user)
 
+    _username = (current_user.full_name or current_user.email.split("@")[0]).replace(" ", "_")
     job_id = create_job()
-    start_tailor_job(job_id, req.job_description, resume_with_header, openai_api_key=openai_key)
+    start_tailor_job(job_id, req.job_description, resume_with_header, openai_api_key=openai_key, username=_username)
     return {"job_id": job_id, "status": "running"}
 
 
