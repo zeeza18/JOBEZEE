@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe } from 'lucide-react'
+import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/useAuthStore'
 import LogoBrand from '../common/LogoBrand'
@@ -17,15 +17,17 @@ const accountNav = [
   { to: '/app/settings', label: 'Settings', icon: Settings },
 ]
 
-const NavItem = ({ to, label, icon: Icon, badge, end }: {
-  to: string; label: string; icon: React.ElementType; badge?: string; end?: boolean
+const NavItem = ({ to, label, icon: Icon, badge, end, collapsed }: {
+  to: string; label: string; icon: React.ElementType; badge?: string; end?: boolean; collapsed?: boolean
 }) => (
   <NavLink
     to={to}
     end={end}
+    title={collapsed ? label : undefined}
     className={({ isActive }) =>
       cn(
-        'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+        'flex items-center gap-3 rounded-md text-sm transition-colors',
+        collapsed ? 'px-0 py-2 justify-center' : 'px-3 py-2',
         isActive
           ? 'bg-cyan-500/[0.08] text-cyan-400 font-medium'
           : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
@@ -33,16 +35,25 @@ const NavItem = ({ to, label, icon: Icon, badge, end }: {
     }
   >
     <Icon className="h-4 w-4 flex-shrink-0" />
-    <span className="flex-1">{label}</span>
-    {badge && (
-      <span className="rounded-md bg-cyan-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-400">
-        {badge}
-      </span>
+    {!collapsed && (
+      <>
+        <span className="flex-1">{label}</span>
+        {badge && (
+          <span className="rounded-md bg-cyan-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-400">
+            {badge}
+          </span>
+        )}
+      </>
     )}
   </NavLink>
 )
 
-const SideNav = () => {
+interface SideNavProps {
+  open: boolean
+  onToggle: () => void
+}
+
+const SideNav = ({ open, onToggle }: SideNavProps) => {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
 
@@ -59,30 +70,53 @@ const SideNav = () => {
   const displayName = _name || user?.email?.split('@')[0] || 'User'
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-60 bg-[#0d1117] border-r border-white/[0.06] flex flex-col z-40 hidden md:flex">
+    <aside
+      className={cn(
+        'fixed inset-y-0 left-0 bg-[#0d1117] border-r border-white/[0.06] flex flex-col z-40 hidden md:flex transition-all duration-300 ease-in-out',
+        open ? 'w-60' : 'w-16'
+      )}
+    >
       {/* Header */}
-      <div className="flex items-center px-4 h-16 border-b border-white/[0.06] flex-shrink-0">
-        <LogoBrand size="sm" />
+      <div className="flex items-center h-16 border-b border-white/[0.06] flex-shrink-0 px-3 gap-2">
+        <div className={cn('flex-1 overflow-hidden transition-all duration-300', open ? 'opacity-100 w-auto' : 'opacity-0 w-0 pointer-events-none')}>
+          <LogoBrand size="sm" />
+        </div>
+        {!open && (
+          <div className="flex-1 flex justify-center">
+            <span className="text-lg font-black text-white leading-none">J<span className="text-cyan-400">z</span></span>
+          </div>
+        )}
+        <button
+          onClick={onToggle}
+          className="flex-shrink-0 rounded-md p-1.5 text-slate-500 hover:text-white hover:bg-white/[0.05] transition-colors"
+          title={open ? 'Collapse sidebar' : 'Expand sidebar'}
+        >
+          {open ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
       </div>
 
       {/* Nav scroll area */}
       <div className="flex-1 overflow-y-auto py-4 px-2 space-y-4">
         {/* Main */}
         <div>
-          <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Main</p>
+          {open && (
+            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Main</p>
+          )}
           <div className="space-y-0.5">
             {mainNav.map((item) => (
-              <NavItem key={item.to} {...item} />
+              <NavItem key={item.to} {...item} collapsed={!open} />
             ))}
           </div>
         </div>
 
         {/* Account */}
         <div>
-          <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Account</p>
+          {open && (
+            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Account</p>
+          )}
           <div className="space-y-0.5">
             {accountNav.map((item) => (
-              <NavItem key={item.to} {...item} />
+              <NavItem key={item.to} {...item} collapsed={!open} />
             ))}
           </div>
         </div>
@@ -90,11 +124,16 @@ const SideNav = () => {
 
       {/* Footer — user + logout */}
       <div className="border-t border-white/[0.06] px-3 py-3 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-semibold text-cyan-400">
+        <div className={cn('flex items-center gap-2', !open && 'flex-col gap-2')}>
+          <div
+            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-semibold text-cyan-400"
+            title={!open ? displayName : undefined}
+          >
             {initials}
           </div>
-          <span className="flex-1 truncate text-sm text-slate-300">{displayName}</span>
+          {open && (
+            <span className="flex-1 truncate text-sm text-slate-300">{displayName}</span>
+          )}
           <button
             onClick={handleLogout}
             className="rounded-md p-1.5 text-slate-500 transition-colors hover:text-red-400 hover:bg-red-500/10"
