@@ -2,7 +2,7 @@ services:
   - type: web
     name: jobezee-api
     runtime: python
-    buildCommand: pip install -r backend/requirements.txt
+    buildCommand: apt-get update -q && apt-get install -y -q texlive-latex-base texlive-fonts-recommended texlive-latex-extra && pip install -r backend/requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
