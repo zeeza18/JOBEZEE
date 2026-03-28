@@ -75,8 +75,41 @@ class LatexResumeFormatter:
         except Exception:
             return ""
 
-    def _load_contact_links(self) -> str:
-        """Load contact URLs from config.json and format them for the prompt."""
+    def _load_contact_links(self, resume_text: str = "") -> str:
+        """
+        Extract contact URLs from the resume header (first 2 lines) — injected by the
+        backend from the user's profile before calling the crew. Falls back to config.json.
+        """
+        if resume_text:
+            lines = resume_text.strip().split("\n")
+            # Contact line is typically the 2nd non-empty line:
+            # "phone | email | linkedin_url | portfolio_url | github_url | city"
+            contact_line = ""
+            non_empty = [l.strip() for l in lines if l.strip()]
+            if len(non_empty) >= 2:
+                contact_line = non_empty[1]
+
+            parts = [p.strip() for p in contact_line.split("|")]
+            links: dict = {}
+            for part in parts:
+                p = part.strip()
+                if p.startswith("http") and "linkedin" in p.lower():
+                    links["LinkedIn"] = p
+                elif p.startswith("http") and ("github" in p.lower()):
+                    links["GitHub"] = p
+                elif p.startswith("http"):
+                    links.setdefault("Portfolio", p)
+                elif "@" in p:
+                    links["Email"] = p
+
+            if links:
+                lines_out = "\n".join(f"  {k}: {v}" for k, v in links.items())
+                return (
+                    "CANDIDATE CONTACT LINKS — use these exact URLs in \\href commands, never bare \\underline:\n"
+                    f"{lines_out}\n\n"
+                )
+
+        # Fall back to config.json (local RESUME-MAKER project)
         config_path = Path(__file__).resolve().parent.parent / "config.json"
         try:
             config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -107,7 +140,7 @@ class LatexResumeFormatter:
 
         job_title = self._load_job_title(output_dir=output_dir)
         job_title_line = f"JOB_TITLE: {job_title}\n\n" if job_title else ""
-        contact_links = self._load_contact_links()
+        contact_links = self._load_contact_links(final_resume)
 
         user_template = template_hint or self.template_example or ""
         user_message = (

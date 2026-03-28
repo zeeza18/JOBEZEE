@@ -428,18 +428,11 @@ class ResumeCrew:
             latex_summary["raw_response_length"] = len(latex_result.get("raw_response", ""))
 
             if latex_document:
-                docs_latex_path = _MODULE_ROOT.parent / "docs" / "latex" / "main.tex"
                 output_tex_path = (Path(output_dir) if output_dir else _OUTPUT_DIR) / "final_tailored_resume.tex"
-
-                # Ensure docs/latex directory exists
-                docs_latex_path.parent.mkdir(parents=True, exist_ok=True)
-
-                self.latex_formatter.save_latex(latex_document, docs_latex_path, create_backup=True)
                 self.latex_formatter.save_latex(latex_document, output_tex_path, create_backup=False)
 
                 latex_summary.update({
                     "status": "success",
-                    "main_tex_path": str(docs_latex_path),
                     "output_tex_path": str(output_tex_path),
                     "latex_length": len(latex_document.split())
                 })
