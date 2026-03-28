@@ -39,6 +39,7 @@ def create_job() -> str:
             "score": None,
             "tex_path": None,
             "pdf_path": None,
+            "docx_path": None,
             "final_resume": None,
             "filename": None,
             "error": None,
@@ -125,6 +126,10 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
         if not pdf_path and final_resume:
             pdf_path = _generate_pdf_from_text(final_resume, job_dir / f"{safe_name}.pdf")
 
+        docx_path: Optional[Path] = None
+        if final_resume:
+            docx_path = _generate_docx_from_text(final_resume, job_dir / f"{safe_name}.docx")
+
         with _lock:
             _jobs[job_id].update({
                 "status": "complete",
@@ -132,6 +137,7 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
                 "final_resume": final_resume,
                 "tex_path": str(tex_path) if tex_path else None,
                 "pdf_path": str(pdf_path) if pdf_path else None,
+                "docx_path": str(docx_path) if docx_path else None,
                 "filename": safe_name,
             })
 
@@ -244,6 +250,7 @@ def _run_tailor_for_job(
 
         tex_path: Optional[Path] = None
         pdf_path: Optional[Path] = None
+        docx_path: Optional[Path] = None
 
         if latex_summary.get("status") == "success":
             src_tex = job_dir / "final_tailored_resume.tex"
@@ -259,6 +266,9 @@ def _run_tailor_for_job(
         if not pdf_path and final_resume:
             pdf_path = _generate_pdf_from_text(final_resume, job_dir / f"{safe_name}.pdf")
 
+        if final_resume:
+            docx_path = _generate_docx_from_text(final_resume, job_dir / f"{safe_name}.docx")
+
         with _lock:
             _jobs[tailor_job_id].update({
                 "status": "complete",
@@ -266,6 +276,7 @@ def _run_tailor_for_job(
                 "final_resume": final_resume,
                 "tex_path": str(tex_path) if tex_path else None,
                 "pdf_path": str(pdf_path) if pdf_path else None,
+                "docx_path": str(docx_path) if docx_path else None,
                 "filename": safe_name,
             })
 
@@ -486,6 +497,105 @@ def _safe_filename(username: str, company: str) -> str:
     return f"{clean(username)}_{clean(company)}"
 
 
+def _generate_docx_from_text(resume_text: str, out_path: Path) -> Optional[Path]:
+    """Generate a properly formatted Word .docx from plain-text resume using python-docx."""
+    try:
+        from docx import Document
+        from docx.shared import Pt, RGBColor, Inches
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        doc = Document()
+
+        # Narrow margins
+        for section in doc.sections:
+            section.top_margin    = Inches(0.6)
+            section.bottom_margin = Inches(0.6)
+            section.left_margin   = Inches(0.75)
+            section.right_margin  = Inches(0.75)
+
+        _SECTION_HEADERS = {
+            "EXPERIENCE", "EDUCATION", "SKILLS", "SUMMARY", "OBJECTIVE",
+            "PROJECTS", "CERTIFICATIONS", "AWARDS", "PUBLICATIONS",
+            "VOLUNTEER", "LANGUAGES", "INTERESTS", "REFERENCES",
+            "TECHNICAL SKILLS", "WORK EXPERIENCE", "PROFESSIONAL EXPERIENCE",
+        }
+
+        lines = resume_text.split("\n")
+        first_non_empty = True
+        second_line_done = False
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            # First line = Name (large, bold, centered)
+            if first_non_empty:
+                p = doc.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = p.add_run(stripped)
+                run.bold = True
+                run.font.size = Pt(18)
+                run.font.color.rgb = RGBColor(0x1a, 0x1a, 0x2e)
+                first_non_empty = False
+                second_line_done = False
+                continue
+
+            # Second line = contact info (centered, smaller)
+            if not second_line_done:
+                p = doc.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = p.add_run(stripped)
+                run.font.size = Pt(9)
+                run.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
+                second_line_done = True
+                continue
+
+            # Section headers (ALL CAPS short lines)
+            is_header = (stripped.upper() in _SECTION_HEADERS or
+                         (stripped.isupper() and len(stripped) < 50 and not stripped.startswith(('-', '•', '*'))))
+            if is_header:
+                p = doc.add_paragraph()
+                p.paragraph_format.space_before = Pt(8)
+                p.paragraph_format.space_after = Pt(2)
+                run = p.add_run(stripped.upper())
+                run.bold = True
+                run.font.size = Pt(11)
+                run.font.color.rgb = RGBColor(0x1a, 0x1a, 0x2e)
+                # Add underline via border — approximate with a horizontal rule style
+                p.style = doc.styles['Heading 2']
+                run2 = p.runs[0] if p.runs else p.add_run(stripped.upper())
+                run2.bold = True
+                run2.font.size = Pt(11)
+                run2.font.color.rgb = RGBColor(0x1a, 0x1a, 0x2e)
+                continue
+
+            # Bullet points
+            if stripped.startswith(('-', '•', '*', '·')):
+                p = doc.add_paragraph(style='List Bullet')
+                p.paragraph_format.left_indent = Inches(0.25)
+                p.paragraph_format.space_after = Pt(1)
+                run = p.add_run(stripped.lstrip('-•*· ').strip())
+                run.font.size = Pt(10)
+                continue
+
+            # Everything else = normal paragraph
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(2)
+            run = p.add_run(stripped)
+            run.font.size = Pt(10)
+
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        doc.save(str(out_path))
+        print(f"[tailor_service] DOCX generated: {out_path}")
+        return out_path
+    except ImportError:
+        print("[tailor_service] python-docx not installed — DOCX generation skipped")
+    except Exception as exc:
+        print(f"[tailor_service] DOCX generation failed: {exc}")
+    return None
+
+
 def _generate_pdf_from_text(resume_text: str, out_path: Path) -> Optional[Path]:
     """Generate a clean PDF from plain-text resume using reportlab (pdflatex fallback)."""
     try:
@@ -566,31 +676,49 @@ def _generate_pdf_from_text(resume_text: str, out_path: Path) -> Optional[Path]:
 
 
 def _compile_pdf(tex_path: Path) -> Optional[Path]:
-    """Run pdflatex on the .tex file. Returns pdf Path on success or None."""
-    try:
-        output_dir = tex_path.parent
-        result = subprocess.run(
-            [
-                "pdflatex",
-                "-interaction=nonstopmode",
-                f"-output-directory={output_dir}",
-                str(tex_path),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        pdf_path = tex_path.with_suffix(".pdf")
-        if pdf_path.exists():
-            print(f"[tailor_service] PDF compiled: {pdf_path}")
-            return pdf_path
-        else:
-            print(f"[tailor_service] pdflatex stdout: {result.stdout[-500:]}")
-            print(f"[tailor_service] pdflatex stderr: {result.stderr[-500:]}")
-    except FileNotFoundError:
-        print("[tailor_service] pdflatex not found — install MiKTeX or TeX Live")
-    except subprocess.TimeoutExpired:
-        print("[tailor_service] pdflatex timed out")
-    except Exception as exc:
-        print(f"[tailor_service] pdflatex error: {exc}")
+    """Run pdflatex locally, or delegate to Hetzner worker if not installed here."""
+    import base64 as _b64, os as _os
+
+    pdf_path = tex_path.with_suffix(".pdf")
+
+    # ── Try local pdflatex first ──────────────────────────────────────────────
+    if shutil.which("pdflatex"):
+        try:
+            result = subprocess.run(
+                ["pdflatex", "-interaction=nonstopmode",
+                 f"-output-directory={tex_path.parent}", str(tex_path)],
+                capture_output=True, text=True, timeout=120,
+            )
+            if pdf_path.exists():
+                print(f"[tailor_service] PDF compiled locally: {pdf_path}")
+                return pdf_path
+            print(f"[tailor_service] pdflatex failed: {result.stdout[-400:]}")
+        except Exception as exc:
+            print(f"[tailor_service] local pdflatex error: {exc}")
+
+    # ── Delegate to Hetzner worker ────────────────────────────────────────────
+    worker_url    = _os.getenv("BOT_WORKER_URL", "").rstrip("/")
+    worker_secret = _os.getenv("WORKER_SECRET", "")
+    if worker_url and worker_secret and tex_path.exists():
+        try:
+            import httpx as _httpx
+            tex_b64  = _b64.b64encode(tex_path.read_bytes()).decode()
+            filename = tex_path.stem
+            r = _httpx.post(
+                f"{worker_url}/compile-pdf",
+                json={"tex_b64": tex_b64, "filename": filename},
+                headers={"Authorization": f"Bearer {worker_secret}"},
+                timeout=150,
+            )
+            if r.status_code == 200:
+                pdf_bytes = _b64.b64decode(r.json()["pdf_b64"])
+                pdf_path.write_bytes(pdf_bytes)
+                print(f"[tailor_service] PDF compiled via Hetzner: {pdf_path} ({len(pdf_bytes)} bytes)")
+                return pdf_path
+            else:
+                print(f"[tailor_service] Hetzner compile-pdf error: {r.status_code} {r.text[:200]}")
+        except Exception as exc:
+            print(f"[tailor_service] Hetzner compile-pdf failed: {exc}")
+
+    print("[tailor_service] pdflatex not available locally and Hetzner delegation failed/skipped")
     return None

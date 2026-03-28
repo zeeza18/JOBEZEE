@@ -147,15 +147,18 @@ async def get_status(job_id: str, _user=Depends(get_current_user)):
     job = get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
+    import os as _os
+    _worker_url = _os.getenv("BOT_WORKER_URL", "")
+    _pdflatex_ok = bool(shutil.which("pdflatex")) or bool(_worker_url)
     return {
         "status": job["status"],
         "score": job.get("score"),
         "has_pdf": job.get("pdf_path") is not None,
-        "has_tex": job.get("tex_path") is not None,
+        "has_docx": job.get("docx_path") is not None,
         "filename": job.get("filename"),
         "error": job.get("error"),
         "progress_count": len(job.get("progress", [])),
-        "pdflatex_available": shutil.which("pdflatex") is not None,
+        "pdflatex_available": _pdflatex_ok,
     }
 
 
@@ -245,19 +248,19 @@ async def download_pdf(job_id: str, _user=Depends(get_current_user)):
     )
 
 
-# ── Download .tex ─────────────────────────────────────────────────────────────
+# ── Download .docx ────────────────────────────────────────────────────────────
 
-@router.get("/download-tex/{job_id}")
-async def download_tex(job_id: str, _user=Depends(get_current_user)):
+@router.get("/download-docx/{job_id}")
+async def download_docx(job_id: str, _user=Depends(get_current_user)):
     job = get_job(job_id)
     if not job:
         raise HTTPException(404, "Job not found")
-    if not job.get("tex_path"):
-        raise HTTPException(404, "LaTeX file not available")
-    filename = f"{job.get('filename', 'tailored_resume')}.tex"
+    if not job.get("docx_path"):
+        raise HTTPException(404, "Word document not available")
+    filename = f"{job.get('filename', 'tailored_resume')}.docx"
     return FileResponse(
-        job["tex_path"],
-        media_type="application/x-tex",
+        job["docx_path"],
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=filename,
     )
 

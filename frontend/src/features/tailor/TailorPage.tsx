@@ -12,7 +12,7 @@ const TailorPage = () => {
   const {
     inputJd, inputResume, setInputJd, setInputResume,
     jobId, jobStatus, progressLines, keywords, rounds, score,
-    hasPdf, hasTex, pdflatexAvailable, filename, errorMsg,
+    hasPdf, hasDocx, pdflatexAvailable, filename, errorMsg,
     startJob, reset,
   } = useTailorStore()
 
@@ -325,10 +325,10 @@ const TailorPage = () => {
                     <Download className="h-4 w-4" /> Download PDF
                   </button>
                 )}
-                {hasTex && (
-                  <button onClick={() => downloadFile('download-tex', 'tex')}
+                {hasDocx && (
+                  <button onClick={() => downloadFile('download-docx', 'docx')}
                     className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 transition">
-                    <Download className="h-4 w-4" /> Download .tex
+                    <Download className="h-4 w-4" /> Download Word
                   </button>
                 )}
                 {!hasPdf && !hasTex && (
