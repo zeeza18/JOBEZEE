@@ -49,7 +49,7 @@ let _es: EventSource | null = null
 let _pollInterval: ReturnType<typeof setInterval> | null = null
 let _errorCount = 0
 
-export const useTailorStore = create<TailorState>((set, get) => ({
+export const useTailorStore = create<TailorState>((set, _get) => ({
   // Inputs
   inputJd: '',
   inputResume: '',
@@ -181,6 +181,10 @@ function _openStream(jobId: string) {
 
     } else if (data.event === 'process_complete') {
       store.addLine('[OK] AI complete — generating PDF...')
+      // Tool 4 (LaTeX/PDF) runs for 30-60s after this — close SSE now and
+      // poll so a silent proxy drop can't leave the UI stuck on "Processing…"
+      es.close(); _es = null
+      _startPolling(jobId)
 
     } else if (data.event === 'done') {
       es.close(); _es = null

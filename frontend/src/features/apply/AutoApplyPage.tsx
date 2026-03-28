@@ -102,7 +102,7 @@ const AutoApplyPage = () => {
 
   // ── CAPTCHA solving state ────────────────────────────────────────────────────
   const [captchaScreenshot,  setCaptchaScreenshot]  = useState<string | null>(null)
-  const [captchaClicks,      setCaptchaClicks]      = useState<{pctX: number; pctY: number}[]>([])
+  const [_captchaClicks,     setCaptchaClicks]      = useState<{pctX: number; pctY: number}[]>([])
   const [verifyCode,         setVerifyCode]         = useState('')
   const [codeSubmitting,     setCodeSubmitting]     = useState(false)
   const captchaImgRef        = useRef<HTMLImageElement | null>(null)
