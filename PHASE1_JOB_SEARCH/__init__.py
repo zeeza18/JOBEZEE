@@ -44,14 +44,19 @@ Modules:
 """
 
 from .llm import LLMClient, extract_json
-from .models import JobRecord, UserPreferences, SearchFilters, deduplicate, REGION_COUNTRIES
-from .jobspy_discovery import search as search_boards, INDEED_COUNTRY_CODES
+from .models import (
+    JobRecord, UserPreferences, SearchFilters, deduplicate,
+    REGION_COUNTRIES, INDEED_COUNTRY_CODES, COUNTRY_BOARDS, COUNTRY_TOP_CITIES,
+)
+from .jobspy_discovery import search as search_boards
 from .workday_discovery import (
     search as search_workday,
     load_employers_yaml,
     GLOBAL_EMPLOYERS,
     get_global_employers,
 )
+from .greenhouse_discovery import search as search_greenhouse, GREENHOUSE_COMPANIES
+
 try:
     from .smartextract_discovery import search as search_smart, build_targets_from_yaml
 except ImportError:
@@ -60,7 +65,7 @@ except ImportError:
 
 __all__ = [
     # --- User entry point ---
-    "UserPreferences",          # fill this in at login; drives all search decisions
+    "UserPreferences",
 
     # --- Data model ---
     "JobRecord",
@@ -72,17 +77,21 @@ __all__ = [
     "extract_json",
 
     # --- Discovery functions ---
-    "search_boards",            # Indeed, LinkedIn, ZipRecruiter, Glassdoor, Google
-    "search_workday",           # 120+ Workday employer portals (direct JSON API)
-    "search_smart",             # AI-powered extraction for any career site
+    "search_boards",       # Indeed, LinkedIn, ZipRecruiter, Glassdoor, regional boards
+    "search_workday",      # 90+ Workday employer portals (direct JSON API)
+    "search_greenhouse",   # 60+ Greenhouse employer boards (public API)
+    "search_smart",        # AI-powered extraction (disabled for now)
 
     # --- Global reference data ---
-    "INDEED_COUNTRY_CODES",     # dict[country_name -> indeed_code]  (45 countries)
-    "GLOBAL_EMPLOYERS",         # dict of 120+ global Workday employers
-    "REGION_COUNTRIES",         # dict[region -> list[country]]  (6 regions)
-    "get_global_employers",     # filter GLOBAL_EMPLOYERS by region/industry/country
+    "INDEED_COUNTRY_CODES",
+    "COUNTRY_BOARDS",
+    "COUNTRY_TOP_CITIES",
+    "GLOBAL_EMPLOYERS",
+    "GREENHOUSE_COMPANIES",
+    "REGION_COUNTRIES",
+    "get_global_employers",
 
     # --- Config loaders ---
-    "load_employers_yaml",      # load custom Workday employers from a YAML file
-    "build_targets_from_yaml",  # build SmartExtract targets from sites.yaml
+    "load_employers_yaml",
+    "build_targets_from_yaml",
 ]

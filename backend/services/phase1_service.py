@@ -38,6 +38,7 @@ try:
     )
     _PHASE1_AVAILABLE = True
     _WORKDAY_AVAILABLE = False
+    _GREENHOUSE_AVAILABLE = False
     _SMARTEXTRACT_AVAILABLE = False
 
     try:
@@ -45,6 +46,12 @@ try:
         _WORKDAY_AVAILABLE = True
     except Exception as _we:
         log.info("Workday search not available (%s)", _we)
+
+    try:
+        from PHASE1_JOB_SEARCH import search_greenhouse  # type: ignore
+        _GREENHOUSE_AVAILABLE = True
+    except Exception as _ghe:
+        log.info("Greenhouse search not available (%s)", _ghe)
 
     try:
         from PHASE1_JOB_SEARCH import search_smart, LLMClient  # type: ignore
@@ -56,6 +63,7 @@ except Exception as _e:
     log.warning("Phase 1 not importable (%s) — search will run in mock mode", _e)
     _PHASE1_AVAILABLE = False
     _WORKDAY_AVAILABLE = False
+    _GREENHOUSE_AVAILABLE = False
     _SMARTEXTRACT_AVAILABLE = False
 
 
@@ -127,7 +135,7 @@ def _scrape_boards_worker(kwargs: dict) -> list:
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
-    t.join(timeout=90)   # 90s hard cap — jobspy sometimes hangs on dead sites
+    t.join(timeout=180)  # 180s cap — multi-country + Glassdoor city calls need time
 
     if t.is_alive():
         print(f"[WORKER] TIMEOUT after 90s — returning 0 results", flush=True)
@@ -656,6 +664,14 @@ def build_preferences(profile: Any) -> "UserPreferences":
 # Title filter helper
 # ---------------------------------------------------------------------------
 
+import re as _re2
+_GARBAGE_LOC_RE = _re2.compile(r"^\d+\s+location", _re2.IGNORECASE)
+
+def _is_garbage_location(location: str) -> bool:
+    """Return True for useless Workday location strings like '2 Locations', '6 Locations'."""
+    return bool(_GARBAGE_LOC_RE.match(location.strip()))
+
+
 def _passes_board_title(
     title: str,
     exclude_titles: list[str],
@@ -775,7 +791,14 @@ async def run_phase1_search(
                  prefs.job_titles, prefs.effective_locations(), prefs.remote_ok)
 
         # ── CHECKPOINT 2: build jobspy kwargs ───────────────────────────────
-        kwargs = prefs.to_jobspy_kwargs()
+        # search_boards() now uses countries= to auto-select boards + cities
+        target_countries = prefs.effective_countries() or ["USA"]
+        kwargs = {
+            "queries":          prefs.job_titles,
+            "countries":        target_countries,
+            "results_per_site": prefs.results_per_site or 50,
+            "hours_old":        prefs.hours_old or 72,
+        }
         log.info("[Phase1][2] jobspy kwargs = %s", kwargs)
 
         # Role keywords — use SearchFilters._title_include_keywords() which strips
@@ -831,7 +854,7 @@ async def run_phase1_search(
         # Country filter — LinkedIn returns global remote jobs even for USA searches.
         # If the user specified countries, drop any job explicitly tagged to a
         # different country. Jobs with no country tag are kept (assume correct).
-        target_countries = prefs.effective_countries()
+        # target_countries already set above from prefs.effective_countries() or ["USA"]
         _REMOTE_LOC_KW   = {"remote", "anywhere", "work from home", "wfh", "distributed"}
 
         # Build accepted + excluded country name sets from INDEED_COUNTRY_CODES.
@@ -996,38 +1019,63 @@ async def run_phase1_search(
         # instead of N×1 s serially.
         # ════════════════════════════════════════════════════════════════════
         if _WORKDAY_AVAILABLE and include_workday:
-            log.info("[Phase1][4] Starting Workday search (workers=8, parallel failures are fast)...")
+            log.info("[Phase1][4] Starting Workday search...")
             try:
-                employers = prefs.get_workday_employers()
-                log.info("[Phase1][4] Workday employers matched: %d", len(employers))
-                # Fallback: if industry/region filters produced 0 employers, search all
+                # Always filter employers by user's target countries first.
+                # This is the primary fix: without it, Canadian/European employers
+                # are queried even when the user only wants USA jobs.
+                from PHASE1_JOB_SEARCH.workday_discovery import GLOBAL_EMPLOYERS as _GE  # type: ignore
+                if target_countries:
+                    employers = {
+                        k: v for k, v in _GE.items()
+                        if v.get("country") in target_countries
+                    }
+                    log.info("[Phase1][4] Workday employers filtered by countries=%s: %d/%d",
+                             target_countries, len(employers), len(_GE))
+                else:
+                    employers = prefs.get_workday_employers()
+                    log.info("[Phase1][4] Workday employers (no country filter): %d", len(employers))
+
+                # If still 0 (rare: country has no Workday employers), skip
                 if not employers:
-                    from PHASE1_JOB_SEARCH.workday_discovery import get_global_employers  # type: ignore
-                    employers = get_global_employers()
-                    log.info("[Phase1][4] Workday fallback: using all %d global employers", len(employers))
-                t_wd = _time.time()
-                wd_raw = await loop.run_in_executor(
-                    None,
-                    lambda: search_workday(
-                        queries=prefs.job_titles,
-                        employers=employers,
-                        workers=16,              # high parallelism — most employers time out fast
-                        request_timeout=5,       # tight timeout so slow employers don't stall
-                        fetch_details=True,      # fetch JD via Workday API (fast — ~0s extra)
-                        max_jobs_per_employer=10,
-                    ),
-                )
-                log.info(
-                    "[Phase1][4] Workday done in %.1fs — %d raw jobs",
-                    _time.time() - t_wd, len(wd_raw),
-                )
+                    log.info("[Phase1][4] No Workday employers for countries=%s — skipping", target_countries)
+                    wd_raw = []
+                else:
+                    t_wd = _time.time()
+                    wd_raw = await loop.run_in_executor(
+                        None,
+                        lambda: search_workday(
+                            queries=prefs.job_titles,
+                            employers=employers,
+                            workers=16,
+                            request_timeout=5,
+                            fetch_details=True,
+                            max_jobs_per_employer=10,
+                        ),
+                    )
+                    log.info(
+                        "[Phase1][4] Workday done in %.1fs — %d raw jobs",
+                        _time.time() - t_wd, len(wd_raw),
+                    )
 
-                # Circuit breaker — if Workday produced nothing, skip the rest
                 if not wd_raw:
-                    log.info("[Phase1][4] Workday returned 0 jobs — skipping dedup/save")
-                    wd_raw = []  # fall through cleanly
+                    wd_raw = []
 
-                # Country filter — same logic as Phase A (Workday returns global results)
+                # Backfill country on Workday jobs that have an empty country field.
+                # Workday API often returns no location/country; we know the employer's
+                # country from GLOBAL_EMPLOYERS, so tag it here so _passes_country works.
+                _employer_country_map = {v["name"]: v.get("country", "") for v in employers.values()}
+                for j in wd_raw:
+                    if not getattr(j, "country", ""):
+                        j.country = _employer_country_map.get(getattr(j, "company", ""), "")
+
+                # Skip jobs with useless location values from Workday ("N Locations" etc.)
+                wd_raw = [
+                    j for j in wd_raw
+                    if not _is_garbage_location(getattr(j, "location", "") or "")
+                ]
+
+                # Country filter — now reliable since we backfilled employer country above
                 if _target_set:
                     before_cf = len(wd_raw)
                     wd_raw = [j for j in wd_raw if _passes_country(j)]
@@ -1077,7 +1125,64 @@ async def run_phase1_search(
             log.info("[Phase1][4] Workday not available — skipping")
 
         # ════════════════════════════════════════════════════════════════════
-        # PHASE C — SmartExtract (Playwright + AI) — DISABLED for now
+        # PHASE C — Greenhouse ATS search
+        # Public Greenhouse API — no auth, no rate limit, reliable JSON
+        # ════════════════════════════════════════════════════════════════════
+        if _GREENHOUSE_AVAILABLE:
+            log.info("[Phase1][5] Starting Greenhouse search...")
+            try:
+                t_gh = _time.time()
+                gh_raw = await loop.run_in_executor(
+                    None,
+                    lambda: search_greenhouse(
+                        queries=prefs.job_titles,
+                        countries=target_countries or None,
+                        workers=10,
+                    ),
+                )
+                log.info(
+                    "[Phase1][5] Greenhouse done in %.1fs — %d raw jobs",
+                    _time.time() - t_gh, len(gh_raw),
+                )
+
+                # Title filter
+                if prefs.exclude_titles or role_keywords:
+                    before_tf = len(gh_raw)
+                    gh_raw = [
+                        j for j in gh_raw
+                        if _passes_board_title(
+                            getattr(j, "title", "") or "",
+                            prefs.exclude_titles,
+                            role_keywords,
+                        )
+                    ]
+                    log.info("[Phase1][5] Greenhouse title filter: kept %d / %d",
+                             len(gh_raw), before_tf)
+
+                gh_new = [
+                    j for j in gh_raw
+                    if (getattr(j, "url", "") or "").strip() not in saved_urls
+                ]
+                gh_unique = deduplicate(gh_new)
+                log.info("[Phase1][5] Greenhouse after dedup: %d new jobs — saving", len(gh_unique))
+
+                gh_inserted = await _save_jobs(gh_unique, profile_id, session_id, prefs.hours_old)
+                total_inserted += gh_inserted
+                await _update_session(session_id, "running", total_inserted, mark_finished=False)
+                log.info("[Phase1][5] Greenhouse phase complete — %d additional jobs", gh_inserted)
+
+                saved_urls.update(
+                    (getattr(j, "url", "") or "").strip() for j in gh_unique
+                )
+                saved_urls.discard("")
+
+            except Exception as gh_exc:
+                log.warning("[Phase1][5] Greenhouse search failed (skipping): %s", gh_exc)
+        else:
+            log.info("[Phase1][5] Greenhouse not available — skipping")
+
+        # ════════════════════════════════════════════════════════════════════
+        # PHASE D — SmartExtract (Playwright + AI) — DISABLED for now
         # Covers: RemoteOK, Wellfound, Himalayas, Dice, BuiltIn, regional boards
         # TODO: re-enable once Playwright is configured
         # ════════════════════════════════════════════════════════════════════
@@ -1161,9 +1266,10 @@ async def run_phase1_search(
         # ── CHECKPOINT 6: mark session done ──────────────────────────────────
         await _update_session(session_id, "done", total_inserted)
         log.info("[Phase1][6] Session %s COMPLETE — %d total jobs saved", session_id, total_inserted)
-        log.info("[Phase1][6]   Phase A (boards):       contributed to total")
-        log.info("[Phase1][6]   Phase B (workday):      contributed to total")
-        log.info("[Phase1][6]   Phase C (smartextract): contributed to total")
+        log.info("[Phase1][6]   Phase A (boards):     contributed to total")
+        log.info("[Phase1][6]   Phase B (workday):    contributed to total")
+        log.info("[Phase1][6]   Phase C (greenhouse): contributed to total")
+        log.info("[Phase1][6]   Phase D (smartextract): disabled")
         log.info("=" * 70)
 
     except Exception as exc:

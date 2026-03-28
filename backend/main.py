@@ -88,7 +88,7 @@ async def _auto_search_loop() -> None:
                     sid = str(_uuid.uuid4())[:8].upper()
                     db.add(SearchSession(id=sid, status="running", user_id=str(profile.id)))
                     await db.commit()
-                    asyncio.create_task(run_phase1_search(profile, sid, include_workday=False))
+                    asyncio.create_task(run_phase1_search(profile, sid, include_workday=True))
                     count += 1
                     _log.info("[AutoSearch] triggered session=%s user=%s roles=%s",
                               sid, profile.id, getattr(profile, "desired_roles", []))

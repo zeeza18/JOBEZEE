@@ -111,6 +111,171 @@ _COUNTRY_CURRENCY: dict[str, str] = {
 }
 
 
+# ===========================================================================
+# Indeed country codes  (country name → indeed regional code)
+# ===========================================================================
+
+INDEED_COUNTRY_CODES: dict[str, str] = {
+    # North America
+    "USA":              "usa",   "United States":  "usa",
+    "Canada":           "canada","Mexico":         "mexico",
+    # Europe
+    "UK":               "uk",    "United Kingdom": "uk",
+    "Germany":          "germany","France":         "france",
+    "Netherlands":      "netherlands","Spain":      "spain",
+    "Italy":            "italy", "Belgium":        "belgium",
+    "Switzerland":      "switzerland","Austria":    "austria",
+    "Poland":           "poland","Sweden":         "sweden",
+    "Denmark":          "denmark","Norway":        "norway",
+    "Finland":          "finland","Ireland":       "ireland",
+    "Portugal":         "portugal","Czech Republic":"czechrepublic",
+    "Romania":          "romania","Greece":        "greece",
+    "Hungary":          "hungary",
+    # Asia-Pacific
+    "Australia":        "australia","New Zealand":  "newzealand",
+    "India":            "india", "Singapore":      "singapore",
+    "Japan":            "japan", "South Korea":    "southkorea",
+    "Hong Kong":        "hongkong","Philippines":  "philippines",
+    "Malaysia":         "malaysia","Taiwan":       "taiwan",
+    "Pakistan":         "pakistan",
+    # Middle East
+    "UAE":              "uae",   "Saudi Arabia":   "saudiarabia",
+    "Qatar":            "qatar",
+    # Latin America
+    "Brazil":           "brazil","Argentina":      "argentina",
+    "Colombia":         "colombia","Chile":        "chile",
+    # Africa
+    "South Africa":     "southafrica","Nigeria":   "nigeria",
+}
+
+
+# ===========================================================================
+# Country → job boards  (which boards are active per country)
+# ===========================================================================
+
+#: Maps country name → list of jobspy site names to search.
+#: Boards not in this list for a country are simply skipped.
+COUNTRY_BOARDS: dict[str, list[str]] = {
+    "USA":             ["indeed", "linkedin", "glassdoor", "zip_recruiter"],
+    "Canada":          ["indeed", "linkedin", "glassdoor"],
+    "UK":              ["indeed", "linkedin", "glassdoor"],
+    "United Kingdom":  ["indeed", "linkedin", "glassdoor"],
+    "Ireland":         ["indeed", "linkedin"],
+    "Germany":         ["indeed", "linkedin"],
+    "France":          ["indeed", "linkedin"],
+    "Netherlands":     ["indeed", "linkedin"],
+    "Spain":           ["indeed", "linkedin"],
+    "Italy":           ["indeed", "linkedin"],
+    "Belgium":         ["indeed", "linkedin"],
+    "Switzerland":     ["indeed", "linkedin"],
+    "Austria":         ["indeed", "linkedin"],
+    "Sweden":          ["indeed", "linkedin"],
+    "Denmark":         ["indeed", "linkedin"],
+    "Norway":          ["indeed", "linkedin"],
+    "Finland":         ["indeed", "linkedin"],
+    "Poland":          ["indeed", "linkedin"],
+    "Czech Republic":  ["indeed", "linkedin"],
+    "Portugal":        ["indeed", "linkedin"],
+    "Romania":         ["indeed", "linkedin"],
+    "Greece":          ["indeed", "linkedin"],
+    "Hungary":         ["indeed", "linkedin"],
+    "Australia":       ["indeed", "linkedin"],
+    "New Zealand":     ["indeed", "linkedin"],
+    "Singapore":       ["indeed", "linkedin"],
+    "Japan":           ["indeed", "linkedin"],
+    "South Korea":     ["indeed", "linkedin"],
+    "India":           ["indeed", "linkedin", "naukri"],
+    "Pakistan":        ["indeed", "linkedin"],
+    "Malaysia":        ["indeed", "linkedin"],
+    "Philippines":     ["indeed", "linkedin"],
+    "UAE":             ["indeed", "linkedin", "bayt"],
+    "Saudi Arabia":    ["bayt", "linkedin"],
+    "Qatar":           ["bayt", "linkedin"],
+    "Kuwait":          ["bayt", "linkedin"],
+    "Bahrain":         ["bayt", "linkedin"],
+    "Bangladesh":      ["bdjobs", "linkedin"],
+    "Brazil":          ["indeed", "linkedin"],
+    "Mexico":          ["indeed", "linkedin"],
+    "Argentina":       ["indeed", "linkedin"],
+    "Colombia":        ["indeed", "linkedin"],
+    "Chile":           ["indeed", "linkedin"],
+    "South Africa":    ["indeed", "linkedin"],
+    "Nigeria":         ["indeed", "linkedin"],
+    "_default":        ["indeed", "linkedin"],
+}
+
+#: Top cities per country used when user picks a country (not a specific city).
+#: Glassdoor requires city-level strings; Indeed/LinkedIn handle country-level fine.
+#: Keep to ≤10 per country — each city = one extra scrape_jobs call.
+COUNTRY_TOP_CITIES: dict[str, list[str]] = {
+    "USA": [
+        "San Francisco", "New York", "Seattle", "Austin", "Boston",
+        "Chicago", "Los Angeles", "Denver", "Atlanta", "Washington DC",
+    ],
+    "Canada": [
+        "Toronto", "Vancouver", "Montreal", "Calgary", "Ottawa",
+    ],
+    "UK": [
+        "London", "Manchester", "Birmingham", "Edinburgh", "Bristol",
+    ],
+    "United Kingdom": [
+        "London", "Manchester", "Birmingham", "Edinburgh", "Bristol",
+    ],
+    "Germany": [
+        "Berlin", "Munich", "Hamburg", "Frankfurt", "Cologne",
+    ],
+    "France": [
+        "Paris", "Lyon", "Marseille", "Toulouse", "Bordeaux",
+    ],
+    "Netherlands": [
+        "Amsterdam", "Rotterdam", "The Hague", "Eindhoven",
+    ],
+    "Spain": [
+        "Madrid", "Barcelona", "Valencia",
+    ],
+    "Italy": [
+        "Milan", "Rome", "Turin",
+    ],
+    "Switzerland": [
+        "Zurich", "Geneva", "Basel",
+    ],
+    "Sweden": [
+        "Stockholm", "Gothenburg", "Malmo",
+    ],
+    "Poland": [
+        "Warsaw", "Krakow", "Wroclaw",
+    ],
+    "Portugal": [
+        "Lisbon", "Porto",
+    ],
+    "Australia": [
+        "Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide",
+    ],
+    "New Zealand": [
+        "Auckland", "Wellington",
+    ],
+    "India": [
+        "Bangalore", "Mumbai", "Delhi", "Hyderabad", "Pune",
+        "Chennai", "Noida", "Gurgaon", "Kolkata", "Ahmedabad",
+    ],
+    "Singapore": ["Singapore"],
+    "Japan": ["Tokyo", "Osaka"],
+    "South Korea": ["Seoul", "Busan"],
+    "UAE": ["Dubai", "Abu Dhabi", "Sharjah"],
+    "Saudi Arabia": ["Riyadh", "Jeddah"],
+    "Qatar": ["Doha"],
+    "Kuwait": ["Kuwait City"],
+    "Bahrain": ["Manama"],
+    "Brazil": ["Sao Paulo", "Rio de Janeiro", "Belo Horizonte"],
+    "Mexico": ["Mexico City", "Guadalajara", "Monterrey"],
+    "Argentina": ["Buenos Aires"],
+    "Colombia": ["Bogota", "Medellin"],
+    "Chile": ["Santiago"],
+    "South Africa": ["Johannesburg", "Cape Town"],
+    "Nigeria": ["Lagos", "Abuja"],
+}
+
+
 def _countries_for_regions(regions: list[str]) -> list[str]:
     """Return a flat deduplicated list of countries for the given regions."""
     seen: set[str] = set()
