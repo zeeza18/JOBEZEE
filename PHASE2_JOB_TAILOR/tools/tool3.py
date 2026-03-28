@@ -223,7 +223,7 @@ Return ONLY valid JSON. No markdown, no extra text."""
 
         adjusted_score = min(100, score + corrections * 3)
         if corrections:
-            print(f"[TOOL3] Score corrected: {score} → {adjusted_score} ({corrections} false orphan(s) removed)")
+            print(f"[TOOL3] Score corrected: {score} -> {adjusted_score} ({corrections} false orphan(s) removed)")
         return verified, adjusted_score
 
     def _verify_insertions(self, insertions: list, resume_text: str, score: int):
@@ -255,7 +255,7 @@ Return ONLY valid JSON. No markdown, no extra text."""
 
         adjusted_score = min(100, score + corrections * 2)
         if corrections:
-            print(f"[TOOL3] Score corrected: {score} → {adjusted_score} ({corrections} false insertion(s) removed)")
+            print(f"[TOOL3] Score corrected: {score} -> {adjusted_score} ({corrections} false insertion(s) removed)")
         return verified, adjusted_score
 
     def _verify_formatting_issues(self, formatting_issues: list, score: int):
@@ -280,7 +280,7 @@ Return ONLY valid JSON. No markdown, no extra text."""
 
         adjusted_score = min(100, score + corrections)
         if corrections:
-            print(f"[TOOL3] Score corrected: {score} → {adjusted_score} ({corrections} false format fix(es) removed)")
+            print(f"[TOOL3] Score corrected: {score} -> {adjusted_score} ({corrections} false format fix(es) removed)")
         return verified, adjusted_score
 
     def _format_action_items(self, action_items: list) -> list:

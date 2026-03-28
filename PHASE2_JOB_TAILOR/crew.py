@@ -120,7 +120,7 @@ class ResumeCrew:
 
         print(f"\n[STEP] PHASE 2: Iterative Tailoring Process (3 Rounds)")
         print("=" * 60)
-        print("Each round: Tool 2 (Tailor) → Tool 3 (Evaluate) → Feedback")
+        print("Each round: Tool 2 (Tailor) -> Tool 3 (Evaluate) -> Feedback")
 
         # Track resumes and evaluations across rounds
         latest_resume = current_resume
@@ -320,20 +320,6 @@ class ResumeCrew:
                 eval_filename = f"evaluation_round_{round_num}.txt"
                 self.resume_evaluator.save_evaluation(evaluation, eval_filename, output_dir=output_dir)
 
-                all_evaluations.append(evaluation)
-
-                self.log_step(f"ROUND {round_num} - Evaluation complete", {
-                    "score": evaluation.get('score', 0),
-                    "recommendations_count": len(evaluation.get('recommendations', []))
-                })
-
-                print(f"[STATS] Round {round_num} Score: {evaluation.get('score', 0)}/100")
-                print(f"[TIP] Recommendations: {len(evaluation.get('recommendations', []))}")
-
-                # Show top recommendations
-                for i, rec in enumerate(evaluation.get('recommendations', [])[:2], 1):
-                    print(f"   {i}. {rec[:80]}...")
-
             except Exception as e:
                 print(f"[ERROR] Error in Round {round_num} evaluation: {e}")
                 evaluation = {
@@ -341,7 +327,22 @@ class ResumeCrew:
                     "feedback": f"Error: {str(e)}",
                     "recommendations": []
                 }
-                all_evaluations.append(evaluation)
+
+            # Always append exactly once per round (outside try-except)
+            all_evaluations.append(evaluation)
+
+            self.log_step(f"ROUND {round_num} - Evaluation complete", {
+                "score": evaluation.get('score', 0),
+                "recommendations_count": len(evaluation.get('recommendations', []))
+            })
+
+            print(f"[STATS] Round {round_num} Score: {evaluation.get('score', 0)}/100")
+            print(f"[TIP] Recommendations: {len(evaluation.get('recommendations', []))}")
+
+            # Show top recommendations (cp1252-safe)
+            for i, rec in enumerate(evaluation.get('recommendations', [])[:2], 1):
+                safe_rec = rec[:80].encode('ascii', errors='replace').decode('ascii')
+                print(f"   {i}. {safe_rec}...")
 
             score_value = evaluation.get("score", 0)
             try:
@@ -369,7 +370,7 @@ class ResumeCrew:
                             "score_after": score_value
                         })
 
-                    print(f"[MEMORY] Score improved {best_score} → {score_value}! Locking {len(change_log)} changes.")
+                    print(f"[MEMORY] Score improved {best_score} -> {score_value}! Locking {len(change_log)} changes.")
 
                 best_score = score_value
                 best_resume = latest_resume
@@ -489,7 +490,7 @@ class ResumeCrew:
         # Show final summary
         final_score = best_score
         print(f"[BEST] Best Score: {best_score}/100 (Round {best_round or 1})")
-        print(f"[PROGRESS] Score Progress: {' → '.join([str(eval.get('score', 0)) for eval in all_evaluations])}")
+        print(f"[PROGRESS] Score Progress: {' -> '.join([str(eval.get('score', 0)) for eval in all_evaluations])}")
         print(f"[OK] Final Resume: {len(best_resume.split())} words")
 
         print("\nOutput Files Created:")
