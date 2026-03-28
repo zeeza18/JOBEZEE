@@ -1401,8 +1401,11 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                             except Exception:
                                 _jd_for_tailor = description
                                 print_lg("[Tailor] JD cleaning unavailable, using full JD")
-                            # Sanitize chars that Windows cp1252 can't encode (emojis, arrows, etc.)
+                            # Sanitize chars Windows cp1252 can't encode — skip on Linux (Hetzner)
+                            import platform as _plat
                             def _cp1252_safe(s):
+                                if _plat.system() != "Windows":
+                                    return s  # Linux/Hetzner: UTF-8 natively, no stripping needed
                                 out = []
                                 for c in (s or ""):
                                     try:
@@ -1413,8 +1416,10 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                 return ''.join(out)
                             _jd_for_tailor = _cp1252_safe(_jd_for_tailor)
                             from PHASE2_JOB_TAILOR.crew import ResumeCrew
+                            from config.secrets import llm_api_key as _llm_key
                             _base_info = _cp1252_safe(globals().get("user_information_all", ""))
-                            _crew = ResumeCrew()
+                            _openai_key = _llm_key if (_llm_key and _llm_key != "not-needed") else None
+                            _crew = ResumeCrew(openai_api_key=_openai_key)
                             _result = _crew.run_tailoring_process(_jd_for_tailor, _base_info, None)
                             _tailored = _result.get("final_resume", "")
                             if _tailored:

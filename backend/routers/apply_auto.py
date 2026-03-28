@@ -330,19 +330,27 @@ async def run_for_job(
             start_tailor_job_for_job,
         )
         from ..models import UserProfile as _UP
+        from ..crypto import decrypt as _decrypt_key
         _pid = uuid.UUID(current_user.id)
         _prof_res = await db.execute(select(_UP).where(_UP.id == _pid))
         _profile  = _prof_res.scalar_one_or_none()
         resume_url = (_profile.resume_url if _profile else "") or ""
 
-        name_raw   = current_user.full_name or current_user.email.split("@")[0]
+        # Handle email-as-full_name (some accounts store email in full_name field)
+        _name_raw = (current_user.full_name or "").strip()
+        name_raw  = (_name_raw if _name_raw and "@" not in _name_raw else current_user.email.split("@")[0])
         company    = pulled_job.company or "company"
-        openai_key = (getattr(_profile, "openai_api_key", "") or "").strip()
+        openai_key = _decrypt_key((getattr(_profile, "openai_api_key", "") or "").strip())
+        if not openai_key:
+            import os as _os
+            openai_key = (_os.getenv("OPENAI_API_KEY") or "").strip()
+        contact_header = _build_contact_header(_profile, current_user)
         tailor_id  = create_tailor_job()
         start_tailor_job_for_job(
             tailor_id, pulled_job.description, resume_url,
             name_raw.replace(" ", "_"), company,
             openai_api_key=openai_key,
+            contact_header=contact_header,
         )
 
         # Poll until tailor completes (max 3 min)
