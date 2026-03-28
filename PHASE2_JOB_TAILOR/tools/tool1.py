@@ -73,14 +73,7 @@ class KeywordExtractor:
 
         except Exception as e:
             print(f"[ERROR] Error calling OpenAI: {e}")
-            # Return fallback result
-            return {
-                "company_name": "UNKNOWN_COMPANY",
-                "keywords": ["Error occurred during keyword extraction"],
-                "needs": ["Please check OpenAI API key and connection"],
-                "results": ["Manual keyword extraction may be needed"],
-                "raw_analysis": f"Error: {str(e)}"
-            }
+            raise RuntimeError(f"Keyword extraction failed — check OpenAI API key: {e}") from e
 
     def _parse_openai_response(self, analysis):
         """Parse OpenAI JSON response into structured format."""
