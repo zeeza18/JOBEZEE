@@ -12,7 +12,7 @@ const TailorPage = () => {
   const {
     inputJd, inputResume, setInputJd, setInputResume,
     jobId, jobStatus, progressLines, keywords, rounds, score,
-    hasPdf, hasTex, pdflatexAvailable, errorMsg,
+    hasPdf, hasTex, pdflatexAvailable, filename, errorMsg,
     startJob, reset,
   } = useTailorStore()
 
@@ -105,12 +105,23 @@ const TailorPage = () => {
     }
   }
 
-  const downloadFile = (endpoint: string, filename: string) => {
+  const downloadFile = async (endpoint: string, ext: string) => {
     if (!jobId) return
-    const a = document.createElement('a')
-    a.href = `${BASE}/api/tailor/${endpoint}/${jobId}`
-    a.download = filename
-    a.click()
+    try {
+      const res = await fetch(`${BASE}/api/tailor/${endpoint}/${jobId}`, { credentials: 'include' })
+      if (!res.ok) throw new Error(`Server returned ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename ? `${filename}.${ext}` : `tailored_resume.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      alert(`Download failed: ${e?.message ?? 'Unknown error'}`)
+    }
   }
 
   const MODES: { key: ResumeMode; label: string; icon: React.ReactNode }[] = [
@@ -309,13 +320,13 @@ const TailorPage = () => {
               </div>
               <div className="flex flex-wrap gap-3">
                 {hasPdf && (
-                  <button onClick={() => downloadFile('download', 'tailored_resume.pdf')}
+                  <button onClick={() => downloadFile('download', 'pdf')}
                     className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition">
                     <Download className="h-4 w-4" /> Download PDF
                   </button>
                 )}
                 {hasTex && (
-                  <button onClick={() => downloadFile('download-tex', 'tailored_resume.tex')}
+                  <button onClick={() => downloadFile('download-tex', 'tex')}
                     className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 transition">
                     <Download className="h-4 w-4" /> Download .tex
                   </button>

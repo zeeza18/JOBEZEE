@@ -28,6 +28,7 @@ interface TailorState {
   hasPdf: boolean
   hasTex: boolean
   pdflatexAvailable: boolean | null
+  filename: string | null
   errorMsg: string | null
 
   // ── Actions ──────────────────────────────────────────────────────────────
@@ -37,7 +38,7 @@ interface TailorState {
   addLine: (line: string) => void
   setKeywords: (kw: string[]) => void
   updateRound: (r: RoundResult) => void
-  setComplete: (hasPdf: boolean, hasTex: boolean, pdflatexAvailable: boolean | null, score?: number | null) => void
+  setComplete: (hasPdf: boolean, hasTex: boolean, pdflatexAvailable: boolean | null, score?: number | null, filename?: string | null) => void
   setError: (msg: string) => void
   reset: () => void
 }
@@ -64,6 +65,7 @@ export const useTailorStore = create<TailorState>((set, _get) => ({
   hasPdf: false,
   hasTex: false,
   pdflatexAvailable: null,
+  filename: null,
   errorMsg: null,
 
   setInputJd: (inputJd) => set({ inputJd }),
@@ -100,13 +102,14 @@ export const useTailorStore = create<TailorState>((set, _get) => ({
       rounds: s.rounds.map((r) => (r.round === updated.round ? { ...r, ...updated } : r)),
     })),
 
-  setComplete: (hasPdf, hasTex, pdflatexAvailable, score) =>
+  setComplete: (hasPdf, hasTex, pdflatexAvailable, score, filename) =>
     set((s) => ({
       jobStatus: 'complete',
       hasPdf,
       hasTex,
       pdflatexAvailable,
       score: score ?? s.score,
+      filename: filename ?? s.filename,
       progressLines: [...s.progressLines, 'Done! Resume tailored successfully.'],
     })),
 
@@ -130,6 +133,7 @@ export const useTailorStore = create<TailorState>((set, _get) => ({
       hasPdf: false,
       hasTex: false,
       pdflatexAvailable: null,
+      filename: null,
       errorMsg: null,
       // intentionally keep inputJd and inputResume
     })
@@ -193,8 +197,8 @@ function _openStream(jobId: string) {
       } else {
         fetch(`${BASE}/api/tailor/status/${jobId}`, { credentials: 'include' })
           .then((r) => r.json())
-          .then((s) => store.setComplete(s.has_pdf ?? false, s.has_tex ?? false, s.pdflatex_available ?? null, s.score ?? data.score))
-          .catch(() => store.setComplete(data.has_pdf ?? false, false, null, data.score))
+          .then((s) => store.setComplete(s.has_pdf ?? false, s.has_tex ?? false, s.pdflatex_available ?? null, s.score ?? data.score, s.filename ?? null))
+          .catch(() => store.setComplete(data.has_pdf ?? false, false, null, data.score, null))
       }
     }
   }
@@ -218,7 +222,7 @@ function _startPolling(jobId: string) {
       if (s.score != null) useTailorStore.setState({ score: s.score })
       if (s.status === 'complete') {
         clearInterval(_pollInterval!); _pollInterval = null
-        store.setComplete(s.has_pdf ?? false, s.has_tex ?? false, s.pdflatex_available ?? null, s.score)
+        store.setComplete(s.has_pdf ?? false, s.has_tex ?? false, s.pdflatex_available ?? null, s.score, s.filename ?? null)
       } else if (s.status === 'error') {
         clearInterval(_pollInterval!); _pollInterval = null
         store.setError(s.error ?? 'Unknown error')
