@@ -27,14 +27,14 @@ const NavItem = ({ to, label, icon: Icon, badge, end, collapsed }: {
     className={({ isActive }) =>
       cn(
         'flex items-center gap-3 rounded-md text-sm transition-colors',
-        collapsed ? 'px-0 py-2 justify-center' : 'px-3 py-2',
+        collapsed ? 'w-10 h-10 mx-auto justify-center p-0' : 'px-3 py-2',
         isActive
           ? 'bg-cyan-500/[0.08] text-cyan-400 font-medium'
           : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
       )
     }
   >
-    <Icon className="h-4 w-4 flex-shrink-0" />
+    <Icon className={cn('flex-shrink-0', collapsed ? 'h-5 w-5' : 'h-4 w-4')} />
     {!collapsed && (
       <>
         <span className="flex-1">{label}</span>
@@ -77,26 +77,34 @@ const SideNav = ({ open, onToggle }: SideNavProps) => {
       )}
     >
       {/* Header */}
-      <div className="flex items-center h-16 border-b border-white/[0.06] flex-shrink-0 px-3 gap-2">
-        <div className={cn('flex-1 overflow-hidden transition-all duration-300', open ? 'opacity-100 w-auto' : 'opacity-0 w-0 pointer-events-none')}>
-          <LogoBrand size="sm" />
-        </div>
-        {!open && (
-          <div className="flex-1 flex justify-center">
-            <span className="text-lg font-black text-white leading-none">J<span className="text-cyan-400">z</span></span>
-          </div>
+      <div className={cn('flex items-center h-16 border-b border-white/[0.06] flex-shrink-0', open ? 'px-4 justify-between' : 'flex-col justify-center gap-1')}>
+        {open ? (
+          <>
+            <LogoBrand size="sm" />
+            <button
+              onClick={onToggle}
+              className="rounded-md p-1.5 text-slate-500 hover:text-white hover:bg-white/[0.05] transition-colors"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-base font-black leading-none text-white">J<span className="text-cyan-400">z</span></span>
+            <button
+              onClick={onToggle}
+              className="rounded-md p-1 text-slate-500 hover:text-white hover:bg-white/[0.05] transition-colors"
+              title="Expand sidebar"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </>
         )}
-        <button
-          onClick={onToggle}
-          className="flex-shrink-0 rounded-md p-1.5 text-slate-500 hover:text-white hover:bg-white/[0.05] transition-colors"
-          title={open ? 'Collapse sidebar' : 'Expand sidebar'}
-        >
-          {open ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </button>
       </div>
 
       {/* Nav scroll area */}
-      <div className="flex-1 overflow-y-auto py-4 px-2 space-y-4">
+      <div className={cn('flex-1 overflow-y-auto py-4 space-y-4', open ? 'px-2' : 'px-1')}>
         {/* Main */}
         <div>
           {open && (
