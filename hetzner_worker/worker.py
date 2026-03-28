@@ -30,7 +30,9 @@ if _env_file.exists():
             _k, _v = _line.split("=", 1)
             os.environ.setdefault(_k.strip(), _v.strip())
 
-WORKER_SECRET = os.environ.get("WORKER_SECRET", "")
+# Accept comma-separated list of secrets so multiple environments (Render, local) work simultaneously
+_WORKER_SECRETS = {s.strip() for s in os.environ.get("WORKER_SECRET", "").split(",") if s.strip()}
+WORKER_SECRET   = os.environ.get("WORKER_SECRET", "").split(",")[0].strip()  # kept for legacy use
 _JOBEZEE_ROOT = Path(__file__).resolve().parent.parent
 _BOT_DIR      = _JOBEZEE_ROOT / "linkedin_bot"
 _LAUNCHER     = _BOT_DIR / "linkedin_launcher.py"
@@ -77,11 +79,10 @@ _CONNECT_CDP_PORT = 9223   # fixed CDP port for connect-session Chrome
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 def _auth(authorization: str) -> None:
-    if WORKER_SECRET and authorization != f"Bearer {WORKER_SECRET}":
-        # Log what was received to help diagnose secret mismatches
-        import pathlib as _pl
-        _pl.Path("/tmp/last_auth.txt").write_text(authorization)
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    if _WORKER_SECRETS:
+        token = authorization.removeprefix("Bearer ").strip()
+        if token not in _WORKER_SECRETS:
+            raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -102,7 +103,15 @@ def health():
         active = len(_procs)
     with _queue_lock:
         queued = len(_queue)
-    return {"status": "ok", "active_jobs": active, "queued_jobs": queued, "max_concurrent": MAX_CONCURRENT_BOTS}
+    with _connect_lock:
+        connect_sessions = len(_connect_sessions)
+    return {
+        "status":           "ok",
+        "active_jobs":      active,
+        "queued_jobs":      queued,
+        "max_concurrent":   MAX_CONCURRENT_BOTS,
+        "connect_sessions": connect_sessions,   # separate from bot slots
+    }
 
 
 @app.post("/run-bot")

@@ -59,7 +59,8 @@ const AutoApplyPage = () => {
   const LI_JOB_KEY = 'jobezee_li_job_id'
   const _initLiJobId = localStorage.getItem(LI_JOB_KEY)
 
-  const [liStatus,  setLiStatus]  = useState<'idle' | 'running' | 'complete' | 'error' | 'rate_limited'>(_initLiJobId ? 'running' : 'idle')
+  const [liStatus,  setLiStatus]  = useState<'idle' | 'queued' | 'running' | 'complete' | 'error' | 'rate_limited'>(_initLiJobId ? 'running' : 'idle')
+  const [liQueuePos, setLiQueuePos] = useState<number | null>(null)
   const [liLines,   setLiLines]   = useState<string[]>([])
   const [liResult,  setLiResult]  = useState<string | null>(null)
   const [liError,   setLiError]   = useState<string | null>(null)
@@ -141,6 +142,17 @@ const AutoApplyPage = () => {
       const ev = JSON.parse(e.data)
       if (ev.line) {
         setLiLines(prev => [...prev, ev.line])
+        // Detect queue position from log line
+        const queueMatch = ev.line.match(/you're #(\d+) in queue/i)
+        if (queueMatch) {
+          setLiQueuePos(Number(queueMatch[1]))
+          setLiStatus('queued')
+        }
+        // Detect when queued bot starts running
+        if (/slot available.*starting bot now/i.test(ev.line)) {
+          setLiQueuePos(null)
+          setLiStatus('running')
+        }
       } else if (ev.event === 'done') {
         setLiStatus(ev.status === 'error' ? 'error' : 'complete')
         setLiResult(ev.result ?? null)
@@ -155,8 +167,10 @@ const AutoApplyPage = () => {
       setTimeout(() => {
         linkedinApi.status(id).then(s => {
           if (s.status === 'running') {
-            // Bot still running — reopen the stream
             openLinkedInStream(id)
+          } else if (s.status === 'queued') {
+            setLiStatus('queued')
+            setLiQueuePos((s as any).queue_position ?? null)
           } else if (s.status === 'complete') {
             setLiStatus('complete')
             setLiResult(s.result)
@@ -851,22 +865,24 @@ const AutoApplyPage = () => {
                     'bg-red-500/20 text-red-300'}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${workerStatus === 'ok' ? 'bg-emerald-400' : 'bg-red-400'}`} />
                   {workerStatus === 'ok'
-                    ? `Worker ${workerJobs.active}/${workerJobs.max} active`
+                    ? `Worker ${workerJobs.active}/${workerJobs.max} active${workerJobs.queued > 0 ? ` · ${workerJobs.queued} queued` : ''}`
                     : workerStatus === 'not_configured' ? 'Local mode'
                     : 'Worker offline'}
                 </span>
               )}
-              {liStatus === 'running' && (
+              {(liStatus === 'running' || liStatus === 'queued') && (
                 <button onClick={handleLinkedInStop} disabled={liStopping}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50">
                   {liStopping ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                  {liStopping ? 'Stopping…' : 'Stop Bot'}
+                  {liStopping ? 'Stopping…' : 'Cancel'}
                 </button>
               )}
-              <button onClick={handleLinkedIn} disabled={liStatus === 'running'}
+              <button onClick={handleLinkedIn} disabled={liStatus === 'running' || liStatus === 'queued'}
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-2 text-sm font-bold text-[#0077B5] hover:bg-blue-50 transition disabled:opacity-60">
                 {liStatus === 'running'
                   ? <><Loader2 className="h-4 w-4 animate-spin" /> Running…</>
+                  : liStatus === 'queued'
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Queued…</>
                   : <><Zap className="h-4 w-4" /> Launch Bot</>}
               </button>
             </div>
@@ -940,6 +956,9 @@ const AutoApplyPage = () => {
                     'text-slate-300'
                   return <div key={i} className={`break-all ${cls}`}>{line}</div>
                 })}
+                {liStatus === 'queued' && (
+                  <div className="flex gap-1.5 pt-1 text-amber-400"><span className="animate-pulse">●</span><span className="text-slate-500">waiting for worker slot…</span></div>
+                )}
                 {liStatus === 'running' && (
                   <div className="flex gap-1.5 pt-1 text-blue-400"><span className="animate-pulse">●</span><span className="text-slate-500">bot running…</span></div>
                 )}
@@ -953,9 +972,19 @@ const AutoApplyPage = () => {
                     className="text-xs font-medium text-slate-400 hover:text-slate-600 transition">Clear</button>
                 </div>
               )}
+              {liStatus === 'queued' && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 space-y-1">
+                  <p className="text-sm font-semibold text-blue-800">
+                    Both workers busy — you are {liQueuePos != null ? `#${liQueuePos}` : 'next'} in queue
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Your bot will start automatically when a slot opens. No action needed.
+                  </p>
+                </div>
+              )}
               {liStatus === 'rate_limited' && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
-                  <p className="text-sm font-semibold text-amber-800">⚠️ LinkedIn daily Easy Apply limit reached</p>
+                  <p className="text-sm font-semibold text-amber-800">LinkedIn daily Easy Apply limit reached</p>
                   <p className="text-xs text-amber-700">LinkedIn limits the number of Easy Apply applications per day to prevent spam. The bot has stopped. You can try again tomorrow.</p>
                   <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); setLiScreenshot(null); localStorage.removeItem(LI_JOB_KEY) }}
                     className="text-xs font-medium text-amber-600 hover:text-amber-800 transition underline">Dismiss</button>
