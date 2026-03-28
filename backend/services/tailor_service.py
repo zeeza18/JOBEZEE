@@ -142,11 +142,12 @@ def start_tailor_job_for_job(
     username: str,
     company: str,
     openai_api_key: str = "",
+    contact_header: str = "",
 ) -> None:
     """Launch crew for a specific pulled job using the user's uploaded resume."""
     t = threading.Thread(
         target=_run_tailor_for_job,
-        args=(tailor_job_id, job_description, resume_url, username, company, openai_api_key),
+        args=(tailor_job_id, job_description, resume_url, username, company, openai_api_key, contact_header),
         daemon=True,
     )
     t.start()
@@ -159,6 +160,7 @@ def _run_tailor_for_job(
     username: str,
     company: str,
     openai_api_key: str = "",
+    contact_header: str = "",
 ) -> None:
     with _lock:
         _jobs[tailor_job_id]["status"] = "running"
@@ -175,6 +177,13 @@ def _run_tailor_for_job(
         # Resolve resume file from URL path (/uploads/resumes/<filename>)
         resume_file = _JOBEZEE_ROOT / resume_url.lstrip('/')
         resume_text = _extract_resume_text(resume_file)
+
+        # Prepend contact header if not already in the first line
+        if contact_header:
+            first_line = resume_text.strip().split("\n")[0].strip() if resume_text.strip() else ""
+            name_hint = contact_header.split("\n")[0].strip()
+            if name_hint and name_hint.lower() not in first_line.lower():
+                resume_text = contact_header + "\n\n" + resume_text
         clean_jd = _clean_job_description(job_description)
 
         # If cleaning removed too much (boilerplate was all we had), fall back to

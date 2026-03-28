@@ -65,8 +65,11 @@ async def start_tailor(
     if not openai_key:
         raise HTTPException(400, "OpenAI API key not configured. Add it in Settings → Credentials.")
 
+    # Prepend profile contact header so Tool 4 renders correct links in LaTeX
+    resume_with_header = _inject_contact_header(req.resume, _profile, current_user)
+
     job_id = create_job()
-    start_tailor_job(job_id, req.job_description, req.resume, openai_api_key=openai_key)
+    start_tailor_job(job_id, req.job_description, resume_with_header, openai_api_key=openai_key)
     return {"job_id": job_id, "status": "running"}
 
 
@@ -119,6 +122,8 @@ async def start_tailor_for_job(
     if not openai_key:
         raise HTTPException(400, "OpenAI API key not configured. Add it in Settings → Credentials.")
 
+    contact_header = _build_contact_header(profile, current_user)
+
     tailor_job_id = create_job()
     start_tailor_job_for_job(
         tailor_job_id,
@@ -127,6 +132,7 @@ async def start_tailor_for_job(
         username,
         company,
         openai_api_key=openai_key,
+        contact_header=contact_header,
     )
     return {"job_id": tailor_job_id, "status": "running"}
 
@@ -325,3 +331,39 @@ async def profile_resume_text(
     if not text.strip():
         raise HTTPException(422, "Could not extract text from the stored resume.")
     return {"text": text, "filename": profile.resume_filename or file_path.name}
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _build_contact_header(profile, user) -> str:
+    """Build a plain-text contact header from profile fields."""
+    parts = []
+    name = (getattr(profile, "full_name", "") or getattr(user, "full_name", "") or "").strip()
+    if name:
+        parts.append(name)
+    phone    = (getattr(profile, "phone",    "") or "").strip()
+    email    = (getattr(profile, "email",    "") or getattr(user, "email", "") or "").strip()
+    city     = (getattr(profile, "city",     "") or "").strip()
+    linkedin  = (getattr(profile, "linkedin",  "") or "").strip()
+    github    = (getattr(profile, "github",    "") or "").strip()
+    portfolio = (getattr(profile, "portfolio", "") or "").strip()
+    contact_line = " | ".join(x for x in [phone, email, linkedin, portfolio, github, city] if x)
+    if contact_line:
+        parts.append(contact_line)
+    return "\n".join(parts)
+
+
+def _inject_contact_header(resume_text: str, profile, user) -> str:
+    """
+    Prepend the profile contact header to the resume text if the header
+    fields are not already present (avoids duplicating info already there).
+    """
+    header = _build_contact_header(profile, user)
+    if not header:
+        return resume_text
+    # If the user's name already appears on the first line, skip injection
+    name = (getattr(profile, "full_name", "") or getattr(user, "full_name", "") or "").strip()
+    first_line = resume_text.strip().split("\n")[0].strip() if resume_text.strip() else ""
+    if name and name.lower() in first_line.lower():
+        return resume_text
+    return header + "\n\n" + resume_text
