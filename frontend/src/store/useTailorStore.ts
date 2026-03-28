@@ -10,7 +10,7 @@ export type TailorJobStatus = 'idle' | 'running' | 'complete' | 'error'
 export interface RoundResult {
   round: number
   score: number | null
-  status: 'pending' | 'running' | 'complete'
+  status: 'pending' | 'running' | 'complete' | 'skipped'
 }
 
 interface TailorState {
@@ -170,8 +170,13 @@ function _openStream(jobId: string) {
       store.addLine(`[ROUND] Round ${data.round} complete — score ${score ?? '?'}/100`)
       if (score != null) useTailorStore.setState({ score })
       if (data.round < 2) {
-        store.updateRound({ round: data.round + 1, score: null, status: 'running' })
-        store.addLine(`[STEP] Starting Round ${data.round + 1}...`)
+        if (score != null && score >= 100) {
+          store.updateRound({ round: data.round + 1, score: null, status: 'skipped' })
+          store.addLine('[OK] Perfect score — skipping Round 2.')
+        } else {
+          store.updateRound({ round: data.round + 1, score: null, status: 'running' })
+          store.addLine(`[STEP] Starting Round ${data.round + 1}...`)
+        }
       }
 
     } else if (data.event === 'process_complete') {

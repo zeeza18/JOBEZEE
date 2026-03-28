@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, Clock, Download, FileText, Loader2, Upload, User, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Download, FileText, Loader2, MinusCircle, Upload, User, XCircle } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { useTailorStore } from '../../store/useTailorStore'
@@ -256,15 +256,18 @@ const TailorPage = () => {
               {rounds.map((r) => (
                 <Card key={r.round} className={`p-4 flex items-center gap-4 ${
                   r.status === 'complete' ? 'border-emerald-200 bg-emerald-50/40' :
-                  r.status === 'running'  ? 'border-cyan-200 bg-cyan-50/40' :
+                  r.status === 'running'  ? 'border-cyan-200 bg-cyan-50/40'    :
+                  r.status === 'skipped'  ? 'border-slate-100 bg-slate-50/20 opacity-60' :
                   'border-slate-200 bg-slate-50/40'
                 }`}>
                   <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
                     r.status === 'complete' ? 'bg-emerald-100' :
-                    r.status === 'running'  ? 'bg-cyan-100'    : 'bg-slate-100'
+                    r.status === 'running'  ? 'bg-cyan-100'    :
+                    r.status === 'skipped'  ? 'bg-slate-100'   : 'bg-slate-100'
                   }`}>
                     {r.status === 'complete' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> :
                      r.status === 'running'  ? <Loader2 className="h-5 w-5 text-cyan-500 animate-spin" /> :
+                     r.status === 'skipped'  ? <MinusCircle className="h-5 w-5 text-slate-400" /> :
                                                <Clock className="h-5 w-5 text-slate-400" />}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -274,7 +277,8 @@ const TailorPage = () => {
                         ? r.score != null && r.score > 0
                           ? `Score: ${r.score}/100`
                           : 'Complete (score unavailable)'
-                        : r.status === 'running' ? 'AI tailoring in progress…'
+                        : r.status === 'running'  ? 'AI tailoring in progress…'
+                        : r.status === 'skipped'  ? 'Skipped — perfect score'
                         : 'Waiting…'}
                     </p>
                   </div>

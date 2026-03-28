@@ -390,6 +390,11 @@ class ResumeCrew:
                     "all_evaluations": list(all_evaluations),
                 })
 
+            # Perfect score — no point running more rounds
+            if best_score >= 100:
+                print(f"[OK] Perfect score ({best_score}/100) after Round {round_num} — skipping remaining rounds.")
+                break
+
         if best_round == 0 and all_evaluations:
             best_round = len(all_evaluations)
             best_evaluation = all_evaluations[-1]
