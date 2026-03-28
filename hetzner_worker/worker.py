@@ -78,6 +78,9 @@ _CONNECT_CDP_PORT = 9223   # fixed CDP port for connect-session Chrome
 
 def _auth(authorization: str) -> None:
     if WORKER_SECRET and authorization != f"Bearer {WORKER_SECRET}":
+        # Log what was received to help diagnose secret mismatches
+        import pathlib as _pl
+        _pl.Path("/tmp/last_auth.txt").write_text(authorization)
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
