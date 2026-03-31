@@ -623,8 +623,103 @@ const AutoApplyPage = () => {
             {/* Log */}
             {lines.length > 0 && (
               <div ref={logRef}
-                className="h-40 overflow-y-auto rounded-xl bg-slate-950 px-4 py-3 font-mono text-xs leading-relaxed text-slate-300">
-                {lines.map((line, i) => <div key={i} className="break-all">{line}</div>)}
+                className="h-48 overflow-y-auto rounded-xl bg-slate-950 px-3 py-3 text-xs leading-relaxed space-y-0.5">
+                {lines.map((line, i) => {
+                  // ── Opening / trying to apply ──────────────────────────
+                  const tryingMatch = line.match(/Trying to Apply to "(.+?) \| (.+?)"/i)
+                  if (tryingMatch) {
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <span className="text-cyan-400 animate-pulse shrink-0">▶</span>
+                        <span className="text-slate-300">
+                          Opening <span className="text-white font-semibold">{tryingMatch[1]}</span>
+                          <span className="text-slate-500"> at </span>
+                          <span className="text-cyan-300">{tryingMatch[2]}</span>
+                        </span>
+                      </div>
+                    )
+                  }
+                  // ── Applied / submitted ────────────────────────────────
+                  if (/applied|submitted/i.test(line) && /success|confirm|✓/i.test(line)) {
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <span className="text-emerald-400 shrink-0">✓</span>
+                        <span className="text-emerald-300 font-semibold">{line.trim()}</span>
+                      </div>
+                    )
+                  }
+                  // ── Already applied (skipped) ──────────────────────────
+                  const alreadyMatch = line.match(/Already applied to "(.+?) \| (.+?)"/i)
+                  if (alreadyMatch) {
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <span className="text-slate-500 shrink-0">↩</span>
+                        <span className="text-slate-500">
+                          Skipped <span className="text-slate-400">{alreadyMatch[1]}</span>
+                          <span className="text-slate-600"> at </span>
+                          <span className="text-slate-400">{alreadyMatch[2]}</span>
+                          <span className="text-slate-600"> — already applied</span>
+                        </span>
+                      </div>
+                    )
+                  }
+                  // ── Skipping / ignored ─────────────────────────────────
+                  const skipMatch = line.match(/Skipping(?:\s+previously\s+rejected)?\s+"(.+?) \| (.+?)"(?:\s+job)?\s*[—–-]?\s*(.*)/i)
+                  if (skipMatch || /Skipping.*job/i.test(line)) {
+                    const title   = skipMatch?.[1] ?? ''
+                    const company = skipMatch?.[2] ?? ''
+                    const reason  = (skipMatch?.[3] ?? '')
+                      .replace(/Job ID:.*$/i, '').trim()
+                      .replace(/title doesn['']t match AI keywords/i, 'role mismatch')
+                      .replace(/Blacklisted Company/i, 'blacklisted')
+                      .replace(/previously rejected/i, 'rejected before')
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <span className="text-amber-500 shrink-0">✕</span>
+                        <span className="text-slate-400">
+                          {title ? (
+                            <><span className="text-slate-300">{title}</span><span className="text-slate-600"> at </span><span className="text-slate-300">{company}</span></>
+                          ) : 'Role'}{' '}
+                          <span className="text-amber-500/80">ignored{reason ? ` — ${reason}` : ''}</span>
+                        </span>
+                      </div>
+                    )
+                  }
+                  // ── JD / experience failed ─────────────────────────────
+                  if (/\[JD\] FAILED/i.test(line)) {
+                    const detail = line.replace(/\[JD\] FAILED\s*--?\s*/i, '').replace(/Job ID:.*$/i, '').trim()
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <span className="text-amber-500 shrink-0">✕</span>
+                        <span className="text-amber-500/80">Role ignored — {detail || 'requirements not met'}</span>
+                      </div>
+                    )
+                  }
+                  // ── Search context ─────────────────────────────────────
+                  const searchMatch = line.match(/\[Search\] Navigating.*for:\s*"(.+?)"/i)
+                  if (searchMatch) {
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-0.5 border-t border-slate-800 mt-1 pt-1">
+                        <span className="text-slate-600 shrink-0">⌕</span>
+                        <span className="text-slate-500">Searching <span className="text-slate-400">{searchMatch[1]}</span></span>
+                      </div>
+                    )
+                  }
+                  // ── Jobs found count ───────────────────────────────────
+                  const foundMatch = line.match(/\[Jobs\] Found (\d+) job listings/i)
+                  if (foundMatch) {
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <span className="text-slate-600 shrink-0">◈</span>
+                        <span className="text-slate-500"><span className="text-slate-300">{foundMatch[1]}</span> roles found</span>
+                      </div>
+                    )
+                  }
+                  // ── Default: dim raw line ──────────────────────────────
+                  return (
+                    <div key={i} className="text-slate-600 font-mono break-all">{line}</div>
+                  )
+                })}
                 {status === 'running' && (
                   <div className="flex gap-1.5 pt-1 text-cyan-400"><span className="animate-pulse">●</span><span className="text-slate-500">working…</span></div>
                 )}
