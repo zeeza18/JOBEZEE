@@ -227,6 +227,7 @@ def start_linkedin_bot(job_id: str, profile, resume_pdf_path: str = "", resume_u
 def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = "", tailor_before_apply: bool = False) -> None:
     with _lock:
         _jobs[job_id]["status"] = "running"
+        user_profile_id: str = _jobs[job_id].get("user_profile_id", "") or ""
 
     tmp_config = None
     proc = None
@@ -287,10 +288,14 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
         _li_cookies_json = ""
         if _li_cookies_raw:
             try:
-                _li_cookies_json = _decrypt(_li_cookies_raw)
-                _append(job_id, "[JOBEZEE] Saved LinkedIn session cookies found — will inject on startup")
-            except Exception:
-                _append(job_id, "[JOBEZEE][WARN] Could not decrypt linkedin_cookies — logging in fresh")
+                _li_cookies_json = _decrypt(_li_cookies_raw) or ""
+                if _li_cookies_json:
+                    _append(job_id, "[JOBEZEE] Saved LinkedIn session cookies found — will inject on startup")
+                else:
+                    _append(job_id, "[JOBEZEE][WARN] linkedin_cookies decrypted to empty string — logging in fresh")
+            except Exception as _ce:
+                _li_cookies_json = ""
+                _append(job_id, f"[JOBEZEE][WARN] Could not decrypt linkedin_cookies ({_ce}) — logging in fresh")
 
         import platform as _platform
         _is_windows = _platform.system() == "Windows"
