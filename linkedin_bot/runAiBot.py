@@ -686,10 +686,15 @@ def extract_years_of_experience(text: str) -> int:
 
 def _is_role_relevant(title: str, jd: str, terms: list) -> bool:
     """
-    Returns True if the job title or JD is relevant to the user's preferred roles.
-    Strips generic words (engineer, developer, etc.) to extract domain keywords,
-    then checks with word boundaries so 'ai' doesn't match 'entertainment'.
-    Falls through to True if no search_terms configured (no false-negatives).
+    Returns True if the job is relevant to the user's preferred roles.
+
+    Logic (permissive — avoids false-negatives):
+    - If title matches any domain keyword → True (fast pass)
+    - Else if JD is available (>100 chars) and also has no match → False (confident skip)
+    - Else (JD empty/short/unavailable) → True (benefit of the doubt)
+
+    "Domain keywords" = search term words minus common seniority/role suffixes.
+    Word-boundary matched so 'ai' never matches inside 'entertainment'.
     """
     if not terms:
         return True
@@ -697,6 +702,15 @@ def _is_role_relevant(title: str, jd: str, terms: list) -> bool:
         "engineer", "developer", "scientist", "analyst", "researcher", "specialist",
         "manager", "lead", "senior", "junior", "associate", "principal", "staff",
         "architect", "consultant", "advisor", "intern", "contractor", "director",
+    }
+    # Domain synonyms — expand so "ai" also catches "llm", "ml", "machine learning" etc.
+    _SYNONYMS: dict[str, set[str]] = {
+        "ai":               {"ml", "llm", "nlp", "machine learning", "deep learning", "neural", "generative ai", "genai"},
+        "ml":               {"ai", "llm", "machine learning", "deep learning", "neural", "mlops"},
+        "machine learning": {"ai", "ml", "llm", "deep learning", "neural"},
+        "data":             {"analytics", "sql", "bi", "tableau", "power bi"},
+        "backend":          {"api", "microservices", "node", "python", "golang"},
+        "frontend":         {"react", "vue", "angular", "typescript", "javascript"},
     }
     import re as _re
     kws: set[str] = set()
@@ -708,18 +722,26 @@ def _is_role_relevant(title: str, jd: str, terms: list) -> bool:
         if domain:
             kws.add(" ".join(domain))
             kws.update(w for w in domain if len(w) > 1)
+            # Expand synonyms for each domain word
+            for w in domain:
+                kws.update(_SYNONYMS.get(w, set()))
     patterns = [_re.compile(r"\b" + _re.escape(kw) + r"\b", _re.IGNORECASE) for kw in kws]
 
     title_lo = (title or "").lower()
     if any(p.search(title_lo) for p in patterns):
         return True
 
-    # Title didn't match — scan first 2000 chars of JD for domain keywords
-    if jd and jd != "Unknown" and len(jd) > 50:
-        jd_sample = jd[:2000].lower()
-        if any(p.search(jd_sample) for p in patterns):
-            print_lg(f"[JOBEZEE] Role keywords found in JD (not title) — proceeding with: {title}")
-            return True
+    # Title didn't match — only skip if JD is long enough to be conclusive
+    jd_available = jd and jd != "Unknown" and len(jd) > 100
+    if not jd_available:
+        # JD empty/short — can't be sure; give benefit of the doubt
+        print_lg(f"[JOBEZEE] Title '{title}' didn't match, but JD unavailable — proceeding (benefit of doubt)")
+        return True
+
+    jd_sample = jd[:2000].lower()
+    if any(p.search(jd_sample) for p in patterns):
+        print_lg(f"[JOBEZEE] Role keywords found in JD (not title) — proceeding with: {title}")
+        return True
 
     return False
 
