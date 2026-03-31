@@ -684,6 +684,46 @@ def extract_years_of_experience(text: str) -> int:
 
 
 
+def _is_role_relevant(title: str, jd: str, terms: list) -> bool:
+    """
+    Returns True if the job title or JD is relevant to the user's preferred roles.
+    Strips generic words (engineer, developer, etc.) to extract domain keywords,
+    then checks with word boundaries so 'ai' doesn't match 'entertainment'.
+    Falls through to True if no search_terms configured (no false-negatives).
+    """
+    if not terms:
+        return True
+    _GENERIC = {
+        "engineer", "developer", "scientist", "analyst", "researcher", "specialist",
+        "manager", "lead", "senior", "junior", "associate", "principal", "staff",
+        "architect", "consultant", "advisor", "intern", "contractor", "director",
+    }
+    import re as _re
+    kws: set[str] = set()
+    for term in terms:
+        term_lo = term.lower()
+        kws.add(term_lo)
+        words = term_lo.split()
+        domain = [w for w in words if w not in _GENERIC]
+        if domain:
+            kws.add(" ".join(domain))
+            kws.update(w for w in domain if len(w) > 1)
+    patterns = [_re.compile(r"\b" + _re.escape(kw) + r"\b", _re.IGNORECASE) for kw in kws]
+
+    title_lo = (title or "").lower()
+    if any(p.search(title_lo) for p in patterns):
+        return True
+
+    # Title didn't match — scan first 2000 chars of JD for domain keywords
+    if jd and jd != "Unknown" and len(jd) > 50:
+        jd_sample = jd[:2000].lower()
+        if any(p.search(jd_sample) for p in patterns):
+            print_lg(f"[JOBEZEE] Role keywords found in JD (not title) — proceeding with: {title}")
+            return True
+
+    return False
+
+
 def get_job_description(
 ) -> tuple[
     str | Literal['Unknown'],
@@ -709,12 +749,18 @@ def get_job_description(
         skip = False
         skipReason = None
         skipMessage = None
-        # Click "See more" to expand truncated JDs before extracting
+        # Click "See more" / "Show more" to expand truncated JDs before extracting
         _see_more_clicked = False
         for _xpath in [
             '//button[contains(@aria-label,"see more")]',
+            '//button[contains(@aria-label,"See more")]',
+            '//button[contains(@aria-label,"show more")]',
+            '//button[contains(@aria-label,"Show more")]',
             '//button[normalize-space()="See more"]',
+            '//button[normalize-space()="Show more"]',
             '//button[contains(@class,"inline-show-more-text__button") and not(contains(@class,"see-less"))]',
+            '//span[normalize-space()="See more"]/ancestor::button[1]',
+            '//span[normalize-space()="Show more"]/ancestor::button[1]',
         ]:
             try:
                 _btn = driver.find_element(By.XPATH, _xpath)
@@ -1384,6 +1430,20 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                         skip_count += 1
                         continue
 
+                    # ── Role relevance check (title + JD keywords) ────────────
+                    # Skip before tailoring to save tokens.
+                    # Passes if title OR first 2000 chars of JD contain domain keywords.
+                    if not _is_role_relevant(title, description, list(search_terms)):
+                        _skip_msg = (
+                            f'[JOBEZEE] Skipping "{title}" at {company} — '
+                            f'title/JD not relevant to preferred roles: {list(search_terms)}\n'
+                        )
+                        print_lg(_skip_msg)
+                        failed_job(job_id, job_link, resume, date_listed, "Not relevant to preferred roles", _skip_msg, "Skipped", screenshot_name)
+                        rejected_jobs.add(job_id)
+                        skip_count += 1
+                        continue
+
                     skills = "N/A"
 
                     # ── Per-job resume tailoring ──────────────────────────────
@@ -1396,7 +1456,9 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                             try:
                                 from backend.services.tailor_service import _clean_job_description
                                 _clean_jd = _clean_job_description(description)
-                                _jd_for_tailor = _clean_jd if len(_clean_jd.split()) >= 40 else description
+                                # < 200 chars: too short to clean — send full JD
+                                # >= 200 chars: strip boilerplate, keep requirements/qualifications only
+                                _jd_for_tailor = description if len(description) < 200 else _clean_jd
                                 print_lg(f"[Tailor] JD: {len(description)} chars -> {len(_jd_for_tailor)} chars after cleaning")
                             except Exception:
                                 _jd_for_tailor = description
@@ -1424,7 +1486,16 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                             _tailored = _result.get("final_resume", "")
                             if _tailored:
                                 globals()["user_information_all"] = _tailored
-                                print_lg(f"[Tailor] Done (score: {_result.get('final_score', 'N/A')})")
+                                # Confirm name is preserved in tailored output
+                                _name_check = f"{first_name} {last_name}".strip()
+                                _name_in_tailored = _name_check.lower() in _tailored.lower() if _name_check else True
+                                print_lg(
+                                    f"[Tailor] Done (score: {_result.get('final_score', 'N/A')}) | "
+                                    f"Name '{_name_check}' in tailored resume: {'YES' if _name_in_tailored else 'MISSING — check crew prompt'}"
+                                )
+                                if not _name_in_tailored and _name_check:
+                                    print_lg(f"[Tailor][WARN] Name not found in tailored output. Prepending contact header.")
+                                    globals()["user_information_all"] = f"{_name_check}\n\n{_tailored}"
                             else:
                                 print_lg("[Tailor] Returned empty result, using original resume")
                         except Exception as _e:
