@@ -101,13 +101,22 @@ async def list_applied_jobs(
     db: AsyncSession = Depends(get_db),
 ):
     pid = uuid.UUID(current_user.id)
+
+    # Show only jobs that were explicitly acted on by the user/bot
+    _TRACKER_STATUSES = {
+        "applying", "applied",
+        "interview_r1", "interview_r2", "interview_r3",
+        "offer", "rejected", "ghosted", "failed",
+    }
+
     res = await db.execute(
         select(PulledJob)
         .where(
             PulledJob.user_profile_id == pid,
-            PulledJob.status.not_in(["new", "saved", "hidden"]),
+            PulledJob.status.in_(list(_TRACKER_STATUSES)),
         )
         .order_by(PulledJob.pulled_at.desc())
+        .limit(200)
     )
     jobs = res.scalars().all()
 
@@ -122,16 +131,17 @@ async def list_applied_jobs(
 
     result = [
         {
-            "job_id":       str(j.id),
-            "title":        j.title or "",
-            "company":      j.company or "",
-            "url":          j.url or "",
-            "salary":       _salary(j),
-            "date_posted":  j.posted_at or "",
-            "date_applied": j.pulled_at.strftime("%b %d, %Y") if j.pulled_at else "",
-            "platform":     j.site or j.source or "",
-            "work_style":   j.job_type or "",
-            "status":       j.status if j.status in VALID_STATUSES else "applied",
+            "job_id":          str(j.id),
+            "title":           j.title or "",
+            "company":         j.company or "",
+            "url":             j.url or "",
+            "salary":          _salary(j),
+            "date_posted":     j.posted_at or "",
+            "date_applied":    j.pulled_at.strftime("%b %d, %Y") if j.pulled_at else "",
+            "platform":        j.site or j.source or "",
+            "work_style":      j.job_type or "",
+            "status":          j.status if j.status in VALID_STATUSES else "applied",
+            "resume_used_url": getattr(j, "resume_used_url", "") or "",
         }
         for j in jobs
     ]

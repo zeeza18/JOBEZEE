@@ -66,6 +66,7 @@ interface TrackedJob {
   job_id: string; title: string; company: string; url: string
   salary: string; date_posted: string; date_applied: string
   platform: string; work_style: string; status: string
+  resume_used_url?: string
 }
 
 const STATUS_CFG: Record<string, { label: string; cls: string; spinning?: boolean }> = {
@@ -393,7 +394,7 @@ const DashboardPage = () => {
             <table className="min-w-[700px] w-full text-xs border-collapse">
                 <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                   <tr>
-                    {['Company','Job Title','Salary','Posted','Applied','Platform','Status',''].map((h, i) => (
+                    {['Company','Job Title','Salary','Posted','Applied','Platform','Status','Resume',''].map((h, i) => (
                       <th key={i} className="px-3 py-2.5 text-left font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -457,28 +458,35 @@ const DashboardPage = () => {
                             </div>
                           )}
                         </td>
+                        {/* Resume used */}
+                        <td className="px-3 py-2.5 min-w-[80px]">
+                          {(job.resume_used_url || profile?.resume_url) ? (
+                            <a
+                              href={job.resume_used_url
+                                ? (job.resume_used_url.startsWith('http') ? job.resume_used_url : `${BASE}${job.resume_used_url}`)
+                                : `${BASE}/api/profile/resume/download`}
+                              target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-[10px] font-semibold text-violet-500 hover:text-violet-700 transition-colors"
+                              title={job.resume_used_url ? "View tailored resume used for this job" : "View your current resume"}
+                            >
+                              <Eye className="h-3 w-3" />
+                              {job.resume_used_url ? 'Tailored' : 'Resume'}
+                            </a>
+                          ) : (
+                            <span className="text-slate-300 text-[10px]">—</span>
+                          )}
+                        </td>
                         {/* Actions */}
                         <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-0.5">
-                            {job.url ? (
-                              <a href={job.url} target="_blank" rel="noopener noreferrer"
-                                className="p-1.5 rounded-lg hover:bg-cyan-50 transition-colors text-slate-300 hover:text-cyan-500"
-                                title="Open job posting">
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </a>
-                            ) : (
-                              <span className="p-1.5 text-slate-200"><ExternalLink className="h-3.5 w-3.5" /></span>
-                            )}
-                            {profile?.resume_url ? (
-                              <a href={`${BASE}${profile.resume_url}`} target="_blank" rel="noopener noreferrer"
-                                className="p-1.5 rounded-lg hover:bg-violet-50 transition-colors text-slate-300 hover:text-violet-500"
-                                title="View resume used">
-                                <Eye className="h-3.5 w-3.5" />
-                              </a>
-                            ) : (
-                              <span className="p-1.5 text-slate-200"><Eye className="h-3.5 w-3.5" /></span>
-                            )}
-                          </div>
+                          {job.url ? (
+                            <a href={job.url} target="_blank" rel="noopener noreferrer"
+                              className="p-1.5 rounded-lg hover:bg-cyan-50 transition-colors text-slate-300 hover:text-cyan-500"
+                              title="Open job posting">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : (
+                            <span className="p-1.5 text-slate-200"><ExternalLink className="h-3.5 w-3.5" /></span>
+                          )}
                         </td>
                       </tr>
                     )
@@ -511,11 +519,9 @@ const DashboardPage = () => {
                       <td className="px-3 py-3">
                         <span className="rounded-full bg-slate-100 text-slate-400 text-[10px] font-bold px-2.5 py-0.5 border border-slate-200">—</span>
                       </td>
+                      <td className="px-3 py-3"><span className="text-slate-200 text-[10px]">—</span></td>
                       <td className="px-3 py-3">
-                        <div className="flex items-center gap-0.5">
-                          <div className="p-1.5"><ExternalLink className="h-3.5 w-3.5 text-slate-200" /></div>
-                          <div className="p-1.5"><Eye className="h-3.5 w-3.5 text-slate-200" /></div>
-                        </div>
+                        <div className="p-1.5"><ExternalLink className="h-3.5 w-3.5 text-slate-200" /></div>
                       </td>
                     </tr>
                   ))}

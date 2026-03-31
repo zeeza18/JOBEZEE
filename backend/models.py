@@ -188,7 +188,8 @@ class PulledJob(Base):
     skills          = Column(JSON, default=list)
 
     # ── User action ──────────────────────────────────────────────────────────
-    status   = Column(String(50), default="new")   # new / saved / applied / hidden
+    status          = Column(String(50), default="new")   # new / saved / applied / hidden
+    resume_used_url = Column(String(500), default="")     # URL of the resume used when applying
 
     pulled_at = Column(DateTime(timezone=True), server_default=func.now())
 

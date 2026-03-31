@@ -136,6 +136,7 @@ async def run_column_migrations() -> None:
         ("source",            "VARCHAR(100) DEFAULT ''"),
         ("skills",            "JSON         DEFAULT '[]'::json"),
         ("status",            "VARCHAR(50)  DEFAULT 'new'"),
+        ("resume_used_url",   "VARCHAR(500) DEFAULT ''"),
     ]
 
     async with engine.begin() as conn:

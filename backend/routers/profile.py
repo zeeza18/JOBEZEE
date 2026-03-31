@@ -18,6 +18,7 @@ import re
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, select
 
@@ -183,6 +184,55 @@ async def upload_resume(
     await db.commit()
 
     return {"filename": file.filename, "url": f"/uploads/resumes/{safe_name}"}
+
+
+# ── Resume download (from DB bytes — survives ephemeral filesystem) ───────────
+
+@router.get("/resume/download")
+async def download_resume(
+    current_user : User          = Depends(get_current_user),
+    db           : AsyncSession  = Depends(get_db),
+):
+    """
+    Serve the user's resume PDF from DB (resume_bytes field).
+    Falls back to disk if bytes missing. Always returns the PDF regardless
+    of whether the file exists on the ephemeral Render filesystem.
+    """
+    pid    = _profile_id_for(current_user)
+    result = await db.execute(select(UserProfile).where(UserProfile.id == pid))
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        raise HTTPException(404, "Profile not found")
+
+    import base64 as _b64
+
+    # Try DB bytes first (survives deploys)
+    if profile.resume_bytes:
+        try:
+            pdf_bytes = _b64.b64decode(profile.resume_bytes)
+            filename  = profile.resume_filename or "resume.pdf"
+            return Response(
+                content     = pdf_bytes,
+                media_type  = "application/pdf",
+                headers     = {"Content-Disposition": f'inline; filename="{filename}"'},
+            )
+        except Exception:
+            pass
+
+    # Fallback: read from disk
+    if profile.resume_url:
+        from ..config import get_settings as _cfg
+        disk_path = Path(_cfg().UPLOAD_DIR) / profile.resume_url.lstrip("/uploads/")
+        if disk_path.exists():
+            pdf_bytes = disk_path.read_bytes()
+            return Response(
+                content     = pdf_bytes,
+                media_type  = "application/pdf",
+                headers     = {"Content-Disposition": f'inline; filename="{disk_path.name}"'},
+            )
+
+    raise HTTPException(404, "No resume on file. Please upload one in Profile → Resume.")
 
 
 # ── Avatar upload ──────────────────────────────────────────────────────────────
