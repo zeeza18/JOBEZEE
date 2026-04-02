@@ -1504,7 +1504,11 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                             _base_info = _cp1252_safe(globals().get("user_information_all", ""))
                             _openai_key = _llm_key if (_llm_key and _llm_key != "not-needed") else None
                             _crew = ResumeCrew(openai_api_key=_openai_key)
-                            _result = _crew.run_tailoring_process(_jd_for_tailor, _base_info, None)
+                            # Per-job output dir so .tex/.pdf files don't overwrite across jobs
+                            import tempfile as _tmpfile
+                            _safe_co = re.sub(r'[^\w]', '_', company or 'company')[:20]
+                            _job_outdir = Path(_tmpfile.mkdtemp(prefix=f"tailor_{_safe_co}_"))
+                            _result = _crew.run_tailoring_process(_jd_for_tailor, _base_info, None, output_dir=_job_outdir)
                             _tailored = _result.get("final_resume", "")
                             if _tailored:
                                 globals()["user_information_all"] = _tailored
@@ -1518,6 +1522,39 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                 if not _name_in_tailored and _name_check:
                                     print_lg(f"[Tailor][WARN] Name not found in tailored output. Prepending contact header.")
                                     globals()["user_information_all"] = f"{_name_check}\n\n{_tailored}"
+
+                                # ── Compile tailored .tex → PDF and use it for upload ──
+                                _latex_sum = _result.get("latex_summary", {})
+                                _tex_str   = _latex_sum.get("output_tex_path", "")
+                                _pdf_ready = False
+                                if _tex_str and Path(_tex_str).exists():
+                                    import subprocess as _sp, shutil as _shu
+                                    _tex_p = Path(_tex_str)
+                                    _pdflatex_bin = _shu.which("pdflatex") or "/usr/bin/pdflatex"
+                                    try:
+                                        _sp.run(
+                                            [_pdflatex_bin, "-interaction=nonstopmode",
+                                             f"-output-directory={_tex_p.parent}", str(_tex_p)],
+                                            capture_output=True, text=True, timeout=120, check=False,
+                                        )
+                                        _compiled = _tex_p.with_suffix(".pdf")
+                                        if _compiled.exists():
+                                            _safe_co_pdf = re.sub(r'[^\w]', '_', company or 'Company')[:30]
+                                            _named_pdf   = _tex_p.parent / f"{_safe_co_pdf}_tailored_resume.pdf"
+                                            _shu.copy2(_compiled, _named_pdf)
+                                            globals()["default_resume_path"] = str(_named_pdf)
+                                            globals()["useNewResume"] = True
+                                            _pdf_ready = True
+                                            print_lg(f"[Tailor] PDF ready → {_named_pdf.name}")
+                                        else:
+                                            print_lg("[Tailor] pdflatex ran but no PDF produced — using original PDF")
+                                    except Exception as _pex:
+                                        print_lg(f"[Tailor] pdflatex error: {_pex} — using original PDF")
+                                else:
+                                    print_lg("[Tailor] No .tex generated — using original PDF")
+                                if not _pdf_ready:
+                                    # Text was tailored for AI answers; upload uses existing original PDF
+                                    globals()["useNewResume"] = True
                             else:
                                 print_lg("[Tailor] Returned empty result, using original resume")
                         except Exception as _e:
