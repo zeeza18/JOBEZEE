@@ -1036,20 +1036,75 @@ const AutoApplyPage = () => {
               )}
 
               <div ref={liLogRef}
-                className="h-48 overflow-y-auto rounded-xl bg-slate-950 px-4 py-3 font-mono text-xs leading-relaxed space-y-0.5">
-                {liLines.length === 0 && <span className="text-slate-600">Starting bot…</span>}
+                className="h-64 overflow-y-auto rounded-xl bg-slate-950 px-4 py-3 text-xs leading-relaxed space-y-1">
+                {liLines.length === 0 && <span className="text-slate-500">Starting bot…</span>}
                 {liLines.map((line, i) => {
-                  const cls =
-                    /\[ERROR\]|\bERROR\b|failed|exception/i.test(line) ? 'text-red-400' :
-                    /\[WARN\]|\bwarning\b/i.test(line)                  ? 'text-amber-400' :
-                    /\[OK\]|Successfully|Applied|PASSED/i.test(line)    ? 'text-emerald-400' :
-                    /\[JOBEZEE\]/i.test(line)                           ? 'text-cyan-300' :
-                    /\[Tailor\]/i.test(line)                            ? 'text-violet-300' :
-                    /\[Resume\]/i.test(line)                            ? 'text-blue-300' :
-                    /\[JD\]/i.test(line)                                ? 'text-slate-400' :
-                    /Skipping|FAILED|Click Failed/i.test(line)          ? 'text-slate-500' :
-                    'text-slate-300'
-                  return <div key={i} className={`break-all ${cls}`}>{line}</div>
+                  // ── Transform raw bot lines into human-readable messages ──────
+                  type LogEntry = { text: string; cls: string } | null
+                  const parse = (raw: string): LogEntry => {
+                    // Applied successfully
+                    const saved = raw.match(/Successfully saved "(.+?)\s*\|\s*(.+?)"\s*job/i)
+                    if (saved) return { text: `Applied! ${saved[1]} at ${saved[2]}`, cls: 'text-emerald-400 font-semibold' }
+
+                    // Trying to apply
+                    const trying = raw.match(/Trying to Apply to "(.+?)\s*\|\s*(.+?)"\s*job/i)
+                    if (trying) return { text: `Applying to: ${trying[1]} at ${trying[2]}`, cls: 'text-white font-medium' }
+
+                    // Skipping a job
+                    const skip = raw.match(/\[JOBEZEE\] Skipping "(.+?)"\s+at\s+(.+?)\s+[—–-]/i)
+                      || raw.match(/\[JOBEZEE\] Skipping "(.+?)\s*\|\s*(.+?)"/i)
+                    if (skip) return { text: `Skipping: ${skip[1]} at ${skip[2]}`, cls: 'text-slate-500' }
+
+                    // Cookies / login
+                    if (/Injecting .+ cookies/i.test(raw))          return { text: 'Logging into LinkedIn…', cls: 'text-cyan-400' }
+                    if (/Cookies injected/i.test(raw))              return { text: 'LinkedIn session active', cls: 'text-cyan-400' }
+                    if (/Cookie injection failed/i.test(raw))       return { text: 'Logging in fresh…', cls: 'text-cyan-400' }
+                    if (/logging in fresh/i.test(raw))              return { text: 'Logging in to LinkedIn…', cls: 'text-cyan-400' }
+
+                    // Bot ready
+                    if (/Chrome session ready/i.test(raw))          return { text: 'Browser ready', cls: 'text-slate-400' }
+                    if (/Slot available.*starting bot/i.test(raw))  return { text: 'Slot available — starting now', cls: 'text-cyan-300' }
+                    if (/Bot job accepted/i.test(raw))              return { text: 'Bot started on server', cls: 'text-cyan-300' }
+
+                    // Search config lines — show them
+                    if (/\[JOBEZEE\] Using name:/i.test(raw))       return { text: raw.replace('[JOBEZEE] ', ''), cls: 'text-slate-400' }
+                    if (/\[JOBEZEE\] search_terms/i.test(raw)) {
+                      const roles = raw.match(/\[.*?\]\s*(.+)/)
+                      return { text: `Searching for: ${roles ? roles[1] : ''}`, cls: 'text-slate-400' }
+                    }
+                    if (/\[JOBEZEE\] tailor_resume/i.test(raw))     return { text: raw.replace('[JOBEZEE] ', ''), cls: 'text-slate-400' }
+
+                    // Resume
+                    if (/\[Resume\] Sending:/i.test(raw))           return { text: raw.replace('[Resume] ', 'Resume: '), cls: 'text-blue-400' }
+                    if (/\[Resume\]/i.test(raw))                    return { text: raw.replace('[Resume] ', 'Resume: '), cls: 'text-blue-400' }
+
+                    // Tailor
+                    if (/\[Tailor\]/i.test(raw))                    return { text: raw.replace(/\[Tailor\]\s*/i, 'Tailoring: '), cls: 'text-violet-400' }
+
+                    // Daily limit
+                    if (/DAILY_LIMIT_REACHED/i.test(raw))          return null  // handled by rate_limited status
+
+                    // Errors
+                    if (/\[JOBEZEE\] ERROR:|WORKER ERROR/i.test(raw)) return { text: raw.replace(/\[JOBEZEE\]\s*/i, ''), cls: 'text-red-400' }
+                    if (/\[JOBEZEE\] Bot stopped by user/i.test(raw)) return { text: 'Bot stopped', cls: 'text-amber-400' }
+                    if (/\[JOBEZEE\] Bot finished/i.test(raw))        return { text: 'Bot finished', cls: 'text-slate-400' }
+
+                    // Daily limit / warnings
+                    if (/daily.*apply.*limit/i.test(raw))           return { text: 'LinkedIn daily limit reached', cls: 'text-amber-400' }
+                    if (/\[CAPTCHA\]/i.test(raw))                   return { text: 'Handling verification…', cls: 'text-amber-400' }
+
+                    // Hide everything else (technical noise)
+                    return null
+                  }
+
+                  const entry = parse(line)
+                  if (!entry) return null
+                  return (
+                    <div key={i} className={`flex items-start gap-2 ${entry.cls}`}>
+                      <span className="mt-0.5 shrink-0 opacity-40">›</span>
+                      <span>{entry.text}</span>
+                    </div>
+                  )
                 })}
                 {liStatus === 'queued' && (
                   <div className="flex gap-1.5 pt-1 text-amber-400"><span className="animate-pulse">●</span><span className="text-slate-500">waiting for worker slot…</span></div>

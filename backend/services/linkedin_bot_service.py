@@ -411,8 +411,12 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
             else:
                 _append(job_id, "[JOBEZEE] Bot job accepted by Hetzner worker — streaming logs...")
             # Store sentinel so stop_linkedin_bot knows to call Hetzner stop API
+            _hetzner_sentinel = {"hetzner": True, "worker_url": _cfg.BOT_WORKER_URL, "secret": _cfg.WORKER_SECRET}
             with _lock:
-                _procs[job_id] = {"hetzner": True, "worker_url": _cfg.BOT_WORKER_URL, "secret": _cfg.WORKER_SECRET}
+                _procs[job_id] = _hetzner_sentinel
+                # Also persist in _jobs so stop works even if _procs was lost
+                if _jobs.get(job_id):
+                    _jobs[job_id]["hetzner_worker"] = _hetzner_sentinel
             # Logs arrive asynchronously via /api/bot/internal/log callback.
             # This thread is done; status updates come from the callback endpoint.
 
@@ -477,7 +481,11 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
         _append(job_id, f"[JOBEZEE] ERROR: {exc}")
     finally:
         with _lock:
-            _procs.pop(job_id, None)
+            # Keep Hetzner sentinel alive so stop_linkedin_bot can still reach the worker.
+            # It gets removed inside stop_linkedin_bot or when the job finishes via callback.
+            entry = _procs.get(job_id)
+            if not (isinstance(entry, dict) and entry.get("hetzner")):
+                _procs.pop(job_id, None)
         if tmp_config and os.path.exists(tmp_config):
             try:
                 os.unlink(tmp_config)
@@ -492,6 +500,9 @@ def stop_linkedin_bot(job_id: str) -> bool:
         job  = _jobs.get(job_id)
     if job is None:
         return False
+    # Fall back to stored hetzner info in _jobs if _procs sentinel was already cleared
+    if proc is None and isinstance(job.get("hetzner_worker"), dict):
+        proc = job["hetzner_worker"]
     if isinstance(proc, dict) and proc.get("hetzner"):
         # Running on Hetzner — call the worker's stop endpoint
         try:
