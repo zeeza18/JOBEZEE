@@ -1100,64 +1100,130 @@ const AutoApplyPage = () => {
               )}
 
               <div ref={liLogRef}
-                className="h-64 overflow-y-auto rounded-xl bg-slate-950 px-4 py-3 text-xs leading-relaxed space-y-1">
+                className="h-80 overflow-y-auto rounded-xl bg-slate-950 px-4 py-3 text-xs leading-relaxed space-y-1">
                 {liLines.length === 0 && <span className="text-slate-500">Starting bot…</span>}
                 {liLines.map((line, i) => {
-                  // ── Transform raw bot lines into human-readable messages ──────
                   type LogEntry = { text: string; cls: string } | null
                   const parse = (raw: string): LogEntry => {
-                    // Applied successfully
+                    // ── Noise to always hide ─────────────────────────────────────
+                    if (/DAILY_LIMIT_REACHED/i.test(raw))                  return null
+                    if (/runAiBot\.py started/i.test(raw))                 return null
+                    if (/importing open_chrome/i.test(raw))                return null
+                    if (/\[JOBEZEE\] Config written/i.test(raw))           return null
+                    if (/\[JOBEZEE\] Bot process started/i.test(raw))      return null
+                    if (/\[JOBEZEE\] Delegating to Hetzner/i.test(raw))    return null
+                    if (/\[JOBEZEE\] Saved LinkedIn session cookies found/i.test(raw)) return null
+                    if (/\[JOBEZEE\] (experience_level|on_site|job_type|salary)/i.test(raw)) return null
+                    if (/Extracted about company/i.test(raw))              return null
+                    if (/Failed to scroll to About Company/i.test(raw))    return null
+                    if (/HR info was not given/i.test(raw))                return null
+                    if (/Time Posted:|Applicants:/i.test(raw))             return null
+                    if (/Setting search location/i.test(raw))              return null
+                    if (/Didn't find Sign in link/i.test(raw))             return null
+                    if (/\[Search\] Typed|Typeahead not found|Feed step error/i.test(raw)) return null
+                    if (/\[Filters\] (Looking|Found|Setting)/i.test(raw))  return null
+
+                    // ── Applied ──────────────────────────────────────────────────
                     const saved = raw.match(/Successfully saved "(.+?)\s*\|\s*(.+?)"\s*job/i)
-                    if (saved) return { text: `Applied! ${saved[1]} at ${saved[2]}`, cls: 'text-emerald-400 font-semibold' }
+                    if (saved) return { text: `✓ Applied — ${saved[1]} at ${saved[2]}`, cls: 'text-emerald-400 font-semibold' }
 
-                    // Trying to apply
+                    // ── Currently applying ───────────────────────────────────────
                     const trying = raw.match(/Trying to Apply to "(.+?)\s*\|\s*(.+?)"\s*job/i)
-                    if (trying) return { text: `Applying to: ${trying[1]} at ${trying[2]}`, cls: 'text-white font-medium' }
+                    if (trying) return { text: `Applying → ${trying[1]} at ${trying[2]}`, cls: 'text-white font-medium' }
 
-                    // Skipping a job
-                    const skip = raw.match(/\[JOBEZEE\] Skipping "(.+?)"\s+at\s+(.+?)\s+[—–-]/i)
-                      || raw.match(/\[JOBEZEE\] Skipping "(.+?)\s*\|\s*(.+?)"/i)
-                    if (skip) return { text: `Skipping: ${skip[1]} at ${skip[2]}`, cls: 'text-slate-500' }
+                    // ── Already applied (skip) ───────────────────────────────────
+                    const already = raw.match(/Already applied to "(.+?)\s*\|\s*(.+?)"\s*job/i)
+                    if (already) return { text: `Already applied — ${already[1]} at ${already[2]}`, cls: 'text-slate-600' }
 
-                    // Cookies / login
-                    if (/Injecting .+ cookies/i.test(raw))          return { text: 'Logging into LinkedIn…', cls: 'text-cyan-400' }
-                    if (/Cookies injected/i.test(raw))              return { text: 'LinkedIn session active', cls: 'text-cyan-400' }
-                    if (/Cookie injection failed/i.test(raw))       return { text: 'Logging in fresh…', cls: 'text-cyan-400' }
-                    if (/logging in fresh/i.test(raw))              return { text: 'Logging in to LinkedIn…', cls: 'text-cyan-400' }
+                    // ── Skipping (with or without [JOBEZEE] prefix) ──────────────
+                    const skip = raw.match(/[Ss]kipping "(.+?)\s*\|\s*(.+?)"/)
+                      || raw.match(/[Ss]kipping "(.+?)"\s*(?:job\s*)?\((.+?)\)/)
+                    if (skip) return { text: `Skipped — ${skip[1]}${skip[2] ? ' at ' + skip[2] : ''}`, cls: 'text-slate-500' }
 
-                    // Bot ready
-                    if (/Chrome session ready/i.test(raw))          return { text: 'Browser ready', cls: 'text-slate-400' }
-                    if (/Slot available.*starting bot/i.test(raw))  return { text: 'Slot available — starting now', cls: 'text-cyan-300' }
-                    if (/Bot job accepted/i.test(raw))              return { text: 'Bot started on server', cls: 'text-cyan-300' }
-
-                    // Search config lines — show them
-                    if (/\[JOBEZEE\] Using name:/i.test(raw))       return { text: raw.replace('[JOBEZEE] ', ''), cls: 'text-slate-400' }
-                    if (/\[JOBEZEE\] search_terms/i.test(raw)) {
-                      const roles = raw.match(/\[.*?\]\s*(.+)/)
-                      return { text: `Searching for: ${roles ? roles[1] : ''}`, cls: 'text-slate-400' }
+                    // Skip due to irrelevance / blacklist
+                    if (/title doesn.*t match|Blacklisted|previously rejected/i.test(raw)) {
+                      const jm = raw.match(/"(.+?)\s*\|\s*(.+?)"/)
+                      return jm
+                        ? { text: `Skipped — ${jm[1]} at ${jm[2]}`, cls: 'text-slate-600' }
+                        : { text: 'Skipped irrelevant job', cls: 'text-slate-600' }
                     }
-                    if (/\[JOBEZEE\] tailor_resume/i.test(raw))     return { text: raw.replace('[JOBEZEE] ', ''), cls: 'text-slate-400' }
 
-                    // Resume
-                    if (/\[Resume\] Sending:/i.test(raw))           return { text: raw.replace('[Resume] ', 'Resume: '), cls: 'text-blue-400' }
-                    if (/\[Resume\]/i.test(raw))                    return { text: raw.replace('[Resume] ', 'Resume: '), cls: 'text-blue-400' }
+                    // ── Failed to apply ──────────────────────────────────────────
+                    if (/Failed to apply|Failed to Easy apply|Easy apply failed/i.test(raw)) {
+                      const jm = raw.match(/"(.+?)\s*\|\s*(.+?)"/)
+                      return jm
+                        ? { text: `Failed — ${jm[1]} at ${jm[2]}`, cls: 'text-red-400' }
+                        : { text: 'Failed to apply to a job', cls: 'text-red-400' }
+                    }
 
-                    // Tailor
-                    if (/\[Tailor\]/i.test(raw))                    return { text: raw.replace(/\[Tailor\]\s*/i, 'Tailoring: '), cls: 'text-violet-400' }
+                    // ── Login / cookies ──────────────────────────────────────────
+                    if (/Injecting .+ cookies/i.test(raw))           return { text: 'Restoring LinkedIn session…', cls: 'text-cyan-400' }
+                    if (/Cookies injected/i.test(raw))               return { text: 'LinkedIn session active ✓', cls: 'text-cyan-400' }
+                    if (/Cookie injection failed/i.test(raw))        return { text: 'Session expired — logging in fresh…', cls: 'text-cyan-300' }
+                    if (/logging in fresh/i.test(raw))               return { text: 'Logging in to LinkedIn…', cls: 'text-cyan-300' }
+                    if (/Login successful/i.test(raw))               return { text: 'Logged in ✓', cls: 'text-cyan-400' }
+                    if (/login attempt failed|Couldn't Login/i.test(raw)) return { text: 'Login failed — check credentials', cls: 'text-red-400' }
+                    if (/waiting for manual login/i.test(raw))       return { text: 'Waiting for manual login…', cls: 'text-amber-400' }
 
-                    // Daily limit
-                    if (/DAILY_LIMIT_REACHED/i.test(raw))          return null  // handled by rate_limited status
+                    // ── Browser / bot lifecycle ──────────────────────────────────
+                    if (/Chrome session ready/i.test(raw))           return { text: 'Browser launched ✓', cls: 'text-slate-400' }
+                    if (/Stealth.*navigator/i.test(raw))             return { text: 'Stealth mode active', cls: 'text-slate-600' }
+                    if (/Slot available.*starting bot/i.test(raw))   return { text: 'Worker slot available — starting', cls: 'text-cyan-300' }
+                    if (/Bot job accepted/i.test(raw))               return { text: 'Bot started on worker ✓', cls: 'text-cyan-300' }
 
-                    // Errors
-                    if (/\[JOBEZEE\] ERROR:|WORKER ERROR/i.test(raw)) return { text: raw.replace(/\[JOBEZEE\]\s*/i, ''), cls: 'text-red-400' }
-                    if (/\[JOBEZEE\] Bot stopped by user/i.test(raw)) return { text: 'Bot stopped', cls: 'text-amber-400' }
-                    if (/\[JOBEZEE\] Bot finished/i.test(raw))        return { text: 'Bot finished', cls: 'text-slate-400' }
+                    // ── Search phase ─────────────────────────────────────────────
+                    if (/\[Search\] Navigating to Jobs/i.test(raw)) {
+                      const role = raw.match(/for:\s*"(.+?)"/i)
+                      return { text: `Searching LinkedIn for: ${role ? role[1] : 'jobs'}`, cls: 'text-blue-300' }
+                    }
+                    if (/\[Search\] Ready/i.test(raw))               return { text: 'Search results loaded ✓', cls: 'text-blue-300' }
+                    if (/\[Filters\] Filters applied/i.test(raw))    return { text: 'Filters applied ✓', cls: 'text-blue-300' }
+                    if (/\[Jobs\] Job listings not found/i.test(raw)) return { text: 'No jobs found for this search term', cls: 'text-amber-400' }
 
-                    // Daily limit / warnings
-                    if (/daily.*apply.*limit/i.test(raw))           return { text: 'LinkedIn daily limit reached', cls: 'text-amber-400' }
-                    if (/\[CAPTCHA\]/i.test(raw))                   return { text: 'Handling verification…', cls: 'text-amber-400' }
+                    // ── Tailoring ────────────────────────────────────────────────
+                    if (/\[Tailor\]/i.test(raw))                     return { text: raw.replace(/\[Tailor\]\s*/i, 'Tailoring: '), cls: 'text-violet-400' }
 
-                    // Hide everything else (technical noise)
+                    // ── Resume ───────────────────────────────────────────────────
+                    if (/\[Resume\] Sending:/i.test(raw))            return { text: raw.replace('[Resume] ', 'Resume: '), cls: 'text-blue-400' }
+                    if (/\[Resume\]/i.test(raw))                     return { text: raw.replace('[Resume] ', 'Resume: '), cls: 'text-blue-400' }
+
+                    // ── CAPTCHA ──────────────────────────────────────────────────
+                    if (/\[CAPTCHA\] Solved/i.test(raw))             return { text: 'CAPTCHA solved ✓', cls: 'text-emerald-400' }
+                    if (/\[CAPTCHA\]/i.test(raw))                    return { text: 'Handling verification…', cls: 'text-amber-400' }
+
+                    // ── Rate limit ───────────────────────────────────────────────
+                    if (/daily.*apply.*limit|Easy Apply.*limit.*reached/i.test(raw))
+                      return { text: 'LinkedIn daily Easy Apply limit reached', cls: 'text-amber-400' }
+
+                    // ── Errors ───────────────────────────────────────────────────
+                    if (/\[JOBEZEE\] ERROR:|WORKER ERROR/i.test(raw))
+                      return { text: raw.replace(/\[JOBEZEE\]\s*/i, ''), cls: 'text-red-400' }
+                    if (/\[ERROR\]/i.test(raw))
+                      return { text: raw.replace(/\[ERROR\]\s*/i, ''), cls: 'text-red-400' }
+
+                    // ── Stop / finish ────────────────────────────────────────────
+                    if (/Bot stopped by user/i.test(raw))            return { text: 'Bot stopped by user', cls: 'text-amber-400' }
+                    if (/Bot finished/i.test(raw))                   return { text: 'Bot finished', cls: 'text-slate-400' }
+                    if (/Bot finished \(exit code/i.test(raw))       return { text: 'Bot finished', cls: 'text-slate-400' }
+
+                    // ── Setup config lines ───────────────────────────────────────
+                    if (/\[JOBEZEE\] Using name:/i.test(raw))        return { text: raw.replace('[JOBEZEE] ', ''), cls: 'text-slate-400' }
+                    if (/\[JOBEZEE\] search_terms/i.test(raw)) {
+                      const roles = raw.match(/search_terms\s*=\s*(.+)/)
+                      return { text: `Roles: ${roles ? roles[1] : ''}`, cls: 'text-slate-400' }
+                    }
+                    if (/\[JOBEZEE\] tailor_resume/i.test(raw))      return { text: raw.replace('[JOBEZEE] ', ''), cls: 'text-slate-400' }
+
+                    // ── Summary stats at end ─────────────────────────────────────
+                    if (/Jobs Easy Applied:/i.test(raw))             return { text: raw.trim(), cls: 'text-emerald-300' }
+                    if (/Total applied/i.test(raw))                  return { text: raw.trim(), cls: 'text-emerald-300' }
+                    if (/Failed jobs:|Irrelevant jobs skipped/i.test(raw)) return { text: raw.trim(), cls: 'text-slate-400' }
+
+                    // ── Catch-all: show any [TAG] lines not matched above ────────
+                    const tagged = raw.match(/^\[([A-Z][A-Za-z0-9_\- ]+)\]\s+(.+)/)
+                    if (tagged) return { text: `${tagged[1]}: ${tagged[2]}`, cls: 'text-slate-500' }
+
+                    // Everything else is true noise — hide
                     return null
                   }
 
