@@ -1100,33 +1100,72 @@ def git_pull(authorization: str = Header(...)):
         return {"returncode": -1, "stdout": "", "stderr": str(e)}
 
 
+def _kill_all_bot_procs() -> int:
+    """Kill every tracked bot process + any orphaned Chrome/python-bot processes.
+    Returns number of proc entries that were killed."""
+    import signal as _sig
+    killed = 0
+    with _lock:
+        job_ids = list(_procs.keys())
+    for jid in job_ids:
+        with _lock:
+            proc = _procs.pop(jid, None)
+        if proc is None:
+            continue
+        try:
+            os.killpg(os.getpgid(proc.pid), _sig.SIGKILL)
+            killed += 1
+        except Exception:
+            try:
+                proc.kill()
+                killed += 1
+            except Exception:
+                pass
+    # Kill any orphaned Chrome sessions that the bot may have opened
+    for pattern in ["linkedin_launcher", "runAiBot", "google-chrome.*--user-data-dir"]:
+        try:
+            subprocess.run(["pkill", "-9", "-f", pattern], capture_output=True, timeout=5)
+        except Exception:
+            pass
+    # Also drain the queue so nothing restarts after a stop-all
+    with _queue_lock:
+        _queue.clear()
+    return killed
+
+
 @app.post("/stop-bot/{job_id}")
 def stop_bot(job_id: str, authorization: str = Header(...)):
     _auth(authorization)
+    import signal as _sig
     with _lock:
-        proc = _procs.get(job_id)
+        proc = _procs.pop(job_id, None)
     if proc:
         try:
-            # Kill entire process group (launcher + selenium + chrome children)
-            import signal as _sig
+            os.killpg(os.getpgid(proc.pid), _sig.SIGKILL)
+        except Exception:
             try:
-                os.killpg(os.getpgid(proc.pid), _sig.SIGKILL)
-            except Exception:
                 proc.kill()
-        except Exception:
-            pass
-        with _lock:
-            _procs.pop(job_id, None)
-        # Also kill any bot Chrome sessions that may have been left open
-        try:
-            subprocess.run(
-                ["pkill", "-9", "-f", "google-chrome.*linkedin-bot"],
-                capture_output=True, timeout=5,
-            )
-        except Exception:
-            pass
+            except Exception:
+                pass
+        # Kill orphaned Chrome for good measure
+        for pattern in ["linkedin_launcher", "runAiBot"]:
+            try:
+                subprocess.run(["pkill", "-9", "-f", pattern], capture_output=True, timeout=5)
+            except Exception:
+                pass
         return {"stopped": True}
-    return {"stopped": False}
+    # Job not in _procs — might have already finished; still do a broad kill so stray
+    # Chrome processes don't keep running
+    _kill_all_bot_procs()
+    return {"stopped": False, "fallback_kill": True}
+
+
+@app.post("/stop-all")
+def stop_all(authorization: str = Header(...)):
+    """Kill every running bot (used as fallback when job_id is lost, e.g. after Render restart)."""
+    _auth(authorization)
+    killed = _kill_all_bot_procs()
+    return {"stopped": True, "killed": killed}
 
 
 # ── Bot runner ────────────────────────────────────────────────────────────────

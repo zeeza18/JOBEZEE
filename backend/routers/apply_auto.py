@@ -709,9 +709,33 @@ async def linkedin_stream(job_id: str):
 @router.post("/linkedin-stop/{job_id}")
 async def linkedin_stop(job_id: str, current_user=Depends(get_current_user)):
     """Kill the running LinkedIn bot subprocess."""
-    killed = stop_linkedin_bot(job_id)
-    if not killed:
-        raise HTTPException(404, "No running bot found for this job ID")
+    stop_linkedin_bot(job_id)   # always attempt — handles missing job via stop-all fallback
+    return {"stopped": True}
+
+
+@router.post("/linkedin-stop-all")
+async def linkedin_stop_all(current_user=Depends(get_current_user)):
+    """Kill ALL running LinkedIn bots on the Hetzner worker (fallback when job_id is lost)."""
+    from ..config import get_settings as _gs
+    from ..services.linkedin_bot_service import _jobs, _procs, _lock
+    cfg = _gs()
+    if not cfg.BOT_WORKER_URL:
+        return {"stopped": True, "note": "local mode — no Hetzner to stop"}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                f"{cfg.BOT_WORKER_URL}/stop-all",
+                headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+            )
+    except Exception as e:
+        raise HTTPException(500, f"Could not reach Hetzner worker: {e}")
+    # Clear all in-memory job state too
+    with _lock:
+        for jid in list(_jobs.keys()):
+            if _jobs[jid].get("status") in ("running", "queued", "pending"):
+                _jobs[jid]["status"] = "error"
+                _jobs[jid]["error"]  = "Stopped by user"
+        _procs.clear()
     return {"stopped": True}
 
 

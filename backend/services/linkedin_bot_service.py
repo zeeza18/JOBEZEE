@@ -494,38 +494,61 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
 
 
 def stop_linkedin_bot(job_id: str) -> bool:
-    """Kill the bot subprocess for the given job. Returns True if process was found and killed."""
+    """Kill the bot subprocess for the given job. Returns True if a stop signal was sent."""
+    from ..config import get_settings as _get_cfg
+    cfg = _get_cfg()
+
     with _lock:
         proc = _procs.get(job_id)
         job  = _jobs.get(job_id)
-    if job is None:
-        return False
-    # Fall back to stored hetzner info in _jobs if _procs sentinel was already cleared
-    if proc is None and isinstance(job.get("hetzner_worker"), dict):
+
+    # Fall back to hetzner info stored in job dict if sentinel was already cleared from _procs
+    if proc is None and job and isinstance(job.get("hetzner_worker"), dict):
         proc = job["hetzner_worker"]
+
+    hetzner_url    = cfg.BOT_WORKER_URL or ""
+    worker_secret  = cfg.WORKER_SECRET or ""
+
     if isinstance(proc, dict) and proc.get("hetzner"):
-        # Running on Hetzner — call the worker's stop endpoint
+        # Running on Hetzner — call the specific job stop endpoint
+        _hurl = proc.get("worker_url", hetzner_url)
+        _sec  = proc.get("secret", worker_secret)
         try:
             with httpx.Client(timeout=10) as client:
                 client.post(
-                    f"{proc['worker_url']}/stop-bot/{job_id}",
-                    headers={"Authorization": f"Bearer {proc['secret']}"},
+                    f"{_hurl}/stop-bot/{job_id}",
+                    headers={"Authorization": f"Bearer {_sec}"},
                 )
         except Exception:
             pass
     elif proc is not None:
+        # Local subprocess
         try:
             proc.kill()
         except Exception:
             pass
+    elif hetzner_url:
+        # Job not in local memory (Render container restarted) — blast a stop-all to Hetzner
+        # so the bot doesn't keep running as a ghost process.
+        try:
+            with httpx.Client(timeout=10) as client:
+                client.post(
+                    f"{hetzner_url}/stop-all",
+                    headers={"Authorization": f"Bearer {worker_secret}"},
+                )
+        except Exception:
+            pass
     else:
         return False
+
+    # Update local job state if present
     with _lock:
-        if _jobs.get(job_id, {}).get("status") == "running":
+        if _jobs.get(job_id, {}).get("status") in ("running", "queued", "pending"):
             _jobs[job_id]["status"] = "error"
             _jobs[job_id]["error"]  = "Stopped by user"
         _procs.pop(job_id, None)
-    _append(job_id, "[JOBEZEE] Bot stopped by user")
+    if job_id in _jobs:
+        _append(job_id, "[JOBEZEE] Bot stopped by user")
     return True
 
 

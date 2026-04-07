@@ -496,11 +496,20 @@ const AutoApplyPage = () => {
 
 
   const handleLinkedInStop = async () => {
-    if (!liJobId) return
     setLiStopping(true)
+    const savedId = liJobId || localStorage.getItem(LI_JOB_KEY)
     try {
-      await linkedinApi.stop(liJobId)
-    } catch { /* ignore — stream will close on its own */ }
+      if (savedId) {
+        await linkedinApi.stop(savedId)
+      } else {
+        // job_id lost (e.g. page reload) — blast stop-all to Hetzner
+        await linkedinApi.stopAll()
+      }
+    } catch {
+      // stop by job_id failed (likely Render restarted and lost job state) —
+      // fall back to stop-all so the Hetzner process is killed regardless
+      try { await linkedinApi.stopAll() } catch { /* nothing we can do */ }
+    }
     setLiStopping(false)
     setLiStatus('error')
     setLiError('Stopped by user')
