@@ -53,8 +53,19 @@ def _queue_position(job_id: str) -> int:
                 return i + 1
     return 0
 
+def _reap_dead_procs() -> int:
+    """Remove processes from _procs that have already exited. Returns count removed."""
+    reaped = 0
+    with _lock:
+        dead = [jid for jid, p in _procs.items() if p.poll() is not None]
+        for jid in dead:
+            del _procs[jid]
+            reaped += 1
+    return reaped
+
 def _maybe_start_next() -> None:
     """If a slot is free, pop the next queued job and start it."""
+    _reap_dead_procs()   # clean up zombies before checking slot count
     with _queue_lock:
         if not _queue:
             return
@@ -99,6 +110,7 @@ class BotJobRequest(BaseModel):
 
 @app.get("/health")
 def health():
+    _reap_dead_procs()   # auto-clean before reporting counts
     with _lock:
         active = len(_procs)
     with _queue_lock:
@@ -121,6 +133,7 @@ async def run_bot(
     authorization: str = Header(...),
 ):
     _auth(authorization)
+    _reap_dead_procs()   # don't queue behind zombies
     with _lock:
         active = len(_procs)
     if active < MAX_CONCURRENT_BOTS:
@@ -1131,6 +1144,19 @@ def _kill_all_bot_procs() -> int:
     with _queue_lock:
         _queue.clear()
     return killed
+
+
+@app.post("/clear-zombies")
+def clear_zombies(authorization: str = Header(...)):
+    """Remove dead processes from the active job table and start any queued jobs."""
+    _auth(authorization)
+    reaped = _reap_dead_procs()
+    _maybe_start_next()
+    with _lock:
+        active = len(_procs)
+    with _queue_lock:
+        queued = len(_queue)
+    return {"reaped": reaped, "active_jobs": active, "queued_jobs": queued}
 
 
 @app.post("/stop-bot/{job_id}")
