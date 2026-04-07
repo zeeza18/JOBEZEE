@@ -658,6 +658,8 @@ async def linkedin_stream(job_id: str):
     """SSE stream for LinkedIn bot progress — no auth needed for EventSource."""
 
     async def event_generator():
+        # Immediate ping to flush Render/proxy buffer and prove the connection is alive
+        yield ": ping\n\n"
         seen = 0
         last_data = asyncio.get_event_loop().time()
         while True:
@@ -686,14 +688,22 @@ async def linkedin_stream(job_id: str):
                 yield f"data: {json.dumps(final)}\n\n"
                 return
 
-            # Keepalive comment every 20 s — prevents Render/proxy from cutting idle SSE
-            if asyncio.get_event_loop().time() - last_data > 20:
+            # Keepalive ping every 15 s — prevents Render/nginx from buffering or cutting idle SSE
+            if asyncio.get_event_loop().time() - last_data > 15:
                 yield ": keepalive\n\n"
                 last_data = asyncio.get_event_loop().time()
 
             await asyncio.sleep(1)
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
+            "X-Accel-Buffering": "no",   # disables nginx buffering on Render
+            "Connection":       "keep-alive",
+        },
+    )
 
 
 @router.post("/linkedin-stop/{job_id}")
@@ -703,6 +713,22 @@ async def linkedin_stop(job_id: str, current_user=Depends(get_current_user)):
     if not killed:
         raise HTTPException(404, "No running bot found for this job ID")
     return {"stopped": True}
+
+
+@router.get("/linkedin-progress/{job_id}")
+async def linkedin_progress(job_id: str, from_idx: int = 0, _user=Depends(get_current_user)):
+    """Return log lines starting at from_idx — used as SSE fallback polling."""
+    job = get_linkedin_job(job_id)
+    if not job:
+        raise HTTPException(404, "LinkedIn job not found")
+    lines = job.get("progress", [])
+    return {
+        "lines":  lines[from_idx:],
+        "total":  len(lines),
+        "status": job["status"],
+        "result": job.get("result"),
+        "error":  job.get("error"),
+    }
 
 
 @router.get("/worker-status")

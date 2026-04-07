@@ -72,6 +72,8 @@ const AutoApplyPage = () => {
   const liEsRef        = useRef<EventSource | null>(null)
   const liLogRef       = useRef<HTMLDivElement>(null)
   const ssIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const liPollRef      = useRef<ReturnType<typeof setInterval> | null>(null)
+  const liSseDataRef   = useRef(false)   // flipped to true when SSE delivers first line
 
   // ── Hetzner worker status ───────────────────────────────────────────────────
   const [workerStatus, setWorkerStatus] = useState<'ok' | 'unreachable' | 'timeout' | 'error' | 'not_configured' | null>(null)
@@ -133,14 +135,60 @@ const AutoApplyPage = () => {
     return () => clearInterval(interval)
   }, [])
 
+  // Poll /linkedin-progress as a fallback when SSE isn't delivering data
+  const startProgressPolling = (id: string) => {
+    if (liPollRef.current) return   // already polling
+    let seenCount = 0
+    liPollRef.current = setInterval(async () => {
+      try {
+        const data = await linkedinApi.progress(id, seenCount)
+        if (data.lines.length > 0) {
+          seenCount += data.lines.length
+          setLiLines(prev => {
+            const combined = [...prev, ...data.lines]
+            // deduplicate in case SSE and polling overlap
+            return Array.from(new Set(combined))
+          })
+          for (const line of data.lines) {
+            const qm = line.match(/you're #(\d+) in queue/i)
+            if (qm) { setLiQueuePos(Number(qm[1])); setLiStatus('queued') }
+            if (/slot available.*starting bot now/i.test(line)) { setLiQueuePos(null); setLiStatus('running') }
+          }
+        }
+        if (data.status === 'complete' || data.status === 'error') {
+          if (data.status === 'complete') { setLiStatus('complete'); setLiResult(data.result ?? null) }
+          else { setLiStatus('error'); if (data.error) setLiError(data.error) }
+          localStorage.removeItem(LI_JOB_KEY)
+          if (liPollRef.current) { clearInterval(liPollRef.current); liPollRef.current = null }
+        }
+      } catch { /* ignore poll errors */ }
+    }, 3000)
+  }
+
+  const stopProgressPolling = () => {
+    if (liPollRef.current) { clearInterval(liPollRef.current); liPollRef.current = null }
+  }
+
   // Open (or reopen) the LinkedIn SSE stream — replays all lines from start on reconnect
   const openLinkedInStream = (id: string) => {
     liEsRef.current?.close()
+    liSseDataRef.current = false
     const es = new EventSource(linkedinApi.streamUrl(id))
     liEsRef.current = es
+
+    // Safety net: if SSE delivers no data within 8 s, fall back to polling
+    const sseTimeout = setTimeout(() => {
+      if (!liSseDataRef.current) {
+        startProgressPolling(id)
+      }
+    }, 8000)
+
     es.onmessage = (e) => {
       const ev = JSON.parse(e.data)
       if (ev.line) {
+        liSseDataRef.current = true
+        clearTimeout(sseTimeout)
+        stopProgressPolling()   // SSE is working — stop fallback poll
         setLiLines(prev => [...prev, ev.line])
         // Detect queue position from log line
         const queueMatch = ev.line.match(/you're #(\d+) in queue/i)
@@ -154,6 +202,8 @@ const AutoApplyPage = () => {
           setLiStatus('running')
         }
       } else if (ev.event === 'done') {
+        clearTimeout(sseTimeout)
+        stopProgressPolling()
         setLiStatus(ev.status === 'error' ? 'error' : 'complete')
         setLiResult(ev.result ?? null)
         if (ev.error) setLiError(ev.error)
@@ -163,6 +213,7 @@ const AutoApplyPage = () => {
     }
     // On SSE disconnect: try to reconnect once after 3 s, then fall back to polling
     es.onerror = () => {
+      clearTimeout(sseTimeout)
       es.close()
       setTimeout(() => {
         linkedinApi.status(id).then(s => {
@@ -171,6 +222,7 @@ const AutoApplyPage = () => {
           } else if (s.status === 'queued') {
             setLiStatus('queued')
             setLiQueuePos((s as any).queue_position ?? null)
+            startProgressPolling(id)
           } else if (s.status === 'complete') {
             setLiStatus('complete')
             setLiResult(s.result)
@@ -220,6 +272,7 @@ const AutoApplyPage = () => {
     if (connectPollRef.current) clearInterval(connectPollRef.current)
     if (captchaSsPollRef.current) clearInterval(captchaSsPollRef.current)
     if (captchaUrlPollRef.current) clearInterval(captchaUrlPollRef.current)
+    if (liPollRef.current) clearInterval(liPollRef.current)
     // NOTE: do NOT clear LI_JOB_KEY here — bot keeps running on the server
   }, [])
 
@@ -452,6 +505,7 @@ const AutoApplyPage = () => {
     setLiStatus('error')
     setLiError('Stopped by user')
     liEsRef.current?.close()
+    stopProgressPolling()
     localStorage.removeItem(LI_JOB_KEY)
   }
 
@@ -491,6 +545,7 @@ const AutoApplyPage = () => {
   }, [liStatus, liJobId])
 
   const handleLinkedIn = async () => {
+    stopProgressPolling()
     setLiStatus('running')
     setLiLines([])
     setLiResult(null)

@@ -562,6 +562,11 @@ export const linkedinApi = {
       `/api/apply/linkedin-status/${jobId}`
     ),
 
+  progress: (jobId: string, fromIdx = 0) =>
+    get<{ lines: string[]; total: number; status: string; result: string | null; error: string | null }>(
+      `/api/apply/linkedin-progress/${jobId}?from_idx=${fromIdx}`
+    ),
+
   streamUrl: (jobId: string) => `${BASE}/api/apply/linkedin-stream/${jobId}`,
 
   stop: (jobId: string) =>
