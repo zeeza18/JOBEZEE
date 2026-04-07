@@ -56,14 +56,22 @@ const AutoApplyPage = () => {
   const [browserStarting, setBrowserStarting] = useState(false)
 
   // ── LinkedIn bot state ──────────────────────────────────────────────────────
-  const LI_JOB_KEY = 'jobezee_li_job_id'
-  const _initLiJobId = localStorage.getItem(LI_JOB_KEY)
+  const LI_JOB_KEY   = 'jobezee_li_job_id'
+  const LI_LINES_KEY  = 'jobezee_li_lines'
+  const LI_STATUS_KEY = 'jobezee_li_status'
+  const LI_RESULT_KEY = 'jobezee_li_result'
+  const LI_ERROR_KEY  = 'jobezee_li_error'
+  const _initLiJobId  = localStorage.getItem(LI_JOB_KEY)
+  const _initLiLines  = (() => { try { const s = localStorage.getItem(LI_LINES_KEY); return s ? JSON.parse(s) : [] } catch { return [] } })()
+  const _initLiStatus = (localStorage.getItem(LI_STATUS_KEY) as any) ?? (_initLiJobId ? 'running' : 'idle')
+  const _initLiResult = localStorage.getItem(LI_RESULT_KEY)
+  const _initLiError  = localStorage.getItem(LI_ERROR_KEY)
 
-  const [liStatus,  setLiStatus]  = useState<'idle' | 'queued' | 'running' | 'complete' | 'error' | 'rate_limited'>(_initLiJobId ? 'running' : 'idle')
+  const [liStatus,  setLiStatus]  = useState<'idle' | 'queued' | 'running' | 'complete' | 'error' | 'rate_limited'>(_initLiStatus)
   const [liQueuePos, setLiQueuePos] = useState<number | null>(null)
-  const [liLines,   setLiLines]   = useState<string[]>([])
-  const [liResult,  setLiResult]  = useState<string | null>(null)
-  const [liError,   setLiError]   = useState<string | null>(null)
+  const [liLines,   setLiLines]   = useState<string[]>(_initLiJobId ? _initLiLines : [])
+  const [liResult,  setLiResult]  = useState<string | null>(_initLiJobId ? _initLiResult : null)
+  const [liError,   setLiError]   = useState<string | null>(_initLiJobId ? _initLiError : null)
   const [liJobId,   setLiJobId]   = useState<string | null>(_initLiJobId)
   const [liStopping,           setLiStopping]           = useState(false)
   const [liScreenshot,         setLiScreenshot]         = useState<string | null>(null)
@@ -74,6 +82,7 @@ const AutoApplyPage = () => {
   const ssIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const liPollRef      = useRef<ReturnType<typeof setInterval> | null>(null)
   const liSseDataRef   = useRef(false)   // flipped to true when SSE delivers first line
+  const liSseSkipRef   = useRef(0)       // lines already in localStorage — skip on SSE replay
 
   // ── Hetzner worker status ───────────────────────────────────────────────────
   const [workerStatus, setWorkerStatus] = useState<'ok' | 'unreachable' | 'timeout' | 'error' | 'not_configured' | null>(null)
@@ -114,6 +123,22 @@ const AutoApplyPage = () => {
   useEffect(() => {
     if (liLogRef.current) liLogRef.current.scrollTop = liLogRef.current.scrollHeight
   }, [liLines])
+
+  // Persist LinkedIn bot log state to localStorage so navigation doesn't lose it
+  useEffect(() => {
+    if (liLines.length > 0) localStorage.setItem(LI_LINES_KEY, JSON.stringify(liLines))
+  }, [liLines])
+  useEffect(() => {
+    if (liStatus !== 'idle') localStorage.setItem(LI_STATUS_KEY, liStatus)
+  }, [liStatus])
+  useEffect(() => {
+    if (liResult) localStorage.setItem(LI_RESULT_KEY, liResult)
+    else localStorage.removeItem(LI_RESULT_KEY)
+  }, [liResult])
+  useEffect(() => {
+    if (liError) localStorage.setItem(LI_ERROR_KEY, liError)
+    else localStorage.removeItem(LI_ERROR_KEY)
+  }, [liError])
 
   const esRef  = useRef<EventSource | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
@@ -170,9 +195,11 @@ const AutoApplyPage = () => {
   }
 
   // Open (or reopen) the LinkedIn SSE stream — replays all lines from start on reconnect
-  const openLinkedInStream = (id: string) => {
+  const openLinkedInStream = (id: string, skipLines = 0) => {
     liEsRef.current?.close()
     liSseDataRef.current = false
+    liSseSkipRef.current = skipLines   // skip lines we already have from localStorage
+    let sseLineCount = 0
     const es = new EventSource(linkedinApi.streamUrl(id))
     liEsRef.current = es
 
@@ -189,6 +216,8 @@ const AutoApplyPage = () => {
         liSseDataRef.current = true
         clearTimeout(sseTimeout)
         stopProgressPolling()   // SSE is working — stop fallback poll
+        sseLineCount++
+        if (sseLineCount <= liSseSkipRef.current) return  // skip already-seen lines
         setLiLines(prev => [...prev, ev.line])
         // Detect queue position from log line
         const queueMatch = ev.line.match(/you're #(\d+) in queue/i)
@@ -250,14 +279,22 @@ const AutoApplyPage = () => {
         if (s.status === 'running') {
           setLiJobId(savedId)
           setLiStatus('running')
-          setLiLines([])  // will be replayed by SSE from position 0
-          openLinkedInStream(savedId)
+          // Keep existing lines from localStorage; skip them when SSE replays from position 0
+          const savedLines = (() => { try { const s = localStorage.getItem(LI_LINES_KEY); return s ? JSON.parse(s) : [] } catch { return [] } })()
+          openLinkedInStream(savedId, savedLines.length)
         } else {
-          // Finished while away — show final state then clear
+          // Finished while away — lines already restored from localStorage; just update status
           setLiJobId(savedId)
-          setLiStatus(s.status === 'error' ? 'error' : 'complete')
-          if (s.error) setLiError(s.error)
+          if (s.status === 'rate_limited') {
+            setLiStatus('rate_limited')
+            setLiError(s.error ?? "LinkedIn daily Easy Apply limit reached — try again tomorrow.")
+          } else {
+            setLiStatus(s.status === 'error' ? 'error' : 'complete')
+            if (s.error) setLiError(s.error)
+            if (s.result) setLiResult(s.result)
+          }
           localStorage.removeItem(LI_JOB_KEY)
+          localStorage.removeItem(LI_STATUS_KEY)
         }
       })
       .catch(() => localStorage.removeItem(LI_JOB_KEY))
@@ -515,7 +552,7 @@ const AutoApplyPage = () => {
     setLiError('Stopped by user')
     liEsRef.current?.close()
     stopProgressPolling()
-    localStorage.removeItem(LI_JOB_KEY)
+    ;[LI_JOB_KEY, LI_STATUS_KEY].forEach(k => localStorage.removeItem(k))
   }
 
   const fetchScreenshot = async (silent = false) => {
@@ -560,6 +597,10 @@ const AutoApplyPage = () => {
     setLiResult(null)
     setLiError(null)
     setLiJobId(null)
+    localStorage.removeItem(LI_LINES_KEY)
+    localStorage.removeItem(LI_STATUS_KEY)
+    localStorage.removeItem(LI_RESULT_KEY)
+    localStorage.removeItem(LI_ERROR_KEY)
     try {
       const data = await linkedinApi.launch(false, autoApply.tailorBeforeApply)
       setLiJobId(data.linkedin_job_id)
@@ -1249,7 +1290,7 @@ const AutoApplyPage = () => {
                 <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
                   <p className="text-sm font-semibold text-emerald-700 flex-1">{liResult ?? 'Bot finished successfully'}</p>
-                  <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); setLiScreenshot(null); localStorage.removeItem(LI_JOB_KEY) }}
+                  <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); setLiScreenshot(null); [LI_JOB_KEY, LI_LINES_KEY, LI_STATUS_KEY, LI_RESULT_KEY, LI_ERROR_KEY].forEach(k => localStorage.removeItem(k)) }}
                     className="text-xs font-medium text-slate-400 hover:text-slate-600 transition">Clear</button>
                 </div>
               )}
@@ -1267,7 +1308,7 @@ const AutoApplyPage = () => {
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
                   <p className="text-sm font-semibold text-amber-800">LinkedIn daily Easy Apply limit reached</p>
                   <p className="text-xs text-amber-700">LinkedIn limits the number of Easy Apply applications per day to prevent spam. The bot has stopped. You can try again tomorrow.</p>
-                  <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); setLiScreenshot(null); localStorage.removeItem(LI_JOB_KEY) }}
+                  <button onClick={() => { setLiStatus('idle'); setLiLines([]); setLiResult(null); setLiScreenshot(null); [LI_JOB_KEY, LI_LINES_KEY, LI_STATUS_KEY, LI_RESULT_KEY, LI_ERROR_KEY].forEach(k => localStorage.removeItem(k)) }}
                     className="text-xs font-medium text-amber-600 hover:text-amber-800 transition underline">Dismiss</button>
                 </div>
               )}
