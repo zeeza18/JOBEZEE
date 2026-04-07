@@ -41,7 +41,7 @@ _procs: dict[str, subprocess.Popen] = {}
 _lock  = threading.Lock()
 
 # ── Concurrency limit + queue ─────────────────────────────────────────────────
-MAX_CONCURRENT_BOTS = 2          # safe limit for 2 GB RAM (each Chrome ~400 MB)
+MAX_CONCURRENT_BOTS = 1          # 1 bot at a time — 2GB RAM can't safely run 2 Chrome instances
 _queue: list[BotJobRequest] = [] # jobs waiting for a free slot
 _queue_lock = threading.Lock()
 
@@ -1240,11 +1240,24 @@ def _run_bot_task(job: BotJobRequest) -> None:
         with _lock:
             _procs[job.job_id] = proc
 
+        # ── Heartbeat thread: posts a ping every 30 s so Render knows bot is alive.
+        # If the worker crashes (OOM etc.) the heartbeat stops and Render can detect it.
+        import time as _time
+        _hb_stop = threading.Event()
+        def _heartbeat():
+            while not _hb_stop.wait(30):
+                if proc.poll() is not None:
+                    break   # process already finished
+                _post_log(job.callback_url, job.job_id, "[JOBEZEE] [heartbeat]")
+        _hb_thread = threading.Thread(target=_heartbeat, daemon=True)
+        _hb_thread.start()
+
         for line in proc.stdout:
             line = line.rstrip()
             if line:
                 _post_log(job.callback_url, job.job_id, line)
 
+        _hb_stop.set()
         proc.wait()
         exit_code = proc.returncode
         status    = "complete" if exit_code == 0 else "error"

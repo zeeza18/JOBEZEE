@@ -1107,6 +1107,7 @@ const AutoApplyPage = () => {
                   const parse = (raw: string): LogEntry => {
                     // ── Noise to always hide ─────────────────────────────────────
                     if (/DAILY_LIMIT_REACHED/i.test(raw))                  return null
+                    if (/\[heartbeat\]/i.test(raw))                        return null
                     if (/runAiBot\.py started/i.test(raw))                 return null
                     if (/importing open_chrome/i.test(raw))                return null
                     if (/\[JOBEZEE\] Config written/i.test(raw))           return null

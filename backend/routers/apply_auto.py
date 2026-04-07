@@ -658,10 +658,12 @@ async def linkedin_stream(job_id: str):
     """SSE stream for LinkedIn bot progress — no auth needed for EventSource."""
 
     async def event_generator():
+        import time as _time
         # Immediate ping to flush Render/proxy buffer and prove the connection is alive
         yield ": ping\n\n"
         seen = 0
         last_data = asyncio.get_event_loop().time()
+        HEARTBEAT_TIMEOUT = 300   # 5 minutes — if no heartbeat, bot is dead (OOM etc.)
         while True:
             job = get_linkedin_job(job_id)
             if not job:
@@ -678,7 +680,7 @@ async def linkedin_stream(job_id: str):
                     await _record_applied(line, uid, events, seen)
                 seen += 1
 
-            if job["status"] in ("complete", "error"):
+            if job["status"] in ("complete", "error", "rate_limited"):
                 final = {
                     "event":  "done",
                     "status": job["status"],
@@ -686,6 +688,17 @@ async def linkedin_stream(job_id: str):
                     "error":  job.get("error"),
                 }
                 yield f"data: {json.dumps(final)}\n\n"
+                return
+
+            # Heartbeat timeout — bot died silently (OOM, crash etc.)
+            last_hb = job.get("last_heartbeat")
+            if last_hb and (_time.time() - last_hb) > HEARTBEAT_TIMEOUT:
+                yield f"data: {json.dumps({'event': 'done', 'status': 'error', 'error': 'Bot stopped responding (server may have run out of memory). Try again.'})}\n\n"
+                from ..services.linkedin_bot_service import _jobs, _lock
+                with _lock:
+                    if _jobs.get(job_id):
+                        _jobs[job_id]["status"] = "error"
+                        _jobs[job_id]["error"]  = "Bot stopped responding"
                 return
 
             # Keepalive ping every 15 s — prevents Render/nginx from buffering or cutting idle SSE
@@ -1222,6 +1235,16 @@ async def internal_log(payload: _LogCallback, authorization: str = Header(...)):
     cfg = _gs()
     if cfg.WORKER_SECRET and authorization != f"Bearer {cfg.WORKER_SECRET}":
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # Heartbeat: update last-seen timestamp but don't store the line in progress
+    if "[heartbeat]" in payload.line:
+        from ..services.linkedin_bot_service import _jobs, _lock
+        with _lock:
+            job = _jobs.get(payload.job_id)
+            if job:
+                import time as _time
+                job["last_heartbeat"] = _time.time()
+        return {"ok": True}
 
     _append(payload.job_id, payload.line)
 
