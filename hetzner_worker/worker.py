@@ -1240,6 +1240,7 @@ def _run_bot_task(job: BotJobRequest) -> None:
             tmp_config = f.name
 
         _uid = config.get("settings", {}).get("user_profile_id", "")
+        _openai_key = config.get("settings", {}).get("openai_api_key", "") or os.environ.get("OPENAI_API_KEY", "")
         env = {
             **os.environ,
             "PYTHONUNBUFFERED": "1",
@@ -1248,6 +1249,7 @@ def _run_bot_task(job: BotJobRequest) -> None:
             "DISPLAY":          ":99",   # Xvfb virtual display
             "TWOCAPTCHA_API_KEY": os.environ.get("TWOCAPTCHA_API_KEY", ""),
             "JOBEZEE_USER_ID":  _uid,    # per-user Chrome profile isolation
+            "OPENAI_API_KEY":   _openai_key,   # forwarded from Render for tailor
         }
 
         cmd  = [sys.executable, "-u", str(_LAUNCHER), "--config", tmp_config]
