@@ -336,17 +336,21 @@ def _extract_resume_text(file_path: Path) -> str:
 
 def _clean_job_description(jd: str) -> str:
     """
-    Strip boilerplate from scraped job descriptions before sending to the crew.
+    Extract only the requirements-relevant sections from a scraped job description.
 
-    Strategy (universal, non-strict):
+    Strategy (keeper-only mode):
     - Strip markdown formatting
-    - Skip known boilerplate SECTIONS only (company overview, benefits, EEO)
-    - Once inside a boilerplate section, ONLY stop skipping for a known keeper header
-      (never for unknown lines — prevents salary/perks lines leaking back in)
-    - Strip trailing EEO paragraphs regardless of section structure
-    - If cleaned result is too short, caller should fall back to original JD
+    - DEFAULT = skip.  Only include lines that fall under a recognised KEEPER
+      section header (responsibilities, skills, requirements, qualifications, etc.)
+    - A KEEPER header is included in output; everything before the first KEEPER
+      header (intro / "About the job" blurb) is silently dropped
+    - A BOILERPLATE header (company overview, benefits, EEO, …) exits keeper mode
+    - Unknown standalone headers also exit keeper mode so unrecognised sections
+      don't accidentally pull in salary/perks/location prose
+    - Trailing EEO paragraphs stripped regardless of section structure
+    - If the result is too short the caller falls back to the raw JD
 
-    Keeps everything not explicitly matching a boilerplate pattern.
+    This keeps only what the tailor AI actually needs, cutting token waste.
     """
     if not jd:
         return jd
@@ -356,14 +360,77 @@ def _clean_job_description(jd: str) -> str:
     text = re.sub(r'_{1,2}([^_]+)_{1,2}', r'\1', text)
     text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)
 
-    # ── 2. Boilerplate section headers — trigger skip mode ───────────────────
+    # ── 2. KEEPER section headers — enter include mode ───────────────────────
+    # Broad set of patterns covering many JD styles
+    _KEEPER = re.compile(
+        r'^(?:'
+        # responsibilities
+        r'responsibilities?'
+        r'|key\s+responsibilities?'
+        r'|core\s+responsibilities?'
+        r'|primary\s+responsibilities?'
+        r'|main\s+responsibilities?'
+        r'|what\s+you.ll\s+(do|build|work\s+on|own|own\s+and\s+build|be\s+doing)'
+        r'|what\s+you\s+will\s+do'
+        r'|your\s+(role|impact|responsibilities?|day[\s-]to[\s-]day)'
+        r'|day[\s-]to[\s-]day'
+        r'|you\s+will'
+        r'|in\s+this\s+role'
+        # requirements / qualifications
+        r'|requirements?'
+        r'|qualifications?'
+        r'|required\s+qualifications?'
+        r'|preferred\s+qualifications?'
+        r'|minimum\s+qualifications?'
+        r'|basic\s+qualifications?'
+        r'|desired\s+qualifications?'
+        r'|technical\s+requirements?'
+        r'|position\s+requirements?'
+        r'|job\s+requirements?'
+        r'|what\s+(you|we).re?\s+looking\s+for'
+        r'|what\s+you.ll\s+bring'
+        r'|what\s+you\s+bring'
+        r'|what\s+we\s+need'
+        r'|what\s+you\s+need'
+        r'|must[\s-]have'
+        r'|nice[\s-]to[\s-]have'
+        r'|we\s+are\s+looking'
+        # skills
+        r'|skills?\s*(required|needed|we\s+need|&\s+experience)?'
+        r'|required\s+skills?'
+        r'|technical\s+skills?'
+        r'|core\s+skills?'
+        r'|key\s+skills?'
+        r'|essential\s+skills?'
+        r'|desired\s+skills?'
+        r'|preferred\s+skills?'
+        # experience / education
+        r'|experience'
+        r'|required\s+experience'
+        r'|preferred\s+experience'
+        r'|relevant\s+experience'
+        r'|education'
+        r'|certifications?'
+        # tech stack
+        r'|tech\s+(stack|skills?|requirements?)'
+        r'|technologies'
+        r'|tools?\s+(&\s+technologies?)?'
+        r'|stack'
+        # LinkedIn structured block
+        r'|requirements\s+added\s+by.*'
+        r')\s*[:\-]?\s*$',
+        re.IGNORECASE,
+    )
+
+    # ── 3. BOILERPLATE section headers — exit include mode ───────────────────
     _BOILERPLATE = re.compile(
         r'^(?:'
-        r'about\s+(us|the\s+company|the\s+team|our\s+company|[a-z]{2,30})\b'
-        r'|about\s+the\s+(role|position)'     # intro pitch — not requirements
+        r'about\s+(us|the\s+company|the\s+team|our\s+company|the\s+job|the\s+role|the\s+position|[a-z]{2,30})\b'
         r'|who\s+we\s+are'
-        r'|our\s+(story|mission|values?|culture|vision)'
+        r'|our\s+(story|mission|values?|culture|vision|team)'
         r'|company\s+overview'
+        r'|overview'
+        r'|introduction'
         r'|why\s+(join\s+us|work\s+(here|with\s+us|for\s+us)|us|choose\s+us)'
         r'|what\s+we\s+offer'
         r'|what\s+makes\s+this\s+role\s+(different|unique|special|stand\s+out)'
@@ -377,6 +444,7 @@ def _clean_job_description(jd: str) -> str:
         r'|featured\s+benefits?'
         r'|what\s+you.ll\s+(get|receive|enjoy)'
         r'|additional\s+details?'
+        r'|additional\s+information'
         r'|interview\s+(process|stages?|steps?)'
         r'|our\s+interview\s+process'
         r'|hiring\s+process'
@@ -390,73 +458,50 @@ def _clean_job_description(jd: str) -> str:
         r'|total\s+(rewards?|compensation)'
         r'|application\s+(terms|process|note|deadline)'
         r'|please\s+(note|read)\b'
-        r')\s*[:\-]?\s*$',
-        re.IGNORECASE,
-    )
-
-    # ── 3. Keeper section headers — always exit skip mode ────────────────────
-    _KEEPER = re.compile(
-        r'^(?:'
-        r'responsibilities?'
-        r'|key\s+responsibilities?'
-        r'|what\s+you.ll\s+(do|build|work\s+on|own|own\s+and\s+build)'
-        r'|your\s+(role|impact|day[\s-]to[\s-]day)'
-        r'|the\s+role'
-        r'|role\s+overview'
-        r'|day[\s-]to[\s-]day'
-        r'|requirements?'
-        r'|qualifications?'
-        r'|required\s+qualifications?'
-        r'|preferred\s+qualifications?'
-        r'|minimum\s+qualifications?'
-        r'|basic\s+qualifications?'
-        r'|desired\s+qualifications?'
-        r'|what\s+(you|we).re?\s+looking\s+for'
-        r'|what\s+you.ll\s+bring'
-        r'|what\s+you\s+bring'
-        r'|must[\s-]have'
-        r'|nice[\s-]to[\s-]have'
-        r'|skills?\s+(required|needed|we\s+need)?'
-        r'|technical\s+skills?'
-        r'|core\s+skills?'
-        r'|experience'
-        r'|education'
-        r'|about\s+the\s+job'                 # "About the job" kept; "About the role/position" is boilerplate
-        r'|job\s+(description|summary|overview)'
-        r'|position\s+summary'
-        r'|you\s+will'
-        r'|we\s+are\s+looking'
-        r'|tech\s+stack'
-        r'|stack'
-        r'|requirements\s+added\s+by.*'         # LinkedIn structured requirements block
+        r'|note\s+to\s+(applicants?|candidates?)'
+        r'|working\s+(conditions?|environment)'
+        r'|work\s+environment'
+        r'|location'
+        r'|office\s+(location|hours?)'
         r')\s*[:\-]?\s*$',
         re.IGNORECASE,
     )
 
     lines = text.split('\n')
-    output_lines = []
-    skip_section = False
+    output_lines: list[str] = []
+    in_keeper = False   # start in SKIP mode — only include known keeper sections
 
     for line in lines:
         stripped = line.strip()
-        # A "section header" is a standalone short line (not a bullet or long sentence)
-        is_header = bool(stripped) and len(stripped) < 70 and not stripped.startswith(('-', '*', '•', '·'))
+
+        # A "section header" = standalone short line, not a bullet or long sentence
+        is_header = (
+            bool(stripped)
+            and len(stripped) < 80
+            and not stripped.startswith(('-', '*', '•', '·', '–', '◦'))
+            and not stripped[0].isdigit()   # numbered bullets like "1. Do X"
+        )
 
         if is_header and _KEEPER.match(stripped):
-            skip_section = False
+            in_keeper = True
             output_lines.append(line)
             continue
 
         if is_header and _BOILERPLATE.match(stripped):
-            skip_section = True
+            in_keeper = False
             continue
 
-        if skip_section:
-            # Only a confirmed KEEPER header exits skip mode — never unknown lines
-            # This prevents salary/perks content lines from leaking back
+        if is_header:
+            # Unknown standalone header — keep current keeper state.
+            # If we're already in a keeper section, include the line (it may be a
+            # relevant sub-header like "Technologies Used:" not yet in our list).
+            # If we're not in a keeper section, drop it (pre-intro prose, etc.).
+            if in_keeper:
+                output_lines.append(line)
             continue
 
-        output_lines.append(line)
+        if in_keeper:
+            output_lines.append(line)
 
     cleaned = '\n'.join(output_lines)
 
