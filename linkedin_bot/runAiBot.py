@@ -1506,8 +1506,9 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                             _crew = ResumeCrew(openai_api_key=_openai_key)
                             # Per-job output dir so .tex/.pdf files don't overwrite across jobs
                             import tempfile as _tmpfile
+                            from pathlib import Path as _Path
                             _safe_co = re.sub(r'[^\w]', '_', company or 'company')[:20]
-                            _job_outdir = Path(_tmpfile.mkdtemp(prefix=f"tailor_{_safe_co}_"))
+                            _job_outdir = _Path(_tmpfile.mkdtemp(prefix=f"tailor_{_safe_co}_"))
                             _result = _crew.run_tailoring_process(_jd_for_tailor, _base_info, None, output_dir=_job_outdir)
                             _tailored = _result.get("final_resume", "")
                             if _tailored:
@@ -1527,9 +1528,9 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                 _latex_sum = _result.get("latex_summary", {})
                                 _tex_str   = _latex_sum.get("output_tex_path", "")
                                 _pdf_ready = False
-                                if _tex_str and Path(_tex_str).exists():
+                                if _tex_str and _Path(_tex_str).exists():
                                     import subprocess as _sp, shutil as _shu
-                                    _tex_p = Path(_tex_str)
+                                    _tex_p = _Path(_tex_str)
                                     _pdflatex_bin = _shu.which("pdflatex") or "/usr/bin/pdflatex"
                                     try:
                                         _sp.run(
