@@ -1239,8 +1239,9 @@ def _run_bot_task(job: BotJobRequest) -> None:
             json.dump(config, f)
             tmp_config = f.name
 
-        _uid = config.get("settings", {}).get("user_profile_id", "")
-        _openai_key = config.get("settings", {}).get("openai_api_key", "") or os.environ.get("OPENAI_API_KEY", "")
+        _uid         = config.get("settings", {}).get("user_profile_id", "")
+        _openai_key  = config.get("settings", {}).get("openai_api_key",  "") or os.environ.get("OPENAI_API_KEY",    "")
+        _claude_key  = config.get("settings", {}).get("claude_api_key",  "") or os.environ.get("CLAUDE_API_KEY",    "") or os.environ.get("ANTHROPIC_API_KEY", "")
         env = {
             **os.environ,
             "PYTHONUNBUFFERED": "1",
@@ -1248,8 +1249,10 @@ def _run_bot_task(job: BotJobRequest) -> None:
             "PYTHONUTF8":       "1",
             "DISPLAY":          ":99",   # Xvfb virtual display
             "TWOCAPTCHA_API_KEY": os.environ.get("TWOCAPTCHA_API_KEY", ""),
-            "JOBEZEE_USER_ID":  _uid,    # per-user Chrome profile isolation
-            "OPENAI_API_KEY":   _openai_key,   # forwarded from Render for tailor
+            "JOBEZEE_USER_ID":  _uid,          # per-user Chrome profile isolation
+            "OPENAI_API_KEY":   _openai_key,   # tools 1, 3, 4 (keyword, evaluator, latex)
+            "CLAUDE_API_KEY":   _claude_key,   # tool 2 (ResumeTailor — Anthropic)
+            "ANTHROPIC_API_KEY": _claude_key,  # fallback alias used by some anthropic SDK versions
         }
 
         cmd  = [sys.executable, "-u", str(_LAUNCHER), "--config", tmp_config]
