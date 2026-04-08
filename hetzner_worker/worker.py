@@ -1203,6 +1203,7 @@ def _post_log(callback_url: str, job_id: str, line: str, status: str = "running"
             json={"job_id": job_id, "line": line, "status": status},
             headers={"Authorization": f"Bearer {WORKER_SECRET}"},
             timeout=5,
+            follow_redirects=True,   # jobezee.org → www.jobezee.org (307)
         )
     except Exception:
         pass
