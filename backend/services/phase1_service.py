@@ -584,12 +584,12 @@ def _normalise_countries(raw: list[str]) -> list[str]:
     except Exception:
         lc_lookup = {}
 
-    # Common aliases not in INDEED_COUNTRY_CODES
+    # Canonical country names — must match COUNTRY_BOARDS + GLOBAL_EMPLOYERS keys
     _ALIASES: dict[str, str] = {
-        "us": "United States", "usa": "United States",
-        "u.s.": "United States", "u.s.a.": "United States",
+        "us": "USA", "usa": "USA",
+        "u.s.": "USA", "u.s.a.": "USA", "united states": "USA",
         "uk": "United Kingdom", "u.k.": "United Kingdom",
-        "uae": "United Arab Emirates",
+        "uae": "UAE", "united arab emirates": "UAE",
     }
 
     out: list[str] = []
