@@ -1197,16 +1197,25 @@ def stop_all(authorization: str = Header(...)):
 # ── Bot runner ────────────────────────────────────────────────────────────────
 
 def _post_log(callback_url: str, job_id: str, line: str, status: str = "running") -> None:
+    """POST a log line to the Render callback URL.
+
+    httpx drops Authorization on cross-domain redirects (RFC 9110 security).
+    We manually follow one redirect level to preserve the header.
+    """
+    headers = {"Authorization": f"Bearer {WORKER_SECRET}"}
+    body    = {"job_id": job_id, "line": line, "status": status}
     try:
-        httpx.post(
-            callback_url,
-            json={"job_id": job_id, "line": line, "status": status},
-            headers={"Authorization": f"Bearer {WORKER_SECRET}"},
-            timeout=5,
-            follow_redirects=True,   # jobezee.org → www.jobezee.org (307)
-        )
-    except Exception:
-        pass
+        resp = httpx.post(callback_url, json=body, headers=headers, timeout=5, follow_redirects=False)
+        if resp.is_redirect:
+            loc = resp.headers.get("location", "")
+            if loc:
+                resp2 = httpx.post(loc, json=body, headers=headers, timeout=5, follow_redirects=False)
+                if resp2.status_code not in (200, 201, 204):
+                    print(f"[_post_log] callback {loc} returned {resp2.status_code}: {resp2.text[:120]}", flush=True)
+        elif resp.status_code not in (200, 201, 204):
+            print(f"[_post_log] callback {callback_url} returned {resp.status_code}: {resp.text[:120]}", flush=True)
+    except Exception as e:
+        print(f"[_post_log] failed to post log to {callback_url}: {e}", flush=True)
 
 
 def _run_bot_task(job: BotJobRequest) -> None:

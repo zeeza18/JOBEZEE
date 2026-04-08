@@ -1261,12 +1261,12 @@ const AutoApplyPage = () => {
                     if (/Total applied/i.test(raw))                  return { text: raw.trim(), cls: 'text-emerald-300' }
                     if (/Failed jobs:|Irrelevant jobs skipped/i.test(raw)) return { text: raw.trim(), cls: 'text-slate-400' }
 
-                    // ── Catch-all: show any [TAG] lines not matched above ────────
+                    // ── Catch-all: show everything — hides nothing so we can see real output ──
                     const tagged = raw.match(/^\[([A-Z][A-Za-z0-9_\- ]+)\]\s+(.+)/)
                     if (tagged) return { text: `${tagged[1]}: ${tagged[2]}`, cls: 'text-slate-500' }
 
-                    // Everything else is true noise — hide
-                    return null
+                    // Show any remaining line dimly so we can see what the bot is sending
+                    return { text: raw, cls: 'text-slate-600 text-xs' }
                   }
 
                   const entry = parse(line)

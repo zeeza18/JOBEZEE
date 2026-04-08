@@ -1233,8 +1233,12 @@ async def internal_log(payload: _LogCallback, authorization: str = Header(...)):
     from ..config import get_settings as _gs
     from ..services.linkedin_bot_service import _append, _jobs, _lock
     cfg = _gs()
-    if cfg.WORKER_SECRET and authorization != f"Bearer {cfg.WORKER_SECRET}":
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    if cfg.WORKER_SECRET:
+        # Accept any secret from the comma-separated WORKER_SECRET list
+        _valid = {s.strip() for s in cfg.WORKER_SECRET.split(",") if s.strip()}
+        _token = authorization.removeprefix("Bearer ").strip()
+        if _token not in _valid:
+            raise HTTPException(status_code=401, detail="Unauthorized")
 
     # Heartbeat: update last-seen timestamp but don't store the line in progress
     if "[heartbeat]" in payload.line:
