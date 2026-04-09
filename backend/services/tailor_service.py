@@ -54,6 +54,21 @@ def _get_executor() -> ThreadPoolExecutor:
     return _executor
 
 
+def get_max_workers() -> int:
+    """Return the current pool capacity (RAM-based)."""
+    return _get_executor()._max_workers
+
+
+def get_active_count() -> int:
+    """Return the number of jobs currently executing (not queued, not done)."""
+    ex = _get_executor()
+    with ex._work_queue.mutex:
+        queued = len(ex._work_queue.queue)
+    total_threads = len(ex._threads)
+    # active = threads that have been spawned minus those blocked on the queue
+    return max(0, total_threads - queued)
+
+
 def create_job(user_id: str = "") -> str:
     job_id = str(uuid.uuid4())
     with _lock:

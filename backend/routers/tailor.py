@@ -24,7 +24,9 @@ from ..models import PulledJob, TailorJobRecord, UserProfile
 from ..services.tailor_service import (
     _extract_resume_text,
     create_job,
+    get_active_count,
     get_job,
+    get_max_workers,
     get_user_jobs,
     start_tailor_job,
     start_tailor_job_for_job,
@@ -165,7 +167,36 @@ async def get_status(job_id: str, _user=Depends(get_current_user), db: AsyncSess
     import shutil
     job = get_job(job_id)
     if not job:
-        raise HTTPException(404, "Job not found")
+        # Server restarted — try to reconstruct from DB
+        db_rec_res = await db.execute(select(TailorJobRecord).where(TailorJobRecord.id == job_id))
+        db_rec = db_rec_res.scalar_one_or_none()
+        if not db_rec:
+            raise HTTPException(404, "Job not found")
+        if db_rec.status in ("running", "queued"):
+            # Was in-progress when server restarted — truly lost
+            return {
+                "status": "error",
+                "error": "Server restarted mid-job — please re-tailor",
+                "company_name": db_rec.company_name,
+                "score": None,
+                "has_pdf": False,
+                "has_docx": False,
+                "filename": db_rec.filename,
+                "pdflatex_available": False,
+                "progress_count": 0,
+            }
+        # Job completed in a previous server run — return DB data
+        return {
+            "status": db_rec.status,
+            "error": db_rec.error_msg,
+            "company_name": db_rec.company_name,
+            "score": db_rec.score,
+            "has_pdf": db_rec.has_pdf,
+            "has_docx": db_rec.has_docx,
+            "filename": db_rec.filename,
+            "pdflatex_available": False,
+            "progress_count": 0,
+        }
     import os as _os
     _worker_url = _os.getenv("BOT_WORKER_URL", "")
     _pdflatex_ok = bool(shutil.which("pdflatex")) or bool(_worker_url)
@@ -393,17 +424,19 @@ async def get_my_jobs(
             filename = mem.get("filename") or dj.filename
             error_msg = mem.get("error") or dj.error_msg
         else:
-            # Not in memory — check if stale running
+            # Not in memory — reconstruct from DB
             status = dj.status
             if status in ("running", "queued"):
-                # Server was restarted — job is lost
-                status = "stale"
+                # Was in-progress when the server restarted — treat as error
+                status = "error"
+                error_msg = "Server restarted mid-job — please re-tailor"
+            else:
+                error_msg = dj.error_msg
             company_name = dj.company_name
             score = dj.score
             has_pdf = dj.has_pdf
             has_docx = dj.has_docx
             filename = dj.filename
-            error_msg = dj.error_msg
 
         result.append({
             "job_id": dj.id,
@@ -419,6 +452,17 @@ async def get_my_jobs(
         })
 
     return result
+
+
+# ── Worker pool info ─────────────────────────────────────────────────────────
+
+@router.get("/worker-info")
+async def worker_info(_user=Depends(get_current_user)):
+    """Return max parallel slots and how many are currently active."""
+    return {
+        "max_workers": get_max_workers(),
+        "active": get_active_count(),
+    }
 
 
 # ── Load resume text from user profile ───────────────────────────────────────

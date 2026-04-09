@@ -6,7 +6,7 @@ import { create } from 'zustand'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
-export type CardStatus = 'queued' | 'running' | 'complete' | 'error' | 'stale'
+export type CardStatus = 'queued' | 'running' | 'complete' | 'error'
 
 export interface RoundResult {
   round: number

@@ -80,34 +80,27 @@ export const TailorCard = ({ card }: Props) => {
     )
   }
 
-  // ── Stale ─────────────────────────────────────────────────────────────────
-  if (card.status === 'stale') {
-    return (
-      <Card className="flex items-center gap-3 p-4 border-amber-200 bg-amber-50/50">
-        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-amber-800">
-            {card.companyName ? `Resume for ${card.companyName}` : 'Tailor job'} — server restarted
-          </p>
-          <p className="text-xs text-amber-600">Please re-submit to tailor again.</p>
-        </div>
-        <button onClick={() => removeCard(card.jobId)} className="text-amber-300 hover:text-amber-500 transition">✕</button>
-      </Card>
-    )
-  }
-
-  // ── Error ─────────────────────────────────────────────────────────────────
+  // ── Error (includes server-restart interrupted jobs) ─────────────────────
   if (card.status === 'error') {
+    const isRestart = card.errorMsg?.toLowerCase().includes('server restarted')
     return (
-      <Card className="p-4 border-red-200 bg-red-50/40 space-y-2">
+      <Card className={`p-4 space-y-2 ${isRestart ? 'border-amber-200 bg-amber-50/40' : 'border-red-200 bg-red-50/40'}`}>
         <div className="flex items-center gap-2">
-          <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-          <span className="text-sm font-semibold text-red-700">
-            {card.companyName ? `Tailoring failed for ${card.companyName}` : 'Tailoring failed'}
+          {isRestart
+            ? <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+            : <XCircle className="h-4 w-4 text-red-500 shrink-0" />}
+          <span className={`text-sm font-semibold ${isRestart ? 'text-amber-800' : 'text-red-700'}`}>
+            {card.companyName
+              ? `${isRestart ? 'Interrupted for' : 'Tailoring failed for'} ${card.companyName}`
+              : isRestart ? 'Job interrupted — server restarted' : 'Tailoring failed'}
           </span>
-          <button onClick={() => removeCard(card.jobId)} className="ml-auto text-red-300 hover:text-red-500 transition">✕</button>
+          <button onClick={() => removeCard(card.jobId)} className={`ml-auto transition ${isRestart ? 'text-amber-300 hover:text-amber-500' : 'text-red-300 hover:text-red-500'}`}>✕</button>
         </div>
-        {card.errorMsg && <p className="text-xs text-red-600 pl-6">{card.errorMsg}</p>}
+        {card.errorMsg && (
+          <p className={`text-xs pl-6 ${isRestart ? 'text-amber-700' : 'text-red-600'}`}>
+            {isRestart ? 'Re-paste your JD above and click Tailor to retry.' : card.errorMsg}
+          </p>
+        )}
       </Card>
     )
   }

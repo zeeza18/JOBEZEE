@@ -11,6 +11,7 @@ const BASE = import.meta.env.VITE_API_URL || ''
 
 const TailorPage = () => {
   const { cards, loaded, loadCards, addCard, openStream } = useTailorCards()
+  const [workerInfo, setWorkerInfo] = useState<{ max_workers: number; active: number } | null>(null)
 
   // ── Input state ───────────────────────────────────────────────────────────
   const [inputJd, setInputJd] = useState('')
@@ -26,9 +27,13 @@ const TailorPage = () => {
 
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Load cards from DB on mount
+  // Load cards from DB on mount + fetch worker slot info
   useEffect(() => {
     if (!loaded) loadCards()
+    fetch(`${BASE}/api/tailor/worker-info`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setWorkerInfo(d) })
+      .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load profile resume only if inputResume is still empty
@@ -219,17 +224,24 @@ const TailorPage = () => {
         </Card>
       </div>
 
-      {/* Tailor button — always enabled when inputs are filled */}
-      <Button
-        onClick={handleRun}
-        disabled={!canSubmit}
-        className="w-full py-3 text-sm md:text-base"
-      >
-        {submitting
-          ? <><Loader2 className="h-4 w-4 animate-spin mr-2 inline" />Starting…</>
-          : 'Tailor Resume'
-        }
-      </Button>
+      {/* Tailor button + worker slot badge */}
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleRun}
+          disabled={!canSubmit}
+          className="flex-1 py-3 text-sm md:text-base"
+        >
+          {submitting
+            ? <><Loader2 className="h-4 w-4 animate-spin mr-2 inline" />Starting…</>
+            : 'Tailor Resume'
+          }
+        </Button>
+        {workerInfo && (
+          <span className="shrink-0 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-500 whitespace-nowrap">
+            {workerInfo.active}/{workerInfo.max_workers} slots
+          </span>
+        )}
+      </div>
 
       {/* Cards — newest first */}
       {cards.length > 0 && (
