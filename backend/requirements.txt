@@ -31,3 +31,4 @@ reportlab==4.2.5
 # ── applypilot / apply_service / PHASE2 tool deps ─────────────────────────────
 python-dotenv==1.0.1
 rich==13.9.4
+psutil
