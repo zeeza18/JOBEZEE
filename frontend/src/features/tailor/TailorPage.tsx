@@ -1,34 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, Clock, Download, FileText, Loader2, MinusCircle, Upload, User, XCircle } from 'lucide-react'
+import { FileText, Loader2, Upload, User } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
-import { useTailorStore } from '../../store/useTailorStore'
+import { useTailorCards } from '../../store/useTailorCards'
+import { TailorCard } from './TailorCard'
 
 type ResumeMode = 'text' | 'file' | 'profile'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
 const TailorPage = () => {
-  const {
-    inputJd, inputResume, setInputJd, setInputResume,
-    jobId, jobStatus, progressLines, keywords, rounds, score,
-    hasPdf, hasDocx, pdflatexAvailable, filename, errorMsg,
-    startJob, reset,
-  } = useTailorStore()
+  const { cards, loaded, loadCards, addCard, openStream } = useTailorCards()
 
-  // ── Local-only UI state (doesn't need to persist) ─────────────────────────
+  // ── Input state ───────────────────────────────────────────────────────────
+  const [inputJd, setInputJd] = useState('')
+  const [inputResume, setInputResume] = useState('')
+
+  // ── Resume source state ───────────────────────────────────────────────────
   const [resumeMode, setResumeMode] = useState<ResumeMode>('profile')
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [extracting, setExtracting] = useState(false)
   const [extractErr, setExtractErr] = useState<string | null>(null)
   const [profileFilename, setProfileFilename] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  const logRef  = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Load cards from DB on mount
   useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
-  }, [progressLines])
+    if (!loaded) loadCards()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load profile resume only if inputResume is still empty
   useEffect(() => {
@@ -86,10 +87,11 @@ const TailorPage = () => {
     if (mode === 'profile') loadFromProfile()
   }
 
-  // ── Run ───────────────────────────────────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────────────────────
 
   const handleRun = async () => {
     if (!inputJd.trim() || !inputResume.trim()) return
+    setSubmitting(true)
     try {
       const res = await fetch(`${BASE}/api/tailor/run`, {
         method: 'POST',
@@ -97,30 +99,18 @@ const TailorPage = () => {
         credentials: 'include',
         body: JSON.stringify({ job_description: inputJd, resume: inputResume }),
       })
-      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.detail ?? `Server error ${res.status}`)
+      }
       const data = await res.json()
-      startJob(data.job_id)
+      addCard(data.job_id, data.company_name ?? null)
+      openStream(data.job_id)
+      // Don't clear inputs — user might want to tailor same resume for another JD
     } catch (err: any) {
-      useTailorStore.getState().setError(err.message ?? 'Failed to start job')
-    }
-  }
-
-  const downloadFile = async (endpoint: string, ext: string) => {
-    if (!jobId) return
-    try {
-      const res = await fetch(`${BASE}/api/tailor/${endpoint}/${jobId}`, { credentials: 'include' })
-      if (!res.ok) throw new Error(`Server returned ${res.status}`)
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename ? `${filename}.${ext}` : `tailored_resume.${ext}`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (e: any) {
-      alert(`Download failed: ${e?.message ?? 'Unknown error'}`)
+      alert(err.message ?? 'Failed to start job')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -130,8 +120,7 @@ const TailorPage = () => {
     { key: 'profile', label: 'From Profile', icon: <User     className="h-3.5 w-3.5" /> },
   ]
 
-  const isRunning = jobStatus === 'running'
-  const showResults = jobStatus !== 'idle' || progressLines.length > 0
+  const canSubmit = !submitting && !!inputJd.trim() && !!inputResume.trim()
 
   return (
     <div className="space-y-5 w-full">
@@ -150,7 +139,6 @@ const TailorPage = () => {
             placeholder="Paste the full job description here..."
             value={inputJd}
             onChange={(e) => setInputJd(e.target.value)}
-            disabled={isRunning}
           />
         </Card>
 
@@ -159,12 +147,15 @@ const TailorPage = () => {
             <p className="text-sm md:text-base font-semibold text-slate-800">Your Resume</p>
             <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 gap-0.5">
               {MODES.map(m => (
-                <button key={m.key} onClick={() => switchMode(m.key)} disabled={isRunning}
+                <button
+                  key={m.key}
+                  onClick={() => switchMode(m.key)}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition ${
                     resumeMode === m.key
                       ? 'bg-white shadow-sm text-cyan-700 border border-slate-200'
                       : 'text-slate-500 hover:text-slate-700'
-                  }`}>
+                  }`}
+                >
                   {m.icon}{m.label}
                 </button>
               ))}
@@ -172,16 +163,18 @@ const TailorPage = () => {
           </div>
 
           {resumeMode === 'file' && (
-            <div onClick={() => !extracting && fileRef.current?.click()}
+            <div
+              onClick={() => !extracting && fileRef.current?.click()}
               className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 cursor-pointer transition ${
                 extracting ? 'border-cyan-300 bg-cyan-50' : 'border-slate-200 hover:border-cyan-300 hover:bg-slate-50'
-              }`}>
+              }`}
+            >
               <input ref={fileRef} type="file" accept=".pdf,.docx,.doc,.txt" className="hidden" onChange={handleFileChange} />
               {extracting
                 ? <><Loader2 className="h-6 w-6 text-cyan-500 animate-spin" /><p className="text-sm text-cyan-600">Extracting text…</p></>
                 : resumeFile
-                  ? <><FileText className="h-6 w-6 text-cyan-600" /><p className="text-sm font-medium text-slate-700">{resumeFile.name}</p><p className="text-xs text-slate-400">Click to replace</p></>
-                  : <><Upload className="h-6 w-6 text-slate-400" /><p className="text-sm font-medium text-slate-600">Click to upload</p><p className="text-xs text-slate-400">PDF, DOCX, or TXT</p></>
+                ? <><FileText className="h-6 w-6 text-cyan-600" /><p className="text-sm font-medium text-slate-700">{resumeFile.name}</p><p className="text-xs text-slate-400">Click to replace</p></>
+                : <><Upload className="h-6 w-6 text-slate-400" /><p className="text-sm font-medium text-slate-600">Click to upload</p><p className="text-xs text-slate-400">PDF, DOCX, or TXT</p></>
               }
             </div>
           )}
@@ -219,7 +212,6 @@ const TailorPage = () => {
                 placeholder={resumeMode === 'text' ? 'Paste your resume as plain text here...' : 'Extracted text — review and edit if needed...'}
                 value={inputResume}
                 onChange={(e) => setInputResume(e.target.value)}
-                disabled={isRunning}
               />
             </>
           )}
@@ -227,156 +219,27 @@ const TailorPage = () => {
         </Card>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex gap-3">
-        <Button
-          onClick={handleRun}
-          disabled={isRunning || !inputJd.trim() || !inputResume.trim()}
-          className="flex-1 py-3 text-sm md:text-base"
-        >
-          {isRunning ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Tailoring…</> : 'Tailor Resume'}
-        </Button>
-        {(jobStatus === 'complete' || jobStatus === 'error') && (
-          <Button variant="ghost" onClick={reset} className="py-3 text-sm">New</Button>
-        )}
-      </div>
+      {/* Tailor button — always enabled when inputs are filled */}
+      <Button
+        onClick={handleRun}
+        disabled={!canSubmit}
+        className="w-full py-3 text-sm md:text-base"
+      >
+        {submitting
+          ? <><Loader2 className="h-4 w-4 animate-spin mr-2 inline" />Starting…</>
+          : 'Tailor Resume'
+        }
+      </Button>
 
-      {/* ── Results area ─────────────────────────────────────────────────────── */}
-      {showResults && (
-        <div className="space-y-4">
-
-          {/* Keywords */}
-          {keywords.length > 0 && (
-            <Card className="p-4 md:p-5 space-y-3">
-              <p className="text-sm font-semibold text-slate-800">
-                Extracted Keywords <span className="text-xs font-normal text-slate-400 ml-1">({keywords.length})</span>
-              </p>
-              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                {keywords.map((kw, i) => (
-                  <span key={i} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-cyan-50 text-cyan-700 border border-cyan-200">
-                    {kw}
-                  </span>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Round progress */}
-          {rounds.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {rounds.map((r) => (
-                <Card key={r.round} className={`p-4 flex items-center gap-4 ${
-                  r.status === 'complete' ? 'border-emerald-200 bg-emerald-50/40' :
-                  r.status === 'running'  ? 'border-cyan-200 bg-cyan-50/40'    :
-                  r.status === 'skipped'  ? 'border-slate-100 bg-slate-50/20 opacity-60' :
-                  'border-slate-200 bg-slate-50/40'
-                }`}>
-                  <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${
-                    r.status === 'complete' ? 'bg-emerald-100' :
-                    r.status === 'running'  ? 'bg-cyan-100'    :
-                    r.status === 'skipped'  ? 'bg-slate-100'   : 'bg-slate-100'
-                  }`}>
-                    {r.status === 'complete' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> :
-                     r.status === 'running'  ? <Loader2 className="h-5 w-5 text-cyan-500 animate-spin" /> :
-                     r.status === 'skipped'  ? <MinusCircle className="h-5 w-5 text-slate-400" /> :
-                                               <Clock className="h-5 w-5 text-slate-400" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800">Round {r.round}</p>
-                    <p className="text-xs text-slate-500">
-                      {r.status === 'complete'
-                        ? r.score != null && r.score > 0
-                          ? `Score: ${r.score}/100`
-                          : 'Complete (score unavailable)'
-                        : r.status === 'running'  ? 'AI tailoring in progress…'
-                        : r.status === 'skipped'  ? 'Skipped — perfect score'
-                        : 'Waiting…'}
-                    </p>
-                  </div>
-                  {r.status === 'complete' && r.score != null && r.score > 0 && (
-                    <div className={`flex-shrink-0 text-2xl font-bold tabular-nums ${
-                      r.score >= 80 ? 'text-emerald-600' :
-                      r.score >= 60 ? 'text-amber-500'  : 'text-red-500'
-                    }`}>
-                      {r.score}
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* Downloads — shown as soon as available */}
-          {jobStatus === 'complete' && (
-            <Card className="p-4 md:p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-800">Downloads</p>
-                {score != null && score > 0 && (
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    score >= 80 ? 'bg-emerald-100 text-emerald-700' :
-                    score >= 60 ? 'bg-amber-100 text-amber-700'    : 'bg-red-100 text-red-700'
-                  }`}>Final score: {score}/100</span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {hasPdf && (
-                  <button onClick={() => downloadFile('download', 'pdf')}
-                    className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition">
-                    <Download className="h-4 w-4" /> Download PDF
-                  </button>
-                )}
-                {hasDocx && (
-                  <button onClick={() => downloadFile('download-docx', 'docx')}
-                    className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 transition">
-                    <Download className="h-4 w-4" /> Download Word
-                  </button>
-                )}
-                {!hasPdf && !hasTex && (
-                  <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                    <XCircle className="h-4 w-4 shrink-0" />
-                    {pdflatexAvailable === false
-                      ? 'pdflatex not installed on server — install MiKTeX or TeX Live to enable PDF.'
-                      : 'PDF generation failed — check server logs.'}
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {/* Log */}
-          <Card className="p-4 md:p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-800">Progress</p>
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                isRunning           ? 'bg-cyan-100 text-cyan-700'       :
-                jobStatus === 'complete' ? 'bg-emerald-100 text-emerald-700' :
-                jobStatus === 'error'    ? 'bg-red-100 text-red-700'         : ''
-              }`}>
-                {isRunning ? 'Running…' : jobStatus === 'complete' ? 'Complete' : jobStatus === 'error' ? 'Failed' : ''}
-              </span>
-            </div>
-            <div ref={logRef} className="h-40 md:h-52 overflow-y-auto rounded-xl bg-slate-900 p-3 font-mono text-xs space-y-0.5">
-              {progressLines.length === 0 && <span className="text-slate-500">Waiting for pipeline output...</span>}
-              {progressLines.map((line, i) => (
-                <div key={i} className={`break-all leading-relaxed ${
-                  /^\[ERROR\]/i.test(line)  ? 'text-red-400'    :
-                  /^\[WARN\]/i.test(line)   ? 'text-amber-400'  :
-                  /^\[OK\]/i.test(line)     ? 'text-emerald-400':
-                  /^\[STEP\]/i.test(line)   ? 'text-cyan-300 font-semibold' :
-                  /^\[ROUND\]/i.test(line)  ? 'text-blue-300 font-semibold' :
-                  'text-slate-300'
-                }`}>{line}</div>
-              ))}
-              {isRunning && (
-                <div className="flex gap-1 pt-1">
-                  <span className="animate-pulse text-cyan-400">●</span>
-                  <span className="text-slate-400">Processing...</span>
-                </div>
-              )}
-            </div>
-            {errorMsg && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorMsg}</div>}
-          </Card>
-
+      {/* Cards — newest first */}
+      {cards.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-slate-700">
+            Active Jobs ({cards.length})
+          </p>
+          {cards.map(card => (
+            <TailorCard key={card.jobId} card={card} />
+          ))}
         </div>
       )}
     </div>

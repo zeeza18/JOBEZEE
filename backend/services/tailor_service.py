@@ -9,8 +9,11 @@ import shutil
 import subprocess
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+import psutil
 
 # PHASE2_JOB_TAILOR module root (two levels up from this file)
 _SERVICE_DIR  = Path(__file__).resolve().parent          # backend/services/
@@ -29,20 +32,43 @@ _JOB_OUTPUTS  = _JOBEZEE_ROOT / "job_outputs"           # per-job output dirs
 _jobs: Dict[str, Dict[str, Any]] = {}
 _lock = threading.Lock()
 
+# Thread pool — size based on available RAM
+def _max_workers() -> int:
+    try:
+        available_gb = psutil.virtual_memory().available / (1024 ** 3)
+        n = max(1, min(6, int(available_gb / 0.5)))
+        return n
+    except Exception:
+        return 2
 
-def create_job() -> str:
+_executor: Optional[ThreadPoolExecutor] = None
+_executor_lock = threading.Lock()
+
+def _get_executor() -> ThreadPoolExecutor:
+    global _executor
+    with _executor_lock:
+        if _executor is None or _executor._shutdown:
+            n = _max_workers()
+            _executor = ThreadPoolExecutor(max_workers=n, thread_name_prefix="tailor")
+            print(f"[tailor_service] Worker pool: {n} concurrent jobs")
+    return _executor
+
+
+def create_job(user_id: str = "") -> str:
     job_id = str(uuid.uuid4())
     with _lock:
         _jobs[job_id] = {
-            "status": "pending",
-            "progress": [],
-            "score": None,
-            "tex_path": None,
-            "pdf_path": None,
-            "docx_path": None,
+            "user_id":      user_id,
+            "status":       "queued",
+            "progress":     [],
+            "score":        None,
+            "company_name": None,
+            "tex_path":     None,
+            "pdf_path":     None,
+            "docx_path":    None,
             "final_resume": None,
-            "filename": None,
-            "error": None,
+            "filename":     None,
+            "error":        None,
         }
     return job_id
 
@@ -51,16 +77,21 @@ def get_job(job_id: str) -> Optional[Dict[str, Any]]:
     return _jobs.get(job_id)
 
 
+def get_user_jobs(user_id: str) -> list:
+    """Return all in-memory jobs for a user (newest first by insertion order)."""
+    with _lock:
+        return [
+            {"job_id": jid, **jdata}
+            for jid, jdata in reversed(list(_jobs.items()))
+            if jdata.get("user_id") == user_id
+        ]
+
+
 # ─── Original: run from plain text (TailorPage) ───────────────────────────────
 
 def start_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "") -> None:
-    """Launch crew in a daemon thread (plain text resume — for TailorPage)."""
-    t = threading.Thread(
-        target=_run_tailor_job,
-        args=(job_id, job_description, resume, openai_api_key, username),
-        daemon=True,
-    )
-    t.start()
+    """Submit job to thread pool (plain text resume — TailorPage)."""
+    _get_executor().submit(_run_tailor_job, job_id, job_description, resume, openai_api_key, username)
 
 
 def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "") -> None:
@@ -110,6 +141,9 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
 
         # Build filename: username_company (from Tool 1 keyword_analysis)
         company_raw = result.get("keyword_analysis", {}).get("company_name", "") or "company"
+        with _lock:
+            _jobs[job_id]["company_name"] = company_raw
+        progress_callback({"event": "company_detected", "company_name": company_raw})
         safe_name = _safe_filename(username or "resume", company_raw)
 
         if latex_summary.get("status") == "success":
@@ -161,13 +195,8 @@ def start_tailor_job_for_job(
     openai_api_key: str = "",
     contact_header: str = "",
 ) -> None:
-    """Launch crew for a specific pulled job using the user's uploaded resume."""
-    t = threading.Thread(
-        target=_run_tailor_for_job,
-        args=(tailor_job_id, job_description, resume_url, username, company, openai_api_key, contact_header),
-        daemon=True,
-    )
-    t.start()
+    """Submit job to thread pool (uploaded resume file — job-card Tailor button)."""
+    _get_executor().submit(_run_tailor_for_job, tailor_job_id, job_description, resume_url, username, company, openai_api_key, contact_header)
 
 
 def _run_tailor_for_job(
@@ -181,6 +210,7 @@ def _run_tailor_for_job(
 ) -> None:
     with _lock:
         _jobs[tailor_job_id]["status"] = "running"
+        _jobs[tailor_job_id]["company_name"] = company
 
     def progress_callback(data: Dict[str, Any]) -> None:
         with _lock:
@@ -189,6 +219,9 @@ def _run_tailor_for_job(
                 score = data.get("evaluation", {}).get("score")
                 if score is not None:
                     _jobs[tailor_job_id]["score"] = score
+
+    # Emit company_detected immediately since company is already known
+    progress_callback({"event": "company_detected", "company_name": company})
 
     try:
         # Resolve resume file from URL path (/uploads/resumes/<filename>)

@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -19,11 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import get_current_user
 from ..crypto import decrypt
 from ..database import get_db
-from ..models import PulledJob, UserProfile
+from ..models import PulledJob, TailorJobRecord, UserProfile
 from ..services.tailor_service import (
     _extract_resume_text,
     create_job,
     get_job,
+    get_user_jobs,
     start_tailor_job,
     start_tailor_job_for_job,
 )
@@ -70,9 +72,17 @@ async def start_tailor(
 
     _name_raw = (current_user.full_name or "").strip()
     _username = (_name_raw if _name_raw and "@" not in _name_raw else current_user.email.split("@")[0]).replace(" ", "_")
-    job_id = create_job()
+    job_id = create_job(user_id=str(current_user.id))
+    _expires = datetime.now(timezone.utc) + timedelta(days=2)
+    db.add(TailorJobRecord(
+        id=job_id,
+        user_id=str(current_user.id),
+        status="queued",
+        expires_at=_expires,
+    ))
+    await db.commit()
     start_tailor_job(job_id, req.job_description, resume_with_header, openai_api_key=openai_key, username=_username)
-    return {"job_id": job_id, "status": "running"}
+    return {"job_id": job_id, "status": "queued"}
 
 
 # ── Start job for a pulled job (job-card Tailor button) ───────────────────────
@@ -126,7 +136,16 @@ async def start_tailor_for_job(
 
     contact_header = _build_contact_header(profile, current_user)
 
-    tailor_job_id = create_job()
+    tailor_job_id = create_job(user_id=str(current_user.id))
+    _expires = datetime.now(timezone.utc) + timedelta(days=2)
+    db.add(TailorJobRecord(
+        id=tailor_job_id,
+        user_id=str(current_user.id),
+        status="queued",
+        company_name=company,
+        expires_at=_expires,
+    ))
+    await db.commit()
     start_tailor_job_for_job(
         tailor_job_id,
         pulled_job.description,
@@ -136,13 +155,13 @@ async def start_tailor_for_job(
         openai_api_key=openai_key,
         contact_header=contact_header,
     )
-    return {"job_id": tailor_job_id, "status": "running"}
+    return {"job_id": tailor_job_id, "status": "queued", "company_name": company}
 
 
 # ── Poll status ───────────────────────────────────────────────────────────────
 
 @router.get("/status/{job_id}")
-async def get_status(job_id: str, _user=Depends(get_current_user)):
+async def get_status(job_id: str, _user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     import shutil
     job = get_job(job_id)
     if not job:
@@ -150,9 +169,32 @@ async def get_status(job_id: str, _user=Depends(get_current_user)):
     import os as _os
     _worker_url = _os.getenv("BOT_WORKER_URL", "")
     _pdflatex_ok = bool(shutil.which("pdflatex")) or bool(_worker_url)
+
+    # Persist status to DB when job reaches a terminal state
+    if job["status"] in ("complete", "error"):
+        from sqlalchemy import update as sa_update
+        try:
+            await db.execute(
+                sa_update(TailorJobRecord)
+                .where(TailorJobRecord.id == job_id)
+                .values(
+                    status=job["status"],
+                    company_name=job.get("company_name"),
+                    score=job.get("score"),
+                    has_pdf=job.get("pdf_path") is not None,
+                    has_docx=job.get("docx_path") is not None,
+                    filename=job.get("filename"),
+                    error_msg=job.get("error"),
+                )
+            )
+            await db.commit()
+        except Exception:
+            pass  # non-fatal
+
     return {
         "status": job["status"],
         "score": job.get("score"),
+        "company_name": job.get("company_name"),
         "has_pdf": job.get("pdf_path") is not None,
         "has_docx": job.get("docx_path") is not None,
         "filename": job.get("filename"),
@@ -232,17 +274,32 @@ async def stream_job(job_id: str):
 # ── Download PDF ──────────────────────────────────────────────────────────────
 
 @router.get("/download/{job_id}")
-async def download_pdf(job_id: str, _user=Depends(get_current_user)):
+async def download_pdf(job_id: str, _user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from ..services.tailor_service import _JOB_OUTPUTS
     job = get_job(job_id)
-    if not job:
-        raise HTTPException(404, "Job not found")
-    if job["status"] != "complete":
-        raise HTTPException(400, f"Job is not complete yet (status: {job['status']})")
-    if not job.get("pdf_path"):
-        raise HTTPException(404, "PDF not available — pdflatex may not be installed")
-    filename = f"{job.get('filename', 'tailored_resume')}.pdf"
+    if job:
+        if job["status"] != "complete":
+            raise HTTPException(400, f"Job is not complete yet (status: {job['status']})")
+        if not job.get("pdf_path"):
+            raise HTTPException(404, "PDF not available — pdflatex may not be installed")
+        pdf_path = job["pdf_path"]
+        filename = f"{job.get('filename', 'tailored_resume')}.pdf"
+    else:
+        # Try to recover from DB record + on-disk files
+        db_rec = await db.execute(select(TailorJobRecord).where(TailorJobRecord.id == job_id))
+        rec = db_rec.scalar_one_or_none()
+        if not rec or not rec.has_pdf:
+            raise HTTPException(404, "Job not found")
+        job_dir = _JOB_OUTPUTS / job_id
+        # Find any .pdf in the job dir
+        pdf_files = list(job_dir.glob("*.pdf")) if job_dir.exists() else []
+        if not pdf_files:
+            raise HTTPException(404, "PDF file not found on disk (server may have restarted)")
+        pdf_path = str(pdf_files[0])
+        fname = rec.filename or pdf_files[0].stem
+        filename = f"{fname}.pdf"
     return FileResponse(
-        job["pdf_path"],
+        pdf_path,
         media_type="application/pdf",
         filename=filename,
     )
@@ -251,15 +308,28 @@ async def download_pdf(job_id: str, _user=Depends(get_current_user)):
 # ── Download .docx ────────────────────────────────────────────────────────────
 
 @router.get("/download-docx/{job_id}")
-async def download_docx(job_id: str, _user=Depends(get_current_user)):
+async def download_docx(job_id: str, _user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from ..services.tailor_service import _JOB_OUTPUTS
     job = get_job(job_id)
-    if not job:
-        raise HTTPException(404, "Job not found")
-    if not job.get("docx_path"):
-        raise HTTPException(404, "Word document not available")
-    filename = f"{job.get('filename', 'tailored_resume')}.docx"
+    if job:
+        if not job.get("docx_path"):
+            raise HTTPException(404, "Word document not available")
+        docx_path = job["docx_path"]
+        filename = f"{job.get('filename', 'tailored_resume')}.docx"
+    else:
+        db_rec = await db.execute(select(TailorJobRecord).where(TailorJobRecord.id == job_id))
+        rec = db_rec.scalar_one_or_none()
+        if not rec or not rec.has_docx:
+            raise HTTPException(404, "Job not found")
+        job_dir = _JOB_OUTPUTS / job_id
+        docx_files = list(job_dir.glob("*.docx")) if job_dir.exists() else []
+        if not docx_files:
+            raise HTTPException(404, "DOCX file not found on disk (server may have restarted)")
+        docx_path = str(docx_files[0])
+        fname = rec.filename or docx_files[0].stem
+        filename = f"{fname}.docx"
     return FileResponse(
-        job["docx_path"],
+        docx_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=filename,
     )
@@ -291,6 +361,64 @@ async def extract_resume_text(
     if not text.strip():
         raise HTTPException(422, "Could not extract text from the file.")
     return {"text": text}
+
+
+# ── My tailor jobs (card history) ────────────────────────────────────────────
+
+@router.get("/my-jobs")
+async def get_my_jobs(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all tailor jobs for the current user (from DB, non-expired)."""
+    now = datetime.now(timezone.utc)
+    res = await db.execute(
+        select(TailorJobRecord)
+        .where(TailorJobRecord.user_id == str(current_user.id))
+        .where(TailorJobRecord.expires_at > now)
+        .order_by(TailorJobRecord.created_at.desc())
+    )
+    db_jobs = res.scalars().all()
+
+    result = []
+    for dj in db_jobs:
+        mem = get_job(dj.id)  # check in-memory state
+        if mem:
+            # Use in-memory state (more up-to-date)
+            status = mem["status"]
+            company_name = mem.get("company_name") or dj.company_name
+            score = mem.get("score") or dj.score
+            has_pdf = mem.get("pdf_path") is not None
+            has_docx = mem.get("docx_path") is not None
+            filename = mem.get("filename") or dj.filename
+            error_msg = mem.get("error") or dj.error_msg
+        else:
+            # Not in memory — check if stale running
+            status = dj.status
+            if status in ("running", "queued"):
+                # Server was restarted — job is lost
+                status = "stale"
+            company_name = dj.company_name
+            score = dj.score
+            has_pdf = dj.has_pdf
+            has_docx = dj.has_docx
+            filename = dj.filename
+            error_msg = dj.error_msg
+
+        result.append({
+            "job_id": dj.id,
+            "status": status,
+            "company_name": company_name,
+            "score": score,
+            "has_pdf": has_pdf,
+            "has_docx": has_docx,
+            "filename": filename,
+            "error_msg": error_msg,
+            "created_at": dj.created_at.isoformat() if dj.created_at else None,
+            "expires_at": dj.expires_at.isoformat() if dj.expires_at else None,
+        })
+
+    return result
 
 
 # ── Load resume text from user profile ───────────────────────────────────────

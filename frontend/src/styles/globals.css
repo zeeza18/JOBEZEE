@@ -47,6 +47,16 @@ input, textarea, select {
   to   { transform: translateX(-50%); }
 }
 
+/* Shimmer animation for loading tailor cards */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
 /* Dark page overrides — don't apply bg-white to landing/auth */
 .page-dark {
   background-color: #020817;
