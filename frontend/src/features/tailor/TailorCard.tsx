@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronUp,
-  Clock, Download, FileText, Loader2, XCircle,
+  Clock, Download, ExternalLink, FileText, Loader2, XCircle,
 } from 'lucide-react'
 import { TailorCard as TailorCardType, useTailorCards } from '../../store/useTailorCards'
 import { Card } from '../../components/ui/Card'
@@ -46,12 +46,118 @@ function StepDot({ status }: { status: 'pending' | 'running' | 'complete' | 'ski
   return <div className="h-4 w-4 rounded-full border-2 border-slate-300 shrink-0" />
 }
 
+/** Collapsible details panel — shown in running AND complete states */
+function DetailsPanel({ card, showLog = false }: { card: TailorCardType; showLog?: boolean }) {
+  const [showJd, setShowJd] = useState(false)
+  const [showResume, setShowResume] = useState(false)
+
+  const hasAny = card.jobUrl || card.jdSnippet || card.resumeSnippet || (showLog && card.progressLines.length > 0) || card.keywords.length > 0
+
+  if (!hasAny) return null
+
+  return (
+    <div className="border-t border-slate-100 bg-slate-50/40 divide-y divide-slate-100">
+
+      {/* Job URL */}
+      {card.jobUrl && (
+        <div className="px-4 py-2.5 flex items-center gap-2">
+          <ExternalLink className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+          <a
+            href={card.jobUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-cyan-600 hover:text-cyan-800 hover:underline truncate"
+          >
+            {card.jobUrl}
+          </a>
+        </div>
+      )}
+
+      {/* JD snippet */}
+      {card.jdSnippet && (
+        <div className="px-4 py-2.5">
+          <button
+            onClick={() => setShowJd(v => !v)}
+            className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-700 transition w-full"
+          >
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            Job Description
+            {showJd ? <ChevronUp className="h-3.5 w-3.5 ml-auto" /> : <ChevronDown className="h-3.5 w-3.5 ml-auto" />}
+          </button>
+          {showJd && (
+            <pre className="mt-2 text-xs text-slate-600 whitespace-pre-wrap break-all leading-relaxed max-h-40 overflow-y-auto bg-white rounded-lg border border-slate-200 p-3">
+              {card.jdSnippet}
+            </pre>
+          )}
+        </div>
+      )}
+
+      {/* Resume snippet */}
+      {card.resumeSnippet && (
+        <div className="px-4 py-2.5">
+          <button
+            onClick={() => setShowResume(v => !v)}
+            className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-700 transition w-full"
+          >
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            Resume Used
+            {showResume ? <ChevronUp className="h-3.5 w-3.5 ml-auto" /> : <ChevronDown className="h-3.5 w-3.5 ml-auto" />}
+          </button>
+          {showResume && (
+            <pre className="mt-2 text-xs text-slate-600 whitespace-pre-wrap break-all leading-relaxed max-h-40 overflow-y-auto bg-white rounded-lg border border-slate-200 p-3">
+              {card.resumeSnippet}
+            </pre>
+          )}
+        </div>
+      )}
+
+      {/* Keywords (complete only) */}
+      {showLog && card.keywords.length > 0 && (
+        <div className="px-4 py-2.5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+            Keywords ({card.keywords.length})
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {card.keywords.map((kw, i) => (
+              <span key={i} className="px-2 py-0.5 rounded-full text-xs bg-cyan-50 text-cyan-700 border border-cyan-200">
+                {kw}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Log (complete only) */}
+      {showLog && card.progressLines.length > 0 && (
+        <div className="px-4 py-2.5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Log</p>
+          <div className="rounded-xl bg-slate-900 p-3 font-mono text-xs space-y-0.5 max-h-40 overflow-y-auto">
+            {card.progressLines.map((line, i) => (
+              <div
+                key={i}
+                className={`break-all leading-relaxed ${
+                  /^\[ERROR\]/i.test(line) ? 'text-red-400'
+                  : /^\[WARN\]/i.test(line) ? 'text-amber-400'
+                  : /^\[OK\]/i.test(line) ? 'text-emerald-400'
+                  : /^\[STEP\]/i.test(line) ? 'text-cyan-300 font-semibold'
+                  : /^\[ROUND\]/i.test(line) ? 'text-blue-300 font-semibold'
+                  : 'text-slate-300'
+                }`}
+              >
+                {line}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── main component ──────────────────────────────────────────────────────── */
 export const TailorCard = ({ card }: Props) => {
   const { toggleExpanded, removeCard } = useTailorCards()
   const [downloading, setDownloading] = useState<string | null>(null)
-  const [showJd, setShowJd] = useState(false)
-  const [showResume, setShowResume] = useState(false)
 
   const download = async (endpoint: string, ext: string) => {
     setDownloading(ext)
@@ -78,42 +184,23 @@ export const TailorCard = ({ card }: Props) => {
   /* ── QUEUED ─────────────────────────────────────────────────────────────── */
   if (card.status === 'queued') {
     return (
-      <Card className="flex items-center gap-3 px-4 py-3 border-slate-200 bg-slate-50/60">
-        <Clock className="h-4 w-4 text-slate-400 shrink-0 animate-pulse" />
-        <span className="text-sm text-slate-500 flex-1">Queued — waiting for available slot…</span>
-        <button onClick={dismiss} className="text-slate-300 hover:text-slate-500 transition p-1">✕</button>
+      <Card className="overflow-hidden p-0 border-slate-200">
+        <div className="flex items-center gap-3 px-4 py-3 bg-slate-50/60">
+          <Clock className="h-4 w-4 text-slate-400 shrink-0 animate-pulse" />
+          <span className="text-sm text-slate-500 flex-1">Queued — waiting for available slot…</span>
+          <button onClick={dismiss} className="text-slate-300 hover:text-slate-500 transition p-1">✕</button>
+        </div>
+        <DetailsPanel card={card} />
       </Card>
     )
   }
 
-  /* ── RUNNING (no company yet — shimmer) ──────────────────────────────────── */
-  if (card.status === 'running' && !card.companyName) {
-    return (
-      <div className="relative overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-r from-cyan-50 via-slate-50 to-cyan-50 p-5">
-        <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/60 to-transparent" />
-        <div className="relative flex items-center gap-4">
-          <Loader2 className="h-5 w-5 text-cyan-500 animate-spin shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-slate-700">Analysing job description…</p>
-            <p className="text-xs text-slate-400 mt-0.5">Detecting company and extracting keywords</p>
-          </div>
-          <button onClick={dismiss} className="ml-auto text-slate-300 hover:text-slate-500 transition p-1">✕</button>
-        </div>
-      </div>
-    )
-  }
-
-  /* ── RUNNING (company known) ─────────────────────────────────────────────── */
-  if (card.status === 'running' && card.companyName) {
-    // Determine step states
-    const kw = card.keywords.length
-    const r1 = card.rounds[0]
-    const r2 = card.rounds[1]
-
-    const kwStep   = kw > 0 ? 'complete' : 'running'
-    const r1Step   = r1.status
-    const r2Step   = r2.status
-    const fileStep = 'pending' // still running
+  /* ── RUNNING ─────────────────────────────────────────────────────────────── */
+  if (card.status === 'running') {
+    const kw   = card.keywords.length
+    const r1   = card.rounds[0]
+    const r2   = card.rounds[1]
+    const kwStep = kw > 0 ? 'complete' : 'running'
 
     return (
       <Card className="overflow-hidden p-0 border-cyan-200">
@@ -122,52 +209,53 @@ export const TailorCard = ({ card }: Props) => {
           <Loader2 className="h-4 w-4 text-cyan-500 animate-spin shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-slate-800">
-              Tailoring for <span className="text-cyan-700">{card.companyName}</span>
+              {card.companyName
+                ? <>Tailoring for <span className="text-cyan-700">{card.companyName}</span></>
+                : 'Analysing job description…'}
             </p>
+            {!card.companyName && (
+              <p className="text-xs text-slate-400 mt-0.5">Detecting company and extracting keywords</p>
+            )}
           </div>
+          <button
+            onClick={() => toggleExpanded(card.jobId)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition shrink-0"
+          >
+            {card.expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
           <button onClick={dismiss} className="text-slate-300 hover:text-slate-500 transition p-1 shrink-0">✕</button>
         </div>
 
         {/* Steps */}
-        <div className="px-4 pb-4 pt-2 space-y-2">
-          {/* Keywords */}
+        <div className="px-4 pb-3 pt-2 space-y-2">
           <div className="flex items-center gap-2">
             <StepDot status={kwStep} />
             <span className="text-xs text-slate-600">
               {kw > 0 ? `${kw} keywords extracted` : 'Extracting keywords…'}
             </span>
           </div>
-
-          {/* Round 1 */}
           <div className="flex items-center gap-2">
-            <StepDot status={r1Step} />
-            <span className="text-xs text-slate-600 w-20 shrink-0">
-              {r1Step === 'pending' ? 'Round 1' : r1Step === 'running' ? 'Round 1…' : `Round 1`}
-            </span>
+            <StepDot status={r1.status} />
+            <span className="text-xs text-slate-600 w-16 shrink-0">Round 1</span>
             {r1.status === 'complete' && r1.score != null && <ScoreBar score={r1.score} />}
-            {r1.status === 'running' && (
-              <span className="text-xs text-slate-400 italic">scoring…</span>
-            )}
+            {r1.status === 'running' && <span className="text-xs text-slate-400 italic">scoring…</span>}
           </div>
-
-          {/* Round 2 */}
           <div className="flex items-center gap-2">
-            <StepDot status={r2Step} />
-            <span className="text-xs text-slate-600 w-20 shrink-0">
-              {r2Step === 'pending' ? 'Round 2' : r2Step === 'running' ? 'Round 2…' : r2Step === 'skipped' ? 'Round 2 (skipped)' : 'Round 2'}
+            <StepDot status={r2.status} />
+            <span className="text-xs text-slate-600 w-16 shrink-0">
+              {r2.status === 'skipped' ? 'Round 2 (skipped)' : 'Round 2'}
             </span>
             {r2.status === 'complete' && r2.score != null && <ScoreBar score={r2.score} />}
-            {r2.status === 'running' && (
-              <span className="text-xs text-slate-400 italic">scoring…</span>
-            )}
+            {r2.status === 'running' && <span className="text-xs text-slate-400 italic">scoring…</span>}
           </div>
-
-          {/* File generation */}
           <div className="flex items-center gap-2">
-            <StepDot status={fileStep} />
+            <StepDot status="pending" />
             <span className="text-xs text-slate-400">Generating PDF & Word…</span>
           </div>
         </div>
+
+        {/* Dropdown — always available */}
+        {card.expanded && <DetailsPanel card={card} />}
       </Card>
     )
   }
@@ -176,21 +264,24 @@ export const TailorCard = ({ card }: Props) => {
   if (card.status === 'error') {
     const isRestart = card.errorMsg?.toLowerCase().includes('server restarted')
     return (
-      <Card className={`p-4 space-y-2 ${isRestart ? 'border-amber-200 bg-amber-50/40' : 'border-red-200 bg-red-50/40'}`}>
-        <div className="flex items-center gap-2">
+      <Card className={`overflow-hidden p-0 ${isRestart ? 'border-amber-200' : 'border-red-200'}`}>
+        <div className={`flex items-center gap-2 px-4 py-3 ${isRestart ? 'bg-amber-50/40' : 'bg-red-50/40'}`}>
           {isRestart
             ? <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
             : <XCircle className="h-4 w-4 text-red-500 shrink-0" />}
-          <span className={`text-sm font-semibold flex-1 ${isRestart ? 'text-amber-800' : 'text-red-700'}`}>
-            {card.companyName
-              ? `${isRestart ? 'Interrupted for' : 'Failed for'} ${card.companyName}`
-              : isRestart ? 'Job interrupted' : 'Tailoring failed'}
-          </span>
-          <button onClick={dismiss} className={`transition p-1 ${isRestart ? 'text-amber-300 hover:text-amber-500' : 'text-red-300 hover:text-red-500'}`}>✕</button>
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-semibold ${isRestart ? 'text-amber-800' : 'text-red-700'}`}>
+              {card.companyName
+                ? `${isRestart ? 'Interrupted for' : 'Failed for'} ${card.companyName}`
+                : isRestart ? 'Job interrupted' : 'Tailoring failed'}
+            </p>
+            <p className={`text-xs mt-0.5 ${isRestart ? 'text-amber-700' : 'text-red-600'}`}>
+              {isRestart ? 'Re-paste your JD above and click Tailor to retry.' : card.errorMsg}
+            </p>
+          </div>
+          <button onClick={dismiss} className={`p-1 transition ${isRestart ? 'text-amber-300 hover:text-amber-500' : 'text-red-300 hover:text-red-500'}`}>✕</button>
         </div>
-        <p className={`text-xs pl-6 ${isRestart ? 'text-amber-700' : 'text-red-600'}`}>
-          {isRestart ? 'Re-paste your JD above and click Tailor to retry.' : card.errorMsg}
-        </p>
+        <DetailsPanel card={card} />
       </Card>
     )
   }
@@ -238,110 +329,35 @@ export const TailorCard = ({ card }: Props) => {
         >
           {card.expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
-        <button onClick={dismiss} className="p-1.5 text-slate-300 hover:text-slate-500 transition shrink-0">✕</button>
+        <button onClick={dismiss} className="p-1 text-slate-300 hover:text-slate-500 transition shrink-0">✕</button>
       </div>
 
-      {/* Expanded details */}
-      {card.expanded && (
-        <div className="border-t border-slate-100 bg-slate-50/40 divide-y divide-slate-100">
-
-          {/* Round scores */}
-          {(r1.status !== 'pending' || r2.status !== 'pending') && (
-            <div className="px-4 py-3 space-y-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Tailoring Rounds</p>
-              {[r1, r2].map(r => (
-                <div key={r.round} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 w-14 shrink-0">Round {r.round}</span>
-                  {r.status === 'complete' && r.score != null
-                    ? <ScoreBar score={r.score} />
-                    : r.status === 'skipped'
-                    ? <span className="text-xs text-slate-400 italic">Skipped (perfect score)</span>
-                    : <span className="text-xs text-slate-400">—</span>
-                  }
-                </div>
-              ))}
+      {/* Round scores always visible under header */}
+      {(r1.status !== 'pending' || r2.status !== 'pending') && (
+        <div className="px-4 pb-3 pt-0 grid grid-cols-2 gap-2">
+          {[r1, r2].map(r => (
+            <div
+              key={r.round}
+              className={`rounded-lg px-3 py-2 flex items-center gap-2 ${
+                r.status === 'complete' ? 'bg-emerald-50 border border-emerald-100'
+                : r.status === 'skipped' ? 'bg-slate-50 border border-slate-100 opacity-50'
+                : 'bg-slate-50 border border-slate-100'
+              }`}
+            >
+              <span className="text-xs text-slate-500 shrink-0">Round {r.round}</span>
+              {r.status === 'complete' && r.score != null
+                ? <ScoreBar score={r.score} />
+                : r.status === 'skipped'
+                ? <span className="text-xs text-slate-400 italic">Skipped</span>
+                : <span className="text-xs text-slate-400">—</span>
+              }
             </div>
-          )}
-
-          {/* Keywords */}
-          {card.keywords.length > 0 && (
-            <div className="px-4 py-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                Keywords ({card.keywords.length})
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {card.keywords.map((kw, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded-full text-xs bg-cyan-50 text-cyan-700 border border-cyan-200">
-                    {kw}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* JD snippet */}
-          {card.jdSnippet && (
-            <div className="px-4 py-3">
-              <button
-                onClick={() => setShowJd(v => !v)}
-                className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-700 transition"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                Job Description
-                {showJd ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              </button>
-              {showJd && (
-                <pre className="mt-2 text-xs text-slate-600 whitespace-pre-wrap break-all leading-relaxed max-h-40 overflow-y-auto bg-white rounded-lg border border-slate-200 p-3">
-                  {card.jdSnippet}
-                </pre>
-              )}
-            </div>
-          )}
-
-          {/* Resume snippet */}
-          {card.resumeSnippet && (
-            <div className="px-4 py-3">
-              <button
-                onClick={() => setShowResume(v => !v)}
-                className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-700 transition"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                Resume Used
-                {showResume ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              </button>
-              {showResume && (
-                <pre className="mt-2 text-xs text-slate-600 whitespace-pre-wrap break-all leading-relaxed max-h-40 overflow-y-auto bg-white rounded-lg border border-slate-200 p-3">
-                  {card.resumeSnippet}
-                </pre>
-              )}
-            </div>
-          )}
-
-          {/* Progress log */}
-          {card.progressLines.length > 0 && (
-            <div className="px-4 py-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Log</p>
-              <div className="rounded-xl bg-slate-900 p-3 font-mono text-xs space-y-0.5 max-h-40 overflow-y-auto">
-                {card.progressLines.map((line, i) => (
-                  <div
-                    key={i}
-                    className={`break-all leading-relaxed ${
-                      /^\[ERROR\]/i.test(line) ? 'text-red-400'
-                      : /^\[WARN\]/i.test(line) ? 'text-amber-400'
-                      : /^\[OK\]/i.test(line) ? 'text-emerald-400'
-                      : /^\[STEP\]/i.test(line) ? 'text-cyan-300 font-semibold'
-                      : /^\[ROUND\]/i.test(line) ? 'text-blue-300 font-semibold'
-                      : 'text-slate-300'
-                    }`}
-                  >
-                    {line}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          ))}
         </div>
       )}
+
+      {/* Expanded details */}
+      {card.expanded && <DetailsPanel card={card} showLog />}
     </Card>
   )
 }

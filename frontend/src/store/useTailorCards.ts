@@ -18,6 +18,7 @@ export interface TailorCard {
   jobId:        string
   status:       CardStatus
   companyName:  string | null
+  jobUrl:       string
   score:        number | null
   hasPdf:       boolean
   hasDocx:      boolean
@@ -28,15 +29,15 @@ export interface TailorCard {
   rounds:       RoundResult[]
   expanded:     boolean
   createdAt:    string
-  jdSnippet:    string   // stored in-session only (not persisted)
-  resumeSnippet: string  // stored in-session only
+  jdSnippet:    string
+  resumeSnippet: string
 }
 
 interface TailorCardsStore {
   cards:        TailorCard[]
   loaded:       boolean
   loadCards:    () => Promise<void>
-  addCard:      (jobId: string, companyName: string | null, jdSnippet?: string, resumeSnippet?: string) => void
+  addCard:      (jobId: string, companyName: string | null, jdSnippet?: string, resumeSnippet?: string, jobUrl?: string) => void
   patchCard:    (jobId: string, patch: Partial<TailorCard>) => void
   toggleExpanded: (jobId: string) => void
   removeCard:   (jobId: string) => void
@@ -103,6 +104,7 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
           jobId:         j.job_id,
           status:        j.status,
           companyName:   j.company_name ?? null,
+          jobUrl:        j.job_url ?? '',
           score:         j.score ?? null,
           hasPdf:        j.has_pdf ?? false,
           hasDocx:       j.has_docx ?? false,
@@ -129,11 +131,12 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
     }
   },
 
-  addCard: (jobId, companyName, jdSnippet = '', resumeSnippet = '') => {
+  addCard: (jobId, companyName, jdSnippet = '', resumeSnippet = '', jobUrl = '') => {
     const card: TailorCard = {
       jobId,
       status:        'queued',
       companyName,
+      jobUrl,
       score:         null,
       hasPdf:        false,
       hasDocx:       false,
@@ -142,7 +145,7 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
       progressLines: [],
       keywords:      [],
       rounds:        _makeRounds(),
-      expanded:      false,
+      expanded:      true,   // open by default so user sees progress immediately
       createdAt:     new Date().toISOString(),
       jdSnippet,
       resumeSnippet,

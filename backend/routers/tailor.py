@@ -43,6 +43,7 @@ router = APIRouter()
 class TailorRequest(BaseModel):
     job_description: str
     resume: str
+    job_url: str = ""
 
 
 class TailorForJobRequest(BaseModel):
@@ -85,6 +86,7 @@ async def start_tailor(
         id=job_id,
         user_id=str(current_user.id),
         status="queued",
+        job_url=(req.job_url or "").strip(),
         expires_at=_expires,
     ))
     await db.commit()
@@ -478,6 +480,7 @@ async def get_my_jobs(
             "job_id":          dj.id,
             "status":          status,
             "company_name":    company_name,
+            "job_url":         dj.job_url or "",
             "score":           score,
             "has_pdf":         has_pdf,
             "has_docx":        has_docx,

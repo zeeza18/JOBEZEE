@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FileText, Loader2, Upload, User } from 'lucide-react'
+import { FileText, Link, Loader2, Upload, User } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { useTailorCards } from '../../store/useTailorCards'
@@ -16,6 +16,7 @@ const TailorPage = () => {
   // ── Input state ───────────────────────────────────────────────────────────
   const [inputJd, setInputJd] = useState('')
   const [inputResume, setInputResume] = useState('')
+  const [inputUrl, setInputUrl] = useState('')
 
   // ── Resume source state ───────────────────────────────────────────────────
   const [resumeMode, setResumeMode] = useState<ResumeMode>('profile')
@@ -102,7 +103,7 @@ const TailorPage = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ job_description: inputJd, resume: inputResume }),
+        body: JSON.stringify({ job_description: inputJd, resume: inputResume, job_url: inputUrl.trim() }),
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
@@ -114,6 +115,7 @@ const TailorPage = () => {
         data.company_name ?? null,
         inputJd.slice(0, 2000),
         inputResume.slice(0, 2000),
+        inputUrl.trim(),
       )
       openStream(data.job_id)
       // Don't clear inputs — user might want to tailor same resume for another JD
@@ -227,6 +229,18 @@ const TailorPage = () => {
           )}
           {extractErr && resumeMode !== 'profile' && <p className="text-xs text-red-500">{extractErr}</p>}
         </Card>
+      </div>
+
+      {/* Job URL */}
+      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:ring-2 focus-within:ring-cyan-400 focus-within:bg-white transition">
+        <Link className="h-4 w-4 text-slate-400 shrink-0" />
+        <input
+          type="url"
+          className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+          placeholder="Job posting URL (optional — saved with the card)"
+          value={inputUrl}
+          onChange={e => setInputUrl(e.target.value)}
+        />
       </div>
 
       {/* Tailor button + worker slot badge */}
