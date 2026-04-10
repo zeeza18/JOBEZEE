@@ -164,6 +164,8 @@ async def run_column_migrations() -> None:
             ("progress_events", "JSON         DEFAULT '[]'::json"),
             ("final_resume",    "TEXT         DEFAULT ''"),
             ("job_url",         "VARCHAR(1000) DEFAULT ''"),
+            ("pdf_b64",         "TEXT         DEFAULT NULL"),
+            ("docx_b64",        "TEXT         DEFAULT NULL"),
         ]
         for col, defn in _tj_cols:
             try:

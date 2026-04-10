@@ -15,7 +15,7 @@ import base64
 import os
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -368,19 +368,25 @@ async def download_pdf(job_id: str, _user=Depends(get_current_user), db: AsyncSe
         pdf_path = job["pdf_path"]
         filename = f"{job.get('filename', 'tailored_resume')}.pdf"
     else:
-        # Try to recover from DB record + on-disk files
+        # Try to recover from DB record + on-disk files (or stored base64)
         db_rec = await db.execute(select(TailorJobRecord).where(TailorJobRecord.id == job_id))
         rec = db_rec.scalar_one_or_none()
         if not rec or not rec.has_pdf:
             raise HTTPException(404, "Job not found")
-        job_dir = _JOB_OUTPUTS / job_id
-        # Find any .pdf in the job dir
-        pdf_files = list(job_dir.glob("*.pdf")) if job_dir.exists() else []
-        if not pdf_files:
-            raise HTTPException(404, "PDF file not found on disk (server may have restarted)")
-        pdf_path = str(pdf_files[0])
-        fname = rec.filename or pdf_files[0].stem
+        fname = rec.filename or "tailored_resume"
         filename = f"{fname}.pdf"
+        job_dir = _JOB_OUTPUTS / job_id
+        pdf_files = list(job_dir.glob("*.pdf")) if job_dir.exists() else []
+        if pdf_files:
+            pdf_path = str(pdf_files[0])
+        elif getattr(rec, "pdf_b64", None):
+            # Serve directly from DB base64 (Render restarted, disk wiped)
+            import io as _io
+            pdf_bytes = base64.b64decode(rec.pdf_b64)
+            return Response(content=pdf_bytes, media_type="application/pdf",
+                            headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+        else:
+            raise HTTPException(404, "PDF file not found — please re-tailor this job")
     return FileResponse(
         pdf_path,
         media_type="application/pdf",
@@ -404,13 +410,19 @@ async def download_docx(job_id: str, _user=Depends(get_current_user), db: AsyncS
         rec = db_rec.scalar_one_or_none()
         if not rec or not rec.has_docx:
             raise HTTPException(404, "Job not found")
+        fname = rec.filename or "tailored_resume"
+        filename = f"{fname}.docx"
         job_dir = _JOB_OUTPUTS / job_id
         docx_files = list(job_dir.glob("*.docx")) if job_dir.exists() else []
-        if not docx_files:
-            raise HTTPException(404, "DOCX file not found on disk (server may have restarted)")
-        docx_path = str(docx_files[0])
-        fname = rec.filename or docx_files[0].stem
-        filename = f"{fname}.docx"
+        if docx_files:
+            docx_path = str(docx_files[0])
+        elif getattr(rec, "docx_b64", None):
+            docx_bytes = base64.b64decode(rec.docx_b64)
+            return Response(content=docx_bytes,
+                            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+        else:
+            raise HTTPException(404, "DOCX file not found — please re-tailor this job")
     return FileResponse(
         docx_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -675,6 +687,8 @@ async def tailor_callback(
                     filename=payload.filename,
                     error_msg=payload.error,
                     final_resume=payload.final_resume,
+                    pdf_b64=payload.pdf_b64 if payload.status == "complete" else None,
+                    docx_b64=payload.docx_b64 if payload.status == "complete" else None,
                 )
             )
             await db.commit()
