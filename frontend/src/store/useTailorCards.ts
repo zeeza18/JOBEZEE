@@ -6,6 +6,13 @@ import { create } from 'zustand'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
+const _UNKNOWN = new Set(['UNKNOWN_COMPANY', 'UNKNOWN', 'N/A', 'NA', 'COMPANY'])
+function _cleanCompany(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const s = raw.trim()
+  return _UNKNOWN.has(s.toUpperCase()) ? null : s
+}
+
 export type CardStatus = 'queued' | 'running' | 'complete' | 'error'
 
 export interface RoundResult {
@@ -103,7 +110,7 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
         return {
           jobId:         j.job_id,
           status:        j.status,
-          companyName:   j.company_name ?? null,
+          companyName:   _cleanCompany(j.company_name),
           jobUrl:        j.job_url ?? '',
           score:         j.score ?? null,
           hasPdf:        j.has_pdf ?? false,
@@ -256,7 +263,17 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
       if (cur + 1 >= 3) {
         es.close(); _streams.delete(jobId)
         _errorCounts.delete(jobId)
-        _pollUntilDone(jobId)
+        // Re-open SSE after 5s so tab-switch / network blips self-heal.
+        // Fall back to polling only if the job is already terminal.
+        setTimeout(() => {
+          const card = useTailorCards.getState().cards.find(c => c.jobId === jobId)
+          if (!card) return
+          if (card.status === 'complete' || card.status === 'error') {
+            _fetchStatusAndComplete(jobId)
+          } else {
+            useTailorCards.getState().openStream(jobId)
+          }
+        }, 5000)
       }
     }
   },

@@ -600,8 +600,8 @@ async def tailor_callback(
             if event.get("event") == "company_detected":
                 _jobs[job_id]["company_name"] = event.get("company_name")
             if event.get("event") == "keywords_extracted":
-                cn = event.get("keyword_analysis", {}).get("company_name", "")
-                if cn and cn != "UNKNOWN_COMPANY":
+                cn = (event.get("keyword_analysis", {}).get("company_name", "") or "").strip()
+                if cn and cn.upper() not in ("UNKNOWN_COMPANY", "UNKNOWN", "N/A", "NA", ""):
                     _jobs[job_id]["company_name"] = cn
 
         # Persist progress to DB so a Render restart can reconstruct
@@ -641,12 +641,15 @@ async def tailor_callback(
                 docx_path = job_dir / f"{safe_name}.docx"
                 docx_path.write_bytes(base64.b64decode(payload.docx_b64))
 
+            _cn = (payload.company_name or "").strip()
+            if _cn.upper() in ("UNKNOWN_COMPANY", "UNKNOWN", "N/A", "NA", ""):
+                _cn = _jobs[job_id].get("company_name") or None
             with _lock:
                 _jobs[job_id].update({
                     "status":       "complete",
                     "score":        payload.score,
                     "final_resume": payload.final_resume,
-                    "company_name": payload.company_name,
+                    "company_name": _cn,
                     "filename":     safe_name,
                     "tex_path":     str(tex_path) if tex_path else None,
                     "pdf_path":     str(pdf_path) if pdf_path else None,
@@ -663,7 +666,7 @@ async def tailor_callback(
                 .where(TailorJobRecord.id == job_id)
                 .values(
                     status=payload.status or "error",
-                    company_name=payload.company_name,
+                    company_name=_cn if payload.status == "complete" else payload.company_name,
                     score=payload.score,
                     has_pdf=pdf_path is not None,
                     has_docx=docx_path is not None,
