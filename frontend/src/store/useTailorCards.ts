@@ -175,6 +175,16 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
     const es = new EventSource(`${BASE}/api/tailor/stream/${jobId}`)
     _streams.set(jobId, es)
 
+    // As soon as the SSE connection opens, the job is running on the backend —
+    // flip the card from "queued" to "running" immediately so the user isn't stuck
+    // seeing "Queued" for the first 30–60 seconds of AI processing.
+    es.onopen = () => {
+      const card = useTailorCards.getState().cards.find(c => c.jobId === jobId)
+      if (card?.status === 'queued') {
+        useTailorCards.getState().patchCard(jobId, { status: 'running' })
+      }
+    }
+
     es.onmessage = (e) => {
       if (!e.data?.trim()) return
       let data: any

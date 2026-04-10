@@ -660,6 +660,27 @@ async def tailor_callback(
 @router.get("/worker-info")
 async def worker_info(_user=Depends(get_current_user)):
     """Return max parallel slots and how many are currently active."""
+    _worker_url = os.getenv("BOT_WORKER_URL", "").rstrip("/")
+    _secret     = os.getenv("WORKER_SECRET", "").split(",")[0].strip()
+    if _worker_url and _secret:
+        # Hetzner runs the tailor jobs — query its pool size
+        try:
+            import httpx as _httpx
+            r = _httpx.get(
+                f"{_worker_url}/tailor-info",
+                headers={"Authorization": f"Bearer {_secret}"},
+                timeout=5,
+            )
+            if r.status_code == 200:
+                d = r.json()
+                active = sum(1 for c in get_user_jobs("") if False)  # count in-memory running jobs
+                # count active tailor jobs across all users
+                from ..services.tailor_service import _jobs as _all_jobs, _lock as _jlock
+                with _jlock:
+                    active = sum(1 for j in _all_jobs.values() if j.get("status") == "running")
+                return {"max_workers": d.get("max_workers", 4), "active": active}
+        except Exception:
+            pass
     return {
         "max_workers": get_max_workers(),
         "active": get_active_count(),
