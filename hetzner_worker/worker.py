@@ -1342,6 +1342,8 @@ def _tailor_max_workers() -> int:
 
 _tailor_executor: ThreadPoolExecutor | None = None
 _tailor_executor_lock = threading.Lock()
+_tailor_active = 0          # jobs actually running (not queued in executor)
+_tailor_active_lock = threading.Lock()
 
 def _get_tailor_executor() -> ThreadPoolExecutor:
     global _tailor_executor
@@ -1413,7 +1415,10 @@ def _compile_pdf_local(tex_path: Path) -> Path | None:
 
 def _run_tailor_task(req: TailorJobRequest) -> None:
     """Run ResumeCrew on Hetzner and POST progress/results back to Render."""
+    global _tailor_active
     job_id = req.job_id
+    with _tailor_active_lock:
+        _tailor_active += 1
 
     def _cb(payload: dict) -> None:
         _post_tailor_callback(req.callback_url, {"job_id": job_id, **payload})
@@ -1555,6 +1560,10 @@ def _run_tailor_task(req: TailorJobRequest) -> None:
     except Exception as exc:
         print(f"[tailor_worker] Job {job_id} failed: {exc}")
         _cb({"type": "done", "status": "error", "error": str(exc)})
+    finally:
+        global _tailor_active
+        with _tailor_active_lock:
+            _tailor_active = max(0, _tailor_active - 1)
 
 
 @app.post("/run-tailor")
@@ -1571,10 +1580,12 @@ async def run_tailor(
 
 @app.get("/tailor-info")
 def tailor_info(authorization: str = Header(...)):
-    """Return tailor pool capacity."""
+    """Return tailor pool capacity and current active count."""
     _auth(authorization)
     ex = _get_tailor_executor()
-    return {"max_workers": ex._max_workers}
+    with _tailor_active_lock:
+        active = _tailor_active
+    return {"max_workers": ex._max_workers, "active": active}
 
 
 # ── Compile PDF from LaTeX (existing callers in tailor_service.py) ────────────

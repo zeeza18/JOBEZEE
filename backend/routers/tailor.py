@@ -697,12 +697,7 @@ async def worker_info(_user=Depends(get_current_user)):
             )
             if r.status_code == 200:
                 d = r.json()
-                active = sum(1 for c in get_user_jobs("") if False)  # count in-memory running jobs
-                # count active tailor jobs across all users
-                from ..services.tailor_service import _jobs as _all_jobs, _lock as _jlock
-                with _jlock:
-                    active = sum(1 for j in _all_jobs.values() if j.get("status") == "running")
-                return {"max_workers": d.get("max_workers", 4), "active": active}
+                return {"max_workers": d.get("max_workers", 4), "active": d.get("active", 0)}
         except Exception:
             pass
     return {

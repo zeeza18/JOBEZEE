@@ -178,15 +178,9 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
     const es = new EventSource(`${BASE}/api/tailor/stream/${jobId}`)
     _streams.set(jobId, es)
 
-    // As soon as the SSE connection opens, the job is running on the backend —
-    // flip the card from "queued" to "running" immediately so the user isn't stuck
-    // seeing "Queued" for the first 30–60 seconds of AI processing.
-    es.onopen = () => {
-      const card = useTailorCards.getState().cards.find(c => c.jobId === jobId)
-      if (card?.status === 'queued') {
-        useTailorCards.getState().patchCard(jobId, { status: 'running' })
-      }
-    }
+    // Status stays "queued" until the first real progress callback arrives from Hetzner
+    // (keywords_extracted or company_detected). This correctly shows jobs waiting for
+    // a Hetzner slot as "Queued" rather than "Running".
 
     es.onmessage = (e) => {
       if (!e.data?.trim()) return
