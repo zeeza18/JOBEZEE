@@ -61,6 +61,7 @@ data/
 # ── Phase 2 outputs (contain PII resume data) ─────────────────────────────────
 PHASE2_JOB_TAILOR/output/
 output/
+job_outputs/
 
 # ── Phase 3 auto-apply (submodule / separate project) ────────────────────────
 PHASE3_AUTO_APPLY/

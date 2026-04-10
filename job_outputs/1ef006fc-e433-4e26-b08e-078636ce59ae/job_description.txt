@@ -1,5 +1,0 @@
-Software Engineer — Python Backend
-We are looking for a Python backend engineer with 2+ years of experience.
-Requirements: Python, FastAPI, PostgreSQL, REST APIs, Docker.
-Nice to have: Redis, Celery, AWS.
-Responsibilities: Build and maintain APIs, write unit tests, code reviews.
