@@ -23,7 +23,7 @@ class ResumeTailor:
         """Initialize Anthropic client"""
         resolved_key = api_key
         if not resolved_key:
-            raise ValueError("Anthropic API key is required. Add it in Settings → Credentials.")
+            raise ValueError("Anthropic API key is required. Add it in Settings -> Credentials.")
         self.client = Anthropic(api_key=resolved_key)
         self.model = "claude-sonnet-4-6"  # Claude Sonnet for resume tailoring
 

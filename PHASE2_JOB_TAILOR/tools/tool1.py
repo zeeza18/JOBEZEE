@@ -20,7 +20,7 @@ class KeywordExtractor:
     def __init__(self, api_key: str | None = None):
         """Initialize OpenAI client"""
         if not api_key:
-            raise ValueError("OpenAI API key is required. Add it in Settings → Credentials.")
+            raise ValueError("OpenAI API key is required. Add it in Settings -> Credentials.")
         self.client = OpenAI(api_key=api_key)
         self.model = "gpt-4o"  # Best OpenAI model
 

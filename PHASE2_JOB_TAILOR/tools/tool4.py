@@ -24,7 +24,7 @@ class LatexResumeFormatter:
 
     def __init__(self, api_key: str | None = None) -> None:
         if not api_key:
-            raise ValueError("OpenAI API key is required. Add it in Settings → Credentials.")
+            raise ValueError("OpenAI API key is required. Add it in Settings -> Credentials.")
         self.client = OpenAI(api_key=api_key)
         self.model = "gpt-4o"  # Best OpenAI model
         self.system_prompt = self._load_prompt("tool4_prompt.txt")

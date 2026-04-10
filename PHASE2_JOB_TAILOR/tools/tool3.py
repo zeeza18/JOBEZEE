@@ -20,7 +20,7 @@ class ResumeEvaluator:
 
     def __init__(self, api_key: str | None = None) -> None:
         if not api_key:
-            raise ValueError("OpenAI API key is required. Add it in Settings → Credentials.")
+            raise ValueError("OpenAI API key is required. Add it in Settings -> Credentials.")
         self.client = OpenAI(api_key=api_key)
         self.model = "gpt-4o"  # GPT-4o for evaluation
 
