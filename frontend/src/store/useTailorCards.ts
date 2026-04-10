@@ -145,7 +145,7 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
       progressLines: [],
       keywords:      [],
       rounds:        _makeRounds(),
-      expanded:      true,   // open by default so user sees progress immediately
+      expanded:      false,
       createdAt:     new Date().toISOString(),
       jdSnippet,
       resumeSnippet,
