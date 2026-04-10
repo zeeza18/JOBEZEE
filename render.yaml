@@ -52,4 +52,4 @@ services:
       - key: WORKER_SECRET
         sync: false
       - key: API_BASE_URL
-        value: "https://api.jobezee.org"
+        value: "https://www.jobezee.org"

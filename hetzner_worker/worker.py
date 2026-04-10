@@ -1364,15 +1364,20 @@ class TailorJobRequest(BaseModel):
 
 
 def _post_tailor_callback(callback_url: str, payload: dict) -> None:
-    try:
-        httpx.post(
-            callback_url,
-            json=payload,
-            headers={"Authorization": f"Bearer {WORKER_SECRET}"},
-            timeout=30,
-        )
-    except Exception as exc:
-        print(f"[tailor_worker] callback failed: {exc}")
+    """POST to Render callback — retries once on failure."""
+    for attempt in range(2):
+        try:
+            httpx.post(
+                callback_url,
+                json=payload,
+                headers={"Authorization": f"Bearer {WORKER_SECRET}"},
+                timeout=30,
+            )
+            return
+        except Exception as exc:
+            print(f"[tailor_worker] callback attempt {attempt+1} failed: {exc}")
+            if attempt == 0:
+                import time as _t; _t.sleep(3)
 
 
 def _safe_filename(username: str, company: str) -> str:
