@@ -434,19 +434,22 @@ async def get_my_jobs(
 ):
     """Return all tailor jobs for the current user (from DB, non-expired)."""
     now = datetime.now(timezone.utc)
+    import os as _os
+    _hetzner_active = bool(_os.getenv("BOT_WORKER_URL", ""))
+
     res = await db.execute(
         select(TailorJobRecord)
         .where(TailorJobRecord.user_id == str(current_user.id))
         .where(TailorJobRecord.expires_at > now)
+        .where(TailorJobRecord.status != "stale")
         .order_by(TailorJobRecord.created_at.desc())
     )
     db_jobs = res.scalars().all()
 
     result = []
     for dj in db_jobs:
-        mem = get_job(dj.id)  # check in-memory state
+        mem = get_job(dj.id)
         if mem:
-            # Use in-memory state (more up-to-date)
             status = mem["status"]
             company_name = mem.get("company_name") or dj.company_name
             score = mem.get("score") or dj.score
@@ -454,11 +457,12 @@ async def get_my_jobs(
             has_docx = mem.get("docx_path") is not None
             filename = mem.get("filename") or dj.filename
             error_msg = mem.get("error") or dj.error_msg
+            progress_events = mem.get("progress", [])
         else:
-            # Not in memory — reconstruct from DB
             status = dj.status
-            if status in ("running", "queued"):
-                # Was in-progress when the server restarted — treat as error
+            # If Hetzner is active, running/queued jobs are still alive on Hetzner —
+            # don't mark them as interrupted; they'll get callbacks.
+            if status in ("running", "queued") and not _hetzner_active:
                 status = "error"
                 error_msg = "Server restarted mid-job — please re-tailor"
             else:
@@ -468,21 +472,45 @@ async def get_my_jobs(
             has_pdf = dj.has_pdf
             has_docx = dj.has_docx
             filename = dj.filename
+            progress_events = list(dj.progress_events or [])
 
         result.append({
-            "job_id": dj.id,
-            "status": status,
-            "company_name": company_name,
-            "score": score,
-            "has_pdf": has_pdf,
-            "has_docx": has_docx,
-            "filename": filename,
-            "error_msg": error_msg,
-            "created_at": dj.created_at.isoformat() if dj.created_at else None,
-            "expires_at": dj.expires_at.isoformat() if dj.expires_at else None,
+            "job_id":          dj.id,
+            "status":          status,
+            "company_name":    company_name,
+            "score":           score,
+            "has_pdf":         has_pdf,
+            "has_docx":        has_docx,
+            "filename":        filename,
+            "error_msg":       error_msg,
+            "progress_events": progress_events,
+            "created_at":      dj.created_at.isoformat() if dj.created_at else None,
+            "expires_at":      dj.expires_at.isoformat() if dj.expires_at else None,
         })
 
     return result
+
+
+# ── Dismiss / delete a tailor job card ───────────────────────────────────────
+
+@router.delete("/job/{job_id}")
+async def dismiss_job(
+    job_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark job as stale so it no longer appears in my-jobs after refresh."""
+    await db.execute(
+        sa_update(TailorJobRecord)
+        .where(TailorJobRecord.id == job_id)
+        .where(TailorJobRecord.user_id == str(current_user.id))
+        .values(status="stale")
+    )
+    await db.commit()
+    # Also remove from in-memory store
+    with _lock:
+        _jobs.pop(job_id, None)
+    return {"ok": True}
 
 
 # ── Hetzner → Render callback (progress events + done) ───────────────────────

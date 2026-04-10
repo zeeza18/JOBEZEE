@@ -109,7 +109,12 @@ const TailorPage = () => {
         throw new Error(errData.detail ?? `Server error ${res.status}`)
       }
       const data = await res.json()
-      addCard(data.job_id, data.company_name ?? null)
+      addCard(
+        data.job_id,
+        data.company_name ?? null,
+        inputJd.slice(0, 2000),
+        inputResume.slice(0, 2000),
+      )
       openStream(data.job_id)
       // Don't clear inputs — user might want to tailor same resume for another JD
     } catch (err: any) {
@@ -244,16 +249,35 @@ const TailorPage = () => {
       </div>
 
       {/* Cards — newest first */}
-      {cards.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-sm font-semibold text-slate-700">
-            Active Jobs ({cards.length})
-          </p>
-          {cards.map(card => (
-            <TailorCard key={card.jobId} card={card} />
-          ))}
-        </div>
-      )}
+      {cards.length > 0 && (() => {
+        const active   = cards.filter(c => c.status === 'queued' || c.status === 'running')
+        const done     = cards.filter(c => c.status === 'complete')
+        const errored  = cards.filter(c => c.status === 'error')
+        return (
+          <div className="space-y-5">
+            {active.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-700">
+                  Active ({active.length}/{workerInfo?.max_workers ?? '—'} slots)
+                </p>
+                {active.map(card => <TailorCard key={card.jobId} card={card} />)}
+              </div>
+            )}
+            {done.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-700">Completed</p>
+                {done.map(card => <TailorCard key={card.jobId} card={card} />)}
+              </div>
+            )}
+            {errored.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-500">Failed</p>
+                {errored.map(card => <TailorCard key={card.jobId} card={card} />)}
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }

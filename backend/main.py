@@ -257,6 +257,39 @@ def _start_global_chrome() -> None:
         _log.warning("[Chrome] Could not start global browser at startup: %s", exc)
 
 
+async def _tailor_cleanup_loop() -> None:
+    """Delete expired tailor job records and their output files — runs every hour."""
+    import shutil as _shutil
+    from datetime import datetime, timezone
+    from sqlalchemy import select as _sel, delete as _del
+    from .database import AsyncSessionLocal
+    from .models import TailorJobRecord
+    from .services.tailor_service import _JOB_OUTPUTS
+
+    _log = logging.getLogger(__name__ + ".tailor_cleanup")
+    await asyncio.sleep(60)
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+            async with AsyncSessionLocal() as db:
+                expired_res = await db.execute(
+                    _sel(TailorJobRecord.id).where(TailorJobRecord.expires_at <= now)
+                )
+                expired_ids = [row[0] for row in expired_res]
+                if expired_ids:
+                    for jid in expired_ids:
+                        job_dir = _JOB_OUTPUTS / jid
+                        if job_dir.exists():
+                            try: _shutil.rmtree(job_dir)
+                            except Exception: pass
+                    await db.execute(_del(TailorJobRecord).where(TailorJobRecord.expires_at <= now))
+                    await db.commit()
+                    _log.info("[TailorCleanup] Removed %d expired tailor jobs", len(expired_ids))
+        except Exception as exc:
+            _log.error("[TailorCleanup] Error: %s", exc)
+        await asyncio.sleep(3600)
+
+
 async def _run_startup_db() -> None:
     """
     All DB startup work runs in the background.
@@ -290,12 +323,14 @@ async def lifespan(app: FastAPI):
     _bg_task = asyncio.create_task(_auto_search_loop())
     _email_task = asyncio.create_task(_auto_email_scan_loop())
     _digest_task = asyncio.create_task(_digest_email_loop())
+    _tailor_cleanup_task = asyncio.create_task(_tailor_cleanup_loop())
     yield
     _bg_task.cancel()
     _email_task.cancel()
     _digest_task.cancel()
+    _tailor_cleanup_task.cancel()
     try:
-        await asyncio.gather(_bg_task, _email_task, _digest_task, return_exceptions=True)
+        await asyncio.gather(_bg_task, _email_task, _digest_task, _tailor_cleanup_task, return_exceptions=True)
     except asyncio.CancelledError:
         pass
 

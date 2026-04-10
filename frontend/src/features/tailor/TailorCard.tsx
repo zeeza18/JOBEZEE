@@ -1,17 +1,57 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Clock, Download, Loader2, XCircle, AlertTriangle } from 'lucide-react'
+import {
+  AlertTriangle, CheckCircle2, ChevronDown, ChevronUp,
+  Clock, Download, FileText, Loader2, XCircle,
+} from 'lucide-react'
 import { TailorCard as TailorCardType, useTailorCards } from '../../store/useTailorCards'
 import { Card } from '../../components/ui/Card'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
-interface Props {
-  card: TailorCardType
+interface Props { card: TailorCardType }
+
+/* ── helpers ─────────────────────────────────────────────────────────────── */
+function ScoreBadge({ score }: { score: number | null }) {
+  if (score == null) return null
+  const cls = score >= 80
+    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+    : score >= 60
+    ? 'bg-amber-100 text-amber-700 border-amber-200'
+    : 'bg-red-100 text-red-700 border-red-200'
+  return (
+    <span className={`text-xs font-bold px-2.5 py-1 rounded-full border shrink-0 ${cls}`}>
+      {score}/100
+    </span>
+  )
 }
 
+function ScoreBar({ score }: { score: number }) {
+  const color = score >= 80 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-400' : 'bg-red-400'
+  return (
+    <div className="flex items-center gap-2 flex-1">
+      <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${score}%` }} />
+      </div>
+      <span className={`text-xs font-bold w-8 text-right ${score >= 80 ? 'text-emerald-600' : score >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
+        {score}
+      </span>
+    </div>
+  )
+}
+
+function StepDot({ status }: { status: 'pending' | 'running' | 'complete' | 'skipped' }) {
+  if (status === 'complete') return <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+  if (status === 'running')  return <Loader2 className="h-4 w-4 text-cyan-500 animate-spin shrink-0" />
+  if (status === 'skipped')  return <div className="h-4 w-4 rounded-full border-2 border-slate-200 shrink-0" />
+  return <div className="h-4 w-4 rounded-full border-2 border-slate-300 shrink-0" />
+}
+
+/* ── main component ──────────────────────────────────────────────────────── */
 export const TailorCard = ({ card }: Props) => {
   const { toggleExpanded, removeCard } = useTailorCards()
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [showJd, setShowJd] = useState(false)
+  const [showResume, setShowResume] = useState(false)
 
   const download = async (endpoint: string, ext: string) => {
     setDownloading(ext)
@@ -33,54 +73,106 @@ export const TailorCard = ({ card }: Props) => {
     }
   }
 
-  // ── Queued ────────────────────────────────────────────────────────────────
+  const dismiss = () => removeCard(card.jobId)
+
+  /* ── QUEUED ─────────────────────────────────────────────────────────────── */
   if (card.status === 'queued') {
     return (
-      <Card className="flex items-center gap-3 p-4 border-slate-200 bg-slate-50/60 opacity-70">
+      <Card className="flex items-center gap-3 px-4 py-3 border-slate-200 bg-slate-50/60">
         <Clock className="h-4 w-4 text-slate-400 shrink-0 animate-pulse" />
-        <span className="text-sm text-slate-500">Queued — waiting for available slot…</span>
-        <button onClick={() => removeCard(card.jobId)} className="ml-auto text-slate-300 hover:text-slate-500 transition">✕</button>
+        <span className="text-sm text-slate-500 flex-1">Queued — waiting for available slot…</span>
+        <button onClick={dismiss} className="text-slate-300 hover:text-slate-500 transition p-1">✕</button>
       </Card>
     )
   }
 
-  // ── Running — no company name yet (wide loading card) ─────────────────────
+  /* ── RUNNING (no company yet — shimmer) ──────────────────────────────────── */
   if (card.status === 'running' && !card.companyName) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-r from-cyan-50 via-slate-50 to-cyan-50 p-6">
-        {/* Shimmer animation */}
+      <div className="relative overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-r from-cyan-50 via-slate-50 to-cyan-50 p-5">
         <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/60 to-transparent" />
         <div className="relative flex items-center gap-4">
-          <Loader2 className="h-6 w-6 text-cyan-500 animate-spin shrink-0" />
+          <Loader2 className="h-5 w-5 text-cyan-500 animate-spin shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-slate-700">Tailoring resume…</p>
-            <p className="text-xs text-slate-400 mt-0.5">AI is analysing your job description and resume</p>
+            <p className="text-sm font-semibold text-slate-700">Analysing job description…</p>
+            <p className="text-xs text-slate-400 mt-0.5">Detecting company and extracting keywords</p>
           </div>
+          <button onClick={dismiss} className="ml-auto text-slate-300 hover:text-slate-500 transition p-1">✕</button>
         </div>
       </div>
     )
   }
 
-  // ── Running — company name known (compact row) ────────────────────────────
+  /* ── RUNNING (company known) ─────────────────────────────────────────────── */
   if (card.status === 'running' && card.companyName) {
+    // Determine step states
+    const kw = card.keywords.length
+    const r1 = card.rounds[0]
+    const r2 = card.rounds[1]
+
+    const kwStep   = kw > 0 ? 'complete' : 'running'
+    const r1Step   = r1.status
+    const r2Step   = r2.status
+    const fileStep = 'pending' // still running
+
     return (
-      <Card className="flex items-center gap-3 p-4 border-cyan-200 bg-cyan-50/30">
-        <Loader2 className="h-4 w-4 text-cyan-500 animate-spin shrink-0" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-800 truncate">
-            Tailoring resume for <span className="text-cyan-700">{card.companyName}</span>
-          </p>
-          {card.progressLines.length > 0 && (
-            <p className="text-xs text-slate-400 truncate mt-0.5">
-              {card.progressLines[card.progressLines.length - 1]}
+      <Card className="overflow-hidden p-0 border-cyan-200">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-cyan-50/60 to-transparent">
+          <Loader2 className="h-4 w-4 text-cyan-500 animate-spin shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-800">
+              Tailoring for <span className="text-cyan-700">{card.companyName}</span>
             </p>
-          )}
+          </div>
+          <button onClick={dismiss} className="text-slate-300 hover:text-slate-500 transition p-1 shrink-0">✕</button>
+        </div>
+
+        {/* Steps */}
+        <div className="px-4 pb-4 pt-2 space-y-2">
+          {/* Keywords */}
+          <div className="flex items-center gap-2">
+            <StepDot status={kwStep} />
+            <span className="text-xs text-slate-600">
+              {kw > 0 ? `${kw} keywords extracted` : 'Extracting keywords…'}
+            </span>
+          </div>
+
+          {/* Round 1 */}
+          <div className="flex items-center gap-2">
+            <StepDot status={r1Step} />
+            <span className="text-xs text-slate-600 w-20 shrink-0">
+              {r1Step === 'pending' ? 'Round 1' : r1Step === 'running' ? 'Round 1…' : `Round 1`}
+            </span>
+            {r1.status === 'complete' && r1.score != null && <ScoreBar score={r1.score} />}
+            {r1.status === 'running' && (
+              <span className="text-xs text-slate-400 italic">scoring…</span>
+            )}
+          </div>
+
+          {/* Round 2 */}
+          <div className="flex items-center gap-2">
+            <StepDot status={r2Step} />
+            <span className="text-xs text-slate-600 w-20 shrink-0">
+              {r2Step === 'pending' ? 'Round 2' : r2Step === 'running' ? 'Round 2…' : r2Step === 'skipped' ? 'Round 2 (skipped)' : 'Round 2'}
+            </span>
+            {r2.status === 'complete' && r2.score != null && <ScoreBar score={r2.score} />}
+            {r2.status === 'running' && (
+              <span className="text-xs text-slate-400 italic">scoring…</span>
+            )}
+          </div>
+
+          {/* File generation */}
+          <div className="flex items-center gap-2">
+            <StepDot status={fileStep} />
+            <span className="text-xs text-slate-400">Generating PDF & Word…</span>
+          </div>
         </div>
       </Card>
     )
   }
 
-  // ── Error (includes server-restart interrupted jobs) ─────────────────────
+  /* ── ERROR ───────────────────────────────────────────────────────────────── */
   if (card.status === 'error') {
     const isRestart = card.errorMsg?.toLowerCase().includes('server restarted')
     return (
@@ -89,52 +181,41 @@ export const TailorCard = ({ card }: Props) => {
           {isRestart
             ? <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
             : <XCircle className="h-4 w-4 text-red-500 shrink-0" />}
-          <span className={`text-sm font-semibold ${isRestart ? 'text-amber-800' : 'text-red-700'}`}>
+          <span className={`text-sm font-semibold flex-1 ${isRestart ? 'text-amber-800' : 'text-red-700'}`}>
             {card.companyName
-              ? `${isRestart ? 'Interrupted for' : 'Tailoring failed for'} ${card.companyName}`
-              : isRestart ? 'Job interrupted — server restarted' : 'Tailoring failed'}
+              ? `${isRestart ? 'Interrupted for' : 'Failed for'} ${card.companyName}`
+              : isRestart ? 'Job interrupted' : 'Tailoring failed'}
           </span>
-          <button onClick={() => removeCard(card.jobId)} className={`ml-auto transition ${isRestart ? 'text-amber-300 hover:text-amber-500' : 'text-red-300 hover:text-red-500'}`}>✕</button>
+          <button onClick={dismiss} className={`transition p-1 ${isRestart ? 'text-amber-300 hover:text-amber-500' : 'text-red-300 hover:text-red-500'}`}>✕</button>
         </div>
-        {card.errorMsg && (
-          <p className={`text-xs pl-6 ${isRestart ? 'text-amber-700' : 'text-red-600'}`}>
-            {isRestart ? 'Re-paste your JD above and click Tailor to retry.' : card.errorMsg}
-          </p>
-        )}
+        <p className={`text-xs pl-6 ${isRestart ? 'text-amber-700' : 'text-red-600'}`}>
+          {isRestart ? 'Re-paste your JD above and click Tailor to retry.' : card.errorMsg}
+        </p>
       </Card>
     )
   }
 
-  // ── Complete ──────────────────────────────────────────────────────────────
-  const scoreColor = card.score == null
-    ? ''
-    : card.score >= 80
-    ? 'bg-emerald-100 text-emerald-700'
-    : card.score >= 60
-    ? 'bg-amber-100 text-amber-700'
-    : 'bg-red-100 text-red-700'
+  /* ── COMPLETE ────────────────────────────────────────────────────────────── */
+  const r1 = card.rounds[0]
+  const r2 = card.rounds[1]
 
   return (
     <Card className="overflow-hidden p-0">
-      {/* Header row */}
-      <div className="flex items-center gap-3 p-4">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-800 truncate">
             {card.companyName ? `Resume tailored for ${card.companyName}` : 'Resume tailored'}
           </p>
         </div>
-        {card.score != null && (
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${scoreColor}`}>
-            Score: {card.score}/100
-          </span>
-        )}
-        {/* Download buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        <ScoreBadge score={card.score} />
+        <div className="flex items-center gap-1.5 shrink-0">
           {card.hasPdf && (
             <button
               onClick={() => download('download', 'pdf')}
               disabled={downloading === 'pdf'}
-              className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60 transition"
+              className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50 transition"
             >
               {downloading === 'pdf' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
               PDF
@@ -144,35 +225,48 @@ export const TailorCard = ({ card }: Props) => {
             <button
               onClick={() => download('download-docx', 'docx')}
               disabled={downloading === 'docx'}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300 disabled:opacity-60 transition"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300 disabled:opacity-50 transition"
             >
               {downloading === 'docx' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
               Word
             </button>
           )}
         </div>
-        {/* Expand toggle */}
         <button
           onClick={() => toggleExpanded(card.jobId)}
           className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition shrink-0"
         >
           {card.expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
-        <button
-          onClick={() => removeCard(card.jobId)}
-          className="p-1.5 rounded-lg text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition shrink-0"
-        >
-          ✕
-        </button>
+        <button onClick={dismiss} className="p-1.5 text-slate-300 hover:text-slate-500 transition shrink-0">✕</button>
       </div>
 
       {/* Expanded details */}
       {card.expanded && (
-        <div className="border-t border-slate-100 p-4 space-y-4 bg-slate-50/40">
+        <div className="border-t border-slate-100 bg-slate-50/40 divide-y divide-slate-100">
+
+          {/* Round scores */}
+          {(r1.status !== 'pending' || r2.status !== 'pending') && (
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Tailoring Rounds</p>
+              {[r1, r2].map(r => (
+                <div key={r.round} className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 w-14 shrink-0">Round {r.round}</span>
+                  {r.status === 'complete' && r.score != null
+                    ? <ScoreBar score={r.score} />
+                    : r.status === 'skipped'
+                    ? <span className="text-xs text-slate-400 italic">Skipped (perfect score)</span>
+                    : <span className="text-xs text-slate-400">—</span>
+                  }
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Keywords */}
           {card.keywords.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+            <div className="px-4 py-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
                 Keywords ({card.keywords.length})
               </p>
               <div className="flex flex-wrap gap-1">
@@ -185,69 +279,65 @@ export const TailorCard = ({ card }: Props) => {
             </div>
           )}
 
-          {/* Rounds */}
-          {card.rounds.some(r => r.status !== 'pending') && (
-            <div className="grid grid-cols-2 gap-2">
-              {card.rounds.map(r => (
-                <div
-                  key={r.round}
-                  className={`rounded-xl p-3 flex items-center gap-3 ${
-                    r.status === 'complete'
-                      ? 'bg-emerald-50 border border-emerald-200'
-                      : r.status === 'skipped'
-                      ? 'bg-slate-50 border border-slate-200 opacity-60'
-                      : 'bg-slate-50 border border-slate-200'
-                  }`}
-                >
-                  <div className="text-xs font-semibold text-slate-600">Round {r.round}</div>
-                  <div className="text-xs text-slate-500">
-                    {r.status === 'complete'
-                      ? `${r.score ?? '?'}/100`
-                      : r.status === 'skipped'
-                      ? 'Skipped'
-                      : '—'}
-                  </div>
-                  {r.status === 'complete' && r.score != null && (
-                    <div
-                      className={`ml-auto text-lg font-bold ${
-                        r.score >= 80
-                          ? 'text-emerald-600'
-                          : r.score >= 60
-                          ? 'text-amber-500'
-                          : 'text-red-500'
-                      }`}
-                    >
-                      {r.score}
-                    </div>
-                  )}
-                </div>
-              ))}
+          {/* JD snippet */}
+          {card.jdSnippet && (
+            <div className="px-4 py-3">
+              <button
+                onClick={() => setShowJd(v => !v)}
+                className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-700 transition"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Job Description
+                {showJd ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+              {showJd && (
+                <pre className="mt-2 text-xs text-slate-600 whitespace-pre-wrap break-all leading-relaxed max-h-40 overflow-y-auto bg-white rounded-lg border border-slate-200 p-3">
+                  {card.jdSnippet}
+                </pre>
+              )}
             </div>
           )}
 
-          {/* Log */}
+          {/* Resume snippet */}
+          {card.resumeSnippet && (
+            <div className="px-4 py-3">
+              <button
+                onClick={() => setShowResume(v => !v)}
+                className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-700 transition"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Resume Used
+                {showResume ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+              {showResume && (
+                <pre className="mt-2 text-xs text-slate-600 whitespace-pre-wrap break-all leading-relaxed max-h-40 overflow-y-auto bg-white rounded-lg border border-slate-200 p-3">
+                  {card.resumeSnippet}
+                </pre>
+              )}
+            </div>
+          )}
+
+          {/* Progress log */}
           {card.progressLines.length > 0 && (
-            <div className="rounded-xl bg-slate-900 p-3 font-mono text-xs space-y-0.5 max-h-40 overflow-y-auto">
-              {card.progressLines.map((line, i) => (
-                <div
-                  key={i}
-                  className={`break-all leading-relaxed ${
-                    /^\[ERROR\]/i.test(line)
-                      ? 'text-red-400'
-                      : /^\[WARN\]/i.test(line)
-                      ? 'text-amber-400'
-                      : /^\[OK\]/i.test(line)
-                      ? 'text-emerald-400'
-                      : /^\[STEP\]/i.test(line)
-                      ? 'text-cyan-300 font-semibold'
-                      : /^\[ROUND\]/i.test(line)
-                      ? 'text-blue-300 font-semibold'
+            <div className="px-4 py-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Log</p>
+              <div className="rounded-xl bg-slate-900 p-3 font-mono text-xs space-y-0.5 max-h-40 overflow-y-auto">
+                {card.progressLines.map((line, i) => (
+                  <div
+                    key={i}
+                    className={`break-all leading-relaxed ${
+                      /^\[ERROR\]/i.test(line) ? 'text-red-400'
+                      : /^\[WARN\]/i.test(line) ? 'text-amber-400'
+                      : /^\[OK\]/i.test(line) ? 'text-emerald-400'
+                      : /^\[STEP\]/i.test(line) ? 'text-cyan-300 font-semibold'
+                      : /^\[ROUND\]/i.test(line) ? 'text-blue-300 font-semibold'
                       : 'text-slate-300'
-                  }`}
-                >
-                  {line}
-                </div>
-              ))}
+                    }`}
+                  >
+                    {line}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
