@@ -1354,13 +1354,14 @@ def _get_tailor_executor() -> ThreadPoolExecutor:
 
 
 class TailorJobRequest(BaseModel):
-    job_id:        str
-    job_description: str
-    resume_text:   str
-    openai_api_key: str = ""
-    username:      str = "resume"
-    company:       str = "company"
-    callback_url:  str   # https://api.jobezee.org/api/tailor/internal/callback
+    job_id:           str
+    job_description:  str
+    resume_text:      str
+    openai_api_key:   str = ""
+    anthropic_api_key: str = ""
+    username:         str = "resume"
+    company:          str = "company"
+    callback_url:     str   # https://www.jobezee.org/api/tailor/internal/callback
 
 
 def _post_tailor_callback(callback_url: str, payload: dict) -> None:
@@ -1431,7 +1432,7 @@ def _run_tailor_task(req: TailorJobRequest) -> None:
         job_dir = _JOBEZEE_ROOT / "job_outputs" / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
 
-        crew = ResumeCrew(openai_api_key=req.openai_api_key or None)
+        crew = ResumeCrew(openai_api_key=req.openai_api_key or None, anthropic_api_key=req.anthropic_api_key or None)
         result = crew.run_tailoring_process(
             req.job_description, req.resume_text, progress_callback, output_dir=job_dir
         )

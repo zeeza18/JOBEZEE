@@ -1,0 +1,93 @@
+TAILORED RESUME
+==================================================
+
+Sakshi Balkrishna Panpatil
+Chicago, Illinois | sakshipanpatil@gmail.com | 312-877-7833 | https://linkedin.com/in/sakshi-panpatil-50165a1b5
+
+Summary
+AI Applications Developer with 3+ years of experience delivering machine learning and data-driven solutions across enterprise platforms. Proficient in Python, SQL, CI/CD pipelines, and Agile methodologies with a strong track record of translating business needs into scalable AI applications. Skilled in full-stack analytics, DataOps tooling, data visualization using Power BI and Tableau, and communicating insights clearly to cross-functional stakeholders.
+
+Education
+DePaul University Chicago, IL
+Master of Science in Information Systems Mar 2026 (Expected)
+
+MKSSS's Cummins College of Engineering for Women Pune, India
+Bachelor of Technology in Electronics and Telecommunication Engineering Aug 2018 – Jun 2022
+
+Skills
+Programming & Data Analysis: Python (Pandas, NumPy, Matplotlib, Seaborn), SQL (PostgreSQL, MySQL), R, Excel (Pivot Tables, Power Query, VBA), Statistical Analysis
+Data Visualization & BI: Power BI (Data Modeling, DAX, KPI Reporting), Tableau (Dashboard Design, Visual Analytics), Leaflet.js, Interactive Dashboards, Geospatial Visualization, Self-Service BI
+Analytics & Modeling: EDA, Data Cleaning and Wrangling, Feature Engineering, Time-Series Forecasting, Predictive Analytics, Model Validation (MAE, RMSE, MAPE), Statistical Modeling, Hypothesis Testing
+Databases & Tools: PostgreSQL, MySQL, Git, GitHub, Docker, ETL Processes, Data Pipeline Architecture, Automated Reporting, Data Validation, Data Quality Assurance
+
+Professional Experience
+
+CTA Safety Analytics and Mapping System – Academic Research Project Chicago, IL
+AI Applications Developer Apr 2025 – Present
+– Reimagined an interactive geospatial safety analytics platform using Python, NumPy, and Leaflet.js with automated reporting, enabling drill-down spatial analysis from bus routes to assault context and cutting investigation time by approximately 70%.
+– Design an ETL reporting pipeline incorporating CI/CD practices via GitHub using ReportLab and Matplotlib with data validation checks, transforming raw geospatial data into KPI-ready visual summaries and decreasing manual charting effort by 60%.
+– Integrate prototype AI applications combining rule-based logic with OpenAI-generated narratives, facilitating privacy-aware insight generation for cross-functional stakeholders and lowering manual explanation workload by 50%.
+– Apply an Agile, analyst-focused approach to unify geospatial visualization, analytics, and narrative reporting workflows through interactive dashboards, accelerating stakeholder insight-to-decision cycles and doubling team speed in interpreting safety data.
+
+Airobosoft – Financial Risk Case Study Analysis Remote
+Financial Analyst Jul 2022 – Nov 2023
+– Evaluated a banking-sector failure scenario using Excel (Pivot Tables, Power Query), identifying structural weaknesses in balance-sheet strategy, liquidity planning, and enterprise risk governance through comprehensive financial analysis.
+– Modeled interest-rate, liquidity, and deposit-concentration risk using statistical modeling, feature engineering, and machine learning techniques, simulating 200–400 basis-point rate shocks on a 120B-dollar long-duration bond portfolio to assess exposure sensitivity.
+– Quantified 15–20% bond valuation declines representing approximately 15B dollars in unrealized losses alongside liquidity stress scenarios showing 25–30% rapid deposit withdrawal risk using predictive analytics for risk forecasting.
+– Demonstrated via time-series forecasting that improved hedging strategies and diversified funding structures could reduce interest-rate exposure by 40%, improve liquidity coverage by 30%, and materially lower bank-run probability.
+
+Projects
+
+Netflix Movie Data Analysis Apr 2025
+– Analyzed over 5,880 Netflix titles using Python and Pandas to perform exploratory data analysis and data cleaning and wrangling on genre trends, release patterns, and viewing distributions, delivering business insights for content acquisition decisions.
+– Implemented data modeling and data quality assurance processes using Git for version control to clean and structure raw CSV datasets, resolving missing release dates and consolidating twelve genre categories into standardized analytical groupings.
+– Delivered six EDA dashboard design visualizations using Matplotlib and Seaborn including bar charts, heatmaps, and timelines to facilitate data storytelling and communicate insights clearly to non-technical stakeholders.
+– Identified consumption patterns through statistical analysis showing Drama, Comedy, and Action comprising 63% of viewed content, informing acquisition prioritization and contributing to a 15% improvement in viewer engagement.
+
+Walmart Sales Insights and SQL Reporting Apr 2025
+– Assessed 7,425 transaction records across three retail branches using SQL (PostgreSQL, MySQL), NoSQL, and Python to evaluate daily performance trends, peak sales hours, and product-level demand patterns for inventory and staffing decisions.
+– Developed and optimized ten SQL queries using joins, aggregations, and subqueries for KPI reporting and time-series data analysis, identifying Fridays as having 22% higher transaction volume than the weekly average.
+– Visualized operational metrics using Tableau, Power BI, Docker, and Python dashboards supporting self-service BI and visual analytics, enabling business teams to reduce overstocking by 12% through improved demand visibility and predictive restocking alerts.
+– Highlighted top-selling product lines and preferred payment methods through cross-tabulation analysis, influencing inventory restocking policies and improving branch-level revenue tracking accuracy by 15% for stakeholder reporting.
+
+Certifications
+Snowflake with Tableau – LinkedIn Learning Mar 2025
+R for Data Science: Analysis and Visualization – LinkedIn Learning Mar 2025
+MongoDB – LinkedIn Learning Mar 2025
+MySQL – LinkedIn Learning Mar 2025
+
+==================================================
+CHANGE LOG
+==================================================
+• [preserved] Round 1 header title change to AI Applications Developer preserved
+• [preserved] Round 1 Summary section preserved intact
+• [preserved] Round 1 CI/CD insertion in CTA second bullet preserved
+• [preserved] Round 1 AI applications insertion in CTA third bullet preserved
+• [preserved] Round 1 Agile insertion in CTA fourth bullet preserved
+• [preserved] Round 1 machine learning techniques insertion in Financial Analyst second bullet preserved
+• [preserved] Round 1 Git for version control insertion in Netflix second bullet preserved
+• [preserved] Round 1 NoSQL insertion in Walmart first bullet preserved
+• [preserved] Round 1 time-series data analysis insertion in Walmart second bullet preserved
+• [preserved] Round 1 Power BI insertion in Walmart third bullet preserved
+• [orphan_fix] NumPy inserted into CTA first bullet alongside Python
+• [orphan_fix] automated reporting inserted into CTA first bullet
+• [orphan_fix] GitHub inserted into CTA second bullet within CI/CD context
+• [orphan_fix] geospatial visualization and interactive dashboards inserted into CTA fourth bullet
+• [orphan_fix] Excel with Pivot Tables and Power Query inserted into Financial Analyst first bullet
+• [orphan_fix] feature engineering inserted into Financial Analyst second bullet
+• [orphan_fix] time-series forecasting inserted into Financial Analyst fourth bullet
+• [orphan_fix] data cleaning and wrangling inserted into Netflix first bullet
+• [orphan_fix] data modeling inserted into Netflix second bullet
+• [orphan_fix] dashboard design inserted into Netflix third bullet
+• [orphan_fix] PostgreSQL and MySQL inserted into Walmart first bullet
+• [orphan_fix] Docker inserted into Walmart third bullet
+• [orphan_fix] self-service BI and visual analytics inserted into Walmart third bullet
+
+==================================================
+WARNINGS
+==================================================
+[WARN] The 'KEYWORDS STILL MISSING' items ('Error occurred during keyword extraction', 'Please check OpenAI API key and connection') are system error messages from a failed API call, not actual JD keywords. They cannot be meaningfully inserted into resume bullets and have been flagged as non-actionable.
+[WARN] Several orphaned items in the feedback list are section headers, job titles, and full bullet texts (e.g., '– Reimagined an interactive geospatial safety analytics platform...') rather than skills — these are parser artifacts and cannot be treated as insertable keywords.
+[WARN] Some bullets are already at or near the 28-word limit; surgical additions were made carefully but a few bullets may approach the limit. Word counts were estimated conservatively.
+[WARN] ETL Processes and Data Pipeline Architecture are semantically represented by 'ETL reporting pipeline' in the CTA second bullet; they are listed in Skills and backed by bullet content.
+[WARN] Data Pipeline Architecture as a standalone phrase was not inserted into a bullet to avoid awkward phrasing; it is covered by 'ETL reporting pipeline' and 'data pipeline' context in CTA bullet 2.

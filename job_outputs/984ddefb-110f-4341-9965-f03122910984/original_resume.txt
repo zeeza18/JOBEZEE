@@ -1,0 +1,11 @@
+Bob Smith
+bob@example.com | GitHub: github.com/bobsmith
+
+EXPERIENCE
+Backend Developer, StartupXYZ (2021-2024)
+- Developed backend services in Python
+- Worked with PostgreSQL and Redis
+- Used Docker and AWS for deployment
+
+SKILLS
+Python, PostgreSQL, Redis, Docker, AWS, REST APIs

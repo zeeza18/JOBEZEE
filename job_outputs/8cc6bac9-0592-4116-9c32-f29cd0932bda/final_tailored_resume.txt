@@ -1,0 +1,16 @@
+Jane Doe
+jane@example.com | LinkedIn: linkedin.com/in/janedoe
+
+Python Backend Engineer
+
+SUMMARY
+Python Backend Engineer with 2+ years of experience designing and maintaining scalable REST APIs and backend services. Proficient in FastAPI, PostgreSQL, and Docker, with hands-on experience integrating Redis caching and Celery task queues. Adept at writing unit tests and delivering clean, reviewable code in collaborative engineering environments.
+
+EXPERIENCE
+Software Engineer, Acme Corp (2022-2024)
+- Built and maintained REST APIs using Python and FastAPI, integrating Celery for asynchronous task processing and background job management.
+- Managed PostgreSQL databases with Redis caching and wrote unit tests, improving query performance and response times.
+- Deployed containerized services with Docker on AWS, streamlining CI/CD pipelines and ensuring scalable cloud infrastructure.
+
+SKILLS
+Python, FastAPI, PostgreSQL, Docker, REST APIs, Redis, Celery, AWS

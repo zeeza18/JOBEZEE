@@ -121,18 +121,20 @@ def _delegate_to_hetzner(
     openai_api_key: str,
     username: str,
     company: str,
+    anthropic_api_key: str = "",
 ) -> None:
     """POST tailor job to Hetzner worker asynchronously (fire-and-forget thread)."""
     import httpx as _httpx, threading as _thr
 
     payload = {
-        "job_id":          job_id,
-        "job_description": job_description,
-        "resume_text":     resume_text,
-        "openai_api_key":  openai_api_key,
-        "username":        username,
-        "company":         company,
-        "callback_url":    f"{_api_base_url()}/api/tailor/internal/callback",
+        "job_id":            job_id,
+        "job_description":   job_description,
+        "resume_text":       resume_text,
+        "openai_api_key":    openai_api_key,
+        "anthropic_api_key": anthropic_api_key,
+        "username":          username,
+        "company":           company,
+        "callback_url":      f"{_api_base_url()}/api/tailor/internal/callback",
     }
 
     def _send():
@@ -153,17 +155,17 @@ def _delegate_to_hetzner(
     _thr.Thread(target=_send, daemon=True).start()
 
 
-def start_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "") -> None:
+def start_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "", anthropic_api_key: str = "") -> None:
     """Submit job — delegates to Hetzner if BOT_WORKER_URL is set, else local thread pool."""
     if _hetzner_url():
         with _lock:
             _jobs[job_id]["status"] = "running"
-        _delegate_to_hetzner(job_id, _clean_job_description(job_description), resume, openai_api_key, username, "")
+        _delegate_to_hetzner(job_id, _clean_job_description(job_description), resume, openai_api_key, username, "", anthropic_api_key)
     else:
-        _get_executor().submit(_run_tailor_job, job_id, job_description, resume, openai_api_key, username)
+        _get_executor().submit(_run_tailor_job, job_id, job_description, resume, openai_api_key, username, anthropic_api_key)
 
 
-def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "") -> None:
+def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "", anthropic_api_key: str = "") -> None:
     """Runs inside background thread."""
     import sys as _sys
     with _lock:
@@ -198,7 +200,7 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
         job_dir = _JOB_OUTPUTS / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
 
-        crew = ResumeCrew(openai_api_key=openai_api_key or None)
+        crew = ResumeCrew(openai_api_key=openai_api_key or None, anthropic_api_key=anthropic_api_key or None)
         result = crew.run_tailoring_process(_clean_jd, _resume, progress_callback, output_dir=job_dir)
 
         final_score = result.get("final_score")
@@ -263,6 +265,7 @@ def start_tailor_job_for_job(
     company: str,
     openai_api_key: str = "",
     contact_header: str = "",
+    anthropic_api_key: str = "",
 ) -> None:
     """Submit job — delegates to Hetzner if BOT_WORKER_URL is set, else local thread pool."""
     if _hetzner_url():
@@ -292,7 +295,7 @@ def start_tailor_job_for_job(
                 with _lock:
                     _jobs[tailor_job_id]["status"] = "running"
 
-                _delegate_to_hetzner(tailor_job_id, clean_jd, resume_text, openai_api_key, username, company)
+                _delegate_to_hetzner(tailor_job_id, clean_jd, resume_text, openai_api_key, username, company, anthropic_api_key)
             except Exception as exc:
                 with _lock:
                     _jobs[tailor_job_id]["status"] = "error"
@@ -300,7 +303,7 @@ def start_tailor_job_for_job(
 
         _thr.Thread(target=_prepare_and_delegate, daemon=True).start()
     else:
-        _get_executor().submit(_run_tailor_for_job, tailor_job_id, job_description, resume_url, username, company, openai_api_key, contact_header)
+        _get_executor().submit(_run_tailor_for_job, tailor_job_id, job_description, resume_url, username, company, openai_api_key, contact_header, anthropic_api_key)
 
 
 def _run_tailor_for_job(
@@ -311,6 +314,7 @@ def _run_tailor_for_job(
     company: str,
     openai_api_key: str = "",
     contact_header: str = "",
+    anthropic_api_key: str = "",
 ) -> None:
     with _lock:
         _jobs[tailor_job_id]["status"] = "running"
@@ -378,7 +382,7 @@ def _run_tailor_for_job(
         job_dir = _JOB_OUTPUTS / tailor_job_id
         job_dir.mkdir(parents=True, exist_ok=True)
 
-        crew = ResumeCrew(openai_api_key=openai_api_key or None)
+        crew = ResumeCrew(openai_api_key=openai_api_key or None, anthropic_api_key=anthropic_api_key or None)
         result = crew.run_tailoring_process(clean_jd, resume_text, progress_callback, output_dir=job_dir)
 
         final_score = result.get("final_score")

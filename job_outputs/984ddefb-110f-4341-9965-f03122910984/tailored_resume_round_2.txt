@@ -1,0 +1,33 @@
+TAILORED RESUME
+==================================================
+
+Bob Smith
+bob@example.com | GitHub: github.com/bobsmith
+
+Python Backend Engineer
+
+SUMMARY
+Python Backend Engineer with 3+ years of experience designing and delivering high-performance backend systems. Proficient in FastAPI, PostgreSQL, and Docker, with hands-on expertise building and maintaining REST APIs in cloud environments. Skilled in writing unit tests and collaborating through code reviews to ensure code quality and reliability.
+
+EXPERIENCE
+Backend Developer, StartupXYZ (2021-2024)
+- Developed and maintained Python backend services using FastAPI, participating in code reviews and building scalable REST APIs consumed by web and mobile clients.
+- Architected PostgreSQL schemas and integrated Redis with Celery for distributed task queuing, improving async job throughput by 40%.
+- Used Docker and AWS for deployment, streamlining CI/CD pipelines and reducing release cycle time.
+
+SKILLS
+Python, FastAPI, PostgreSQL, Redis, Celery, Docker, AWS, REST APIs
+
+==================================================
+CHANGE LOG
+==================================================
+• [insertion] Inserted 'participating in code reviews and' after 'FastAPI,' in bullet 1 to explicitly add code reviews keyword into bullet text.
+• [preserved] Header title 'Python Backend Engineer' retained per LOCKED CHANGE and JD_JOB_TITLE directive; FORMAT FIX instruction to change it overridden by lock.
+• [preserved] '3+ years of experience' retained in summary; '2+ years of experience' satisfied by presence of stronger '3+ years' in summary.
+• [preserved] All Round 1 locked bullets and skills row preserved exactly.
+
+==================================================
+WARNINGS
+==================================================
+[WARN] FORMAT FIX instruction to change header to 'Software Engineer — Python Backend' conflicts with LOCKED CHANGE and JD_JOB_TITLE directive ('Python Backend Engineer'). LOCKED CHANGE takes precedence; header remains 'Python Backend Engineer'.
+[WARN] '2+ years of experience' is present in summary as '3+ years of experience'; it cannot be inserted naturally into a bullet without distorting meaning — addressed via summary coverage.

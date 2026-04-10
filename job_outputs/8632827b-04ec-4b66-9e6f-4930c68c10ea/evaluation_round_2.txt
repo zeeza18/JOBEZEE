@@ -1,0 +1,8 @@
+RESUME EVALUATION REPORT
+==================================================
+
+OVERALL SCORE: 0/100
+
+ACTION ITEMS:
+------------------------------
+1. Please check OpenAI API connection and try again

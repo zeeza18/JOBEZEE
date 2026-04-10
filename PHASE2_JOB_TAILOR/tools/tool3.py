@@ -19,11 +19,9 @@ class ResumeEvaluator:
     """Evaluate tailored resume against JD requirements using OpenAI"""
 
     def __init__(self, api_key: str | None = None) -> None:
-        resolved_key = api_key or os.getenv("OPENAI_API_KEY")
-        if not resolved_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set")
-
-        self.client = OpenAI(api_key=resolved_key)
+        if not api_key:
+            raise ValueError("OpenAI API key is required. Add it in Settings → Credentials.")
+        self.client = OpenAI(api_key=api_key)
         self.model = "gpt-4o"  # GPT-4o for evaluation
 
         self.system_prompt = self._load_prompt('tool3_prompt.txt')

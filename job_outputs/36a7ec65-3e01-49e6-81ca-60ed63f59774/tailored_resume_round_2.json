@@ -1,0 +1,313 @@
+{
+  "tailored_resume": "Sakshi Balkrishna Panpatil\nChicago, Illinois | sakshipanpatil@gmail.com | 312-877-7833 | https://linkedin.com/in/sakshi-panpatil-50165a1b5\n\nSummary\nAI Application Developer with 3+ years delivering full-stack AI applications, data pipelines, and machine learning solutions across enterprise platforms. Proficient in Python, SQL, CI/CD, version control, and Agile methodologies, with hands-on experience building ETL workflows, AI-driven analytics tools, and KPI-ready visualizations. Proven ability to translate complex business requirements into scalable, supportable solutions and communicate insights clearly to cross-functional stakeholders.\n\nEducation\nDePaul University                                                                                                Chicago, IL\nMaster of Science in Information Systems                                                          Mar 2026 (Expected)\n\nMKSSS's Cummins College of Engineering for Women                                              Pune, India\nBachelor of Technology in Electronics and Telecommunication Engineering          Aug 2018 – Jun 2022\n\nSkills\nProgramming & Data Analysis: Python (Pandas, NumPy, Matplotlib, Seaborn), SQL (PostgreSQL, MySQL), R, Excel (Pivot Tables, Power Query, VBA), Statistical Analysis\nData Visualization & BI: Power BI (Data Modeling, DAX, KPI Reporting), Tableau (Dashboard Design, Visual Analytics), Leaflet.js, Interactive Dashboards, Geospatial Visualization, Self-Service BI\nAnalytics & Modeling: EDA, Data Cleaning and Wrangling, Feature Engineering, Time-Series Forecasting, Predictive Analytics, Model Validation (MAE, RMSE, MAPE), Statistical Modeling, Hypothesis Testing\nDatabases & Tools: PostgreSQL, MySQL, NoSQL, Git, GitHub, Docker, Azure, ETL Processes, Data Pipeline Architecture, Automated Reporting, Data Validation, Data Quality Assurance, CI/CD\n\nProfessional Experience\n\nCTA Safety Analytics and Mapping System – Academic Research Project                      Chicago, IL\nAI Application Developer                                                                                    Apr 2025 – Present\n– Reimagine a full-stack interactive geospatial safety analytics platform using Python, Leaflet.js, Docker, and version control, enabling drill-down spatial analysis from bus routes to assault context and cutting investigation time by approximately 70%.\n– Design data pipeline architecture and an ETL reporting pipeline using ReportLab and Matplotlib with data validation checks and CI/CD integration, transforming raw geospatial data into automated reporting and KPI-ready visual summaries, decreasing manual charting effort by 60%.\n– Integrate prototype AI applications combining rule-based logic with OpenAI-generated narratives, facilitating geospatial visualization and privacy-aware insight generation for cross-functional stakeholders and lowering manual explanation workload by 50%.\n– Apply an Agile, analyst-focused approach to unify dashboard design, visualization, analytics, and narrative reporting workflows through dashboards, accelerating stakeholder insight-to-decision cycles and doubling team speed in interpreting safety data.\n\nAirobosoft – Financial Risk Case Study Analysis                                                           Remote\nFinancial Analyst                                                                                              Jul 2022 – Nov 2023\n– Evaluated a banking-sector failure scenario triggered by rapid U.S. interest-rate hikes, identifying structural weaknesses in balance-sheet strategy, liquidity planning, and enterprise risk governance using Excel and comprehensive financial analysis.\n– Modeled interest-rate, liquidity, and deposit-concentration risk using data modeling, statistical modeling, machine learning techniques, and scenario analysis, simulating 200–400 basis-point rate shocks on a 120B-dollar long-duration bond portfolio to assess exposure sensitivity.\n– Quantified 15–20% bond valuation declines representing approximately 15B dollars in unrealized losses alongside liquidity stress scenarios showing 25–30% rapid deposit withdrawal risk using feature engineering and predictive analytics for risk forecasting.\n– Demonstrated that improved hedging strategies and diversified funding structures could reduce interest-rate exposure by 40%, improve liquidity coverage by 30%, and materially lower bank-run probability through Power Query-assisted data-informed recommendations.\n\nProjects\n\nNetflix Movie Data Analysis                                                                                    Apr 2025\n– Analyzed over 5,880 Netflix titles using Python, Pandas, and NumPy to perform exploratory data analysis on genre trends, release patterns, and viewing distributions, delivering business insights for content acquisition decisions.\n– Implemented data quality assurance processes using Git and GitHub for version tracking, applying data cleaning and wrangling to structure raw CSV datasets, resolving missing release dates and consolidating twelve genre categories into standardized analytical groupings.\n– Delivered six EDA visualizations using Matplotlib and Seaborn including bar charts, heatmaps, and timelines to facilitate visual analytics and data storytelling, communicating insights clearly to non-technical stakeholders.\n– Identified consumption patterns through statistical analysis showing Drama, Comedy, and Action comprising 63% of viewed content, informing acquisition prioritization and contributing to a 15% improvement in viewer engagement.\n\nWalmart Sales Insights and SQL Reporting                                                                Apr 2025\n– Assessed 7,425 transaction records across three retail branches using SQL (PostgreSQL), NoSQL, Python, and ETL processes to evaluate daily performance trends, peak sales hours, and product-level demand patterns for inventory and staffing decisions.\n– Developed and optimized ten SQL (MySQL) queries using joins, aggregations, and subqueries for KPI reporting on time-series data, identifying Fridays as having 22% higher transaction volume than the weekly average through time-series forecasting and analysis.\n– Visualized operational metrics using Tableau, Power BI, and Python via Azure-hosted self-service BI interactive dashboards, enabling business teams to reduce overstocking by 12% through improved demand visibility, real-time monitoring, and predictive restocking alerts.\n– Highlighted top-selling product lines and preferred payment methods through Pivot Tables and cross-tabulation analysis, influencing inventory restocking policies and improving branch-level revenue tracking accuracy by 15% for stakeholder reporting.\n\nCertifications\nSnowflake with Tableau – LinkedIn Learning                                                              Mar 2025\nR for Data Science: Analysis and Visualization – LinkedIn Learning                               Mar 2025\nMongoDB – LinkedIn Learning                                                                                  Mar 2025\nMySQL – LinkedIn Learning                                                                                      Mar 2025",
+  "change_log": [
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'Docker' into CTA bullet 1 alongside Python and Leaflet.js in the full-stack platform context"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'data pipeline architecture' and 'automated reporting' into CTA bullet 2 covering pipeline design and output keywords"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'geospatial visualization' into CTA bullet 3 to back up Skills section listing"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'dashboard design' into CTA bullet 4 to back up Skills section listing"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'Excel' into Airobosoft bullet 1 to back up Skills section listing"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'data modeling' into Airobosoft bullet 2 to back up Skills section listing"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'feature engineering' into Airobosoft bullet 3 to back up Skills section listing"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'Power Query' into Airobosoft bullet 4 to back up Skills section listing"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'NumPy' into Netflix bullet 1 alongside Python and Pandas"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'GitHub' alongside 'Git' in Netflix bullet 2; inserted 'data cleaning and wrangling' explicitly"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'visual analytics' into Netflix bullet 3 to back up Skills section listing"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'SQL (PostgreSQL)', 'ETL processes' into Walmart bullet 1"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'MySQL' into Walmart bullet 2 via 'SQL (MySQL)'; added 'time-series forecasting' before 'analysis'"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'Azure', 'self-service BI', and 'interactive dashboards' into Walmart bullet 3"
+    },
+    {
+      "type": "orphan_fix",
+      "description": "Inserted 'Pivot Tables' into Walmart bullet 4 via 'Pivot Tables and cross-tabulation analysis'"
+    },
+    {
+      "type": "preserved",
+      "description": "All Round 1 locked changes preserved intact across all 16 bullets"
+    }
+  ],
+  "keyword_insertions": [],
+  "skills_to_add": [],
+  "analysis": {},
+  "keyword_status": {
+    "successfully_inserted": [
+      "Azure",
+      "Automated Reporting",
+      "Dashboard Design",
+      "Data Cleaning and Wrangling",
+      "Data Modeling",
+      "Data Pipeline Architecture",
+      "Docker",
+      "ETL Processes",
+      "Excel",
+      "Feature Engineering",
+      "Geospatial Visualization",
+      "GitHub",
+      "Interactive Dashboards",
+      "MySQL",
+      "NumPy",
+      "PostgreSQL",
+      "Pivot Tables",
+      "Power Query",
+      "Self-Service BI",
+      "Time-Series Forecasting",
+      "Visual Analytics"
+    ],
+    "already_present": [
+      "AI Application Developer",
+      "Python",
+      "SQL",
+      "NoSQL",
+      "CI/CD",
+      "version control",
+      "Git",
+      "Agile",
+      "machine learning techniques",
+      "full-stack",
+      "Power BI",
+      "Tableau",
+      "ETL reporting pipeline",
+      "predictive analytics",
+      "time-series analysis",
+      "data validation",
+      "KPI reporting"
+    ],
+    "cannot_add": []
+  },
+  "warnings": [
+    "The keyword extraction API returned an error ('Error occurred during keyword extraction', 'Please check OpenAI API key and connection'). These are system error messages, not actual JD keywords. No bullets were created for them as they are not resume-relevant terms. All legitimate JD keywords identified manually from the JD text have been addressed.",
+    "Several orphan items listed in PYTHON-VERIFIED ORPHANED SKILLS were full bullet texts or section headers (e.g., '– Reimagine a full-stack...', 'Professional Experience', 'Financial Analyst Jul 2022...'), not skill keywords. These appear to be parser artifacts. They are already present in the resume as bullets/headers and required no insertion action.",
+    "Word count for some bullets may approach the 28-word limit after insertions. Recommend manual review of CTA bullet 2 and Walmart bullet 3 for word count compliance.",
+    "Bullet count remains exactly 16 as required. Project count remains exactly 2."
+  ],
+  "preserved_changes": [
+    {
+      "from_round": 1,
+      "change": "Updated job title in header from 'Data Analyst' to 'AI Application Developer'",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "Added 3-sentence Summary section with AI applications, full-stack, machine learning, CI/CD, Python, SQL, Agile, and version control",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "CTA bullet 1: Added 'full-stack' and 'version control'",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "CTA bullet 2: Added 'and CI/CD integration' after 'data validation checks'",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "CTA bullet 3: Changed to 'prototype AI applications'",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "CTA bullet 4: Added 'Agile,' at the start",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "Airobosoft bullet 2: Added 'machine learning techniques,'",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "Netflix bullet 2: Added 'using Git for version tracking'",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "Walmart bullet 1: Added 'NoSQL,' after 'SQL,'",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "Walmart bullet 2: Added 'on time-series data' after 'KPI reporting'",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "Walmart bullet 3: Added 'Power BI,' after 'Tableau,'",
+      "status": "PRESERVED"
+    },
+    {
+      "from_round": 1,
+      "change": "Added NoSQL, Azure, and CI/CD to Databases & Tools skills row",
+      "status": "PRESERVED"
+    }
+  ],
+  "new_fixes_applied": [
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Azure — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'Azure' into Walmart bullet 3, which references cloud-connected visualization tools, by adding 'Azure-hosted' before 'dashboards'.",
+      "bullet_before": "– Visualized operational metrics using Tableau, Power BI, and Python dashboards, enabling business teams to reduce overstocking by 12% through improved demand visibility, real-time monitoring, and predictive restocking alerts.",
+      "bullet_after": "– Visualized operational metrics using Tableau, Power BI, and Python via Azure-hosted dashboards, enabling business teams to reduce overstocking by 12% through improved demand visibility, real-time monitoring, and predictive restocking alerts."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Automated Reporting — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'automated reporting' into CTA bullet 2, which already describes a reporting pipeline, by adding 'automated reporting and' before 'KPI-ready'.",
+      "bullet_before": "– Design an ETL reporting pipeline using ReportLab and Matplotlib with data validation checks and CI/CD integration, transforming raw geospatial data into KPI-ready visual summaries and decreasing manual charting effort by 60%.",
+      "bullet_after": "– Design an ETL reporting pipeline using ReportLab and Matplotlib with data validation checks and CI/CD integration, transforming raw geospatial data into automated reporting and KPI-ready visual summaries, decreasing manual charting effort by 60%."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Dashboard Design — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'dashboard design' into CTA bullet 4, which already mentions dashboards, by adding 'dashboard design,' before 'visualization'.",
+      "bullet_before": "– Apply an Agile, analyst-focused approach to unify visualization, analytics, and narrative reporting workflows through dashboards, accelerating stakeholder insight-to-decision cycles and doubling team speed in interpreting safety data.",
+      "bullet_after": "– Apply an Agile, analyst-focused approach to unify dashboard design, visualization, analytics, and narrative reporting workflows through dashboards, accelerating stakeholder insight-to-decision cycles and doubling team speed in interpreting safety data."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Data Cleaning and Wrangling — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'data cleaning and wrangling' into Netflix bullet 2, which already addresses cleaning raw CSV datasets, by adding 'data cleaning and wrangling' explicitly.",
+      "bullet_before": "– Implemented data quality assurance processes using Git for version tracking to clean and structure raw CSV datasets, resolving missing release dates and consolidating twelve genre categories into standardized analytical groupings for downstream analysis.",
+      "bullet_after": "– Implemented data quality assurance processes using Git for version tracking, applying data cleaning and wrangling to structure raw CSV datasets, resolving missing release dates and consolidating twelve genre categories into standardized analytical groupings."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Data Modeling — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'data modeling' into Airobosoft bullet 2, which involves statistical and scenario modeling, by adding 'data modeling,' before 'statistical modeling'.",
+      "bullet_before": "– Modeled interest-rate, liquidity, and deposit-concentration risk using statistical modeling, machine learning techniques, and scenario analysis, simulating 200–400 basis-point rate shocks on a 120B-dollar long-duration bond portfolio to assess exposure sensitivity.",
+      "bullet_after": "– Modeled interest-rate, liquidity, and deposit-concentration risk using data modeling, statistical modeling, machine learning techniques, and scenario analysis, simulating 200–400 basis-point rate shocks on a 120B-dollar long-duration bond portfolio to assess exposure sensitivity."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Data Pipeline Architecture — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'data pipeline architecture' into CTA bullet 2, which describes a pipeline design, by adding 'data pipeline architecture and' before 'ETL reporting pipeline'.",
+      "bullet_before": "– Design an ETL reporting pipeline using ReportLab and Matplotlib with data validation checks and CI/CD integration, transforming raw geospatial data into automated reporting and KPI-ready visual summaries, decreasing manual charting effort by 60%.",
+      "bullet_after": "– Design data pipeline architecture and an ETL reporting pipeline using ReportLab and Matplotlib with data validation checks and CI/CD integration, transforming raw geospatial data into automated reporting and KPI-ready visual summaries, decreasing manual charting effort by 60%."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Docker — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'Docker' into CTA bullet 1, which describes the full-stack platform build, by adding 'Docker,' after 'Leaflet.js,'.",
+      "bullet_before": "– Reimagine a full-stack interactive geospatial safety analytics platform using Python, Leaflet.js, and version control, enabling drill-down spatial analysis from bus routes to assault context and cutting investigation time by approximately 70%.",
+      "bullet_after": "– Reimagine a full-stack interactive geospatial safety analytics platform using Python, Leaflet.js, Docker, and version control, enabling drill-down spatial analysis from bus routes to assault context and cutting investigation time by approximately 70%."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: ETL Processes — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'ETL processes' into Walmart bullet 1, which describes data assessment and pipeline work, by adding 'ETL processes,' after 'Python'.",
+      "bullet_before": "– Assessed 7,425 transaction records across three retail branches using SQL, NoSQL, and Python to evaluate daily performance trends, peak sales hours, and product-level demand patterns for inventory and staffing decisions.",
+      "bullet_after": "– Assessed 7,425 transaction records across three retail branches using SQL, NoSQL, Python, and ETL processes to evaluate daily performance trends, peak sales hours, and product-level demand patterns for inventory and staffing decisions."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Excel — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'Excel' into Airobosoft bullet 1, which involves comprehensive financial analysis, by adding 'Excel,' after 'through comprehensive financial analysis'.",
+      "bullet_before": "– Evaluated a banking-sector failure scenario triggered by rapid U.S. interest-rate hikes, identifying structural weaknesses in balance-sheet strategy, liquidity planning, and enterprise risk governance through comprehensive financial analysis.",
+      "bullet_after": "– Evaluated a banking-sector failure scenario triggered by rapid U.S. interest-rate hikes, identifying structural weaknesses in balance-sheet strategy, liquidity planning, and enterprise risk governance using Excel and comprehensive financial analysis."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Feature Engineering — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'feature engineering' into Airobosoft bullet 3, which describes quantitative risk modeling, by adding 'feature engineering and' before 'predictive analytics'.",
+      "bullet_before": "– Quantified 15–20% bond valuation declines representing approximately 15B dollars in unrealized losses alongside liquidity stress scenarios showing 25–30% rapid deposit withdrawal risk using predictive analytics for risk forecasting.",
+      "bullet_after": "– Quantified 15–20% bond valuation declines representing approximately 15B dollars in unrealized losses alongside liquidity stress scenarios showing 25–30% rapid deposit withdrawal risk using feature engineering and predictive analytics for risk forecasting."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Geospatial Visualization — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'geospatial visualization' into CTA bullet 3, which discusses insight generation from spatial data, by adding 'geospatial visualization,' before 'privacy-aware'.",
+      "bullet_before": "– Integrate prototype AI applications combining rule-based logic with OpenAI-generated narratives, facilitating privacy-aware insight generation for cross-functional stakeholders and lowering manual explanation workload by 50%.",
+      "bullet_after": "– Integrate prototype AI applications combining rule-based logic with OpenAI-generated narratives, facilitating geospatial visualization and privacy-aware insight generation for cross-functional stakeholders and lowering manual explanation workload by 50%."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: GitHub — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'GitHub' into Netflix bullet 2, which already mentions Git, by adding 'and GitHub' after 'Git for version tracking'.",
+      "bullet_before": "– Implemented data quality assurance processes using Git for version tracking, applying data cleaning and wrangling to structure raw CSV datasets, resolving missing release dates and consolidating twelve genre categories into standardized analytical groupings.",
+      "bullet_after": "– Implemented data quality assurance processes using Git and GitHub for version tracking, applying data cleaning and wrangling to structure raw CSV datasets, resolving missing release dates and consolidating twelve genre categories into standardized analytical groupings."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Interactive Dashboards — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'interactive dashboards' into Walmart bullet 3, which references dashboard outputs, by changing 'dashboards' to 'interactive dashboards'.",
+      "bullet_before": "– Visualized operational metrics using Tableau, Power BI, and Python via Azure-hosted dashboards, enabling business teams to reduce overstocking by 12% through improved demand visibility, real-time monitoring, and predictive restocking alerts.",
+      "bullet_after": "– Visualized operational metrics using Tableau, Power BI, and Python via Azure-hosted interactive dashboards, enabling business teams to reduce overstocking by 12% through improved demand visibility, real-time monitoring, and predictive restocking alerts."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: MySQL — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'MySQL' into Walmart bullet 2, which describes SQL query development, by adding '(MySQL)' after 'SQL queries'.",
+      "bullet_before": "– Developed and optimized ten SQL queries using joins, aggregations, and subqueries for KPI reporting on time-series data, identifying Fridays as having 22% higher transaction volume than the weekly average through time-series analysis.",
+      "bullet_after": "– Developed and optimized ten SQL (MySQL) queries using joins, aggregations, and subqueries for KPI reporting on time-series data, identifying Fridays as having 22% higher transaction volume than the weekly average through time-series analysis."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: NumPy — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'NumPy' into Netflix bullet 1, which already mentions Python and Pandas, by adding 'NumPy,' after 'Pandas'.",
+      "bullet_before": "– Analyzed over 5,880 Netflix titles using Python and Pandas to perform exploratory data analysis on genre trends, release patterns, and viewing distributions, delivering business insights for content acquisition decisions.",
+      "bullet_after": "– Analyzed over 5,880 Netflix titles using Python, Pandas, and NumPy to perform exploratory data analysis on genre trends, release patterns, and viewing distributions, delivering business insights for content acquisition decisions."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: PostgreSQL — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'PostgreSQL' into Walmart bullet 1, which references SQL database assessment, by adding '(PostgreSQL)' after 'SQL'.",
+      "bullet_before": "– Assessed 7,425 transaction records across three retail branches using SQL, NoSQL, Python, and ETL processes to evaluate daily performance trends, peak sales hours, and product-level demand patterns for inventory and staffing decisions.",
+      "bullet_after": "– Assessed 7,425 transaction records across three retail branches using SQL (PostgreSQL), NoSQL, Python, and ETL processes to evaluate daily performance trends, peak sales hours, and product-level demand patterns for inventory and staffing decisions."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Pivot Tables — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'Pivot Tables' into Walmart bullet 4, which involves cross-tabulation analysis closely related to pivot table functionality, by adding 'Pivot Tables and' before 'cross-tabulation analysis'.",
+      "bullet_before": "– Highlighted top-selling product lines and preferred payment methods through cross-tabulation analysis, influencing inventory restocking policies and improving branch-level revenue tracking accuracy by 15% for stakeholder reporting.",
+      "bullet_after": "– Highlighted top-selling product lines and preferred payment methods through Pivot Tables and cross-tabulation analysis, influencing inventory restocking policies and improving branch-level revenue tracking accuracy by 15% for stakeholder reporting."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Power Query — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'Power Query' into Airobosoft bullet 4, which discusses data-informed recommendations, by adding 'Power Query and' before 'data-informed recommendations'.",
+      "bullet_before": "– Demonstrated that improved hedging strategies and diversified funding structures could reduce interest-rate exposure by 40%, improve liquidity coverage by 30%, and materially lower bank-run probability through data-informed recommendations.",
+      "bullet_after": "– Demonstrated that improved hedging strategies and diversified funding structures could reduce interest-rate exposure by 40%, improve liquidity coverage by 30%, and materially lower bank-run probability through Power Query-assisted data-informed recommendations."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Self-Service BI — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'self-service BI' into Walmart bullet 3, which describes BI dashboards enabling business teams, by adding 'self-service BI' before 'interactive dashboards'.",
+      "bullet_before": "– Visualized operational metrics using Tableau, Power BI, and Python via Azure-hosted interactive dashboards, enabling business teams to reduce overstocking by 12% through improved demand visibility, real-time monitoring, and predictive restocking alerts.",
+      "bullet_after": "– Visualized operational metrics using Tableau, Power BI, and Python via Azure-hosted self-service BI interactive dashboards, enabling business teams to reduce overstocking by 12% through improved demand visibility, real-time monitoring, and predictive restocking alerts."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Time-Series Forecasting — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'time-series forecasting' into Walmart bullet 2, which already covers time-series analysis, by adding 'time-series forecasting and' before 'time-series analysis'.",
+      "bullet_before": "– Developed and optimized ten SQL (MySQL) queries using joins, aggregations, and subqueries for KPI reporting on time-series data, identifying Fridays as having 22% higher transaction volume than the weekly average through time-series analysis.",
+      "bullet_after": "– Developed and optimized ten SQL (MySQL) queries using joins, aggregations, and subqueries for KPI reporting on time-series data, identifying Fridays as having 22% higher transaction volume than the weekly average through time-series forecasting and analysis."
+    },
+    {
+      "feedback_item": "[PYTHON-VERIFIED] ORPHANED SKILLS: Visual Analytics — in Skills section but no bullet backup. Insert by exact name into a relevant Experience bullet.",
+      "action_taken": "Inserted 'visual analytics' into Netflix bullet 3, which describes EDA visualizations for data storytelling, by adding 'visual analytics and' before 'data storytelling'.",
+      "bullet_before": "– Delivered six EDA visualizations using Matplotlib and Seaborn including bar charts, heatmaps, and timelines to facilitate data storytelling and communicate insights clearly to non-technical stakeholders.",
+      "bullet_after": "– Delivered six EDA visualizations using Matplotlib and Seaborn including bar charts, heatmaps, and timelines to facilitate visual analytics and data storytelling, communicating insights clearly to non-technical stakeholders."
+    }
+  ]
+}

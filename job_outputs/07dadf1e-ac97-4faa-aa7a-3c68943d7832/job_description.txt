@@ -1,0 +1,40 @@
+Responsibilities include but not limited to: 
+
+ Build, deploy, and support AI applications and workflows for division, commercial, and corporate teams on enterprise AI platforms. 
+ Stand up proofs of value, validate results quickly, and convert wins into scalable, supportable solutions. 
+ Configure, maintain, and support DataOps and MLOps tooling, including pipelines, job orchestration, feature stores, monitoring, and CI/CD. 
+ Rapidly create custom AI and ML solutions for urgent needs across scrap, EAF, casting, rolling, finishing, logistics, and commercial. 
+ Develop and deploy full-stack, AI-based enterprise applications. 
+ Conduct design and development reviews, test, troubleshoot, and enhance software applications. 
+ Deliver technical deep-dives, demonstrations, and internal training. 
+ Create user playbooks, quick-start guides, and run enablement and training sessions. 
+ Collaborate with OT, IT, cybersecurity, and business SMEs to meet Nucor guardrails for reliability, safety, and compliance. 
+ Work across ambiguity with a hands-on approach and on-the-floor practicality in mill environments. 
+ Write application specifications and documentation. 
+ Continuously identify technical risks and gaps; devise mitigation strategies in anticipation of team’s needs. 
+
+Safety is the most important part of all jobs within Nucor; therefore, candidates must be able to demonstrate the ability to initiate, lead, and uphold safety policies, practices, procedures, and housekeeping standards at all times.
+
+Minimum Qualifications:
+
+ Bachelor’s degree in Computer Science, Engineering, Mathematics, or related discipline. Equivalent combination of experience and education will also be considered. 
+ 3+ years delivering AI or ML applications on enterprise platforms, or a relevant degree with strong internships or projects. 
+ Proficiency with Python, SQL, notebooks, version control, and CI/CD basics. 
+ Experience operating production pipelines and jobs, including alerting and observability. 
+ Clear, concise communication with stakeholders and end users; comfortable with speed and changing priorities. 
+
+Preferred Qualifications:
+
+ Prior experience with enterprise AI application platforms and their semantic/object models (e.g., C3.ai model types, Palantir Foundry ontology). 
+ Strong software development background with Python and JavaScript, including experience with modern JavaScript frameworks (React, Redux, Vue, Backbone, or Angular). 
+ Proficient with Git or other version control systems. 
+ Experience deploying software to leading cloud platforms (e.g., Azure). 
+ Solid understanding of SQL and NoSQL databases, data structures, algorithms, and time-series data analysis (including cleansing and normalization). 
+ Working knowledge of Agile software development methodologies. 
+ Strong grasp of common machine learning techniques, applications, and trade-offs. 
+ Experience with data visualization tools (Power BI, Tableau, Qlik). 
+ Familiarity with Figma or similar design/prototyping tools for UI/UX collaboration. 
+ Exposure to plant historians, MES, event streams, or edge integrations. 
+ Understanding of key Nucor metrics such as uptime, yield, quality, safety, cost per ton, service level, and inventory turns. 
+ Experience managing continuous improvement projects and implementing supply chain AI applications. 
+ Demonstrated ability to translate business needs into system requirements and communicate effectively across technical and business teams.

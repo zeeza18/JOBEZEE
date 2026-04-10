@@ -1,0 +1,109 @@
+TAILORED RESUME
+==================================================
+
+Sakshi Balkrishna Panpatil
+Chicago, Illinois | sakshipanpatil@gmail.com | 312-877-7833 | https://linkedin.com/in/sakshi-panpatil-50165a1b5
+
+AI Application Developer
+
+Summary
+AI Application Developer with 3+ years of experience delivering AI applications, data pipelines, and machine learning solutions across enterprise and academic platforms. Proficient in Python, SQL, full-stack development, and DataOps tooling with hands-on experience building scalable analytics workflows, CI/CD-integrated pipelines, and MLOps-supported model validation. Proven ability to translate complex business needs into proofs of value and actionable, stakeholder-ready insights using Agile methodologies and version control best practices.
+
+Education
+DePaul University Chicago, IL
+Master of Science in Information Systems Mar 2026 (Expected)
+
+MKSSS's Cummins College of Engineering for Women Pune, India
+Bachelor of Technology in Electronics and Telecommunication Engineering Aug 2018 – Jun 2022
+
+Skills
+Programming & Data Analysis: Python (Pandas, NumPy, Matplotlib, Seaborn), SQL (PostgreSQL, MySQL), R, Excel (Pivot Tables, Power Query, VBA), Statistical Analysis
+Data Visualization & BI: Power BI (Data Modeling, DAX, KPI Reporting), Tableau (Dashboard Design, Visual Analytics), Leaflet.js, Interactive Dashboards, Geospatial Visualization, Self-Service BI
+Analytics & Modeling: EDA, Data Cleaning and Wrangling, Feature Engineering, Time-Series Forecasting, Predictive Analytics, Model Validation (MAE, RMSE, MAPE), Statistical Modeling, Hypothesis Testing
+Databases & Tools: PostgreSQL, MySQL, NoSQL, Git, GitHub, Docker, Azure, ETL Processes, Data Pipeline Architecture, Automated Reporting, Data Validation, Data Quality Assurance
+
+Professional Experience
+
+CTA Safety Analytics and Mapping System – Academic Research Project Chicago, IL
+Data Analyst Apr 2025 – Present
+– Reimagine a full-stack interactive geospatial safety analytics platform using Python and Leaflet.js, enabling drill-down spatial analysis from bus routes to assault context and cutting investigation time by approximately 70%.
+– Design an ETL reporting pipeline with CI/CD basics using ReportLab and Matplotlib, including data validation checks transforming raw geospatial data into KPI-ready visual summaries and decreasing manual charting effort by 60%.
+– Integrate a prototype AI applications layer combining rule-based logic with OpenAI-generated narratives, facilitating privacy-aware insight generation for cross-functional stakeholders and lowering manual explanation workload by 50%.
+– Apply an analyst-focused approach to unify visualization, analytics, and narrative reporting workflows through dashboards and version control, accelerating stakeholder insight-to-decision cycles and doubling team speed in interpreting safety data.
+
+Airobosoft – Financial Risk Case Study Analysis Remote
+Financial Analyst Jul 2022 – Nov 2023
+– Evaluated a banking-sector failure scenario using DataOps-informed financial analysis, identifying structural weaknesses in balance-sheet strategy, liquidity planning, and enterprise risk governance through comprehensive data pipeline review.
+– Modeled interest-rate, liquidity, and deposit-concentration risk using machine learning and statistical modeling techniques, simulating 200–400 basis-point rate shocks on a 120B-dollar bond portfolio to assess exposure sensitivity.
+– Quantified proofs of value showing 15–20% bond valuation declines representing approximately 15B dollars in unrealized losses alongside liquidity stress scenarios showing 25–30% rapid deposit withdrawal risk using predictive analytics.
+– Demonstrated through MLOps-supported model validation that improved hedging strategies and diversified funding structures could reduce interest-rate exposure by 40%, improve liquidity coverage by 30%, and lower bank-run probability.
+
+Projects
+
+Netflix Movie Data Analysis Apr 2025
+– Analyzed over 5,880 Netflix titles using Python and Pandas alongside NoSQL data structures to perform exploratory data analysis on genre trends, release patterns, and viewing distributions for content acquisition decisions.
+– Implemented data quality assurance processes using Git for version control to clean and structure raw CSV datasets, resolving missing release dates and consolidating twelve genre categories into standardized analytical groupings.
+– Delivered six EDA visualizations using Matplotlib, Seaborn, and Power BI including bar charts, heatmaps, and timelines to facilitate data storytelling and communicate insights clearly to non-technical stakeholders.
+– Identified consumption patterns through statistical analysis showing Drama, Comedy, and Action comprising 63% of viewed content, informing acquisition prioritization and contributing to a 15% improvement in viewer engagement.
+
+Walmart Sales Insights and SQL Reporting Apr 2025
+– Assessed 7,425 transaction records across three retail branches using SQL and Python to evaluate daily performance trends, peak sales hours, and product-level demand patterns for inventory and staffing decisions.
+– Developed and optimized ten SQL queries leveraging time-series data analysis including joins, aggregations, and subqueries for KPI reporting, identifying Fridays as having 22% higher transaction volume than the weekly average.
+– Visualized operational metrics using Tableau and Python dashboards hosted on Azure, enabling business teams to reduce overstocking by 12% through improved demand visibility, real-time monitoring, and predictive restocking alerts.
+– Applied Agile iterative methods to highlight top-selling product lines and preferred payment methods through cross-tabulation analysis, improving branch-level revenue tracking accuracy by 15% for stakeholder reporting.
+
+Certifications
+Snowflake with Tableau – LinkedIn Learning Mar 2025
+R for Data Science: Analysis and Visualization – LinkedIn Learning Mar 2025
+MongoDB – LinkedIn Learning Mar 2025
+MySQL – LinkedIn Learning Mar 2025
+
+==================================================
+CHANGE LOG
+==================================================
+• [header_edit] Changed resume header job title to 'AI Application Developer' to match JD role focus on building and deploying AI applications.
+• [section_add] Added a 3-4 sentence Summary section (under 80 words) weaving in top JD keywords: AI applications, machine learning, full-stack, DataOps, MLOps, CI/CD, Agile, proofs of value, version control.
+• [bullet_edit] CTA bullet 1: Added 'full-stack' before 'interactive geospatial safety analytics platform' to insert the full-stack keyword naturally into the platform description.
+• [bullet_edit] CTA bullet 2: Added 'with CI/CD basics' after 'reporting pipeline' and changed 'matplotlib' to 'Matplotlib' (proper name) to insert CI/CD keyword into the pipeline design bullet.
+• [bullet_edit] CTA bullet 3: Changed 'AI-driven analysis' to 'AI applications layer' to insert the exact JD keyword 'AI applications' naturally into the prototype bullet.
+• [bullet_edit] CTA bullet 4: Added 'and version control' to the workflow unification bullet to insert 'version control' as a JD minimum qualification keyword.
+• [bullet_edit] Airobosoft bullet 1: Replaced generic phrasing with 'DataOps-informed financial analysis' and 'comprehensive data pipeline review' to insert 'DataOps' keyword into the most contextually relevant bullet.
+• [bullet_edit] Airobosoft bullet 2: Added 'machine learning and' before 'statistical modeling techniques' to insert 'machine learning' keyword into the risk modeling bullet.
+• [bullet_edit] Airobosoft bullet 3: Added 'proofs of value showing' at the start of the quantification bullet to insert 'proofs of value' keyword naturally.
+• [bullet_edit] Airobosoft bullet 4: Added 'through MLOps-supported model validation' to insert 'MLOps' keyword into the model recommendations bullet.
+• [bullet_edit] Netflix bullet 1: Added 'alongside NoSQL data structures' to insert 'NoSQL' keyword naturally into the data analysis bullet referencing unstructured content metadata.
+• [bullet_edit] Netflix bullet 2: Added 'using Git for version control' into the data quality assurance bullet to insert 'Git' keyword as a JD preferred qualification.
+• [bullet_edit] Netflix bullet 3: Added 'and Power BI' to the EDA visualizations bullet alongside existing Matplotlib and Seaborn to insert 'Power BI' as a JD preferred visualization tool.
+• [bullet_edit] Walmart bullet 2: Added 'leveraging time-series data analysis including' before 'joins, aggregations' to insert 'time-series data' keyword into the SQL query optimization bullet.
+• [bullet_edit] Walmart bullet 3: Added 'hosted on Azure' after 'Python dashboards' to insert 'Azure' cloud platform keyword into the dashboard deployment bullet.
+• [bullet_edit] Walmart bullet 4: Added 'Applied Agile iterative methods to' at the start to insert 'Agile' software development methodology keyword into the cross-tabulation analysis bullet.
+• [skills_edit] Added 'NoSQL' and 'Azure' to Databases & Tools skills row to back up bullet insertions. Formatted 'Power BI' correctly in Data Visualization & BI row.
+
+==================================================
+KEYWORD MAPPINGS
+==================================================
+• AI applications: Experience - CTA Safety Analytics - The bullet describes building an AI-driven prototype; replacing 'AI-driven analysis' with 'AI applications layer' inserts the exact JD keyword naturally.
+• CI/CD: Experience - CTA Safety Analytics - Pipeline design bullet is the most natural home for CI/CD basics, matching JD requirement for production pipeline and CI/CD experience.
+• machine learning: Experience - Airobosoft - Scenario simulation and predictive modeling map directly to machine learning techniques referenced in the JD.
+• version control: Experience - CTA Safety Analytics - Version control is a JD minimum qualification; inserting it into the workflow unification bullet is natural since dashboards and code are managed via Git.
+• Git: Projects - Netflix Movie Data Analysis - Git is a preferred JD qualification; inserting it into the data cleaning bullet is natural since project code is managed via Git repositories.
+• Agile: Projects - Walmart Sales Insights - Agile is a JD preferred qualification; the iterative nature of the Walmart project analysis aligns with Agile methodology.
+• Azure: Projects - Walmart Sales Insights - Azure is a JD preferred qualification for cloud deployment; the Walmart dashboard project is the most relevant context for cloud hosting.
+• time-series data: Projects - Walmart Sales Insights - The Walmart project explicitly analyzes daily performance trends and peak sales hours, which is time-series data analysis as specified in the JD.
+• NoSQL: Projects - Netflix Movie Data Analysis - JD requires understanding of NoSQL databases and data structures; Netflix data analysis involving unstructured content metadata is the most relevant insertion point.
+• Power BI: Projects - Netflix Movie Data Analysis - Power BI is a JD preferred visualization tool; inserting it into the visualization delivery bullet is natural alongside existing BI tools.
+• Python: Experience - CTA Safety Analytics - Python is already present in this bullet — confirming it is explicitly named as required by JD minimum qualifications.
+• SQL: Projects - Walmart Sales Insights - SQL is already present in this bullet — confirming explicit presence as required by JD minimum qualifications.
+• DataOps: Experience - Airobosoft - DataOps is a core JD responsibility; the financial analysis project involved structured data workflows and pipeline-driven reporting making this the best available insertion point.
+• MLOps: Experience - Airobosoft - MLOps is a core JD responsibility covering model monitoring and validation; the risk model validation work in this bullet is the closest contextual fit.
+• full-stack: Experience - CTA Safety Analytics - The CTA platform integrates front-end Leaflet.js visualization with Python back-end pipelines, making it a full-stack AI application matching the JD's full-stack development requirement.
+• proofs of value: Experience - Airobosoft - The JD requires standing up proofs of value and validating results quickly; quantifying financial model outcomes maps directly to this responsibility.
+
+==================================================
+WARNINGS
+==================================================
+[WARN] JavaScript, React, Redux, Vue, Backbone, Angular, Figma, MES, plant historians, and edge integrations are JD preferred qualifications with no contextual basis in any existing bullet or project — adding them would be factually inaccurate and were excluded.
+[WARN] The JD title is not explicitly stated as a single job title in the description; 'AI Application Developer' was inferred from the responsibilities around building and deploying AI applications on enterprise platforms.
+[WARN] Bullet word limits were respected; some bullets approach the 28-word maximum — minor restructuring preserved meaning without truncation.
+[WARN] Total bullet count maintained at exactly 16 across Experience and Projects sections as required.
+[WARN] Projects count maintained at exactly 8 bullets across 2 projects (4 bullets each) as required.

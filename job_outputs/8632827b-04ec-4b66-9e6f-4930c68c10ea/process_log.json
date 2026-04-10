@@ -1,0 +1,178 @@
+[
+  {
+    "timestamp": "2026-03-27T19:38:29.361123",
+    "step": "TOOL 1: Extracting keywords from job description",
+    "data": {}
+  },
+  {
+    "timestamp": "2026-03-27T19:38:29.625513",
+    "step": "Keywords extracted successfully",
+    "data": {
+      "keywords_count": 1,
+      "needs_count": 1,
+      "results_count": 1
+    }
+  },
+  {
+    "timestamp": "2026-03-27T19:38:29.629520",
+    "step": "ROUND 1 - TOOL 2: Tailoring resume",
+    "data": {}
+  },
+  {
+    "timestamp": "2026-03-27T19:39:31.217541",
+    "step": "ROUND 1 - Resume tailored",
+    "data": {
+      "tailored_resume_length": 745,
+      "changes_made": 10,
+      "keywords_inserted_this_round": 8,
+      "total_keywords_inserted": 0,
+      "has_feedback": false
+    }
+  },
+  {
+    "timestamp": "2026-03-27T19:39:31.218457",
+    "step": "ROUND 1 - TOOL 3: Evaluating resume",
+    "data": {}
+  },
+  {
+    "timestamp": "2026-03-27T19:39:31.482822",
+    "step": "ROUND 1 - Evaluation complete",
+    "data": {
+      "score": 0,
+      "recommendations_count": 1
+    }
+  },
+  {
+    "timestamp": "2026-03-27T19:39:31.484888",
+    "step": "ROUND 2 - TOOL 2: Tailoring resume",
+    "data": {}
+  },
+  {
+    "timestamp": "2026-03-27T19:40:51.580000",
+    "step": "ROUND 2 - Resume tailored",
+    "data": {
+      "tailored_resume_length": 769,
+      "changes_made": 23,
+      "keywords_inserted_this_round": 18,
+      "total_keywords_inserted": 0,
+      "has_feedback": true
+    }
+  },
+  {
+    "timestamp": "2026-03-27T19:40:51.580926",
+    "step": "ROUND 2 - TOOL 3: Evaluating resume",
+    "data": {}
+  },
+  {
+    "timestamp": "2026-03-27T19:40:51.828427",
+    "step": "ROUND 2 - Evaluation complete",
+    "data": {
+      "score": 0,
+      "recommendations_count": 1
+    }
+  },
+  {
+    "timestamp": "2026-03-27T19:40:52.036900",
+    "step": "TOOL 4: LaTeX resume conversion",
+    "data": {
+      "status": "failure",
+      "raw_response_length": 542,
+      "error": "Error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"
+    }
+  },
+  {
+    "timestamp": "2026-03-27T19:40:52.037406",
+    "step": "Complete process finished",
+    "data": {
+      "jd_length": 438,
+      "original_resume_length": 610,
+      "final_resume_length": 745,
+      "final_score": 0,
+      "best_round": 1,
+      "total_rounds": 2,
+      "keyword_analysis": {
+        "company_name": "UNKNOWN_COMPANY",
+        "keywords": [
+          "Error occurred during keyword extraction"
+        ],
+        "needs": [
+          "Please check OpenAI API key and connection"
+        ],
+        "results": [
+          "Manual keyword extraction may be needed"
+        ],
+        "raw_analysis": "Error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"
+      },
+      "all_evaluations": [
+        {
+          "score": 0,
+          "keyword_analysis": {
+            "found": [],
+            "missing": [],
+            "weak": []
+          },
+          "experience_evaluation": "Error occurred during evaluation: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+          "ats_optimization": "Could not evaluate due to error",
+          "requirements_check": {
+            "met": [],
+            "missing": [],
+            "partial": []
+          },
+          "feedback": "Evaluation failed due to error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+          "recommendations": [
+            "Please check OpenAI API connection and try again"
+          ],
+          "raw_evaluation": "Error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"
+        },
+        {
+          "score": 0,
+          "keyword_analysis": {
+            "found": [],
+            "missing": [],
+            "weak": []
+          },
+          "experience_evaluation": "Error occurred during evaluation: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+          "ats_optimization": "Could not evaluate due to error",
+          "requirements_check": {
+            "met": [],
+            "missing": [],
+            "partial": []
+          },
+          "feedback": "Evaluation failed due to error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+          "recommendations": [
+            "Please check OpenAI API connection and try again"
+          ],
+          "raw_evaluation": "Error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"
+        }
+      ],
+      "best_evaluation": {
+        "score": 0,
+        "keyword_analysis": {
+          "found": [],
+          "missing": [],
+          "weak": []
+        },
+        "experience_evaluation": "Error occurred during evaluation: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+        "ats_optimization": "Could not evaluate due to error",
+        "requirements_check": {
+          "met": [],
+          "missing": [],
+          "partial": []
+        },
+        "feedback": "Evaluation failed due to error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+        "recommendations": [
+          "Please check OpenAI API connection and try again"
+        ],
+        "raw_evaluation": "Error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: gAAAAABp************************************************************************************************************************************************************************************************************************************************************************************************************92s=. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"
+      },
+      "memory_state": {
+        "locked_changes_count": 10,
+        "keywords_inserted": [],
+        "keywords_still_missing": [
+          "Error occurred during keyword extraction",
+          "Please check OpenAI API key and connection"
+        ]
+      }
+    }
+  }
+]

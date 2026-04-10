@@ -1,0 +1,58 @@
+KEYWORD EXTRACTION ANALYSIS
+==================================================
+
+COMPANY NAME: UNKNOWN_COMPANY
+==================================================
+
+KEYWORDS:
+• Python
+• FastAPI
+• PostgreSQL
+• REST APIs
+• Docker
+• Redis
+• Celery
+• AWS
+
+NEEDS:
+• 2+ years of experience
+• Python
+• FastAPI
+• PostgreSQL
+• REST APIs
+• Docker
+
+RESULTS:
+• build and maintain APIs
+• write unit tests
+• code reviews
+
+==================================================
+RAW ANALYSIS:
+{
+  "company_name": "UNKNOWN_COMPANY",
+  "job_title": "Python Backend Engineer",
+  "keywords": [
+    "Python",
+    "FastAPI",
+    "PostgreSQL",
+    "REST APIs",
+    "Docker",
+    "Redis",
+    "Celery",
+    "AWS"
+  ],
+  "needs": [
+    "2+ years of experience",
+    "Python",
+    "FastAPI",
+    "PostgreSQL",
+    "REST APIs",
+    "Docker"
+  ],
+  "results": [
+    "build and maintain APIs",
+    "write unit tests",
+    "code reviews"
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "score": 97,
+  "replacements": [],
+  "insertions": [],
+  "orphaned_skills": [],
+  "weak_bullets": [
+    {
+      "bullet_preview": "Developed and maintained Python backend services",
+      "section": "Experience",
+      "issue": "no_metric",
+      "old_start": "Developed and maintained",
+      "new_start": "Developed and maintained Python backend services, achieving"
+    }
+  ],
+  "formatting_issues": [
+    {
+      "issue": "Resume title does not match job title",
+      "fix": "Change title to Software Engineer — Python Backend"
+    }
+  ],
+  "genuine_gaps": [],
+  "action_items": [
+    {
+      "priority": 1,
+      "type": "format_fix",
+      "bullet_preview": "Python Backend Engineer",
+      "old": "Python Backend Engineer",
+      "new": "Software Engineer — Python Backend"
+    },
+    {
+      "priority": 2,
+      "type": "verb_fix",
+      "bullet_preview": "Developed and maintained Python backend services",
+      "old": "Developed and maintained",
+      "new": "Developed and maintained Python backend services, achieving"
+    }
+  ],
+  "keyword_analysis": {
+    "found": [],
+    "missing": [],
+    "weak": [
+      "Developed and maintained"
+    ],
+    "orphaned": []
+  },
+  "feedback": "",
+  "recommendations": [
+    "FORMAT FIX: Python Backend Engineer → Software Engineer — Python Backend",
+    "VERB FIX: In bullet 'Developed and maintained Python backend services...' → change 'Developed and maintained' to 'Developed and maintained Python backend services, achieving'"
+  ]
+}

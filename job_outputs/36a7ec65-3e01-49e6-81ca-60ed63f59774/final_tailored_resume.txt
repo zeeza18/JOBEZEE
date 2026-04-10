@@ -1,0 +1,54 @@
+Sakshi Balkrishna Panpatil
+Chicago, Illinois | sakshipanpatil@gmail.com | 312-877-7833 | https://linkedin.com/in/sakshi-panpatil-50165a1b5
+
+Summary
+AI Application Developer with 3+ years delivering full-stack AI applications, data pipelines, and machine learning solutions across enterprise platforms. Proficient in Python, SQL, CI/CD, version control, and Agile methodologies, with hands-on experience building ETL workflows, AI-driven analytics tools, and KPI-ready visualizations. Proven ability to translate complex business requirements into scalable, supportable solutions and communicate insights clearly to cross-functional stakeholders.
+
+Education
+DePaul University                                                                                                Chicago, IL
+Master of Science in Information Systems                                                          Mar 2026 (Expected)
+
+MKSSS's Cummins College of Engineering for Women                                              Pune, India
+Bachelor of Technology in Electronics and Telecommunication Engineering          Aug 2018 – Jun 2022
+
+Skills
+Programming & Data Analysis: Python (Pandas, NumPy, Matplotlib, Seaborn), SQL (PostgreSQL, MySQL), R, Excel (Pivot Tables, Power Query, VBA), Statistical Analysis
+Data Visualization & BI: Power BI (Data Modeling, DAX, KPI Reporting), Tableau (Dashboard Design, Visual Analytics), Leaflet.js, Interactive Dashboards, Geospatial Visualization, Self-Service BI
+Analytics & Modeling: EDA, Data Cleaning and Wrangling, Feature Engineering, Time-Series Forecasting, Predictive Analytics, Model Validation (MAE, RMSE, MAPE), Statistical Modeling, Hypothesis Testing
+Databases & Tools: PostgreSQL, MySQL, NoSQL, Git, GitHub, Docker, Azure, ETL Processes, Data Pipeline Architecture, Automated Reporting, Data Validation, Data Quality Assurance, CI/CD
+
+Professional Experience
+
+CTA Safety Analytics and Mapping System – Academic Research Project                      Chicago, IL
+AI Application Developer                                                                                    Apr 2025 – Present
+– Reimagine a full-stack interactive geospatial safety analytics platform using Python, Leaflet.js, and version control, enabling drill-down spatial analysis from bus routes to assault context and cutting investigation time by approximately 70%.
+– Design an ETL reporting pipeline using ReportLab and Matplotlib with data validation checks and CI/CD integration, transforming raw geospatial data into KPI-ready visual summaries and decreasing manual charting effort by 60%.
+– Integrate prototype AI applications combining rule-based logic with OpenAI-generated narratives, facilitating privacy-aware insight generation for cross-functional stakeholders and lowering manual explanation workload by 50%.
+– Apply an Agile, analyst-focused approach to unify visualization, analytics, and narrative reporting workflows through dashboards, accelerating stakeholder insight-to-decision cycles and doubling team speed in interpreting safety data.
+
+Airobosoft – Financial Risk Case Study Analysis                                                           Remote
+Financial Analyst                                                                                              Jul 2022 – Nov 2023
+– Evaluated a banking-sector failure scenario triggered by rapid U.S. interest-rate hikes, identifying structural weaknesses in balance-sheet strategy, liquidity planning, and enterprise risk governance through comprehensive financial analysis.
+– Modeled interest-rate, liquidity, and deposit-concentration risk using statistical modeling, machine learning techniques, and scenario analysis, simulating 200–400 basis-point rate shocks on a 120B-dollar long-duration bond portfolio to assess exposure sensitivity.
+– Quantified 15–20% bond valuation declines representing approximately 15B dollars in unrealized losses alongside liquidity stress scenarios showing 25–30% rapid deposit withdrawal risk using predictive analytics for risk forecasting.
+– Demonstrated that improved hedging strategies and diversified funding structures could reduce interest-rate exposure by 40%, improve liquidity coverage by 30%, and materially lower bank-run probability through data-informed recommendations.
+
+Projects
+
+Netflix Movie Data Analysis                                                                                    Apr 2025
+– Analyzed over 5,880 Netflix titles using Python and Pandas to perform exploratory data analysis on genre trends, release patterns, and viewing distributions, delivering business insights for content acquisition decisions.
+– Implemented data quality assurance processes using Git for version tracking to clean and structure raw CSV datasets, resolving missing release dates and consolidating twelve genre categories into standardized analytical groupings for downstream analysis.
+– Delivered six EDA visualizations using Matplotlib and Seaborn including bar charts, heatmaps, and timelines to facilitate data storytelling and communicate insights clearly to non-technical stakeholders.
+– Identified consumption patterns through statistical analysis showing Drama, Comedy, and Action comprising 63% of viewed content, informing acquisition prioritization and contributing to a 15% improvement in viewer engagement.
+
+Walmart Sales Insights and SQL Reporting                                                                Apr 2025
+– Assessed 7,425 transaction records across three retail branches using SQL, NoSQL, and Python to evaluate daily performance trends, peak sales hours, and product-level demand patterns for inventory and staffing decisions.
+– Developed and optimized ten SQL queries using joins, aggregations, and subqueries for KPI reporting on time-series data, identifying Fridays as having 22% higher transaction volume than the weekly average through time-series analysis.
+– Visualized operational metrics using Tableau, Power BI, and Python dashboards, enabling business teams to reduce overstocking by 12% through improved demand visibility, real-time monitoring, and predictive restocking alerts.
+– Highlighted top-selling product lines and preferred payment methods through cross-tabulation analysis, influencing inventory restocking policies and improving branch-level revenue tracking accuracy by 15% for stakeholder reporting.
+
+Certifications
+Snowflake with Tableau – LinkedIn Learning                                                              Mar 2025
+R for Data Science: Analysis and Visualization – LinkedIn Learning                               Mar 2025
+MongoDB – LinkedIn Learning                                                                                  Mar 2025
+MySQL – LinkedIn Learning                                                                                      Mar 2025

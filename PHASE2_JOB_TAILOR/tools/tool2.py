@@ -19,11 +19,12 @@ load_dotenv()
 class ResumeTailor:
     """Tailor resume based on JD keywords using Anthropic Claude with memory support"""
 
-    def __init__(self):
+    def __init__(self, api_key: str | None = None):
         """Initialize Anthropic client"""
-        self.client = Anthropic(
-            api_key=os.getenv('CLAUDE_API_KEY')
-        )
+        resolved_key = api_key
+        if not resolved_key:
+            raise ValueError("Anthropic API key is required. Add it in Settings → Credentials.")
+        self.client = Anthropic(api_key=resolved_key)
         self.model = "claude-sonnet-4-6"  # Claude Sonnet for resume tailoring
 
         self.prompts = {

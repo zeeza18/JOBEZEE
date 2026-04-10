@@ -1,0 +1,69 @@
+{
+  "score": 97,
+  "replacements": [],
+  "insertions": [
+    {
+      "missing_keyword": "write unit tests",
+      "section": "Experience",
+      "bullet_preview": "Developed Python backend services using",
+      "insert_after": "REST APIs,",
+      "insert_text": " wrote unit tests,",
+      "confidence": "high"
+    },
+    {
+      "missing_keyword": "code reviews",
+      "section": "Experience",
+      "bullet_preview": "Developed Python backend services using",
+      "insert_after": "REST APIs,",
+      "insert_text": " conducted code reviews,",
+      "confidence": "high"
+    }
+  ],
+  "orphaned_skills": [],
+  "weak_bullets": [],
+  "formatting_issues": [
+    {
+      "issue": "Resume title does not match JD title",
+      "fix": "Change title to Software Engineer — Python Backend"
+    }
+  ],
+  "genuine_gaps": [],
+  "action_items": [
+    {
+      "priority": 1,
+      "type": "format_fix",
+      "bullet_preview": "Python Backend Engineer",
+      "old": "Python Backend Engineer",
+      "new": "Software Engineer — Python Backend"
+    },
+    {
+      "priority": 2,
+      "type": "insertion",
+      "bullet_preview": "Developed Python backend services using",
+      "old": "REST APIs,",
+      "new": "REST APIs, wrote unit tests,"
+    },
+    {
+      "priority": 3,
+      "type": "insertion",
+      "bullet_preview": "Developed Python backend services using",
+      "old": "REST APIs,",
+      "new": "REST APIs, conducted code reviews,"
+    }
+  ],
+  "keyword_analysis": {
+    "found": [],
+    "missing": [
+      "write unit tests",
+      "code reviews"
+    ],
+    "weak": [],
+    "orphaned": []
+  },
+  "feedback": "",
+  "recommendations": [
+    "FORMAT FIX: Python Backend Engineer → Software Engineer — Python Backend",
+    "INSERT: In bullet 'Developed Python backend services using...' → change 'REST APIs,' to 'REST APIs, wrote unit tests,'",
+    "INSERT: In bullet 'Developed Python backend services using...' → change 'REST APIs,' to 'REST APIs, conducted code reviews,'"
+  ]
+}
