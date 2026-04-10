@@ -159,6 +159,20 @@ async def run_column_migrations() -> None:
             except Exception as exc:
                 log.warning("Migration skip pulled_jobs.%s: %s", col, exc)
 
+        # ── tailor_jobs ───────────────────────────────────────────────────────
+        _tj_cols: list[tuple[str, str]] = [
+            ("progress_events", "JSON    DEFAULT '[]'::json"),
+            ("final_resume",    "TEXT    DEFAULT ''"),
+        ]
+        for col, defn in _tj_cols:
+            try:
+                await conn.execute(text(
+                    f"ALTER TABLE tailor_jobs ADD COLUMN IF NOT EXISTS {col} {defn}"
+                ))
+                added += 1
+            except Exception as exc:
+                log.warning("Migration skip tailor_jobs.%s: %s", col, exc)
+
     log.info("[DB] Column migration complete (%d statements run)", added)
 
 

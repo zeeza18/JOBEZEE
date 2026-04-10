@@ -4,6 +4,7 @@ and tracks job state in memory.
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -104,9 +105,62 @@ def get_user_jobs(user_id: str) -> list:
 
 # ─── Original: run from plain text (TailorPage) ───────────────────────────────
 
+def _hetzner_url() -> str:
+    return os.getenv("BOT_WORKER_URL", "").rstrip("/")
+
+def _worker_secret() -> str:
+    return os.getenv("WORKER_SECRET", "")
+
+def _api_base_url() -> str:
+    return os.getenv("API_BASE_URL", "https://api.jobezee.org")
+
+def _delegate_to_hetzner(
+    job_id: str,
+    job_description: str,
+    resume_text: str,
+    openai_api_key: str,
+    username: str,
+    company: str,
+) -> None:
+    """POST tailor job to Hetzner worker asynchronously (fire-and-forget thread)."""
+    import httpx as _httpx, threading as _thr
+
+    payload = {
+        "job_id":          job_id,
+        "job_description": job_description,
+        "resume_text":     resume_text,
+        "openai_api_key":  openai_api_key,
+        "username":        username,
+        "company":         company,
+        "callback_url":    f"{_api_base_url()}/api/tailor/internal/callback",
+    }
+
+    def _send():
+        try:
+            r = _httpx.post(
+                f"{_hetzner_url()}/run-tailor",
+                json=payload,
+                headers={"Authorization": f"Bearer {_worker_secret()}"},
+                timeout=30,
+            )
+            print(f"[tailor_service] Hetzner queued job {job_id}: {r.status_code}")
+        except Exception as exc:
+            print(f"[tailor_service] Hetzner delegation failed for {job_id}: {exc}")
+            with _lock:
+                _jobs[job_id]["status"] = "error"
+                _jobs[job_id]["error"]  = f"Worker unreachable: {exc}"
+
+    _thr.Thread(target=_send, daemon=True).start()
+
+
 def start_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "") -> None:
-    """Submit job to thread pool (plain text resume — TailorPage)."""
-    _get_executor().submit(_run_tailor_job, job_id, job_description, resume, openai_api_key, username)
+    """Submit job — delegates to Hetzner if BOT_WORKER_URL is set, else local thread pool."""
+    if _hetzner_url():
+        with _lock:
+            _jobs[job_id]["status"] = "running"
+        _delegate_to_hetzner(job_id, _clean_job_description(job_description), resume, openai_api_key, username, "")
+    else:
+        _get_executor().submit(_run_tailor_job, job_id, job_description, resume, openai_api_key, username)
 
 
 def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_key: str = "", username: str = "") -> None:
@@ -210,8 +264,43 @@ def start_tailor_job_for_job(
     openai_api_key: str = "",
     contact_header: str = "",
 ) -> None:
-    """Submit job to thread pool (uploaded resume file — job-card Tailor button)."""
-    _get_executor().submit(_run_tailor_for_job, tailor_job_id, job_description, resume_url, username, company, openai_api_key, contact_header)
+    """Submit job — delegates to Hetzner if BOT_WORKER_URL is set, else local thread pool."""
+    if _hetzner_url():
+        # Extract resume text here on Render (file lives on Render's filesystem)
+        import threading as _thr
+
+        def _prepare_and_delegate():
+            try:
+                resume_file = _JOBEZEE_ROOT / resume_url.lstrip('/')
+                resume_text = _extract_resume_text(resume_file)
+                if contact_header:
+                    first_line = resume_text.strip().split("\n")[0].strip() if resume_text.strip() else ""
+                    name_hint  = contact_header.split("\n")[0].strip()
+                    if name_hint and name_hint.lower() not in first_line.lower():
+                        resume_text = contact_header + "\n\n" + resume_text
+
+                clean_jd = _clean_job_description(job_description)
+                raw_words   = len(job_description.split())
+                clean_words = len(clean_jd.split())
+                if clean_words < 40 and raw_words >= clean_words:
+                    import re as _re
+                    clean_jd = _re.sub(r'\*{1,3}([^*]+)\*{1,3}', r'\1', job_description)
+                    clean_jd = _re.sub(r'_{1,2}([^_]+)_{1,2}', r'\1', clean_jd)
+                if len(clean_jd.split()) < 10:
+                    raise RuntimeError("Job description too short to tailor against.")
+
+                with _lock:
+                    _jobs[tailor_job_id]["status"] = "running"
+
+                _delegate_to_hetzner(tailor_job_id, clean_jd, resume_text, openai_api_key, username, company)
+            except Exception as exc:
+                with _lock:
+                    _jobs[tailor_job_id]["status"] = "error"
+                    _jobs[tailor_job_id]["error"]  = str(exc)
+
+        _thr.Thread(target=_prepare_and_delegate, daemon=True).start()
+    else:
+        _get_executor().submit(_run_tailor_for_job, tailor_job_id, job_description, resume_url, username, company, openai_api_key, contact_header)
 
 
 def _run_tailor_for_job(

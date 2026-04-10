@@ -522,14 +522,16 @@ class PasswordResetToken(Base):
 class TailorJobRecord(Base):
     __tablename__ = "tailor_jobs"
 
-    id           = Column(String(36), primary_key=True)
-    user_id      = Column(String(36), nullable=False, index=True)
-    status       = Column(String(20), default="queued")  # queued/running/complete/error/stale
-    company_name = Column(String(200), nullable=True)
-    score        = Column(Integer, nullable=True)
-    has_pdf      = Column(Boolean, default=False)
-    has_docx     = Column(Boolean, default=False)
-    filename     = Column(String(300), nullable=True)
-    error_msg    = Column(Text, nullable=True)
-    created_at   = Column(DateTime(timezone=True), server_default=func.now())
-    expires_at   = Column(DateTime(timezone=True), nullable=False)
+    id              = Column(String(36), primary_key=True)
+    user_id         = Column(String(36), nullable=False, index=True)
+    status          = Column(String(20), default="queued")  # queued/running/complete/error/stale
+    company_name    = Column(String(200), nullable=True)
+    score           = Column(Integer, nullable=True)
+    has_pdf         = Column(Boolean, default=False)
+    has_docx        = Column(Boolean, default=False)
+    filename        = Column(String(300), nullable=True)
+    error_msg       = Column(Text, nullable=True)
+    final_resume    = Column(Text, nullable=True)
+    progress_events = Column(JSON, default=list)   # persisted for refresh/restart recovery
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at      = Column(DateTime(timezone=True), nullable=False)

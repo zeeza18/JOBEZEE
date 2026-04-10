@@ -1,6 +1,8 @@
 """
 Hetzner bot worker — FastAPI service that runs on the Hetzner VPS.
 Render API POSTs bot jobs here → worker runs linkedin bot → POSTs log lines back to Render.
+Also handles tailor jobs: Render POSTs /run-tailor → Hetzner runs ResumeCrew → POSTs progress
+back to Render callback URL.
 
 Run: uvicorn worker:app --host 0.0.0.0 --port 8001
 """
@@ -9,10 +11,12 @@ from __future__ import annotations
 import base64
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import httpx
@@ -1322,3 +1326,275 @@ def _run_bot_task(job: BotJobRequest) -> None:
                 pass
         # Slot freed — start next queued job if any
         _maybe_start_next()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAILOR JOBS — ResumeCrew runs here, progress POSTed back to Render callback
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _tailor_max_workers() -> int:
+    try:
+        import psutil
+        available_gb = psutil.virtual_memory().available / (1024 ** 3)
+        return max(1, min(6, int(available_gb / 0.5)))
+    except Exception:
+        return 4
+
+_tailor_executor: ThreadPoolExecutor | None = None
+_tailor_executor_lock = threading.Lock()
+
+def _get_tailor_executor() -> ThreadPoolExecutor:
+    global _tailor_executor
+    with _tailor_executor_lock:
+        if _tailor_executor is None or _tailor_executor._shutdown:
+            n = _tailor_max_workers()
+            _tailor_executor = ThreadPoolExecutor(max_workers=n, thread_name_prefix="tailor")
+            print(f"[tailor_worker] Thread pool: {n} slots")
+    return _tailor_executor
+
+
+class TailorJobRequest(BaseModel):
+    job_id:        str
+    job_description: str
+    resume_text:   str
+    openai_api_key: str = ""
+    username:      str = "resume"
+    company:       str = "company"
+    callback_url:  str   # https://api.jobezee.org/api/tailor/internal/callback
+
+
+def _post_tailor_callback(callback_url: str, payload: dict) -> None:
+    try:
+        httpx.post(
+            callback_url,
+            json=payload,
+            headers={"Authorization": f"Bearer {WORKER_SECRET}"},
+            timeout=30,
+        )
+    except Exception as exc:
+        print(f"[tailor_worker] callback failed: {exc}")
+
+
+def _safe_filename(username: str, company: str) -> str:
+    import re
+    def clean(s: str) -> str:
+        s = s.strip().lower()
+        s = re.sub(r'[^\w\s-]', '', s)
+        s = re.sub(r'[\s-]+', '_', s)
+        return s[:40]
+    return f"{clean(username)}_{clean(company)}"
+
+
+def _compile_pdf_local(tex_path: Path) -> Path | None:
+    """Try pdflatex locally; return PDF path on success, None otherwise."""
+    if not shutil.which("pdflatex"):
+        return None
+    pdf_path = tex_path.with_suffix(".pdf")
+    try:
+        result = subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode",
+             f"-output-directory={tex_path.parent}", str(tex_path)],
+            capture_output=True, text=True, timeout=120,
+        )
+        if pdf_path.exists():
+            print(f"[tailor_worker] PDF compiled: {pdf_path}")
+            return pdf_path
+        print(f"[tailor_worker] pdflatex failed: {result.stdout[-400:]}")
+    except Exception as exc:
+        print(f"[tailor_worker] pdflatex error: {exc}")
+    return None
+
+
+def _run_tailor_task(req: TailorJobRequest) -> None:
+    """Run ResumeCrew on Hetzner and POST progress/results back to Render."""
+    job_id = req.job_id
+
+    def _cb(payload: dict) -> None:
+        _post_tailor_callback(req.callback_url, {"job_id": job_id, **payload})
+
+    def progress_callback(data: dict) -> None:
+        _cb({"type": "progress", "event": data})
+
+    try:
+        # Ensure repo root is importable
+        repo_root = str(_JOBEZEE_ROOT)
+        if repo_root not in sys.path:
+            sys.path.insert(0, repo_root)
+
+        from PHASE2_JOB_TAILOR.crew import ResumeCrew
+
+        job_dir = _JOBEZEE_ROOT / "job_outputs" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        crew = ResumeCrew(openai_api_key=req.openai_api_key or None)
+        result = crew.run_tailoring_process(
+            req.job_description, req.resume_text, progress_callback, output_dir=job_dir
+        )
+
+        final_resume = result.get("final_resume", "")
+        final_score  = result.get("final_score")
+        latex_summary = result.get("latex_summary", {})
+        company_raw  = result.get("keyword_analysis", {}).get("company_name", "") or req.company
+
+        safe_name = _safe_filename(req.username, company_raw)
+
+        tex_b64 = pdf_b64 = docx_b64 = ""
+
+        # ── LaTeX → PDF ───────────────────────────────────────────────────────
+        if latex_summary.get("status") == "success":
+            src_tex = job_dir / "final_tailored_resume.tex"
+            if src_tex.exists():
+                dest_tex = job_dir / f"{safe_name}.tex"
+                if src_tex != dest_tex:
+                    shutil.copy2(src_tex, dest_tex)
+                tex_b64 = base64.b64encode(dest_tex.read_bytes()).decode()
+                pdf_file = _compile_pdf_local(dest_tex)
+                if pdf_file:
+                    pdf_b64 = base64.b64encode(pdf_file.read_bytes()).decode()
+
+        # ── DOCX via python-docx ──────────────────────────────────────────────
+        if final_resume:
+            try:
+                from docx import Document
+                from docx.shared import Pt, RGBColor, Inches
+                from docx.enum.text import WD_ALIGN_PARAGRAPH
+                docx_path = job_dir / f"{safe_name}.docx"
+                doc = Document()
+                for section in doc.sections:
+                    section.top_margin = section.bottom_margin = Inches(0.6)
+                    section.left_margin = section.right_margin = Inches(0.75)
+                _HDRS = {"EXPERIENCE","EDUCATION","SKILLS","SUMMARY","OBJECTIVE",
+                         "PROJECTS","CERTIFICATIONS","WORK EXPERIENCE","PROFESSIONAL EXPERIENCE"}
+                first = True; second_done = False
+                for line in final_resume.split("\n"):
+                    s = line.strip()
+                    if not s:
+                        continue
+                    if first:
+                        p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        r = p.add_run(s); r.bold = True; r.font.size = Pt(18)
+                        r.font.color.rgb = RGBColor(0x1a,0x1a,0x2e)
+                        first = False; second_done = False; continue
+                    if not second_done:
+                        p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        r = p.add_run(s); r.font.size = Pt(9)
+                        r.font.color.rgb = RGBColor(0x44,0x44,0x44)
+                        second_done = True; continue
+                    is_hdr = (s.upper() in _HDRS or (s.isupper() and len(s)<50 and not s.startswith(('-','•','*'))))
+                    if is_hdr:
+                        p = doc.add_paragraph(style='Heading 2')
+                        p.paragraph_format.space_before = Pt(8)
+                        r = p.add_run(s.upper()); r.bold = True; r.font.size = Pt(11)
+                        r.font.color.rgb = RGBColor(0x1a,0x1a,0x2e); continue
+                    if s.startswith(('-','•','*','·')):
+                        p = doc.add_paragraph(style='List Bullet')
+                        p.paragraph_format.left_indent = Inches(0.25)
+                        r = p.add_run(s.lstrip('-•*· ').strip()); r.font.size = Pt(10); continue
+                    p = doc.add_paragraph()
+                    r = p.add_run(s); r.font.size = Pt(10)
+                doc.save(str(docx_path))
+                docx_b64 = base64.b64encode(docx_path.read_bytes()).decode()
+            except Exception as exc:
+                print(f"[tailor_worker] DOCX generation failed: {exc}")
+
+        # ── Fallback PDF via reportlab ────────────────────────────────────────
+        if not pdf_b64 and final_resume:
+            try:
+                from reportlab.lib.pagesizes import LETTER
+                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                from reportlab.lib.units import inch
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                from reportlab.lib import colors
+                pdf_path = job_dir / f"{safe_name}.pdf"
+                rdoc = SimpleDocTemplate(str(pdf_path), pagesize=LETTER,
+                    leftMargin=0.75*inch, rightMargin=0.75*inch,
+                    topMargin=0.75*inch, bottomMargin=0.75*inch)
+                styles = getSampleStyleSheet()
+                name_style = ParagraphStyle("Name", parent=styles["Normal"],
+                    fontSize=16, fontName="Helvetica-Bold", spaceAfter=4,
+                    textColor=colors.HexColor("#1a1a2e"))
+                hdr_style = ParagraphStyle("Hdr", parent=styles["Normal"],
+                    fontSize=11, fontName="Helvetica-Bold", spaceAfter=2,
+                    textColor=colors.HexColor("#1a1a2e"))
+                body_style = ParagraphStyle("Body", parent=styles["Normal"],
+                    fontSize=10, fontName="Helvetica", leading=14, spaceAfter=1)
+                _HDRS2 = {"EXPERIENCE","EDUCATION","SKILLS","SUMMARY","OBJECTIVE",
+                          "PROJECTS","CERTIFICATIONS","AWARDS"}
+                story = []; first2 = True
+                for line in final_resume.split("\n"):
+                    s = line.strip()
+                    if not s: story.append(Spacer(1,4)); continue
+                    if first2: story.append(Paragraph(s, name_style)); first2 = False; continue
+                    if s.upper() in _HDRS2 or (len(s)<40 and s.isupper()):
+                        story.append(Spacer(1,6)); story.append(Paragraph(s, hdr_style)); continue
+                    safe_s = s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+                    story.append(Paragraph(safe_s, body_style))
+                rdoc.build(story)
+                pdf_b64 = base64.b64encode(pdf_path.read_bytes()).decode()
+            except Exception as exc:
+                print(f"[tailor_worker] reportlab PDF failed: {exc}")
+
+        _cb({
+            "type":         "done",
+            "status":       "complete",
+            "score":        final_score,
+            "final_resume": final_resume,
+            "company_name": company_raw,
+            "filename":     safe_name,
+            "pdf_b64":      pdf_b64,
+            "docx_b64":     docx_b64,
+            "tex_b64":      tex_b64,
+        })
+
+    except Exception as exc:
+        print(f"[tailor_worker] Job {job_id} failed: {exc}")
+        _cb({"type": "done", "status": "error", "error": str(exc)})
+
+
+@app.post("/run-tailor")
+async def run_tailor(
+    req: TailorJobRequest,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(...),
+):
+    """Accept a tailor job from Render, run ResumeCrew in background, POST results back."""
+    _auth(authorization)
+    background_tasks.add_task(_get_tailor_executor().submit, _run_tailor_task, req)
+    return {"status": "queued", "job_id": req.job_id}
+
+
+@app.get("/tailor-info")
+def tailor_info(authorization: str = Header(...)):
+    """Return tailor pool capacity."""
+    _auth(authorization)
+    ex = _get_tailor_executor()
+    return {"max_workers": ex._max_workers}
+
+
+# ── Compile PDF from LaTeX (existing callers in tailor_service.py) ────────────
+
+class CompilePdfRequest(BaseModel):
+    tex_b64:  str
+    filename: str = "resume"
+
+
+@app.post("/compile-pdf")
+async def compile_pdf(req: CompilePdfRequest, authorization: str = Header(...)):
+    """Compile a .tex file (base64) to PDF using pdflatex; return PDF as base64."""
+    _auth(authorization)
+    if not shutil.which("pdflatex"):
+        raise HTTPException(503, "pdflatex not installed on this worker")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        tex_path = tmp_path / f"{req.filename}.tex"
+        tex_path.write_bytes(base64.b64decode(req.tex_b64))
+        result = subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode",
+             f"-output-directory={tmp}", str(tex_path)],
+            capture_output=True, text=True, timeout=120,
+        )
+        pdf_path = tex_path.with_suffix(".pdf")
+        if not pdf_path.exists():
+            raise HTTPException(500, f"pdflatex failed: {result.stdout[-500:]}")
+        pdf_b64 = base64.b64encode(pdf_path.read_bytes()).decode()
+    return {"pdf_b64": pdf_b64}

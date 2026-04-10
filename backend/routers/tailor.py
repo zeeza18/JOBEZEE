@@ -11,10 +11,13 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+import base64
+import os
+
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
@@ -23,6 +26,8 @@ from ..database import get_db
 from ..models import PulledJob, TailorJobRecord, UserProfile
 from ..services.tailor_service import (
     _extract_resume_text,
+    _jobs,
+    _lock,
     create_job,
     get_active_count,
     get_job,
@@ -261,6 +266,32 @@ async def stream_job(job_id: str):
     async def event_generator():
         seen = 0
         heartbeat = 0
+        # If job not in memory (Render restarted), reconstruct from DB so we can
+        # replay already-received progress events immediately on refresh.
+        if not get_job(job_id):
+            try:
+                from ..database import AsyncSessionLocal
+                async with AsyncSessionLocal() as _s:
+                    _res = await _s.execute(select(TailorJobRecord).where(TailorJobRecord.id == job_id))
+                    _rec = _res.scalar_one_or_none()
+                    if _rec:
+                        with _lock:
+                            _jobs[job_id] = {
+                                "user_id":      _rec.user_id,
+                                "status":       _rec.status,
+                                "progress":     list(_rec.progress_events or []),
+                                "score":        _rec.score,
+                                "company_name": _rec.company_name,
+                                "tex_path":     None,
+                                "pdf_path":     None,
+                                "docx_path":    None,
+                                "final_resume": _rec.final_resume,
+                                "filename":     _rec.filename,
+                                "error":        _rec.error_msg,
+                            }
+            except Exception:
+                pass
+
         while True:
             job = get_job(job_id)
             if not job:
@@ -452,6 +483,148 @@ async def get_my_jobs(
         })
 
     return result
+
+
+# ── Hetzner → Render callback (progress events + done) ───────────────────────
+
+class TailorCallbackPayload(BaseModel):
+    job_id:       str
+    type:         str          # "progress" | "done"
+    event:        dict | None = None   # when type=="progress"
+    status:       str | None = None    # when type=="done": "complete" | "error"
+    score:        int | None = None
+    final_resume: str | None = None
+    company_name: str | None = None
+    filename:     str | None = None
+    pdf_b64:      str | None = None
+    docx_b64:     str | None = None
+    tex_b64:      str | None = None
+    error:        str | None = None
+
+
+@router.post("/internal/callback")
+async def tailor_callback(
+    payload: TailorCallbackPayload,
+    authorization: str = Header(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Called by Hetzner worker to push progress events and final results back to Render."""
+    _secret = os.getenv("WORKER_SECRET", "")
+    if _secret:
+        token = authorization.removeprefix("Bearer ").strip()
+        # Accept any comma-separated secret
+        valid = {s.strip() for s in _secret.split(",") if s.strip()}
+        if token not in valid:
+            raise HTTPException(401, "Unauthorized")
+
+    job_id = payload.job_id
+
+    # Ensure job entry exists in memory (Render may have restarted mid-job)
+    if job_id not in _jobs:
+        # Reconstruct from DB
+        db_res = await db.execute(select(TailorJobRecord).where(TailorJobRecord.id == job_id))
+        rec = db_res.scalar_one_or_none()
+        with _lock:
+            _jobs[job_id] = {
+                "user_id":      rec.user_id if rec else "",
+                "status":       "running",
+                "progress":     list(rec.progress_events or []) if rec else [],
+                "score":        None,
+                "company_name": rec.company_name if rec else None,
+                "tex_path":     None,
+                "pdf_path":     None,
+                "docx_path":    None,
+                "final_resume": rec.final_resume if rec else None,
+                "filename":     rec.filename if rec else None,
+                "error":        None,
+            }
+
+    from ..services.tailor_service import _JOB_OUTPUTS
+
+    if payload.type == "progress" and payload.event:
+        event = payload.event
+        with _lock:
+            _jobs[job_id]["progress"].append(event)
+            if event.get("event") == "round_complete":
+                score = event.get("evaluation", {}).get("score")
+                if score is not None:
+                    _jobs[job_id]["score"] = score
+            if event.get("event") == "company_detected":
+                _jobs[job_id]["company_name"] = event.get("company_name")
+
+        # Persist progress to DB so a Render restart can reconstruct
+        try:
+            await db.execute(
+                sa_update(TailorJobRecord)
+                .where(TailorJobRecord.id == job_id)
+                .values(
+                    status="running",
+                    progress_events=_jobs[job_id]["progress"],
+                    company_name=_jobs[job_id].get("company_name"),
+                )
+            )
+            await db.commit()
+        except Exception:
+            pass
+
+    elif payload.type == "done":
+        job_dir = _JOB_OUTPUTS / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        pdf_path = docx_path = tex_path = None
+
+        if payload.status == "complete":
+            safe_name = payload.filename or "tailored_resume"
+
+            # Save files from base64
+            if payload.tex_b64:
+                tex_path = job_dir / f"{safe_name}.tex"
+                tex_path.write_bytes(base64.b64decode(payload.tex_b64))
+
+            if payload.pdf_b64:
+                pdf_path = job_dir / f"{safe_name}.pdf"
+                pdf_path.write_bytes(base64.b64decode(payload.pdf_b64))
+
+            if payload.docx_b64:
+                docx_path = job_dir / f"{safe_name}.docx"
+                docx_path.write_bytes(base64.b64decode(payload.docx_b64))
+
+            with _lock:
+                _jobs[job_id].update({
+                    "status":       "complete",
+                    "score":        payload.score,
+                    "final_resume": payload.final_resume,
+                    "company_name": payload.company_name,
+                    "filename":     safe_name,
+                    "tex_path":     str(tex_path) if tex_path else None,
+                    "pdf_path":     str(pdf_path) if pdf_path else None,
+                    "docx_path":    str(docx_path) if docx_path else None,
+                })
+        else:
+            with _lock:
+                _jobs[job_id].update({"status": "error", "error": payload.error or "Unknown error"})
+
+        # Persist to DB
+        try:
+            await db.execute(
+                sa_update(TailorJobRecord)
+                .where(TailorJobRecord.id == job_id)
+                .values(
+                    status=payload.status or "error",
+                    company_name=payload.company_name,
+                    score=payload.score,
+                    has_pdf=pdf_path is not None,
+                    has_docx=docx_path is not None,
+                    filename=payload.filename,
+                    error_msg=payload.error,
+                    final_resume=payload.final_resume,
+                )
+            )
+            await db.commit()
+        except Exception:
+            pass
+
+    return {"ok": True}
 
 
 # ── Worker pool info ─────────────────────────────────────────────────────────
