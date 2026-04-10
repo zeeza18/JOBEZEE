@@ -29,6 +29,38 @@ if _JOBEZEE_ROOT_STR not in _sys.path:
 _OUTPUT_DIR   = _TAILOR_ROOT / "output"
 _JOB_OUTPUTS  = _JOBEZEE_ROOT / "job_outputs"           # per-job output dirs
 
+
+def _apply_contact_header(resume_text: str, contact_header: str) -> str:
+    """
+    Inject profile contact info (with real URLs) into the resume text.
+    - If the name is NOT in the first line: prepend the full header.
+    - If the name IS there (resume already has a header): replace the
+      pipe-separated contact line so real LinkedIn/GitHub/Portfolio URLs
+      overwrite the plain display words extracted from the original PDF.
+    """
+    if not contact_header:
+        return resume_text
+    header_lines = [l for l in contact_header.strip().split("\n") if l.strip()]
+    name_hint = header_lines[0].strip() if header_lines else ""
+    first_line = resume_text.strip().split("\n")[0].strip() if resume_text.strip() else ""
+
+    if name_hint and name_hint.lower() not in first_line.lower():
+        return contact_header + "\n\n" + resume_text
+
+    # Name already present — replace the contact line (pipe-separated) with profile's
+    profile_contact_line = next((l.strip() for l in header_lines if "|" in l), "")
+    if not profile_contact_line:
+        return resume_text
+
+    r_lines = resume_text.split("\n")
+    for i, line in enumerate(r_lines):
+        if "|" in line and ("@" in line or any(
+            x in line.lower() for x in ["linkedin", "github", "portfolio", "http", "+1"]
+        )):
+            r_lines[i] = profile_contact_line
+            break
+    return "\n".join(r_lines)
+
 # In-memory job store (keyed by tailor_job_id)
 _jobs: Dict[str, Dict[str, Any]] = {}
 _lock = threading.Lock()
@@ -276,11 +308,7 @@ def start_tailor_job_for_job(
             try:
                 resume_file = _JOBEZEE_ROOT / resume_url.lstrip('/')
                 resume_text = _extract_resume_text(resume_file)
-                if contact_header:
-                    first_line = resume_text.strip().split("\n")[0].strip() if resume_text.strip() else ""
-                    name_hint  = contact_header.split("\n")[0].strip()
-                    if name_hint and name_hint.lower() not in first_line.lower():
-                        resume_text = contact_header + "\n\n" + resume_text
+                resume_text = _apply_contact_header(resume_text, contact_header)
 
                 clean_jd = _clean_job_description(job_description)
                 raw_words   = len(job_description.split())
@@ -335,13 +363,7 @@ def _run_tailor_for_job(
         # Resolve resume file from URL path (/uploads/resumes/<filename>)
         resume_file = _JOBEZEE_ROOT / resume_url.lstrip('/')
         resume_text = _extract_resume_text(resume_file)
-
-        # Prepend contact header if not already in the first line
-        if contact_header:
-            first_line = resume_text.strip().split("\n")[0].strip() if resume_text.strip() else ""
-            name_hint = contact_header.split("\n")[0].strip()
-            if name_hint and name_hint.lower() not in first_line.lower():
-                resume_text = contact_header + "\n\n" + resume_text
+        resume_text = _apply_contact_header(resume_text, contact_header)
         clean_jd = _clean_job_description(job_description)
 
         # If cleaning removed too much (boilerplate was all we had), fall back to

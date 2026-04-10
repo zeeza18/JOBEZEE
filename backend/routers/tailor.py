@@ -776,15 +776,28 @@ def _build_contact_header(profile, user) -> str:
 
 def _inject_contact_header(resume_text: str, profile, user) -> str:
     """
-    Prepend the profile contact header to the resume text if the header
-    fields are not already present (avoids duplicating info already there).
+    Inject profile contact info (with real URLs) into the resume text.
+    - Name not present: prepend full header.
+    - Name already present: replace the pipe-separated contact line so real
+      LinkedIn/GitHub/Portfolio URLs overwrite plain display words from the PDF.
     """
     header = _build_contact_header(profile, user)
     if not header:
         return resume_text
-    # If the user's name already appears on the first line, skip injection
+    header_lines = [l for l in header.strip().split("\n") if l.strip()]
     name = (getattr(profile, "full_name", "") or getattr(user, "full_name", "") or "").strip()
     first_line = resume_text.strip().split("\n")[0].strip() if resume_text.strip() else ""
-    if name and name.lower() in first_line.lower():
+    if name and name.lower() not in first_line.lower():
+        return header + "\n\n" + resume_text
+    # Name present — replace the contact line with the profile's (has real URLs)
+    profile_contact_line = next((l.strip() for l in header_lines if "|" in l), "")
+    if not profile_contact_line:
         return resume_text
-    return header + "\n\n" + resume_text
+    r_lines = resume_text.split("\n")
+    for i, line in enumerate(r_lines):
+        if "|" in line and ("@" in line or any(
+            x in line.lower() for x in ["linkedin", "github", "portfolio", "http", "+1"]
+        )):
+            r_lines[i] = profile_contact_line
+            break
+    return "\n".join(r_lines)
