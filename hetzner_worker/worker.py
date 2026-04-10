@@ -1415,7 +1415,7 @@ def _compile_pdf_local(tex_path: Path) -> Path | None:
 
 def _run_tailor_task(req: TailorJobRequest) -> None:
     """Run ResumeCrew on Hetzner and POST progress/results back to Render."""
-    global _tailor_active
+    global _tailor_active  # noqa: PLW0603
     job_id = req.job_id
     with _tailor_active_lock:
         _tailor_active += 1
@@ -1561,7 +1561,6 @@ def _run_tailor_task(req: TailorJobRequest) -> None:
         print(f"[tailor_worker] Job {job_id} failed: {exc}")
         _cb({"type": "done", "status": "error", "error": str(exc)})
     finally:
-        global _tailor_active
         with _tailor_active_lock:
             _tailor_active = max(0, _tailor_active - 1)
 
