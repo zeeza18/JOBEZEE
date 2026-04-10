@@ -112,7 +112,7 @@ def _worker_secret() -> str:
     return os.getenv("WORKER_SECRET", "")
 
 def _api_base_url() -> str:
-    return os.getenv("API_BASE_URL", "https://api.jobezee.org")
+    return os.getenv("API_BASE_URL", "https://www.jobezee.org")
 
 def _delegate_to_hetzner(
     job_id: str,

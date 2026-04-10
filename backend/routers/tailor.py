@@ -180,7 +180,22 @@ async def get_status(job_id: str, _user=Depends(get_current_user), db: AsyncSess
         if not db_rec:
             raise HTTPException(404, "Job not found")
         if db_rec.status in ("running", "queued"):
-            # Was in-progress when server restarted — truly lost
+            import os as _os
+            _hetzner_active = bool(_os.getenv("BOT_WORKER_URL", ""))
+            if _hetzner_active:
+                # Job is still running on Hetzner — keep as running, callback will arrive
+                return {
+                    "status": db_rec.status,
+                    "error": None,
+                    "company_name": db_rec.company_name,
+                    "score": db_rec.score,
+                    "has_pdf": db_rec.has_pdf,
+                    "has_docx": db_rec.has_docx,
+                    "filename": db_rec.filename,
+                    "pdflatex_available": True,
+                    "progress_count": len(db_rec.progress_events or []),
+                }
+            # Local mode — was in-progress when server restarted, truly lost
             return {
                 "status": "error",
                 "error": "Server restarted mid-job — please re-tailor",
@@ -582,6 +597,10 @@ async def tailor_callback(
                     _jobs[job_id]["score"] = score
             if event.get("event") == "company_detected":
                 _jobs[job_id]["company_name"] = event.get("company_name")
+            if event.get("event") == "keywords_extracted":
+                cn = event.get("keyword_analysis", {}).get("company_name", "")
+                if cn and cn != "UNKNOWN_COMPANY":
+                    _jobs[job_id]["company_name"] = cn
 
         # Persist progress to DB so a Render restart can reconstruct
         try:

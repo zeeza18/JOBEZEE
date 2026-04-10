@@ -219,7 +219,10 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
           ...(data.keyword_analysis?.needs ?? []),
         ]
         const kw = raw.filter(k => !k.toLowerCase().startsWith('error'))
-        patch({ keywords: kw, status: 'running' })
+        const cn = data.keyword_analysis?.company_name
+        const patchData: Partial<TailorCard> = { keywords: kw, status: 'running' }
+        if (cn && cn !== 'UNKNOWN_COMPANY') patchData.companyName = cn
+        patch(patchData)
         addLine(`[STEP] ${kw.length} keywords extracted — starting Round 1…`)
         patchRound({ round: 1, score: null, status: 'running' })
 
