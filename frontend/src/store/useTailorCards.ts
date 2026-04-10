@@ -22,22 +22,24 @@ export interface RoundResult {
 }
 
 export interface TailorCard {
-  jobId:        string
-  status:       CardStatus
-  companyName:  string | null
-  jobUrl:       string
-  score:        number | null
-  hasPdf:       boolean
-  hasDocx:      boolean
-  filename:     string | null
-  errorMsg:     string | null
+  jobId:         string
+  status:        CardStatus
+  companyName:   string | null
+  jobUrl:        string
+  score:         number | null
+  hasPdf:        boolean
+  hasDocx:       boolean
+  filename:      string | null
+  errorMsg:      string | null
   progressLines: string[]
-  keywords:     string[]
-  rounds:       RoundResult[]
-  expanded:     boolean
-  createdAt:    string
-  jdSnippet:    string
+  keywords:      string[]
+  rounds:        RoundResult[]
+  expanded:      boolean
+  createdAt:     string
+  jdSnippet:     string
   resumeSnippet: string
+  /** How many progress events this card already has from DB (used to skip replays on reconnect). */
+  eventsSeenCount: number
 }
 
 interface TailorCardsStore {
@@ -108,22 +110,23 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
       const cards: TailorCard[] = jobs.map(j => {
         const { lines, rounds, keywords } = _eventsToLines(j.progress_events ?? [])
         return {
-          jobId:         j.job_id,
-          status:        j.status,
-          companyName:   _cleanCompany(j.company_name),
-          jobUrl:        j.job_url ?? '',
-          score:         j.score ?? null,
-          hasPdf:        j.has_pdf ?? false,
-          hasDocx:       j.has_docx ?? false,
-          filename:      j.filename ?? null,
-          errorMsg:      j.error_msg ?? null,
-          progressLines: lines,
+          jobId:           j.job_id,
+          status:          j.status,
+          companyName:     _cleanCompany(j.company_name),
+          jobUrl:          j.job_url ?? '',
+          score:           j.score ?? null,
+          hasPdf:          j.has_pdf ?? false,
+          hasDocx:         j.has_docx ?? false,
+          filename:        j.filename ?? null,
+          errorMsg:        j.error_msg ?? null,
+          progressLines:   lines,
           keywords,
           rounds,
-          expanded:      false,
-          createdAt:     j.created_at ?? '',
-          jdSnippet:     '',
-          resumeSnippet: '',
+          expanded:        false,
+          createdAt:       j.created_at ?? '',
+          jdSnippet:       '',
+          resumeSnippet:   '',
+          eventsSeenCount: (j.progress_events ?? []).length,
         }
       })
       set({ cards, loaded: true })
@@ -152,10 +155,11 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
       progressLines: [],
       keywords:      [],
       rounds:        _makeRounds(),
-      expanded:      false,
-      createdAt:     new Date().toISOString(),
+      expanded:        false,
+      createdAt:       new Date().toISOString(),
       jdSnippet,
       resumeSnippet,
+      eventsSeenCount: 0,
     }
     set(s => ({ cards: [card, ...s.cards] }))
   },
@@ -182,7 +186,8 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
 
   openStream: (jobId) => {
     if (_streams.has(jobId)) return
-    const es = new EventSource(`${BASE}/api/tailor/stream/${jobId}`)
+    const since = useTailorCards.getState().cards.find(c => c.jobId === jobId)?.eventsSeenCount ?? 0
+    const es = new EventSource(`${BASE}/api/tailor/stream/${jobId}?since=${since}`)
     _streams.set(jobId, es)
 
     // Status stays "queued" until the first real progress callback arrives from Hetzner
@@ -197,6 +202,12 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
 
       const store = useTailorCards.getState()
       const patch = (p: Partial<TailorCard>) => store.patchCard(jobId, p)
+      // Increment eventsSeenCount so future reconnects skip already-processed events
+      set(s => ({
+        cards: s.cards.map(c => c.jobId === jobId
+          ? { ...c, eventsSeenCount: c.eventsSeenCount + 1 }
+          : c),
+      }))
       const addLine = (line: string) =>
         set(s => ({
           cards: s.cards.map(c => c.jobId === jobId

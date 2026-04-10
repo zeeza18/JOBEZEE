@@ -279,11 +279,13 @@ async def get_resume_text(job_id: str, _user=Depends(get_current_user)):
 # ── SSE stream ────────────────────────────────────────────────────────────────
 
 @router.get("/stream/{job_id}")
-async def stream_job(job_id: str):
-    """Server-Sent Events stream — no auth required for EventSource compatibility."""
+async def stream_job(job_id: str, since: int = 0):
+    """Server-Sent Events stream — no auth required for EventSource compatibility.
+    `since` = number of progress events the client already has (avoids replaying on refresh).
+    """
 
     async def event_generator():
-        seen = 0
+        seen = since  # skip events the client already processed
         heartbeat = 0
         # If job not in memory (Render restarted), reconstruct from DB so we can
         # replay already-received progress events immediately on refresh.

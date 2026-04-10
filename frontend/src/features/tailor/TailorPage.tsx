@@ -118,7 +118,8 @@ const TailorPage = () => {
         inputUrl.trim(),
       )
       openStream(data.job_id)
-      // Don't clear inputs — user might want to tailor same resume for another JD
+      setInputJd('')
+      setInputUrl('')
     } catch (err: any) {
       alert(err.message ?? 'Failed to start job')
     } finally {
