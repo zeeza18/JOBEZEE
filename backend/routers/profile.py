@@ -25,7 +25,7 @@ from sqlalchemy import delete, select
 from ..auth import get_current_user
 from ..crypto import decrypt, encrypt
 from ..database import get_db
-from ..models import PulledJob, SearchSession, User, UserProfile
+from ..models import PulledJob, SearchSession, User, UserJobState, UserProfile
 from ..schemas import UserProfileCreate, UserProfileResponse
 
 # Fields that change what jobs get pulled — trigger a clear + re-search
@@ -128,6 +128,8 @@ async def update_profile(
 
     # If search preferences changed: wipe old jobs and kick off a fresh search
     if search_changed and (profile.desired_roles or []):
+        # Wipe old per-user job states (global pool jobs stay, just remove this user's states)
+        await db.execute(delete(UserJobState).where(UserJobState.user_id == str(current_user.id)))
         await db.execute(delete(PulledJob).where(PulledJob.user_profile_id == pid))
         await db.commit()
 
@@ -137,7 +139,7 @@ async def update_profile(
             .where(SearchSession.user_id == current_user.id)
             .where(SearchSession.status == "running")
         )
-        if not running.scalar_one_or_none():
+        if not running.scalars().first():
             sid = str(uuid.uuid4())[:8].upper()
             db.add(SearchSession(id=sid, status="running", user_id=current_user.id))
             await db.commit()

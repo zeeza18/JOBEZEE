@@ -40,7 +40,73 @@ _cfg = get_settings()
 os.makedirs(os.path.join(_cfg.UPLOAD_DIR, "resumes"), exist_ok=True)
 
 
-# ── 3-hour auto-search background loop ───────────────────────────────────────
+# ── Shared: send job digest emails to users with new jobs ────────────────────
+
+async def _send_job_digests(cutoff_minutes: int = 65) -> None:
+    """Send digest emails to users who received new jobs in the last cutoff_minutes."""
+    _log = logging.getLogger(__name__ + ".digestemail")
+    try:
+        from .database import AsyncSessionLocal
+        from .models import User, UserProfile, UserJobState, JobListing
+        from .services.email_service import send_new_jobs_email
+        from .config import get_settings
+        from sqlalchemy import select, cast, String as _SAStr
+        from datetime import datetime, timezone, timedelta
+
+        _cfg2 = get_settings()
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=cutoff_minutes)
+
+        async with AsyncSessionLocal() as db:
+            # Join profiles with users to get authoritative email
+            # UserProfile.id is PGUUID, User.id is String(36) — cast to text for join
+            res      = await db.execute(
+                select(UserProfile, User)
+                .join(User, User.id == cast(UserProfile.id, _SAStr), isouter=True)
+            )
+            rows = res.all()
+
+            for profile, user in rows:
+                if not getattr(profile, "desired_roles", None):
+                    continue
+                # Use profile email first, fall back to account email
+                email = (getattr(profile, "email", "") or "").strip()
+                if not email and user:
+                    email = (getattr(user, "email", "") or "").strip()
+                if not email:
+                    continue
+
+                jobs_res = await db.execute(
+                    select(JobListing)
+                    .join(UserJobState, UserJobState.job_id == JobListing.id)
+                    .where(UserJobState.user_id == str(profile.id))
+                    .where(UserJobState.created_at >= cutoff)
+                    .order_by(UserJobState.created_at.desc())
+                    .limit(50)
+                )
+                new_jobs = jobs_res.scalars().all()
+                if not new_jobs:
+                    continue
+
+                name = (getattr(profile, "full_name", "") or "").strip()
+                if not name and user:
+                    name = (getattr(user, "full_name", "") or "").strip()
+
+                try:
+                    await send_new_jobs_email(
+                        to_email    = email,
+                        name        = name or email,
+                        jobs        = new_jobs,
+                        total_count = len(new_jobs),
+                        app_url     = f"{_cfg2.FRONTEND_URL}/app/search",
+                    )
+                    _log.info("[DigestEmail] sent → %s (%d new jobs)", email, len(new_jobs))
+                except Exception as _exc:
+                    _log.warning("[DigestEmail] failed for %s: %s", email, _exc)
+    except Exception as exc:
+        _log.exception("[DigestEmail] error in _send_job_digests: %s", exc)
+
+
+# ── Hourly auto-search background loop ───────────────────────────────────────
 
 async def _auto_search_loop() -> None:
     """
@@ -109,6 +175,12 @@ async def _auto_search_loop() -> None:
                 _log.info("[AutoSearch] triggered session=%s role=%s loc=%s", sid, role_tag, loc_tag)
 
             _log.info("[AutoSearch] cycle complete — %d sessions triggered", total_triggered)
+
+            # Send digest emails for jobs pulled in this cycle
+            if total_triggered > 0:
+                # Wait for searches to finish (up to 10 min) then email
+                await asyncio.sleep(10 * 60)
+                await _send_job_digests(cutoff_minutes=75)
         except Exception as exc:
             _log.exception("[AutoSearch] error: %s", exc)
         await asyncio.sleep(60 * 60)
@@ -118,66 +190,17 @@ async def _auto_search_loop() -> None:
 
 async def _digest_email_loop() -> None:
     """
-    Every 5 hours: find users who got new jobs in the last 5 hours and send a digest.
-    Queries user_job_states (new table) for recency, joins job_listings for content.
+    Fallback hourly digest — fires 2 min after startup, then every hour.
+    _auto_search_loop also calls _send_job_digests after each scrape cycle,
+    so this catches any users who got jobs outside a triggered cycle.
     """
     _log = logging.getLogger(__name__ + ".digestemail")
-    _log.info("[DigestEmail] loop started — first digest in 5 hours")
-    await asyncio.sleep(5 * 60 * 60)
+    _log.info("[DigestEmail] loop started — first digest in 2 minutes")
+    await asyncio.sleep(2 * 60)   # fire early on first startup
     while True:
-        _log.info("[DigestEmail] running 5-hour digest cycle")
-        try:
-            from .database import AsyncSessionLocal
-            from .models import UserProfile, UserJobState, JobListing
-            from .services.email_service import send_new_jobs_email
-            from .config import get_settings
-            from sqlalchemy import select
-            from datetime import datetime, timezone, timedelta
-
-            _cfg = get_settings()
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=5)
-
-            async with AsyncSessionLocal() as db:
-                res      = await db.execute(select(UserProfile))
-                profiles = res.scalars().all()
-
-                for profile in profiles:
-                    if not getattr(profile, "desired_roles", None):
-                        continue
-                    email = getattr(profile, "email", "")
-                    if not email:
-                        continue
-
-                    # Jobs added to this user's state in the last 5 hours
-                    jobs_res = await db.execute(
-                        select(JobListing)
-                        .join(UserJobState, UserJobState.job_id == JobListing.id)
-                        .where(UserJobState.user_id == str(profile.id))
-                        .where(UserJobState.created_at >= cutoff)
-                        .order_by(UserJobState.created_at.desc())
-                        .limit(50)
-                    )
-                    new_jobs = jobs_res.scalars().all()
-                    if not new_jobs:
-                        _log.info("[DigestEmail] no new jobs for user=%s — skipping", profile.id)
-                        continue
-
-                    try:
-                        await send_new_jobs_email(
-                            to_email    = email,
-                            name        = getattr(profile, "full_name", "") or email,
-                            jobs        = new_jobs,
-                            total_count = len(new_jobs),
-                            app_url     = f"{_cfg.FRONTEND_URL}/app/search",
-                        )
-                        _log.info("[DigestEmail] sent → %s (%d jobs)", email, len(new_jobs))
-                    except Exception as _exc:
-                        _log.warning("[DigestEmail] failed for %s: %s", email, _exc)
-
-        except Exception as exc:
-            _log.exception("[DigestEmail] error: %s", exc)
-
-        await asyncio.sleep(5 * 60 * 60)
+        _log.info("[DigestEmail] running hourly digest")
+        await _send_job_digests(cutoff_minutes=65)
+        await asyncio.sleep(60 * 60)
 
 
 # ── 30-minute auto email scan background loop ─────────────────────────────────
