@@ -115,8 +115,8 @@ async def _auto_search_loop() -> None:
     Saves globally to job_listings and fans out new jobs to all matching users.
     """
     _log = logging.getLogger(__name__ + ".autosearch")
-    _log.info("[AutoSearch] loop started — first run in 5 minutes")
-    await asyncio.sleep(5 * 60)
+    _log.info("[AutoSearch] loop started — first run in 1 minute")
+    await asyncio.sleep(60)
     while True:
         _log.info("[AutoSearch] running 1-hour search cycle")
         try:
@@ -127,8 +127,8 @@ async def _auto_search_loop() -> None:
             from datetime import datetime, timezone, timedelta
 
             async with AsyncSessionLocal() as db:
-                # Kill zombie sessions
-                zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+                # Kill zombie sessions (any running session older than 15 min)
+                zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
                 await db.execute(
                     sa_update(SearchSession)
                     .where(SearchSession.status == "running")

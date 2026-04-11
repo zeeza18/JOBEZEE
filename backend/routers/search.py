@@ -84,7 +84,7 @@ async def trigger_search(
     # Block duplicate search — but auto-expire zombies older than 30 min
     from sqlalchemy import update as sa_update
     from datetime import datetime, timezone, timedelta
-    zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+    zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
     await db.execute(
         sa_update(SearchSession)
         .where(SearchSession.user_id == current_user.id)
