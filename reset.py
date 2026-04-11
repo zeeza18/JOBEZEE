@@ -149,23 +149,34 @@ def reset(confirm: bool) -> None:
         print("  Run  python reset.py --confirm  to actually wipe everything.")
         return
 
-    print("\n[reset] Deleting all data…")
-    _sql("SET session_replication_role = replica")
+    # Build a single TRUNCATE ... CASCADE statement — PostgreSQL resolves FK ordering
+    # automatically and the whole thing runs in one HTTP request (one transaction).
+    tables_with_data = [t for t in TABLES if counts.get(t, -1) > 0]
+    if not tables_with_data:
+        print("\n[reset] Nothing to delete.")
+        return
 
-    deleted = 0
-    for t in TABLES:
-        if counts.get(t, -1) <= 0:
-            continue
-        try:
-            _sql(f"DELETE FROM {t}")
-            n = counts[t]
-            deleted += n
-            print(f"  {t:<30}  {n:>8} rows deleted")
-        except Exception as exc:
-            print(f"  [WARN] {t}: {exc}")
+    total = sum(counts[t] for t in tables_with_data)
+    table_list = ", ".join(tables_with_data)
 
-    _sql("SET session_replication_role = DEFAULT")
-    print(f"\n[reset] Done — {deleted} rows deleted. Database is now empty.")
+    print(f"\n[reset] Truncating {len(tables_with_data)} tables ({total} rows)…")
+    try:
+        _sql(f"TRUNCATE {table_list} CASCADE")
+        print(f"[reset] Done — {total} rows deleted. Database is now empty.")
+        for t in tables_with_data:
+            print(f"  {t:<30}  {counts[t]:>8} rows deleted")
+    except Exception as exc:
+        print(f"[reset] TRUNCATE failed: {exc}")
+        print("[reset] Falling back to per-table DELETE (children before parents)…")
+        deleted = 0
+        for t in tables_with_data:
+            try:
+                _sql(f"DELETE FROM {t}")
+                deleted += counts[t]
+                print(f"  {t:<30}  {counts[t]:>8} rows deleted")
+            except Exception as e:
+                print(f"  [WARN] {t}: {e}")
+        print(f"\n[reset] Done — {deleted} rows deleted.")
 
 
 if __name__ == "__main__":
