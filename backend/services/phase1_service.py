@@ -1187,14 +1187,21 @@ async def run_phase1_search(
             try:
                 # Run in isolated process — tls-client fully independent per user.
                 # Up to SCRAPER_WORKERS scrapes run truly in parallel.
-                title_jobs = await loop.run_in_executor(
-                    _SCRAPER_POOL, _scrape_boards_worker, title_kwargs
+                # 10-min cap: enough for a full board scrape, never hangs session.
+                title_jobs = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _SCRAPER_POOL, _scrape_boards_worker, title_kwargs
+                    ),
+                    timeout=600,
                 )
                 elapsed = _time.time() - t0
                 log.info(
                     "[Phase1][3] Title %d/%d done in %.1fs — %d raw jobs",
                     t_idx, len(prefs.job_titles), elapsed, len(title_jobs),
                 )
+            except asyncio.TimeoutError:
+                log.warning("[Phase1][3] Board search timed out after 10 min for title=%r", title)
+                continue
             except Exception as board_exc:
                 log.exception("[Phase1][3] Board search FAILED for title=%r: %s", title, board_exc)
                 continue   # skip this title, keep going
@@ -1290,17 +1297,24 @@ async def run_phase1_search(
                     wd_raw = []
                 else:
                     t_wd = _time.time()
-                    wd_raw = await loop.run_in_executor(
-                        None,
-                        lambda: search_workday(
-                            queries=prefs.job_titles,
-                            employers=employers,
-                            workers=16,
-                            request_timeout=5,
-                            fetch_details=True,
-                            max_jobs_per_employer=10,
-                        ),
-                    )
+                    try:
+                        wd_raw = await asyncio.wait_for(
+                            loop.run_in_executor(
+                                None,
+                                lambda: search_workday(
+                                    queries=prefs.job_titles,
+                                    employers=employers,
+                                    workers=16,
+                                    request_timeout=5,
+                                    fetch_details=True,
+                                    max_jobs_per_employer=10,
+                                ),
+                            ),
+                            timeout=480,  # 8-minute hard cap — never hang a session
+                        )
+                    except asyncio.TimeoutError:
+                        log.warning("[Phase1][4] Workday timed out after 8 min — skipping")
+                        wd_raw = []
                     log.info(
                         "[Phase1][4] Workday done in %.1fs — %d raw jobs",
                         _time.time() - t_wd, len(wd_raw),
@@ -1385,14 +1399,21 @@ async def run_phase1_search(
             log.info("[Phase1][5] Starting Greenhouse search...")
             try:
                 t_gh = _time.time()
-                gh_raw = await loop.run_in_executor(
-                    None,
-                    lambda: search_greenhouse(
-                        queries=prefs.job_titles,
-                        countries=target_countries or None,
-                        workers=10,
-                    ),
-                )
+                try:
+                    gh_raw = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            lambda: search_greenhouse(
+                                queries=prefs.job_titles,
+                                countries=target_countries or None,
+                                workers=10,
+                            ),
+                        ),
+                        timeout=300,  # 5-minute cap for Greenhouse
+                    )
+                except asyncio.TimeoutError:
+                    log.warning("[Phase1][5] Greenhouse timed out after 5 min — skipping")
+                    gh_raw = []
                 log.info(
                     "[Phase1][5] Greenhouse done in %.1fs — %d raw jobs",
                     _time.time() - t_gh, len(gh_raw),
