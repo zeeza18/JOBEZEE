@@ -12,6 +12,7 @@ import {
 import { applyApi, jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
 import { useAppStore } from '../../store/useAppStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
+import { useApiCache } from '../../store/useApiCache'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -928,10 +929,13 @@ export default function PulledJobsPage() {
   const { pushToast } = useAppStore()
   const { jobs: jobSettings, autoApply } = useSettingsStore()
 
-  // ── Data state ───────────────────────────────────────────────────────────────
-  const [jobs, setJobs]               = useState<PulledJob[]>([])
-  const [stats, setStats]             = useState<JobStats | null>(null)
-  const [loading, setLoading]         = useState(false)
+  // ── Global API cache (survives React Router navigation) ──────────────────────
+  const cache = useApiCache()
+
+  // ── Data state — lazy-init from cache so re-visits show instantly ─────────────
+  const [jobs, setJobs]               = useState<PulledJob[]>(() => cache.pulledJobs)
+  const [stats, setStats]             = useState<JobStats | null>(() => cache.jobStats)
+  const [loading, setLoading]         = useState(cache.pulledJobs.length === 0)
   const [searching, setSearching]     = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
 
@@ -980,41 +984,55 @@ export default function PulledJobsPage() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
-      // First batch + stats in parallel — fast first paint
+      // First batch + stats in parallel
       const [firstBatch, statsData] = await Promise.all([
         jobsApi.list({ limit: BATCH, offset: 0 }),
         jobsApi.stats(),
       ])
-      setJobs(firstBatch)
       setStats(statsData)
-      if (!silent) setLoading(false)
+      cache.setJobStats(statsData)
 
-      // Pre-fetch descriptions for top 20 jobs in the background (no await — fire and forget)
+      // On non-silent loads (first ever visit) show first batch immediately
+      if (!silent) {
+        setJobs(firstBatch)
+        setLoading(false)
+      }
       prefetchDescs(firstBatch)
 
-      // Load remaining batches in the background
+      // Load all remaining batches
+      const allJobs = [...firstBatch]
       if (firstBatch.length === BATCH) {
         let offset = BATCH
         while (true) {
           const batch = await jobsApi.list({ limit: BATCH, offset })
           if (batch.length === 0) break
-          setJobs(prev => {
-            // Avoid duplicates on silent reload (merge by id)
-            const existing = new Set(prev.map(j => j.id))
-            const fresh = batch.filter(j => !existing.has(j.id))
-            return fresh.length > 0 ? [...prev, ...fresh] : prev
-          })
+          allJobs.push(...batch)
+          if (!silent) {
+            // Progressive reveal on first load
+            setJobs(prev => {
+              const existing = new Set(prev.map(j => j.id))
+              const fresh = batch.filter(j => !existing.has(j.id))
+              return fresh.length > 0 ? [...prev, ...fresh] : prev
+            })
+          }
           if (batch.length < BATCH) break
           offset += BATCH
         }
       }
+
+      // Atomic update: on silent (cache-hit) reload, swap all-at-once so there's no flash
+      if (silent) setJobs(allJobs)
+      cache.setPulledJobs(allJobs)
+
     } catch {
       if (!silent) pushToast({ title: 'Could not load jobs', type: 'error' })
       if (!silent) setLoading(false)
     }
-  }, [pushToast, prefetchDescs])
+  }, [pushToast, prefetchDescs, cache])
 
-  useEffect(() => { load() }, [load])
+  // On mount: if cache has jobs, skip spinner and load silently in background
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(cache.pulledJobs.length > 0) }, [])
 
   // ── Auto-refresh every 3 hours (silent background re-fetch) ─────────────────
   useEffect(() => {
@@ -1132,6 +1150,7 @@ export default function PulledJobsPage() {
   const handleStatusChange = (id: string, newStatus: string) => {
     const oldStatus = jobs.find(j => j.id === id)?.status
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: newStatus } : j))
+    cache.updateJobStatus(id, newStatus)   // keep global cache in sync
     setSelectedJob(prev => prev?.id === id ? { ...prev, status: newStatus } : prev)
     if (oldStatus && oldStatus !== newStatus) {
       setStats(s => {

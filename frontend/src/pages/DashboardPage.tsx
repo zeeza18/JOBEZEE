@@ -6,6 +6,7 @@ import {
 import { Card } from '../components/ui/Card'
 import { useAuthStore } from '../store/useAuthStore'
 import { useNavigate } from 'react-router-dom'
+import { useApiCache } from '../store/useApiCache'
 
 const BASE  = import.meta.env.VITE_API_URL || ''
 
@@ -196,13 +197,15 @@ function DailyGoalPopover({ onClose }: { onClose: () => void }) {
 const DashboardPage = () => {
   const navigate = useNavigate()
   const { user }  = useAuthStore()
+  const cache     = useApiCache()
 
-  const [profile,      setProfile]      = useState<Profile | null>(null)
-  const [botStats,     setBotStats]     = useState<BotStats | null>(null)
+  // ── Init from cache — shows instantly on re-visit, no spinner ────────────────
+  const [profile,      setProfile]      = useState<Profile | null>(() => cache.dashProfile as Profile | null)
+  const [botStats,     setBotStats]     = useState<BotStats | null>(() => cache.dashStats as BotStats | null)
   const [news,         setNews]         = useState<NewsItem[]>([])
   const [newsCtx,      setNewsCtx]      = useState<{ country: string; role: string } | null>(null)
-  const [profileLoad,  setProfileLoad]  = useState(true)
-  const [statsLoad,    setStatsLoad]    = useState(true)
+  const [profileLoad,  setProfileLoad]  = useState(!cache.dashProfile)
+  const [statsLoad,    setStatsLoad]    = useState(!cache.dashStats)
   const [newsLoad,     setNewsLoad]     = useState(true)
   const [goalOpen,      setGoalOpen]      = useState(false)
   const [linkedinAvatar, setLinkedinAvatar] = useState<string | null>(null)
@@ -258,12 +261,25 @@ const DashboardPage = () => {
     }).catch(() => {})
   }
 
-  const load = async () => {
-    setProfileLoad(true); setStatsLoad(true); setNewsLoad(true)
+  const load = async (silent = false) => {
+    if (!silent) { setProfileLoad(true); setStatsLoad(true) }
+    setNewsLoad(true)
 
-    apiFetch<Profile>('/api/profile/').then(p => { setProfile(p); setProfileLoad(false) }).catch(() => setProfileLoad(false))
-    apiFetch<BotStats>('/api/dashboard/stats').then(s => { setBotStats(s); setStatsLoad(false) }).catch(() => setStatsLoad(false))
-    apiFetch<{ news: NewsItem[]; country: string; role: string }>('/api/dashboard/news').then(r => { setNews(r.news); setNewsCtx({ country: r.country, role: r.role }); setNewsLoad(false) }).catch(() => setNewsLoad(false))
+    apiFetch<Profile>('/api/profile/').then(p => {
+      setProfile(p)
+      cache.setDashProfile(p as any)
+      setProfileLoad(false)
+    }).catch(() => setProfileLoad(false))
+
+    apiFetch<BotStats>('/api/dashboard/stats').then(s => {
+      setBotStats(s)
+      cache.setDashStats(s as any)
+      setStatsLoad(false)
+    }).catch(() => setStatsLoad(false))
+
+    apiFetch<{ news: NewsItem[]; country: string; role: string }>('/api/dashboard/news').then(r => {
+      setNews(r.news); setNewsCtx({ country: r.country, role: r.role }); setNewsLoad(false)
+    }).catch(() => setNewsLoad(false))
   }
 
   const scanEmails = () => {
@@ -273,12 +289,13 @@ const DashboardPage = () => {
   }
 
   useEffect(() => {
-    load()
+    const hasCached = !!cache.dashProfile && !!cache.dashStats
+    load(hasCached)   // silent (no spinner) if cache hit; full load on first visit
     loadTracker()
     scanEmails()
     const interval = setInterval(scanEmails, 30 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const _pname       = profile?.preferred_name || (profile?.full_name?.includes('@') ? '' : profile?.full_name) || ''
   const displayName  = _pname || user?.preferred_name || (user?.full_name?.includes('@') ? '' : user?.full_name) || 'You'
