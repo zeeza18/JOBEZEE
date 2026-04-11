@@ -110,8 +110,8 @@ async def _send_job_digests(cutoff_minutes: int = 65) -> None:
 
 async def _auto_search_loop() -> None:
     """
-    Hourly cron: iterate every unique (role, country) pair across ALL users.
-    Uses preference_cache to decide hours_old: 720h (30d) for new pairs, 72h otherwise.
+    Hourly cron: one session per user (all their roles in one run).
+    This avoids pool saturation and duplicate-session race conditions.
     Saves globally to job_listings and fans out new jobs to all matching users.
     """
     _log = logging.getLogger(__name__ + ".autosearch")
@@ -121,14 +121,14 @@ async def _auto_search_loop() -> None:
         _log.info("[AutoSearch] running 1-hour search cycle")
         try:
             from .database import AsyncSessionLocal
-            from .models import SearchSession, UserProfile, PreferenceCache
-            from .services.phase1_service import _RUNNING_PROFILES, run_phase1_search, build_preferences, _normalise_countries
+            from .models import SearchSession, UserProfile
+            from .services.phase1_service import _RUNNING_PROFILES, run_phase1_search
             from sqlalchemy import select, update as sa_update
             from datetime import datetime, timezone, timedelta
 
             async with AsyncSessionLocal() as db:
-                # Kill zombie sessions (any running session older than 15 min)
-                zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+                # Kill zombie sessions (any running session older than 35 min)
+                zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=35)
                 await db.execute(
                     sa_update(SearchSession)
                     .where(SearchSession.status == "running")
@@ -137,50 +137,43 @@ async def _auto_search_loop() -> None:
                 )
                 await db.commit()
 
-                # Collect unique (role, country) pairs from all active profiles
                 res      = await db.execute(select(UserProfile))
                 profiles = res.scalars().all()
 
-            # Deduplicate pairs — one scrape serves all users with same prefs
-            unique_pairs: set[tuple[str, str]] = set()
-            pair_to_profile: dict[tuple[str, str], UserProfile] = {}
+            # One session per user — run_phase1_search handles all their roles
+            # sequentially, so the scraper pool (2 workers) never gets saturated.
+            seen_users: set[str] = set()
+            active_profiles = []
             for profile in profiles:
-                roles = getattr(profile, "desired_roles", None) or []
-                if not roles:
-                    continue
-                try:
-                    prefs = build_preferences(profile)
-                    countries = prefs.effective_countries() or ["USA"]
-                except Exception:
-                    countries = ["USA"]
-                for role in roles:
-                    for country in countries:
-                        pair = (role.lower().strip(), country.lower().strip())
-                        unique_pairs.add(pair)
-                        if pair not in pair_to_profile:
-                            pair_to_profile[pair] = profile   # use first profile as search anchor
+                uid = str(profile.id)
+                if uid not in seen_users and (getattr(profile, "desired_roles", None) or []):
+                    seen_users.add(uid)
+                    active_profiles.append(profile)
 
-            _log.info("[AutoSearch] %d unique (role, country) pairs to process", len(unique_pairs))
+            _log.info("[AutoSearch] %d users with active roles to process", len(active_profiles))
 
             total_triggered = 0
-            for (role_tag, loc_tag), anchor_profile in pair_to_profile.items():
-                if str(anchor_profile.id) in _RUNNING_PROFILES:
+            for profile in active_profiles:
+                uid = str(profile.id)
+                if uid in _RUNNING_PROFILES:
+                    _log.info("[AutoSearch] user=%s already running — skip", uid)
                     continue
                 sid = str(_uuid.uuid4())[:8].upper()
                 async with AsyncSessionLocal() as db:
-                    db.add(SearchSession(id=sid, status="running", user_id=str(anchor_profile.id)))
+                    db.add(SearchSession(id=sid, status="running", user_id=uid))
                     await db.commit()
-                asyncio.create_task(run_phase1_search(anchor_profile, sid, include_workday=True))
+                asyncio.create_task(run_phase1_search(profile, sid, include_workday=True))
                 total_triggered += 1
-                _log.info("[AutoSearch] triggered session=%s role=%s loc=%s", sid, role_tag, loc_tag)
+                _log.info("[AutoSearch] triggered session=%s user=%s roles=%s",
+                          sid, uid, getattr(profile, "desired_roles", []))
 
             _log.info("[AutoSearch] cycle complete — %d sessions triggered", total_triggered)
 
             # Send digest emails for jobs pulled in this cycle
             if total_triggered > 0:
-                # Wait for searches to finish (up to 10 min) then email
-                await asyncio.sleep(10 * 60)
-                await _send_job_digests(cutoff_minutes=75)
+                # Wait for searches to finish (up to 20 min) then email
+                await asyncio.sleep(20 * 60)
+                await _send_job_digests(cutoff_minutes=85)
         except Exception as exc:
             _log.exception("[AutoSearch] error: %s", exc)
         await asyncio.sleep(60 * 60)

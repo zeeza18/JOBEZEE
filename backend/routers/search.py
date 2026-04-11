@@ -81,10 +81,10 @@ async def trigger_search(
     if not merged.desired_roles:
         raise HTTPException(400, "Add at least one desired job role in Profile → Job Preferences or include roles in the request.")
 
-    # Block duplicate search — but auto-expire zombies older than 30 min
+    # Block duplicate search — but auto-expire zombies older than 35 min
     from sqlalchemy import update as sa_update
     from datetime import datetime, timezone, timedelta
-    zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+    zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=35)
     await db.execute(
         sa_update(SearchSession)
         .where(SearchSession.user_id == current_user.id)

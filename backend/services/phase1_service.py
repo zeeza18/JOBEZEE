@@ -1187,12 +1187,12 @@ async def run_phase1_search(
             try:
                 # Run in isolated process — tls-client fully independent per user.
                 # Up to SCRAPER_WORKERS scrapes run truly in parallel.
-                # 10-min cap: enough for a full board scrape, never hangs session.
+                # 15-min cap: accounts for queue wait time when pool is busy.
                 title_jobs = await asyncio.wait_for(
                     loop.run_in_executor(
                         _SCRAPER_POOL, _scrape_boards_worker, title_kwargs
                     ),
-                    timeout=600,
+                    timeout=900,
                 )
                 elapsed = _time.time() - t0
                 log.info(
@@ -1200,7 +1200,7 @@ async def run_phase1_search(
                     t_idx, len(prefs.job_titles), elapsed, len(title_jobs),
                 )
             except asyncio.TimeoutError:
-                log.warning("[Phase1][3] Board search timed out after 10 min for title=%r", title)
+                log.warning("[Phase1][3] Board search timed out after 15 min for title=%r", title)
                 continue
             except Exception as board_exc:
                 log.exception("[Phase1][3] Board search FAILED for title=%r: %s", title, board_exc)
