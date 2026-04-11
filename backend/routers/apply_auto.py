@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import get_current_user
 from ..config import get_settings
 from ..database import get_db, AsyncSessionLocal
-from ..models import PulledJob, UserProfile
+from ..models import JobListing, PulledJob, UserProfile
 from ..services.apply_service import (
     create_apply_job,
     get_apply_job,
@@ -309,8 +309,12 @@ async def run_for_job(
     except ValueError:
         raise HTTPException(400, "Invalid job_id")
 
-    job_res = await db.execute(select(PulledJob).where(PulledJob.id == jid))
-    pulled_job = job_res.scalar_one_or_none()
+    # Look up in new job_listings pool first, fall back to legacy pulled_jobs
+    jl_res = await db.execute(select(JobListing).where(JobListing.id == jid))
+    pulled_job = jl_res.scalar_one_or_none()
+    if not pulled_job:
+        pj_res = await db.execute(select(PulledJob).where(PulledJob.id == jid))
+        pulled_job = pj_res.scalar_one_or_none()
     if not pulled_job:
         raise HTTPException(404, "Job not found")
     if not (pulled_job.url or "").strip():

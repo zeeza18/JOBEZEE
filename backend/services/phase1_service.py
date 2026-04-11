@@ -650,9 +650,20 @@ async def _save_jobs_v2(
         for p in all_profiles:
             roles     = [r.lower().strip() for r in (p.desired_roles or [])]
             countries = [c.lower().strip() for c in (p.preferred_countries or [])]
-            locations = [l.lower().strip() for l in (p.preferred_locations or [])]
-            all_locs  = countries + locations
-            if role_tag in roles and (location_tag in all_locs or not all_locs):
+
+            # Mirror build_preferences: infer countries from location strings if
+            # preferred_countries is not set.  Without this, users who fill in
+            # preferred_locations ("Remote", "New York") but leave preferred_countries
+            # blank will never match the (role_tag, location_tag) pair and receive
+            # zero jobs even though their search runs correctly.
+            if not countries and not (getattr(p, "preferred_regions", None) or []):
+                inferred = _infer_countries_from_locations(p.preferred_locations or [])
+                countries = [c.lower().strip() for c in _normalise_countries(inferred)]
+
+            # country_ok: if still no countries resolved, accept any location_tag
+            # (user has no geographic preference → give them everything).
+            country_ok = (not countries) or (location_tag in countries)
+            if role_tag in roles and country_ok:
                 matching_user_ids.append(str(p.id))
 
         log.info("[Phase1][v2] fanning out %d jobs → %d users",
@@ -959,23 +970,24 @@ async def run_phase1_search(
     log.info("[Phase1][0]   _SMARTEXTRACT_AVAILABLE  = %s", _SMARTEXTRACT_AVAILABLE)
 
     # ── Auto-purge stale 'new' jobs so old postings don't pile up ────────────
-    # Only removes status='new' rows older than 7 days — saved/applied/favourite
-    # jobs are preserved regardless of age.
+    # Removes user_job_states rows with status='new' older than 7 days.
+    # saved / applied / favourite rows are preserved regardless of age.
     try:
         from ..database import AsyncSessionLocal
-        from ..models import PulledJob as _PulledJob
+        from ..models import UserJobState as _UJS
         from datetime import datetime, timezone, timedelta
         from sqlalchemy import delete as _sa_delete
         _stale_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        _uid_str = str(profile_id)
         async with AsyncSessionLocal() as _db:
             _res = await _db.execute(
-                _sa_delete(_PulledJob)
-                .where(_PulledJob.user_profile_id == profile_id)
-                .where(_PulledJob.status == "new")
-                .where(_PulledJob.pulled_at < _stale_cutoff)
+                _sa_delete(_UJS)
+                .where(_UJS.user_id == _uid_str)
+                .where(_UJS.status == "new")
+                .where(_UJS.created_at < _stale_cutoff)
             )
             await _db.commit()
-            log.info("[Phase1][0] Purged %d stale new jobs (>7d old) for user=%s",
+            log.info("[Phase1][0] Purged %d stale new job-states (>7d old) for user=%s",
                      _res.rowcount, profile_id)
     except Exception as _purge_exc:
         log.warning("[Phase1][0] Stale job purge failed (non-fatal): %s", _purge_exc)

@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import get_current_user
 from ..crypto import decrypt
 from ..database import get_db
-from ..models import PulledJob, TailorJobRecord, UserProfile
+from ..models import JobListing, PulledJob, TailorJobRecord, UserProfile
 from ..services.tailor_service import (
     _extract_resume_text,
     _jobs,
@@ -112,9 +112,12 @@ async def start_tailor_for_job(
     except ValueError:
         raise HTTPException(400, "Invalid job_id")
 
-    # Load the pulled job
-    job_res = await db.execute(select(PulledJob).where(PulledJob.id == jid))
-    pulled_job = job_res.scalar_one_or_none()
+    # Look up in new job_listings pool first, fall back to legacy pulled_jobs
+    jl_res = await db.execute(select(JobListing).where(JobListing.id == jid))
+    pulled_job = jl_res.scalar_one_or_none()
+    if not pulled_job:
+        pj_res = await db.execute(select(PulledJob).where(PulledJob.id == jid))
+        pulled_job = pj_res.scalar_one_or_none()
     if not pulled_job:
         raise HTTPException(404, "Job not found")
     if not (pulled_job.description or "").strip():
