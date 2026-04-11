@@ -527,11 +527,12 @@ async def _get_preference_cache(role_tag: str, location_tag: str):
 
 
 async def _save_jobs_v2(
-    jobs         : list[Any],
-    role_tag     : str,
-    location_tag : str,
-    session_id   : str,
-    hours_old    : int = 72,
+    jobs                : list[Any],
+    role_tag            : str,
+    location_tag        : str,
+    session_id          : str,
+    hours_old           : int = 72,
+    requesting_user_id  : str = "",
 ) -> int:
     """
     Global-pool version of _save_jobs.
@@ -640,7 +641,8 @@ async def _save_jobs_v2(
         if not new_job_ids:
             return 0   # nothing to fan out
 
-        fanout_count = 0   # tracks new user_job_states rows created
+        fanout_count       = 0   # total rows inserted across all users
+        user_fanout_count  = 0   # rows inserted for the requesting user only
 
         # ── 3. Find all users whose preferences match (role_tag, location_tag) ─
         all_profiles = (await db.execute(select(UserProfile))).scalars().all()
@@ -681,6 +683,19 @@ async def _save_jobs_v2(
                 fanout_count += res.rowcount or 0
             await db.commit()
 
+            # Count how many of these jobs are now in the requesting user's view
+            if requesting_user_id and new_job_ids:
+                from sqlalchemy import func as _func
+                cnt_res = await db.execute(
+                    select(_func.count())
+                    .select_from(UserJobState)
+                    .where(
+                        UserJobState.user_id == requesting_user_id,
+                        UserJobState.job_id.in_(new_job_ids),
+                    )
+                )
+                user_fanout_count = cnt_res.scalar() or 0
+
         # ── 5. Upsert preference_cache ────────────────────────────────────────
         await db.execute(
             pg_insert(PreferenceCache)
@@ -700,8 +715,10 @@ async def _save_jobs_v2(
         )
         await db.commit()
 
-    # Return fanout_count (new user_job_states rows) so the session counter
-    # reflects actual new jobs added to users' views, not just global inserts.
+    # Return the requesting user's job count so jobs_found on the session
+    # reflects what THIS user actually sees, not the global fanout total.
+    if requesting_user_id and user_fanout_count > 0:
+        return user_fanout_count
     return fanout_count if fanout_count > 0 else inserted
 
 
@@ -1214,7 +1231,8 @@ async def run_phase1_search(
             _loc_tags = sorted(c.lower().strip() for c in target_countries)
             for _loc_tag in _loc_tags:
                 inserted = await _save_jobs_v2(
-                    title_new, _role_tag, _loc_tag, session_id, effective_hours_old
+                    title_new, _role_tag, _loc_tag, session_id, effective_hours_old,
+                    requesting_user_id=str(profile.id),
                 )
                 total_inserted += inserted
             await _update_session(session_id, "running", total_inserted, mark_finished=False)
@@ -1328,7 +1346,8 @@ async def run_phase1_search(
                 wd_inserted = 0
                 for _wloc in sorted(c.lower().strip() for c in target_countries):
                     wd_inserted += await _save_jobs_v2(
-                        wd_unique, "workday", _wloc, session_id, effective_hours_old
+                        wd_unique, "workday", _wloc, session_id, effective_hours_old,
+                        requesting_user_id=str(profile.id),
                     )
                 total_inserted += wd_inserted
                 await _update_session(session_id, "running", total_inserted, mark_finished=False)
@@ -1391,7 +1410,8 @@ async def run_phase1_search(
                 gh_inserted = 0
                 for _gloc in sorted(c.lower().strip() for c in target_countries):
                     gh_inserted += await _save_jobs_v2(
-                        gh_unique, "greenhouse", _gloc, session_id, effective_hours_old
+                        gh_unique, "greenhouse", _gloc, session_id, effective_hours_old,
+                        requesting_user_id=str(profile.id),
                     )
                 total_inserted += gh_inserted
                 await _update_session(session_id, "running", total_inserted, mark_finished=False)
@@ -1483,7 +1503,8 @@ async def run_phase1_search(
                     smart_inserted = 0
                     for _sloc in sorted(c.lower().strip() for c in target_countries):
                         smart_inserted += await _save_jobs_v2(
-                            smart_unique, "smartextract", _sloc, session_id, effective_hours_old
+                            smart_unique, "smartextract", _sloc, session_id, effective_hours_old,
+                            requesting_user_id=str(profile.id),
                         )
                     total_inserted += smart_inserted
                     await _update_session(session_id, "running", total_inserted, mark_finished=False)
