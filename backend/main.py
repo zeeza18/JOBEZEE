@@ -41,9 +41,17 @@ os.makedirs(os.path.join(_cfg.UPLOAD_DIR, "resumes"), exist_ok=True)
 
 
 # ── Shared: send job digest emails to users with new jobs ────────────────────
+# Per-user cooldown — max 1 email per user per 5 hours.
+# Stored in-memory (resets on restart, but 5-hour initial delay compensates).
+_LAST_EMAIL_SENT: dict[str, "datetime"] = {}
+_EMAIL_COOLDOWN_HOURS = 5
 
-async def _send_job_digests(cutoff_minutes: int = 65) -> None:
-    """Send digest emails to users who received new jobs in the last cutoff_minutes."""
+async def _send_job_digests() -> None:
+    """
+    Send one digest email per user, at most every 5 hours.
+    The email shows ALL new jobs since the last time we emailed that user
+    (or the last 5 hours if this is the first email after a restart).
+    """
     _log = logging.getLogger(__name__ + ".digestemail")
     try:
         from .database import AsyncSessionLocal
@@ -54,12 +62,11 @@ async def _send_job_digests(cutoff_minutes: int = 65) -> None:
         from datetime import datetime, timezone, timedelta
 
         _cfg2 = get_settings()
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=cutoff_minutes)
+        now = datetime.now(timezone.utc)
+        cooldown = timedelta(hours=_EMAIL_COOLDOWN_HOURS)
 
         async with AsyncSessionLocal() as db:
-            # Join profiles with users to get authoritative email
-            # UserProfile.id is PGUUID, User.id is String(36) — cast to text for join
-            res      = await db.execute(
+            res = await db.execute(
                 select(UserProfile, User)
                 .join(User, User.id == cast(UserProfile.id, _SAStr), isouter=True)
             )
@@ -68,12 +75,21 @@ async def _send_job_digests(cutoff_minutes: int = 65) -> None:
             for profile, user in rows:
                 if not getattr(profile, "desired_roles", None):
                     continue
-                # Use profile email first, fall back to account email
                 email = (getattr(profile, "email", "") or "").strip()
                 if not email and user:
                     email = (getattr(user, "email", "") or "").strip()
                 if not email:
                     continue
+
+                # ── Per-user 5-hour cooldown ───────────────────────────────
+                last_sent = _LAST_EMAIL_SENT.get(email)
+                if last_sent and (now - last_sent) < cooldown:
+                    remaining = int((cooldown - (now - last_sent)).total_seconds() / 60)
+                    _log.debug("[DigestEmail] skip %s — cooldown, %d min left", email, remaining)
+                    continue
+
+                # Show jobs added since last email (or last 5 hours if first run)
+                cutoff = last_sent if last_sent else (now - cooldown)
 
                 jobs_res = await db.execute(
                     select(JobListing)
@@ -99,7 +115,9 @@ async def _send_job_digests(cutoff_minutes: int = 65) -> None:
                         total_count = len(new_jobs),
                         app_url     = f"{_cfg2.FRONTEND_URL}/app/search",
                     )
-                    _log.info("[DigestEmail] sent → %s (%d new jobs)", email, len(new_jobs))
+                    _LAST_EMAIL_SENT[email] = now
+                    _log.info("[DigestEmail] sent → %s (%d jobs since %s)",
+                              email, len(new_jobs), str(cutoff)[:16])
                 except Exception as _exc:
                     _log.warning("[DigestEmail] failed for %s: %s", email, _exc)
     except Exception as exc:
@@ -185,12 +203,6 @@ async def _auto_search_loop() -> None:
         except Exception as exc:
             _log.exception("[AutoSearch] error: %s", exc)
 
-        # Send digest now that all scrapes for this cycle are done
-        try:
-            await _send_job_digests(cutoff_minutes=130)  # cover full cycle window
-        except Exception as exc:
-            _log.exception("[AutoSearch] digest error: %s", exc)
-
         await asyncio.sleep(60 * 60)  # next cycle in 1 hour
 
 
@@ -198,17 +210,17 @@ async def _auto_search_loop() -> None:
 
 async def _digest_email_loop() -> None:
     """
-    Fallback hourly digest — fires 2 min after startup, then every hour.
-    _auto_search_loop also calls _send_job_digests after each scrape cycle,
-    so this catches any users who got jobs outside a triggered cycle.
+    Digest loop: fires every 5 hours.  Per-user 5-hour cooldown in
+    _send_job_digests() ensures each user gets at most 1 email per 5 hours
+    showing ALL new jobs since their last digest.
     """
     _log = logging.getLogger(__name__ + ".digestemail")
-    _log.info("[DigestEmail] loop started — first digest in 2 minutes")
-    await asyncio.sleep(2 * 60)   # fire early on first startup
+    _log.info("[DigestEmail] loop started — first digest in 5 hours")
+    await asyncio.sleep(5 * 60 * 60)   # initial 5-hour delay
     while True:
-        _log.info("[DigestEmail] running hourly digest")
-        await _send_job_digests(cutoff_minutes=65)
-        await asyncio.sleep(60 * 60)
+        _log.info("[DigestEmail] running 5-hour digest")
+        await _send_job_digests()
+        await asyncio.sleep(5 * 60 * 60)   # every 5 hours
 
 
 # ── 30-minute auto email scan background loop ─────────────────────────────────
