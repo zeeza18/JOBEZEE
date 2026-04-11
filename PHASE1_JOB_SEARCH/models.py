@@ -156,8 +156,8 @@ INDEED_COUNTRY_CODES: dict[str, str] = {
 #: Maps country name → list of jobspy site names to search.
 #: Boards not in this list for a country are simply skipped.
 COUNTRY_BOARDS: dict[str, list[str]] = {
-    "USA":             ["indeed", "linkedin"],   # glassdoor=400 errors, zip_recruiter=blocked
-    "Canada":          ["indeed", "linkedin"],   # glassdoor broken
+    "USA":             ["indeed", "linkedin", "glassdoor", "zip_recruiter"],
+    "Canada":          ["indeed", "linkedin", "glassdoor"],
     "UK":              ["indeed", "linkedin"],
     "United Kingdom":  ["indeed", "linkedin"],
     "Ireland":         ["indeed", "linkedin"],

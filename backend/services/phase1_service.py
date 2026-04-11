@@ -1369,12 +1369,19 @@ async def run_phase1_search(
                 wd_unique = deduplicate(wd_new)
                 log.info("[Phase1][4] After internal dedup: %d unique Workday jobs — saving", len(wd_unique))
 
+                # Save Workday jobs under each searched title so all matching
+                # users see them (role_tag must match desired_roles for fanout).
+                # ON CONFLICT DO NOTHING handles duplicate user_job_states.
                 wd_inserted = 0
-                for _wloc in sorted(c.lower().strip() for c in target_countries):
-                    wd_inserted += await _save_jobs_v2(
-                        wd_unique, "workday", _wloc, session_id, effective_hours_old,
-                        requesting_user_id=str(profile.id),
-                    )
+                for _ti, _wd_title in enumerate(prefs.job_titles):
+                    _wd_rtag = _wd_title.lower().strip()
+                    for _wloc in sorted(c.lower().strip() for c in target_countries):
+                        n = await _save_jobs_v2(
+                            wd_unique, _wd_rtag, _wloc, session_id, effective_hours_old,
+                            requesting_user_id=str(profile.id),
+                        )
+                        if _ti == 0:   # count only from first title to avoid inflation
+                            wd_inserted += n
                 total_inserted += wd_inserted
                 await _update_session(session_id, "running", total_inserted, mark_finished=False)
                 log.info("[Phase1][4] Workday phase complete — %d additional jobs", wd_inserted)
@@ -1440,12 +1447,17 @@ async def run_phase1_search(
                 gh_unique = deduplicate(gh_new)
                 log.info("[Phase1][5] Greenhouse after dedup: %d new jobs — saving", len(gh_unique))
 
+                # Save Greenhouse jobs under each searched title (same fanout fix as Workday).
                 gh_inserted = 0
-                for _gloc in sorted(c.lower().strip() for c in target_countries):
-                    gh_inserted += await _save_jobs_v2(
-                        gh_unique, "greenhouse", _gloc, session_id, effective_hours_old,
-                        requesting_user_id=str(profile.id),
-                    )
+                for _ti, _gh_title in enumerate(prefs.job_titles):
+                    _gh_rtag = _gh_title.lower().strip()
+                    for _gloc in sorted(c.lower().strip() for c in target_countries):
+                        n = await _save_jobs_v2(
+                            gh_unique, _gh_rtag, _gloc, session_id, effective_hours_old,
+                            requesting_user_id=str(profile.id),
+                        )
+                        if _ti == 0:
+                            gh_inserted += n
                 total_inserted += gh_inserted
                 await _update_session(session_id, "running", total_inserted, mark_finished=False)
                 log.info("[Phase1][5] Greenhouse phase complete — %d additional jobs", gh_inserted)
