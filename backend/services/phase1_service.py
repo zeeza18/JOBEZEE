@@ -638,7 +638,9 @@ async def _save_jobs_v2(
                  inserted, skipped, role_tag, location_tag)
 
         if not new_job_ids:
-            return inserted
+            return 0   # nothing to fan out
+
+        fanout_count = 0   # tracks new user_job_states rows created
 
         # ── 3. Find all users whose preferences match (role_tag, location_tag) ─
         all_profiles = (await db.execute(select(UserProfile))).scalars().all()
@@ -671,11 +673,12 @@ async def _save_jobs_v2(
             # Batch in chunks to avoid huge parameter lists
             CHUNK = 500
             for i in range(0, len(fan_rows), CHUNK):
-                await db.execute(
+                res = await db.execute(
                     pg_insert(UserJobState)
                     .values(fan_rows[i:i + CHUNK])
                     .on_conflict_do_nothing(index_elements=["user_id", "job_id"])
                 )
+                fanout_count += res.rowcount or 0
             await db.commit()
 
         # ── 5. Upsert preference_cache ────────────────────────────────────────
@@ -697,7 +700,9 @@ async def _save_jobs_v2(
         )
         await db.commit()
 
-    return inserted
+    # Return fanout_count (new user_job_states rows) so the session counter
+    # reflects actual new jobs added to users' views, not just global inserts.
+    return fanout_count if fanout_count > 0 else inserted
 
 
 async def _update_session(
