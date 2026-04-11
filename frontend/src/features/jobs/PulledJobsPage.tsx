@@ -808,25 +808,36 @@ function JobCard({
 
 // ─── Filter Panel ─────────────────────────────────────────────────────────────
 
+type PostedAge = 'any' | 'today' | 'yesterday' | 'week' | 'older'
+
 interface Filters {
-  location      : string
-  jobType       : string
-  salaryMin     : number
-  hoursOld      : number
-  source        : string
-  workdayInSearch: boolean
+  location        : string
+  jobType         : string
+  salaryMin       : number
+  site            : string   // job board: linkedin / indeed / etc.
+  postedAge       : PostedAge
+  workdayInSearch : boolean
 }
 
 const EMPTY_FILTERS: Filters = {
-  location: '', jobType: '', salaryMin: 0, hoursOld: 0, source: '', workdayInSearch: true,
+  location: '', jobType: '', salaryMin: 0, site: '', postedAge: 'any', workdayInSearch: true,
 }
 
+const POSTED_OPTS: { value: PostedAge; label: string }[] = [
+  { value: 'any',       label: 'Any time'  },
+  { value: 'today',     label: 'Today'     },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: 'week',      label: 'This week' },
+  { value: 'older',     label: 'Week+'     },
+]
+
 function FilterPanel({
-  open, filters, allLocations, onApply, onClose,
+  open, filters, allLocations, allSites, onApply, onClose,
 }: {
   open        : boolean
   filters     : Filters
   allLocations: string[]
+  allSites    : string[]
   onApply     : (f: Filters) => void
   onClose     : () => void
 }) {
@@ -836,8 +847,7 @@ function FilterPanel({
   const set = <K extends keyof Filters>(k: K, v: Filters[K]) =>
     setLocal(prev => ({ ...prev, [k]: v }))
 
-  const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-200'
-  const selectCls = `${inputCls} appearance-none`
+  const selectCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-200 appearance-none'
 
   return (
     <AnimatePresence>
@@ -845,8 +855,9 @@ function FilterPanel({
         <motion.div
           initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}
-          className="border-b border-slate-100 bg-slate-50/80 px-4 py-4"
+          className="border-b border-slate-100 bg-slate-50/80 px-4 py-4 space-y-3"
         >
+          {/* Row 1 — dropdowns */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {/* Location */}
             <div>
@@ -857,12 +868,14 @@ function FilterPanel({
               </select>
             </div>
 
-            {/* Job type */}
+            {/* Job board */}
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Job type</label>
-              <select value={local.jobType} onChange={e => set('jobType', e.target.value)} className={selectCls}>
-                <option value="">Any type</option>
-                {Object.entries(JOB_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Job board</label>
+              <select value={local.site} onChange={e => set('site', e.target.value)} className={selectCls}>
+                <option value="">All boards</option>
+                {allSites.map(s => (
+                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                ))}
               </select>
             </div>
 
@@ -876,21 +889,38 @@ function FilterPanel({
               </select>
             </div>
 
-            {/* Posted within */}
+            {/* Job type */}
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Posted within</label>
-              <select value={local.hoursOld} onChange={e => set('hoursOld', Number(e.target.value))} className={selectCls}>
-                <option value={0}>Any time</option>
-                <option value={24}>Last 24h</option>
-                <option value={72}>Last 3 days</option>
-                <option value={168}>Last 7 days</option>
-                <option value={720}>Last 30 days</option>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Job type</label>
+              <select value={local.jobType} onChange={e => set('jobType', e.target.value)} className={selectCls}>
+                <option value="">Any type</option>
+                {Object.entries(JOB_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
           </div>
 
-          {/* Workday toggle + actions */}
-          <div className="mt-3 flex items-center justify-between gap-4 flex-wrap">
+          {/* Row 2 — Posted pill buttons */}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Posted</label>
+            <div className="flex flex-wrap gap-1.5">
+              {POSTED_OPTS.map(o => (
+                <button
+                  key={o.value}
+                  onClick={() => set('postedAge', o.value)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    local.postedAge === o.value
+                      ? 'bg-cyan-600 border-cyan-600 text-white'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-400 hover:text-cyan-600'
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 3 — Workday toggle + actions */}
+          <div className="flex items-center justify-between gap-4 flex-wrap pt-0.5">
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <div
                 onClick={() => set('workdayInSearch', !local.workdayInSearch)}
@@ -1314,6 +1344,11 @@ export default function PulledJobsPage() {
     [jobs],
   )
 
+  const allSites = useMemo(
+    () => [...new Set(jobs.map(j => j.site).filter(Boolean))].sort(),
+    [jobs],
+  )
+
   const visible = useMemo(() => {
     const q          = search.toLowerCase()
     const userMin    = userProfile?.salary_min ?? 0
@@ -1337,13 +1372,19 @@ export default function PulledJobsPage() {
       // Panel filters
       if (filters.location && j.location !== filters.location) return false
       if (filters.jobType  && j.job_type !== filters.jobType)  return false
+      if (filters.site     && j.site     !== filters.site)     return false
       if (filters.salaryMin > 0) {
         const lo = j.salary_min ?? 0, hi = j.salary_max ?? 0
         if (lo < filters.salaryMin && hi < filters.salaryMin) return false
       }
-      if (filters.hoursOld > 0 && j.posted_at) {
-        const age = (Date.now() - new Date(j.posted_at).getTime()) / 3_600_000
-        if (!isNaN(age) && age > filters.hoursOld) return false
+      if (filters.postedAge !== 'any' && j.posted_at) {
+        const h = (Date.now() - new Date(j.posted_at).getTime()) / 3_600_000
+        if (!isNaN(h)) {
+          if (filters.postedAge === 'today'     && h > 24)          return false
+          if (filters.postedAge === 'yesterday' && (h < 24 || h > 48)) return false
+          if (filters.postedAge === 'week'      && h > 168)         return false
+          if (filters.postedAge === 'older'     && h < 168)         return false
+        }
       }
 
       return true
@@ -1400,7 +1441,10 @@ export default function PulledJobsPage() {
     { key: 'hidden'   as const, label: 'HIDDEN',    count: hiddenCount   },
   ]
 
-  const hasActiveFilters = Object.entries(filters).some(([k, v]) => k !== 'workdayInSearch' && v !== (EMPTY_FILTERS as unknown as Record<string, unknown>)[k])
+  const hasActiveFilters = (
+    !!filters.location || !!filters.jobType || !!filters.site ||
+    filters.salaryMin > 0 || filters.postedAge !== 'any'
+  )
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -1482,6 +1526,7 @@ export default function PulledJobsPage() {
             open={filterOpen}
             filters={filters}
             allLocations={allLocations}
+            allSites={allSites}
             onApply={setFilters}
             onClose={() => setFilterOpen(false)}
           />
