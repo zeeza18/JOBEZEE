@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..models import PulledJob, UserProfile
+from ..models import UserJobState, UserProfile
 
 router = APIRouter()
 
@@ -125,81 +125,33 @@ async def dashboard_stats(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Applied job stats from pulled_jobs table."""
-    pid = uuid.UUID(current_user.id)
+    """Job stats from user_job_states table."""
+    user_id = str(uuid.UUID(current_user.id))
 
-    # Count applied (includes all non-new/saved/hidden statuses)
-    applied_count_res = await db.execute(
-        select(func.count()).where(
-            PulledJob.user_profile_id == pid,
-            PulledJob.status.not_in(["new", "saved", "hidden"]),
-        )
+    # Single grouped query — all statuses at once
+    counts_q = (
+        select(UserJobState.status, func.count().label("cnt"))
+        .where(UserJobState.user_id == user_id)
+        .group_by(UserJobState.status)
     )
-    total_applied = applied_count_res.scalar() or 0
+    counts_res = await db.execute(counts_q)
+    status_map: dict[str, int] = {row.status: row.cnt for row in counts_res}
 
-    # Count failed/hidden
-    failed_count_res = await db.execute(
-        select(func.count()).where(
-            PulledJob.user_profile_id == pid,
-            PulledJob.status == "hidden",
-        )
-    )
-    total_failed = failed_count_res.scalar() or 0
-
-    # Count openings (new or saved in jobs DB)
-    openings_count_res = await db.execute(
-        select(func.count()).where(
-            PulledJob.user_profile_id == pid,
-            PulledJob.status.in_(["new", "saved"]),
-        )
-    )
-    openings_count = openings_count_res.scalar() or 0
-
-    # Pipeline breakdown (per-status counts)
-    pipeline_statuses = [
-        "applying", "applied", "interview_r1", "interview_r2",
-        "interview_r3", "offer", "rejected", "ghosted", "failed",
-    ]
-    pipeline: dict[str, int] = {}
-    for s in pipeline_statuses:
-        cnt_res = await db.execute(
-            select(func.count()).where(
-                PulledJob.user_profile_id == pid,
-                PulledJob.status == s,
-            )
-        )
-        pipeline[s] = cnt_res.scalar() or 0
-
-    # Recent 5 tracked jobs (any active status)
-    recent_res = await db.execute(
-        select(PulledJob)
-        .where(
-            PulledJob.user_profile_id == pid,
-            PulledJob.status.not_in(["new", "saved", "hidden"]),
-        )
-        .order_by(PulledJob.pulled_at.desc())
-        .limit(5)
-    )
-    recent_jobs = recent_res.scalars().all()
-
-    recent_applied = [
-        {
-            "title":        j.title or "",
-            "company":      j.company or "",
-            "date_applied": j.pulled_at.strftime("%Y-%m-%d") if j.pulled_at else "",
-            "link":         j.url or "",
-            "work_style":   j.job_type or "",
-            "status":       j.status or "applied",
-        }
-        for j in recent_jobs
-    ]
+    new_count     = status_map.get("new",       0)
+    saved_count   = status_map.get("saved",     0) + status_map.get("favourite", 0)
+    hidden_count  = status_map.get("hidden",    0)
+    applied_count = status_map.get("applied",   0)
+    total         = sum(status_map.values())
+    openings_count = total - hidden_count   # all non-hidden jobs
 
     return {
-        "total_applied":  total_applied,
-        "total_failed":   total_failed,
+        "total_applied":  applied_count,
+        "total_failed":   hidden_count,
         "openings_count": openings_count,
-        "pipeline":       pipeline,
-        "recent_applied": recent_applied,
+        "new_jobs_count": new_count,
+        "saved_count":    saved_count,
+        "pipeline":       {},
+        "recent_applied": [],
     }
 
 

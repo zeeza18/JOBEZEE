@@ -29,6 +29,8 @@ interface BotStats {
   total_applied: number
   total_failed: number
   openings_count: number
+  new_jobs_count: number
+  saved_count: number
   pipeline: Record<string, number>
   recent_applied: { title: string; company: string; date_applied: string; link: string; work_style: string; status: string }[]
 }
@@ -104,6 +106,7 @@ function getFavicon(url: string) {
 // ── Stat card (square KPI tile) ───────────────────────────────────────────────
 interface StatCardProps {
   count: number | null
+  sub?: string        // optional small badge below count e.g. "12 new"
   label: string
   loading?: boolean
   accent: string      // gradient classes e.g. "from-cyan-400 to-sky-500"
@@ -111,11 +114,11 @@ interface StatCardProps {
   onClick: () => void
   onSettings: () => void
 }
-function StatCard({ count, label, loading, accent, textColor, onClick, onSettings }: StatCardProps) {
+function StatCard({ count, sub, label, loading, accent, textColor, onClick, onSettings }: StatCardProps) {
   return (
     <button
       onClick={onClick}
-      className="relative w-full h-[88px] rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col items-center justify-center gap-1 overflow-hidden group"
+      className="relative w-full h-[88px] rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col items-center justify-center gap-0.5 overflow-hidden group"
     >
       {/* top accent bar */}
       <span className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${accent}`} />
@@ -135,6 +138,13 @@ function StatCard({ count, label, loading, accent, textColor, onClick, onSetting
       ) : (
         <span className={`text-3xl font-black leading-none ${textColor}`}>
           {count ?? 0}
+        </span>
+      )}
+
+      {/* sub-label (e.g. "12 new") */}
+      {!loading && sub && (
+        <span className="rounded-full bg-cyan-50 border border-cyan-200 px-1.5 py-px text-[9px] font-semibold text-cyan-600 leading-none">
+          {sub}
         </span>
       )}
 
@@ -342,14 +352,19 @@ const DashboardPage = () => {
               Desktop → fixed-width cards (w-28), shrink-0 */}
           <div className="flex items-center gap-3 md:shrink-0">
             <div className="flex-1 md:flex-none md:w-32">
-              <StatCard count={botStats?.openings_count ?? null} label="Openings" loading={statsLoad}
+              <StatCard
+                count={botStats?.openings_count ?? null}
+                sub={botStats?.new_jobs_count ? `${botStats.new_jobs_count} new` : undefined}
+                label="Openings" loading={statsLoad}
                 accent="from-cyan-400 to-sky-500" textColor="text-cyan-600"
                 onClick={() => navigate('/app/pulled-jobs')} onSettings={() => navigate('/app/settings')} />
             </div>
             <div className="flex-1 md:flex-none md:w-32">
-              <StatCard count={0} label="Tailored" loading={false}
+              <StatCard
+                count={botStats?.saved_count ?? null}
+                label="Saved" loading={statsLoad}
                 accent="from-violet-400 to-purple-500" textColor="text-violet-600"
-                onClick={() => navigate('/app/tailor')} onSettings={() => navigate('/app/settings')} />
+                onClick={() => navigate('/app/pulled-jobs')} onSettings={() => navigate('/app/settings')} />
             </div>
             <div className="flex-1 md:flex-none md:w-32 relative">
               <span data-ctx="applied-count" className="hidden">{botStats?.total_applied ?? 0}</span>
