@@ -3,6 +3,7 @@ import { FileText, Link, Loader2, Upload, User } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { useTailorCards } from '../../store/useTailorCards'
+import { useApiCache } from '../../store/useApiCache'
 import { TailorCard } from './TailorCard'
 
 type ResumeMode = 'text' | 'file' | 'profile'
@@ -11,11 +12,13 @@ const BASE = import.meta.env.VITE_API_URL || ''
 
 const TailorPage = () => {
   const { cards, loaded, loadCards, addCard, openStream } = useTailorCards()
+  const cache = useApiCache()
   const [workerInfo, setWorkerInfo] = useState<{ max_workers: number; active: number } | null>(null)
 
   // ── Input state ───────────────────────────────────────────────────────────
   const [inputJd, setInputJd] = useState('')
-  const [inputResume, setInputResume] = useState('')
+  // Init resume text from cache — shows instantly on re-visit, no spinner
+  const [inputResume, setInputResume] = useState<string>(() => cache.tailorResume?.text ?? '')
   const [inputUrl, setInputUrl] = useState('')
 
   // ── Resume source state ───────────────────────────────────────────────────
@@ -23,7 +26,8 @@ const TailorPage = () => {
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [extracting, setExtracting] = useState(false)
   const [extractErr, setExtractErr] = useState<string | null>(null)
-  const [profileFilename, setProfileFilename] = useState<string | null>(null)
+  // Init filename from cache too
+  const [profileFilename, setProfileFilename] = useState<string | null>(() => cache.tailorResume?.filename ?? null)
   const [submitting, setSubmitting] = useState(false)
 
   const fileRef = useRef<HTMLInputElement>(null)
@@ -37,9 +41,9 @@ const TailorPage = () => {
       .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load profile resume only if inputResume is still empty
+  // Load profile resume only if not already cached
   useEffect(() => {
-    if (!inputResume) loadFromProfile()
+    if (!cache.tailorResume) loadFromProfile()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Resume source handlers ────────────────────────────────────────────────
@@ -77,6 +81,8 @@ const TailorPage = () => {
       if (!res.ok) throw new Error(data.detail ?? 'Failed to load profile resume')
       setInputResume(data.text)
       setProfileFilename(data.filename ?? null)
+      // Cache so next visit is instant
+      useApiCache.getState().setTailorResume({ text: data.text, filename: data.filename ?? null })
     } catch (err: any) {
       setExtractErr(err.message ?? 'Could not load resume from profile')
     } finally {

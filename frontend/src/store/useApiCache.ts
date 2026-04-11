@@ -30,6 +30,17 @@ export interface CachedDashStats {
   recent_applied : { title: string; company: string; date_applied: string; link: string; work_style: string; status: string }[]
 }
 
+export interface CachedNews {
+  news    : { title: string; link: string; published: string; source: string; category: string; topic: string }[]
+  country : string
+  role    : string
+}
+
+export interface CachedTailorResume {
+  text     : string
+  filename : string | null
+}
+
 // ── Store ──────────────────────────────────────────────────────────────────────
 
 interface ApiCacheState {
@@ -40,26 +51,44 @@ interface ApiCacheState {
   // Dashboard
   dashStats     : CachedDashStats | null
   dashProfile   : CachedProfile | null
+  dashNews      : CachedNews | null
+
+  // Tailor page
+  tailorResume  : CachedTailorResume | null
+
+  // Portfolio page (store as any to avoid heavy import)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  portfolioData : { profile: any; config: any | null } | null
 
   // Actions
-  setPulledJobs   : (jobs: PulledJob[]) => void
-  setJobStats     : (stats: JobStats) => void
-  setDashStats    : (stats: CachedDashStats) => void
-  setDashProfile  : (profile: CachedProfile) => void
-  updateJobStatus : (id: string, status: string) => void
-  mergeJobs       : (fresh: PulledJob[]) => void
+  setPulledJobs    : (jobs: PulledJob[]) => void
+  setJobStats      : (stats: JobStats) => void
+  setDashStats     : (stats: CachedDashStats) => void
+  setDashProfile   : (profile: CachedProfile) => void
+  setDashNews      : (news: CachedNews) => void
+  setTailorResume  : (r: CachedTailorResume) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setPortfolioData : (data: { profile: any; config: any | null }) => void
+  updateJobStatus  : (id: string, status: string) => void
+  mergeJobs        : (fresh: PulledJob[]) => void
 }
 
 export const useApiCache = create<ApiCacheState>((set) => ({
-  pulledJobs  : [],
-  jobStats    : null,
-  dashStats   : null,
-  dashProfile : null,
+  pulledJobs    : [],
+  jobStats      : null,
+  dashStats     : null,
+  dashProfile   : null,
+  dashNews      : null,
+  tailorResume  : null,
+  portfolioData : null,
 
-  setPulledJobs : (jobs) => set({ pulledJobs: jobs }),
-  setJobStats   : (stats) => set({ jobStats: stats }),
-  setDashStats  : (stats) => set({ dashStats: stats }),
-  setDashProfile: (profile) => set({ dashProfile: profile }),
+  setPulledJobs   : (jobs)    => set({ pulledJobs: jobs }),
+  setJobStats     : (stats)   => set({ jobStats: stats }),
+  setDashStats    : (stats)   => set({ dashStats: stats }),
+  setDashProfile  : (profile) => set({ dashProfile: profile }),
+  setDashNews     : (news)    => set({ dashNews: news }),
+  setTailorResume : (r)       => set({ tailorResume: r }),
+  setPortfolioData: (data)    => set({ portfolioData: data }),
 
   updateJobStatus: (id, status) =>
     set((s) => ({ pulledJobs: s.pulledJobs.map((j) => (j.id === id ? { ...j, status } : j)) })),

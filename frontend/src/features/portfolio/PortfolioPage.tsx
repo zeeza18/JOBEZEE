@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useApiCache } from '../../store/useApiCache'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, Check, Code2, Copy, ExternalLink, Heart, Loader2,
@@ -251,15 +252,21 @@ function EditField({ label, value, onChange, multiline }: { label: string; value
 type EditorTab = 'themes' | 'colors' | 'images' | 'text' | 'sections'
 
 export default function PortfolioPage() {
-  const [profile,       setProfile]       = useState<UserProfile | null>(null)
-  const [config,        setConfig]        = useState<PortfolioConfig | null>(null)
-  const [loading,       setLoading]       = useState(true)
+  const cache = useApiCache()
+
+  // Init from cache — instant on re-visit
+  const [profile,       setProfile]       = useState<UserProfile | null>(() => cache.portfolioData?.profile ?? null)
+  const [config,        setConfig]        = useState<PortfolioConfig | null>(() => cache.portfolioData?.config ?? null)
+  const [loading,       setLoading]       = useState(!cache.portfolioData)
   const [saving,        setSaving]        = useState(false)
   const [saved,         setSaved]         = useState(false)
   const [openCat,       setOpenCat]       = useState<CategoryCard | null>(null)
-  const [primaryColor,  setPrimaryColor]  = useState('#06b6d4')
-  const [accentColor,   setAccentColor]   = useState('#a78bfa')
-  const [showSections,  setShowSections]  = useState<Record<string, boolean>>(DEFAULT_SECTIONS)
+  const [primaryColor,  setPrimaryColor]  = useState(() => cache.portfolioData?.config?.primary_color || '#06b6d4')
+  const [accentColor,   setAccentColor]   = useState(() => cache.portfolioData?.config?.accent_color  || '#a78bfa')
+  const [showSections,  setShowSections]  = useState<Record<string, boolean>>(() => ({
+    ...DEFAULT_SECTIONS,
+    ...(cache.portfolioData?.config?.show_sections || {}),
+  }))
 
   // Canva editor state
   const [editorTab,     setEditorTab]     = useState<EditorTab>('themes')
@@ -269,6 +276,7 @@ export default function PortfolioPage() {
   const [textOverrides, setTextOverrides] = useState<TextOverrides>({})
 
   useEffect(() => {
+    // Silent refresh (no spinner) if cache hit, full load on first visit
     Promise.all([profileApi.get(), portfolioApi.getMy()])
       .then(([p, c]) => {
         setProfile(p)
@@ -278,6 +286,8 @@ export default function PortfolioPage() {
           setAccentColor(c.accent_color   || '#a78bfa')
           setShowSections({ ...DEFAULT_SECTIONS, ...(c.show_sections || {}) })
         }
+        // Update cache
+        useApiCache.getState().setPortfolioData({ profile: p, config: c ?? null })
       })
       .catch(() => {})
       .finally(() => setLoading(false))

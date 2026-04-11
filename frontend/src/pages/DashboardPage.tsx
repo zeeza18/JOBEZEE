@@ -203,11 +203,13 @@ const DashboardPage = () => {
   // ── Init from cache — shows instantly on re-visit, no spinner ────────────────
   const [profile,      setProfile]      = useState<Profile | null>(() => cache.dashProfile as Profile | null)
   const [botStats,     setBotStats]     = useState<BotStats | null>(() => cache.dashStats as BotStats | null)
-  const [news,         setNews]         = useState<NewsItem[]>([])
-  const [newsCtx,      setNewsCtx]      = useState<{ country: string; role: string } | null>(null)
+  const [news,         setNews]         = useState<NewsItem[]>(() => cache.dashNews?.news ?? [])
+  const [newsCtx,      setNewsCtx]      = useState<{ country: string; role: string } | null>(() =>
+    cache.dashNews ? { country: cache.dashNews.country, role: cache.dashNews.role } : null
+  )
   const [profileLoad,  setProfileLoad]  = useState(!cache.dashProfile)
   const [statsLoad,    setStatsLoad]    = useState(!cache.dashStats)
-  const [newsLoad,     setNewsLoad]     = useState(true)
+  const [newsLoad,     setNewsLoad]     = useState(!cache.dashNews)
   const [goalOpen,      setGoalOpen]      = useState(false)
   const [linkedinAvatar, setLinkedinAvatar] = useState<string | null>(null)
   const [liSyncing,      setLiSyncing]      = useState(false)
@@ -263,8 +265,7 @@ const DashboardPage = () => {
   }
 
   const load = async (silent = false) => {
-    if (!silent) { setProfileLoad(true); setStatsLoad(true) }
-    setNewsLoad(true)
+    if (!silent) { setProfileLoad(true); setStatsLoad(true); setNewsLoad(true) }
 
     apiFetch<Profile>('/api/profile/').then(p => {
       setProfile(p)
@@ -280,6 +281,7 @@ const DashboardPage = () => {
 
     apiFetch<{ news: NewsItem[]; country: string; role: string }>('/api/dashboard/news').then(r => {
       setNews(r.news); setNewsCtx({ country: r.country, role: r.role }); setNewsLoad(false)
+      cache.setDashNews({ news: r.news, country: r.country, role: r.role })
     }).catch(() => setNewsLoad(false))
   }
 
@@ -290,7 +292,7 @@ const DashboardPage = () => {
   }
 
   useEffect(() => {
-    const hasCached = !!cache.dashProfile && !!cache.dashStats
+    const hasCached = !!cache.dashProfile && !!cache.dashStats && !!cache.dashNews
     load(hasCached)   // silent (no spinner) if cache hit; full load on first visit
     loadTracker()
     scanEmails()
