@@ -93,13 +93,9 @@ def get_max_workers() -> int:
 
 
 def get_active_count() -> int:
-    """Return the number of jobs currently executing (not queued, not done)."""
-    ex = _get_executor()
-    with ex._work_queue.mutex:
-        queued = len(ex._work_queue.queue)
-    total_threads = len(ex._threads)
-    # active = threads that have been spawned minus those blocked on the queue
-    return max(0, total_threads - queued)
+    """Return the number of jobs currently executing."""
+    with _lock:
+        return sum(1 for j in _jobs.values() if j.get("status") == "running")
 
 
 def create_job(user_id: str = "") -> str:

@@ -99,7 +99,7 @@ async def trigger_search(
         .where(SearchSession.user_id == current_user.id)
         .where(SearchSession.status == "running")
     )
-    running_session = running_check.scalar_one_or_none()
+    running_session = running_check.scalars().first()
     if running_session:
         raise HTTPException(409, detail={"message": "A search is already running.", "session_id": running_session.id})
 

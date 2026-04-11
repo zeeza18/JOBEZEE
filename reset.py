@@ -9,10 +9,13 @@ DATABASE_URL is read from (in order):
   1. DATABASE_URL environment variable
   2. backend/.env file
   3. .env file in this directory
+
+On Windows, connections to Neon fail at the TLS layer.  The script
+automatically routes through the Hetzner VPS (Linux) via paramiko SSH
+when running on Windows or when the direct connection fails.
 """
 from __future__ import annotations
 
-import asyncio
 import os
 import sys
 from pathlib import Path
@@ -44,21 +47,51 @@ if not DATABASE_URL:
     print("  Set it as an env var, or create a .env / backend/.env file.")
     sys.exit(1)
 
-# asyncpg needs postgresql+asyncpg:// — fix if plain postgres:// is given
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
-elif DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+# ── Parse DB URL into connection kwargs (psycopg2 style) ─────────────────────
+
+from urllib.parse import urlparse, parse_qs, unquote
+
+def _parse_db_url(url: str) -> dict:
+    """Convert any postgres:// URL variant into psycopg2 keyword args."""
+    # Normalise scheme
+    for src, dst in [
+        ("postgresql+asyncpg://", "postgresql://"),
+        ("postgresql+psycopg2://", "postgresql://"),
+        ("postgres://", "postgresql://"),
+    ]:
+        if url.startswith(src):
+            url = dst + url[len(src):]
+            break
+
+    p = urlparse(url)
+    qs = parse_qs(p.query, keep_blank_values=True)
+    needs_ssl = bool(qs.get("ssl") or qs.get("sslmode"))
+
+    host = p.hostname or ""
+    endpoint_id = host.split(".")[0] if host else ""
+
+    kwargs: dict = {
+        "host":     host,
+        "port":     p.port or 5432,
+        "dbname":   (p.path or "/neondb").lstrip("/"),
+        "user":     unquote(p.username or ""),
+        "password": unquote(p.password or ""),
+        "connect_timeout": 20,
+    }
+    if needs_ssl:
+        kwargs["sslmode"] = "require"
+    if endpoint_id.startswith("ep-"):
+        kwargs["options"] = f"endpoint={endpoint_id}"
+    return kwargs
+
+
+_DB_KWARGS = _parse_db_url(DATABASE_URL)
 
 
 # ── Tables to wipe (order matters — FK children first) ───────────────────────
 
-# Delete in this order so FK constraints don't block.
-# Keep-users tables (users / user_profiles) are listed last and handled
-# separately so we can offer the option to preserve auth accounts.
-
 _DATA_TABLES = [
-    # ── child tables first ────────────────────────────────────────────────────
     "application_emails",
     "applications",
     "user_job_states",
@@ -76,71 +109,181 @@ _DATA_TABLES = [
     "billing_txns",
     "tool_usage",
     "user_events",
-    # ── v2 schema tables (may not exist on all envs) ──────────────────────────
+    # v2 schema (may not exist on all envs)
     "job_preferences",
     "user_skills",
     "user_credentials",
-    # ── parent / auth tables last ─────────────────────────────────────────────
+    # parent / auth tables last
     "user_profiles",
     "users",
 ]
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# ── Local (direct) reset ──────────────────────────────────────────────────────
 
-async def reset(confirm: bool) -> None:
-    from sqlalchemy.ext.asyncio import create_async_engine
-    from sqlalchemy import text
+def _try_local_conn():
+    """Try opening a psycopg2 connection. Returns conn or raises."""
+    import psycopg2
+    return psycopg2.connect(**_DB_KWARGS)
 
-    print(f"\n[reset] Connecting to database…")
-    engine = create_async_engine(DATABASE_URL, echo=False)
 
-    # First: count rows in each table so the user can see what will be wiped
+def _reset_via_local(confirm: bool) -> None:
+    conn = _try_local_conn()
+    conn.autocommit = True
+    cur = conn.cursor()
+    _run_reset(cur, conn, confirm)
+    cur.close()
+    conn.close()
+
+
+# ── Remote (Hetzner SSH) reset ────────────────────────────────────────────────
+
+# Hetzner credentials — override via env vars if needed
+_HETZNER_HOST = os.environ.get("HETZNER_HOST", "5.161.60.37")
+_HETZNER_USER = os.environ.get("HETZNER_USER", "root")
+_HETZNER_PASS = os.environ.get("HETZNER_PASS", "Zeeza_het@6996")
+
+
+def _reset_via_hetzner(confirm: bool) -> None:
+    """Upload a tiny script to Hetzner, run it there, stream output."""
+    import io
+    import paramiko
+
+    confirm_flag = "--confirm" if confirm else ""
+
+    # Build the remote script
+    kwargs_repr = repr(_DB_KWARGS)
+    tables_repr = repr(_DATA_TABLES)
+    remote_script = f'''
+import psycopg2, sys
+kwargs = {kwargs_repr}
+tables = {tables_repr}
+confirm = {"True" if confirm else "False"}
+
+conn = psycopg2.connect(**kwargs)
+conn.autocommit = True
+cur = conn.cursor()
+print("[reset] Connected via Hetzner proxy!")
+
+counts = {{}}
+for t in tables:
+    try:
+        cur.execute(f"SELECT COUNT(*) FROM {{t}}")
+        counts[t] = cur.fetchone()[0]
+    except Exception:
+        conn.rollback()
+        counts[t] = -1
+
+print("\\n[reset] Row counts before wipe:")
+total = 0
+for t, c in counts.items():
+    if c == -1:
+        print(f"  {{t:<30}}  (does not exist — skip)")
+    else:
+        mark = " <" if c > 0 else ""
+        print(f"  {{t:<30}}  {{c:>8}} rows{{mark}}")
+        total += c
+print(f"\\n  TOTAL rows to delete: {{total}}")
+
+if not confirm:
+    print("\\n[reset] DRY RUN — nothing deleted.")
+    print("  Re-run with  python reset.py --confirm  to actually wipe the data.")
+    cur.close(); conn.close(); sys.exit(0)
+
+print("\\n[reset] WARNING: DELETING ALL DATA ...")
+deleted = {{}}
+cur.execute("SET session_replication_role = replica")
+for t in tables:
+    if counts.get(t, -1) == -1:
+        continue
+    try:
+        cur.execute(f"DELETE FROM {{t}}")
+        deleted[t] = cur.rowcount
+    except Exception as exc:
+        print(f"  [WARN] Could not delete {{t}}: {{exc}}")
+        conn.rollback()
+        deleted[t] = 0
+cur.execute("SET session_replication_role = DEFAULT")
+
+print("\\n[reset] Rows deleted:")
+for t, c in deleted.items():
+    if c > 0:
+        print(f"  {{t:<30}}  {{c:>8}} rows deleted")
+
+grand = sum(deleted.values())
+print(f"\\n[reset] Done — {{grand}} rows deleted. Database is now empty.")
+cur.close(); conn.close()
+'''
+
+    print("[reset] Windows detected — routing through Hetzner SSH proxy...")
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(
+        _HETZNER_HOST, username=_HETZNER_USER, password=_HETZNER_PASS,
+        timeout=30, look_for_keys=False, allow_agent=False
+    )
+
+    sftp = client.open_sftp()
+    sftp.putfo(io.BytesIO(remote_script.encode()), "/tmp/_jobezee_reset.py")
+    sftp.close()
+
+    stdin, stdout, stderr = client.exec_command(
+        "pip3 install psycopg2-binary --break-system-packages -q 2>/dev/null; "
+        "python3 /tmp/_jobezee_reset.py",
+        timeout=120,
+    )
+    stdout.channel.set_combine_stderr(True)
+    for line in iter(lambda: stdout.readline(), ""):
+        print(line, end="", flush=True)
+    client.close()
+
+
+# ── Core reset logic (used by local path) ────────────────────────────────────
+
+def _run_reset(cur, conn, confirm: bool) -> None:
+    # Count rows
     counts: dict[str, int] = {}
-    async with engine.connect() as conn:
-        for table in _DATA_TABLES:
-            try:
-                row = await conn.execute(text(f"SELECT COUNT(*) FROM {table}"))
-                counts[table] = row.scalar() or 0
-            except Exception:
-                counts[table] = -1   # table doesn't exist
+    for table in _DATA_TABLES:
+        try:
+            cur.execute(f"SELECT COUNT(*) FROM {table}")
+            counts[table] = cur.fetchone()[0]
+        except Exception:
+            conn.rollback()
+            counts[table] = -1
 
     print("\n[reset] Row counts before wipe:")
     total = 0
     for table, cnt in counts.items():
         if cnt == -1:
-            print(f"  {table:<30}  (table does not exist — skip)")
+            print(f"  {table:<30}  (does not exist — skip)")
         else:
-            mark = " ◀" if cnt > 0 else ""
+            mark = " <" if cnt > 0 else ""
             print(f"  {table:<30}  {cnt:>8} rows{mark}")
             total += cnt
-
     print(f"\n  TOTAL rows to delete: {total}")
 
     if not confirm:
         print("\n[reset] DRY RUN — nothing deleted.")
         print("  Re-run with  python reset.py --confirm  to actually wipe the data.")
-        await engine.dispose()
         return
 
-    print("\n[reset] ⚠️  DELETING ALL DATA — this cannot be undone …")
+    print("\n[reset] WARNING: DELETING ALL DATA — this cannot be undone …")
 
     deleted: dict[str, int] = {}
-    async with engine.begin() as conn:
-        # Disable FK checks for the session so order doesn't matter
-        await conn.execute(text("SET session_replication_role = replica"))
+    cur.execute("SET session_replication_role = replica")
 
-        for table in _DATA_TABLES:
-            if counts.get(table, -1) == -1:
-                continue   # skip tables that don't exist
-            try:
-                result = await conn.execute(text(f"DELETE FROM {table}"))
-                deleted[table] = result.rowcount
-            except Exception as exc:
-                print(f"  [WARN] Could not delete from {table}: {exc}")
-                deleted[table] = 0
+    for table in _DATA_TABLES:
+        if counts.get(table, -1) == -1:
+            continue
+        try:
+            cur.execute(f"DELETE FROM {table}")
+            deleted[table] = cur.rowcount
+        except Exception as exc:
+            print(f"  [WARN] Could not delete from {table}: {exc}")
+            conn.rollback()
+            deleted[table] = 0
 
-        await conn.execute(text("SET session_replication_role = DEFAULT"))
+    cur.execute("SET session_replication_role = DEFAULT")
 
     print("\n[reset] Rows deleted:")
     for table, cnt in deleted.items():
@@ -148,10 +291,28 @@ async def reset(confirm: bool) -> None:
             print(f"  {table:<30}  {cnt:>8} rows deleted")
 
     grand_total = sum(deleted.values())
-    print(f"\n[reset] ✅  Done — {grand_total} rows deleted. Database is now empty.")
-    await engine.dispose()
+    print(f"\n[reset] Done — {grand_total} rows deleted. Database is now empty.")
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+
+def reset(confirm: bool) -> None:
+    print(f"\n[reset] Connecting to database…")
+
+    if sys.platform == "win32":
+        # Windows can't complete TLS handshake with Neon — use Hetzner proxy
+        _reset_via_hetzner(confirm)
+        return
+
+    # Linux / Mac — try direct connection
+    try:
+        _reset_via_local(confirm)
+    except Exception as exc:
+        print(f"[reset] Direct connection failed: {exc}")
+        print("[reset] Falling back to Hetzner SSH proxy...")
+        _reset_via_hetzner(confirm)
 
 
 if __name__ == "__main__":
     confirm = "--confirm" in sys.argv
-    asyncio.run(reset(confirm))
+    reset(confirm)

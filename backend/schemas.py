@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +229,11 @@ class PulledJobResponse(BaseModel):
     skills            : list[str]        = []
     status            : str              = "new"
     pulled_at         : datetime
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _coerce_status(cls, v: object) -> str:
+        return v if isinstance(v, str) and v else "new"
 
     model_config = {"from_attributes": True}
 
