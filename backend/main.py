@@ -41,16 +41,14 @@ os.makedirs(os.path.join(_cfg.UPLOAD_DIR, "resumes"), exist_ok=True)
 
 
 # ── Shared: send job digest emails to users with new jobs ────────────────────
-# Per-user cooldown — max 1 email per user per 5 hours.
-# Stored in-memory (resets on restart, but 5-hour initial delay compensates).
-_LAST_EMAIL_SENT: dict[str, "datetime"] = {}
+# Per-user cooldown stored in DB (user_profiles.last_digest_at) so it survives
+# server restarts / deploys. Max 1 email per user per 5 hours.
 _EMAIL_COOLDOWN_HOURS = 5
 
 async def _send_job_digests() -> None:
     """
     Send one digest email per user, at most every 5 hours.
-    The email shows ALL new jobs since the last time we emailed that user
-    (or the last 5 hours if this is the first email after a restart).
+    Uses DB-persisted last_digest_at so restarts don't reset the cooldown.
     """
     _log = logging.getLogger(__name__ + ".digestemail")
     try:
@@ -81,14 +79,16 @@ async def _send_job_digests() -> None:
                 if not email:
                     continue
 
-                # ── Per-user 5-hour cooldown ───────────────────────────────
-                last_sent = _LAST_EMAIL_SENT.get(email)
+                # ── Per-user 5-hour cooldown from DB ──────────────────────
+                last_sent = getattr(profile, "last_digest_at", None)
+                if last_sent and last_sent.tzinfo is None:
+                    last_sent = last_sent.replace(tzinfo=timezone.utc)
                 if last_sent and (now - last_sent) < cooldown:
                     remaining = int((cooldown - (now - last_sent)).total_seconds() / 60)
                     _log.debug("[DigestEmail] skip %s — cooldown, %d min left", email, remaining)
                     continue
 
-                # Show jobs added since last email (or last 5 hours if first run)
+                # Show jobs added since last email (or last 5 hours if first ever)
                 cutoff = last_sent if last_sent else (now - cooldown)
 
                 jobs_res = await db.execute(
@@ -115,7 +115,9 @@ async def _send_job_digests() -> None:
                         total_count = len(new_jobs),
                         app_url     = f"{_cfg2.FRONTEND_URL}/app/search",
                     )
-                    _LAST_EMAIL_SENT[email] = now
+                    # Persist timestamp to DB so restarts don't reset cooldown
+                    profile.last_digest_at = now
+                    await db.commit()
                     _log.info("[DigestEmail] sent → %s (%d jobs since %s)",
                               email, len(new_jobs), str(cutoff)[:16])
                 except Exception as _exc:

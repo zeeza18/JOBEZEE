@@ -287,7 +287,9 @@ const DashboardPage = () => {
   const primaryRole  = profile?.desired_roles?.[0] ? fmtRole(profile.desired_roles[0]) : null
   const yearsExp     = profile?.years_experience ?? null
   const avatarUrl    = profile?.avatar_url
-    ? (profile.avatar_url.startsWith('http') ? profile.avatar_url : `${BASE}${profile.avatar_url}`)
+    ? (profile.avatar_url.startsWith('http') || profile.avatar_url.startsWith('data:')
+        ? profile.avatar_url
+        : `${BASE}${profile.avatar_url}`)
     : null
 
   return (

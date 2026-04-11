@@ -124,6 +124,8 @@ async def run_column_migrations() -> None:
         ("anthropic_api_key",         "TEXT          DEFAULT ''"),
         ("resume_bytes",              "TEXT          DEFAULT ''"),
         ("linkedin_cookies",          "TEXT          DEFAULT ''"),
+        ("avatar_b64",                "TEXT          DEFAULT NULL"),
+        ("last_digest_at",            "TIMESTAMPTZ   DEFAULT NULL"),
     ]
 
     # ── pulled_jobs ───────────────────────────────────────────────────────────

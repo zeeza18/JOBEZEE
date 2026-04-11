@@ -370,7 +370,8 @@ const SettingsPage = () => {
       })
       if (!r.ok) throw new Error(await r.text())
       const data = await r.json()
-      setAvatarUrl(`${BASE_URL}${data.avatar_url}`)
+      const url = data.avatar_url
+      setAvatarUrl(url.startsWith('data:') || url.startsWith('http') ? url : `${BASE_URL}${url}`)
       setAvatarSuccess(true)
       setTimeout(() => setAvatarSuccess(false), 3000)
     } catch (err: any) {

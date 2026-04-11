@@ -101,6 +101,10 @@ class UserProfile(Base):
     resume_url      = Column(String(500), default="")
     resume_bytes    = Column(Text,        default="")   # base64-encoded PDF — persists across deploys
     avatar_url      = Column(String(500), default="")
+    avatar_b64      = Column(Text,        nullable=True)  # data:<mime>;base64,... — persists across deploys
+
+    # ── Email digest tracking ─────────────────────────────────────────────────
+    last_digest_at  = Column(DateTime(timezone=True), nullable=True)  # last digest email sent
 
     # ── Auto-apply credentials ────────────────────────────────────────────────
     apply_email     = Column(String(200), default="")   # default email for job-site accounts

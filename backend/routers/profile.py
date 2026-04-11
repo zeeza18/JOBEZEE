@@ -64,6 +64,9 @@ def _masked_response(profile: UserProfile) -> dict:
         credentials_set[field] = bool(raw.strip())
         d[field] = raw
     d["credentials_set"] = credentials_set
+    # If avatar stored as base64 in DB, return the data URL directly
+    if getattr(profile, "avatar_b64", None):
+        d["avatar_url"] = profile.avatar_b64
     return d
 
 
@@ -245,33 +248,29 @@ async def upload_avatar(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload a profile avatar image (jpg/png/webp, max 5 MB)."""
-    from ..config import get_settings
-    cfg = get_settings()
+    """Upload a profile avatar image (jpg/png/webp, max 5 MB). Stored as base64 in DB."""
+    import base64 as _b64
 
     allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-    if file.content_type not in allowed:
+    mime = file.content_type or "image/jpeg"
+    if mime not in allowed:
         raise HTTPException(400, "Only JPG, PNG, WebP or GIF images are allowed.")
 
     data = await file.read()
     if len(data) > 5 * 1024 * 1024:
         raise HTTPException(400, "Avatar must be under 5 MB.")
 
-    ext      = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    dest_dir = Path(cfg.UPLOAD_DIR) / "avatars"
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    (dest_dir / filename).write_bytes(data)
+    data_url = f"data:{mime};base64,{_b64.b64encode(data).decode()}"
 
-    url = f"/uploads/avatars/{filename}"
     pid = uuid.UUID(current_user.id)
     res = await db.execute(select(UserProfile).where(UserProfile.id == pid))
     profile = res.scalar_one_or_none()
     if not profile:
         raise HTTPException(404, "Profile not found")
-    profile.avatar_url = url
+    profile.avatar_b64 = data_url
+    profile.avatar_url = ""   # clear old file-based URL
     await db.commit()
-    return {"avatar_url": url, "filename": filename}
+    return {"avatar_url": data_url}
 
 
 # ── Remove avatar ─────────────────────────────────────────────────────────────
@@ -281,13 +280,14 @@ async def remove_avatar(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Clear the user's avatar URL (does not delete the file from disk)."""
+    """Clear the user's avatar (both URL and base64 copy)."""
     pid = _profile_id_for(current_user)
     res = await db.execute(select(UserProfile).where(UserProfile.id == pid))
     profile = res.scalar_one_or_none()
     if not profile:
         raise HTTPException(404, "Profile not found")
     profile.avatar_url = ""
+    profile.avatar_b64 = None
     await db.commit()
     return {"avatar_url": ""}
 
