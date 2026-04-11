@@ -293,8 +293,18 @@ const DashboardPage = () => {
     load(hasCached)   // silent (no spinner) if cache hit; full load on first visit
     loadTracker()
     scanEmails()
-    const interval = setInterval(scanEmails, 30 * 60 * 1000)
-    return () => clearInterval(interval)
+
+    // Live stats refresh every 60 s — keeps Openings/Applied counts current
+    const statsInterval = setInterval(async () => {
+      try {
+        const s = await apiFetch<BotStats>('/api/dashboard/stats')
+        setBotStats(s)
+        cache.setDashStats(s as any)
+      } catch { /* ignore */ }
+    }, 60_000)
+
+    const emailInterval = setInterval(scanEmails, 30 * 60 * 1000)
+    return () => { clearInterval(statsInterval); clearInterval(emailInterval) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const _pname       = profile?.preferred_name || (profile?.full_name?.includes('@') ? '' : profile?.full_name) || ''

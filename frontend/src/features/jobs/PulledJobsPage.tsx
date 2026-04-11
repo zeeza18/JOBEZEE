@@ -13,6 +13,7 @@ import { applyApi, jobsApi, profileApi, searchApi, tailorApi, type JobStats, typ
 import { useAppStore } from '../../store/useAppStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { useApiCache } from '../../store/useApiCache'
+// useApiCache.getState() reads store outside React without subscribing
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1034,11 +1035,28 @@ export default function PulledJobsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(cache.pulledJobs.length > 0) }, [])
 
-  // ── Auto-refresh every 3 hours (silent background re-fetch) ─────────────────
+  // ── Live background polling — check for new jobs every 60 s ─────────────────
+  // Poll stats only (1 tiny request). Only do a full silent reload when the
+  // total count actually changes (new jobs from the hourly background bot).
   useEffect(() => {
-    const id = setInterval(() => load(true), THREE_HOURS)
+    const POLL_MS = 60_000
+    const id = setInterval(async () => {
+      try {
+        const fresh = await jobsApi.stats()
+        const cached = useApiCache.getState().jobStats
+        const prevTotal = cached?.total ?? 0
+        if (fresh.total !== prevTotal) {
+          // New jobs arrived — reload list silently
+          await load(true)
+        } else {
+          // No new jobs — just refresh counts in-place (instant, no list reload)
+          setStats(fresh)
+          cache.setJobStats(fresh)
+        }
+      } catch { /* ignore — next tick will retry */ }
+    }, POLL_MS)
     return () => clearInterval(id)
-  }, [load])
+  }, [load, cache])
 
 
   // ── Incremental poll during search ───────────────────────────────────────────
