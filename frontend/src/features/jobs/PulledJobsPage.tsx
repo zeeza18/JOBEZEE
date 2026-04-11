@@ -812,7 +812,6 @@ type PostedAge = 'any' | 'today' | 'yesterday' | 'week' | 'older'
 
 interface Filters {
   location        : string
-  jobType         : string
   salaryMin       : number
   site            : string   // job board: linkedin / indeed / etc.
   postedAge       : PostedAge
@@ -820,7 +819,7 @@ interface Filters {
 }
 
 const EMPTY_FILTERS: Filters = {
-  location: '', jobType: '', salaryMin: 0, site: '', postedAge: 'any', workdayInSearch: true,
+  location: '', salaryMin: 0, site: '', postedAge: 'any', workdayInSearch: true,
 }
 
 const POSTED_OPTS: { value: PostedAge; label: string }[] = [
@@ -858,7 +857,7 @@ function FilterPanel({
           className="border-b border-slate-100 bg-slate-50/80 px-4 py-4 space-y-3"
         >
           {/* Row 1 — dropdowns */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             {/* Location */}
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Location</label>
@@ -886,15 +885,6 @@ function FilterPanel({
                 {[0, 50000, 80000, 100000, 120000, 150000, 200000].map(v => (
                   <option key={v} value={v}>{v === 0 ? 'Any' : `$${(v/1000).toFixed(0)}k+`}</option>
                 ))}
-              </select>
-            </div>
-
-            {/* Job type */}
-            <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Job type</label>
-              <select value={local.jobType} onChange={e => set('jobType', e.target.value)} className={selectCls}>
-                <option value="">Any type</option>
-                {Object.entries(JOB_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
           </div>
@@ -1339,10 +1329,31 @@ export default function PulledJobsPage() {
   }, [applyJobs, pushToast])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived data ─────────────────────────────────────────────────────────────
-  const allLocations = useMemo(
-    () => [...new Set(jobs.map(j => j.location).filter(Boolean))].sort(),
-    [jobs],
-  )
+  const allLocations = useMemo(() => {
+    const SKIP = new Set(['remote', 'in-office', 'hybrid', 'on-site', 'onsite', 'worldwide', 'global', 'anywhere'])
+    const extractCity = (raw: string): string => {
+      // Strip trailing "(Remote)" or similar annotations
+      const clean = raw.replace(/\s*\(.*?\)\s*/g, '').trim()
+      if (!clean) return ''
+      const parts = clean.split(',').map(p => p.trim()).filter(Boolean)
+      if (parts.length === 0) return ''
+      // If first part is a short country/state code (≤2 chars, e.g. "US", "CA"), take last part
+      const city = parts[0].length <= 2 ? parts[parts.length - 1] : parts[0]
+      if (!city || city.length <= 2) return ''
+      if (SKIP.has(city.toLowerCase())) return ''
+      return city
+    }
+    const cities = new Set<string>()
+    for (const j of jobs) {
+      if (!j.location) continue
+      // Handle "City A | City B" multi-location strings
+      for (const part of j.location.split(' | ')) {
+        const city = extractCity(part)
+        if (city) cities.add(city)
+      }
+    }
+    return [...cities].sort()
+  }, [jobs])
 
   const allSites = useMemo(
     () => [...new Set(jobs.map(j => j.site).filter(Boolean))].sort(),
@@ -1370,12 +1381,27 @@ export default function PulledJobsPage() {
       if (q && !j.title.toLowerCase().includes(q) && !j.company.toLowerCase().includes(q)) return false
 
       // Panel filters
-      if (filters.location && j.location !== filters.location) return false
-      if (filters.jobType  && j.job_type !== filters.jobType)  return false
-      if (filters.site     && j.site     !== filters.site)     return false
+      if (filters.location) {
+        // Match by extracted city (handle multi-location and varied formats)
+        const SKIP = new Set(['remote', 'in-office', 'hybrid', 'on-site', 'onsite'])
+        const extractCity = (raw: string) => {
+          const clean = raw.replace(/\s*\(.*?\)\s*/g, '').trim()
+          const parts = clean.split(',').map(p => p.trim()).filter(Boolean)
+          if (!parts.length) return ''
+          const city = parts[0].length <= 2 ? parts[parts.length - 1] : parts[0]
+          return (!city || city.length <= 2 || SKIP.has(city.toLowerCase())) ? '' : city
+        }
+        const jobCities = (j.location || '').split(' | ').map(extractCity).filter(Boolean)
+        if (!jobCities.includes(filters.location)) return false
+      }
+      if (filters.site     && j.site !== filters.site) return false
       if (filters.salaryMin > 0) {
-        const lo = j.salary_min ?? 0, hi = j.salary_max ?? 0
-        if (lo < filters.salaryMin && hi < filters.salaryMin) return false
+        // Only apply salary filter if job has salary data; skip if completely unknown
+        const hasSalary = (j.salary_min ?? 0) > 0 || (j.salary_max ?? 0) > 0 || !!j.salary_text
+        if (hasSalary) {
+          const lo = j.salary_min ?? 0, hi = j.salary_max ?? 0
+          if (lo < filters.salaryMin && hi < filters.salaryMin) return false
+        }
       }
       if (filters.postedAge !== 'any' && j.posted_at) {
         const h = (Date.now() - new Date(j.posted_at).getTime()) / 3_600_000
@@ -1442,7 +1468,7 @@ export default function PulledJobsPage() {
   ]
 
   const hasActiveFilters = (
-    !!filters.location || !!filters.jobType || !!filters.site ||
+    !!filters.location || !!filters.site ||
     filters.salaryMin > 0 || filters.postedAge !== 'any'
   )
 

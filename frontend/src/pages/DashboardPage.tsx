@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card'
 import { useAuthStore } from '../store/useAuthStore'
 import { useNavigate } from 'react-router-dom'
 import { useApiCache } from '../store/useApiCache'
+import { jobsApi, type JobStats as _JobStats } from '../lib/api'
 
 const BASE  = import.meta.env.VITE_API_URL || ''
 
@@ -293,6 +294,33 @@ const DashboardPage = () => {
     load(hasCached)   // silent (no spinner) if cache hit; full load on first visit
     loadTracker()
     scanEmails()
+
+    // Background-prefetch jobs list so navigating to /app/pulled-jobs is instant
+    if (useApiCache.getState().pulledJobs.length === 0) {
+      ;(async () => {
+        try {
+          const cache2 = useApiCache.getState()
+          const [statsData, page1] = await Promise.all([
+            jobsApi.stats(),
+            jobsApi.list({ limit: 50, offset: 0 }),
+          ])
+          cache2.setJobStats(statsData as any)
+          // Fetch remaining pages
+          const total = (statsData as _JobStats).total ?? 0
+          if (total > 50) {
+            const pages = Math.ceil(total / 50)
+            const rest = await Promise.all(
+              Array.from({ length: pages - 1 }, (_, i) =>
+                jobsApi.list({ limit: 50, offset: (i + 1) * 50 })
+              )
+            )
+            cache2.setPulledJobs([...page1, ...rest.flat()])
+          } else {
+            cache2.setPulledJobs(page1)
+          }
+        } catch { /* silent — jobs page will load normally */ }
+      })()
+    }
 
     // Live stats refresh every 60 s — keeps Openings/Applied counts current
     const statsInterval = setInterval(async () => {
