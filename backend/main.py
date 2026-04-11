@@ -110,15 +110,17 @@ async def _send_job_digests(cutoff_minutes: int = 65) -> None:
 
 async def _auto_search_loop() -> None:
     """
-    Hourly cron: one session per user (all their roles in one run).
-    This avoids pool saturation and duplicate-session race conditions.
-    Saves globally to job_listings and fans out new jobs to all matching users.
+    Background cron: runs each user's search sequentially so the 2-worker
+    scraper pool is never saturated.  One session per user; run_phase1_search
+    handles all their roles in one pass.  Sends a digest when the full cycle
+    completes.
     """
     _log = logging.getLogger(__name__ + ".autosearch")
     _log.info("[AutoSearch] loop started — first run in 1 minute")
     await asyncio.sleep(60)
     while True:
-        _log.info("[AutoSearch] running 1-hour search cycle")
+        _log.info("[AutoSearch] running search cycle")
+        cycle_found = 0
         try:
             from .database import AsyncSessionLocal
             from .models import SearchSession, UserProfile
@@ -140,8 +142,7 @@ async def _auto_search_loop() -> None:
                 res      = await db.execute(select(UserProfile))
                 profiles = res.scalars().all()
 
-            # One session per user — run_phase1_search handles all their roles
-            # sequentially, so the scraper pool (2 workers) never gets saturated.
+            # Collect unique users with at least one role
             seen_users: set[str] = set()
             active_profiles = []
             for profile in profiles:
@@ -152,7 +153,11 @@ async def _auto_search_loop() -> None:
 
             _log.info("[AutoSearch] %d users with active roles to process", len(active_profiles))
 
-            total_triggered = 0
+            # ── Process users SEQUENTIALLY so each user gets the full pool ────
+            # With 2 SCRAPER_WORKERS, running all users concurrently caused the
+            # second role per user to time out waiting for a free worker.
+            # Sequential processing: user N's pool slot is free before user N+1
+            # submits, so no queue wait and every title completes cleanly.
             for profile in active_profiles:
                 uid = str(profile.id)
                 if uid in _RUNNING_PROFILES:
@@ -162,21 +167,31 @@ async def _auto_search_loop() -> None:
                 async with AsyncSessionLocal() as db:
                     db.add(SearchSession(id=sid, status="running", user_id=uid))
                     await db.commit()
-                asyncio.create_task(run_phase1_search(profile, sid, include_workday=True))
-                total_triggered += 1
-                _log.info("[AutoSearch] triggered session=%s user=%s roles=%s",
+                _log.info("[AutoSearch] session=%s user=%s roles=%s — starting",
                           sid, uid, getattr(profile, "desired_roles", []))
+                await run_phase1_search(profile, sid, include_workday=True)
+                # Read back how many jobs this session found
+                async with AsyncSessionLocal() as db:
+                    from sqlalchemy import select as _sel
+                    r = await db.execute(_sel(SearchSession).where(SearchSession.id == sid))
+                    s = r.scalar_one_or_none()
+                    found = s.jobs_found if s else 0
+                cycle_found += found
+                _log.info("[AutoSearch] session=%s done — jobs_found=%d cycle_total=%d",
+                          sid, found, cycle_found)
 
-            _log.info("[AutoSearch] cycle complete — %d sessions triggered", total_triggered)
+            _log.info("[AutoSearch] cycle complete — cycle_found=%d", cycle_found)
 
-            # Send digest emails for jobs pulled in this cycle
-            if total_triggered > 0:
-                # Wait for searches to finish (up to 20 min) then email
-                await asyncio.sleep(20 * 60)
-                await _send_job_digests(cutoff_minutes=85)
         except Exception as exc:
             _log.exception("[AutoSearch] error: %s", exc)
-        await asyncio.sleep(60 * 60)
+
+        # Send digest now that all scrapes for this cycle are done
+        try:
+            await _send_job_digests(cutoff_minutes=130)  # cover full cycle window
+        except Exception as exc:
+            _log.exception("[AutoSearch] digest error: %s", exc)
+
+        await asyncio.sleep(60 * 60)  # next cycle in 1 hour
 
 
 # ── 5-hour job digest email loop ─────────────────────────────────────────────
