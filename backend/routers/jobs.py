@@ -1,5 +1,10 @@
 """
-/api/jobs — Read pulled jobs, update status.
+/api/jobs — Read/write jobs via the global job_listings + user_job_states tables.
+
+All job data is stored once globally (deduped by URL in job_listings).
+Per-user state (new / saved / applied / hidden) lives in user_job_states.
+The API response shape is identical to the old pulled_jobs schema so the
+frontend requires zero changes.
 """
 from __future__ import annotations
 
@@ -7,15 +12,16 @@ import asyncio
 import logging
 import re
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import case, delete, select, update, func as sqlfunc
+from sqlalchemy import case, delete, select, update, func as sqlfunc, text
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..models import PulledJob, User
+from ..models import JobListing, UserJobState, PreferenceCache, User, UserProfile
 from ..schemas import PulledJobResponse
 
 log = logging.getLogger(__name__)
@@ -25,10 +31,7 @@ router = APIRouter()
 # ── Full description fetcher ──────────────────────────────────────────────────
 
 def _sync_fetch_description(url: str, site: str) -> str | None:
-    """
-    Synchronously fetch a full job description from the source URL.
-    Tried in executor so it doesn't block the event loop.
-    """
+    """Synchronously fetch a full job description from the source URL."""
     try:
         import requests
         from bs4 import BeautifulSoup
@@ -43,7 +46,6 @@ def _sync_fetch_description(url: str, site: str) -> str | None:
             "Accept-Language": "en-US,en;q=0.9",
         }
 
-        # ── LinkedIn: guest jobs API returns full description HTML ─────────
         if "linkedin.com" in url:
             m = re.search(r"/(?:view|jobs)/(\d+)", url)
             if m:
@@ -59,7 +61,6 @@ def _sync_fetch_description(url: str, site: str) -> str | None:
                     if div:
                         return markdownify(str(div), heading_style="ATX").strip()
 
-        # ── Indeed: parse job description section ──────────────────────────
         if "indeed.com" in url:
             r = requests.get(url, headers=headers, timeout=12)
             if r.ok:
@@ -72,12 +73,10 @@ def _sync_fetch_description(url: str, site: str) -> str | None:
                 if div:
                     return markdownify(str(div), heading_style="ATX").strip()
 
-        # ── Generic fallback: fetch URL and pick the largest text block ────
         r = requests.get(url, headers=headers, timeout=12)
         if not r.ok:
             return None
         soup = BeautifulSoup(r.text, "html.parser")
-        # Try common job description containers
         for selector in [
             lambda s: s.find(id=re.compile(r"job.?desc", re.I)),
             lambda s: s.find(class_=re.compile(r"job.?desc|job.?detail|posting.?body", re.I)),
@@ -100,15 +99,10 @@ async def get_full_description(
     current_user : User         = Depends(get_current_user),
     db           : AsyncSession = Depends(get_db),
 ) -> dict:
-    """
-    Fetch the full job description from the source URL on demand.
-    If a longer version is found it is saved back to the DB.
-    """
+    """Fetch the full job description from source URL; save back to job_listings."""
     from fastapi import HTTPException
 
-    result = await db.execute(
-        select(PulledJob).where(PulledJob.id == job_id)
-    )
+    result = await db.execute(select(JobListing).where(JobListing.id == job_id))
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(404, "Job not found")
@@ -123,8 +117,8 @@ async def get_full_description(
 
     if fetched:
         await db.execute(
-            update(PulledJob)
-            .where(PulledJob.id == job_id)
+            update(JobListing)
+            .where(JobListing.id == job_id)
             .values(description=fetched)
         )
         await db.commit()
@@ -143,35 +137,87 @@ async def list_pulled_jobs(
     offset        : int           = Query(0),
     current_user  : User          = Depends(get_current_user),
     db            : AsyncSession  = Depends(get_db),
-) -> list[PulledJob]:
-    profile_id = uuid.UUID(current_user.id)
+) -> list[dict]:
+    """
+    Return jobs for the current user, joined from job_listings + user_job_states.
+    Response shape matches PulledJobResponse exactly (frontend unchanged).
+    """
+    user_id = current_user.id
+
     q = (
-        select(PulledJob)
-        .where(PulledJob.user_profile_id == profile_id)
+        select(
+            JobListing.id,
+            JobListing.title,
+            JobListing.company,
+            JobListing.location,
+            JobListing.country,
+            JobListing.url,
+            JobListing.description,
+            JobListing.job_type,
+            JobListing.salary_min,
+            JobListing.salary_max,
+            JobListing.salary_currency,
+            JobListing.salary_text,
+            JobListing.source,
+            JobListing.site,
+            JobListing.posted_at,
+            JobListing.skills,
+            UserJobState.status,
+            UserJobState.created_at.label("pulled_at"),
+            UserJobState.id.label("state_id"),
+        )
+        .join(UserJobState, UserJobState.job_id == JobListing.id)
+        .where(UserJobState.user_id == user_id)
         .order_by(
-            # Site priority: linkedin=0, indeed=1, glassdoor=2, zip_recruiter=3, workday=99, rest=4
             case(
-                (PulledJob.site == 'linkedin',      0),
-                (PulledJob.site == 'indeed',        1),
-                (PulledJob.site == 'glassdoor',     2),
-                (PulledJob.site == 'zip_recruiter', 3),
-                (PulledJob.site == 'workday',       99),
+                (JobListing.site == "linkedin",      0),
+                (JobListing.site == "indeed",        1),
+                (JobListing.site == "glassdoor",     2),
+                (JobListing.site == "zip_recruiter", 3),
+                (JobListing.site == "workday",       99),
                 else_=4,
             ).asc(),
-            PulledJob.pulled_at.desc(),
+            UserJobState.created_at.desc(),
         )
     )
+
     if status_filter:
-        q = q.where(PulledJob.status == status_filter)
+        q = q.where(UserJobState.status == status_filter)
     if source_filter:
-        q = q.where(PulledJob.source == source_filter)
+        q = q.where(JobListing.source == source_filter)
     if search:
         like = f"%{search}%"
-        q = q.where(PulledJob.title.ilike(like) | PulledJob.company.ilike(like))
+        q = q.where(JobListing.title.ilike(like) | JobListing.company.ilike(like))
     q = q.limit(limit).offset(offset)
 
-    result = await db.execute(q)
-    return result.scalars().all()
+    rows = (await db.execute(q)).mappings().all()
+
+    # Build response dicts — shape must match PulledJobResponse
+    return [
+        {
+            "id"                : row["id"],
+            "user_profile_id"   : uuid.UUID(user_id) if user_id else None,
+            "search_session_id" : "",
+            "title"             : row["title"] or "",
+            "company"           : row["company"] or "",
+            "location"          : row["location"] or "",
+            "country"           : row["country"] or "",
+            "url"               : row["url"] or "",
+            "description"       : row["description"] or "",
+            "job_type"          : row["job_type"] or "",
+            "salary_min"        : row["salary_min"],
+            "salary_max"        : row["salary_max"],
+            "salary_currency"   : row["salary_currency"] or "USD",
+            "salary_text"       : row["salary_text"] or "",
+            "source"            : row["source"] or "",
+            "site"              : row["site"] or "",
+            "posted_at"         : row["posted_at"] or "",
+            "skills"            : row["skills"] or [],
+            "status"            : row["status"] or "new",
+            "pulled_at"         : row["pulled_at"] or datetime.now(timezone.utc),
+        }
+        for row in rows
+    ]
 
 
 @router.patch("/{job_id}/status")
@@ -186,12 +232,25 @@ async def set_job_status(
         from fastapi import HTTPException
         raise HTTPException(400, f"status must be one of {valid}")
 
-    await db.execute(
-        update(PulledJob)
-        .where(PulledJob.id == job_id)
-        .values(status=status)
+    result = await db.execute(
+        update(UserJobState)
+        .where(UserJobState.job_id == job_id, UserJobState.user_id == current_user.id)
+        .values(status=status, updated_at=datetime.now(timezone.utc))
     )
     await db.commit()
+
+    # Fallback: if no user_job_states row existed yet (old data), create one
+    if result.rowcount == 0:
+        jl = (await db.execute(select(JobListing).where(JobListing.id == job_id))).scalar_one_or_none()
+        if jl:
+            db.add(UserJobState(
+                id=uuid.uuid4(),
+                user_id=current_user.id,
+                job_id=job_id,
+                status=status,
+            ))
+            await db.commit()
+
     return {"ok": True, "status": status}
 
 
@@ -200,14 +259,42 @@ async def clear_jobs(
     current_user : User          = Depends(get_current_user),
     db           : AsyncSession  = Depends(get_db),
 ) -> dict:
-    """Delete all pulled jobs for the current user."""
-    profile_id = uuid.UUID(current_user.id)
-    result = await db.execute(
-        delete(PulledJob).where(PulledJob.user_profile_id == profile_id)
+    """
+    Remove all of this user's job states and expire their preference_cache entries
+    so the next search performs a full 30-day pull.
+    """
+    user_id = current_user.id
+
+    # Count before delete
+    count_res = await db.execute(
+        select(sqlfunc.count()).select_from(UserJobState).where(UserJobState.user_id == user_id)
     )
+    deleted = count_res.scalar() or 0
+
+    # Delete user_job_states
+    await db.execute(delete(UserJobState).where(UserJobState.user_id == user_id))
+
+    # Expire preference_cache for this user's role+location combos
+    # so next trigger uses hours_old=720 (fresh 30-day pull)
+    profile_res = await db.execute(
+        select(UserProfile).where(UserProfile.id == uuid.UUID(user_id))
+    )
+    profile = profile_res.scalar_one_or_none()
+    if profile:
+        roles     = [r.lower().strip() for r in (profile.desired_roles or [])]
+        countries = [c.lower().strip() for c in (profile.preferred_countries or [])]
+        if not countries:
+            countries = ["usa"]
+        for role in roles:
+            for country in countries:
+                await db.execute(
+                    update(PreferenceCache)
+                    .where(PreferenceCache.role_tag == role, PreferenceCache.location_tag == country)
+                    .values(last_pulled_at=None)   # NULL = "never pulled" → forces 30d on next run
+                )
+
     await db.commit()
-    deleted = result.rowcount
-    log.info("[Jobs] Cleared %d jobs for user=%s", deleted, current_user.id)
+    log.info("[Jobs] Cleared %d job states for user=%s + expired preference_cache", deleted, user_id)
     return {"deleted": deleted}
 
 
@@ -216,20 +303,20 @@ async def job_stats(
     current_user : User          = Depends(get_current_user),
     db           : AsyncSession  = Depends(get_db),
 ) -> dict:
-    profile_id = uuid.UUID(current_user.id)
+    user_id = current_user.id
 
-    # Use SQL aggregates — never load all rows into memory
     counts_q = (
-        select(PulledJob.status, sqlfunc.count().label("cnt"))
-        .where(PulledJob.user_profile_id == profile_id)
-        .group_by(PulledJob.status)
+        select(UserJobState.status, sqlfunc.count().label("cnt"))
+        .where(UserJobState.user_id == user_id)
+        .group_by(UserJobState.status)
     )
     counts_res = await db.execute(counts_q)
     status_map: dict[str, int] = {row.status: row.cnt for row in counts_res}
 
     sources_q = (
-        select(PulledJob.source)
-        .where(PulledJob.user_profile_id == profile_id)
+        select(JobListing.source)
+        .join(UserJobState, UserJobState.job_id == JobListing.id)
+        .where(UserJobState.user_id == user_id)
         .distinct()
     )
     sources_res = await db.execute(sources_q)

@@ -349,4 +349,9 @@ async def run_schema_migration() -> None:
               )
         """))
 
+        # ── preference_cache: idempotent columns ─────────────────────────────
+        await conn.execute(text(
+            "ALTER TABLE preference_cache ADD COLUMN IF NOT EXISTS total_jobs INTEGER DEFAULT 0"
+        ))
+
     log.info("[Migration] v2 schema migration complete")

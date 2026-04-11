@@ -519,6 +519,29 @@ class PasswordResetToken(Base):
 # TailorJobRecord — persists card-based tailor jobs for 2 days
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# PreferenceCache  — global (role, location) pull schedule tracker
+# ---------------------------------------------------------------------------
+
+class PreferenceCache(Base):
+    """
+    One row per unique (role_tag, location_tag) combination.
+    Tracks when this combination was last scraped globally so we can
+    decide: first pull → 720h (30 days), subsequent → 72h (3 days).
+    """
+    __tablename__ = "preference_cache"
+    __table_args__ = (
+        UniqueConstraint("role_tag", "location_tag", name="uq_pref_cache"),
+    )
+
+    id             = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    role_tag       = Column(String(200), nullable=False, index=True)   # normalised title, e.g. "ai engineer"
+    location_tag   = Column(String(200), nullable=False, index=True)   # normalised country, e.g. "usa"
+    last_pulled_at = Column(DateTime(timezone=True), nullable=True)    # NULL = never pulled
+    total_jobs     = Column(Integer, default=0)                        # global pool size for this pair
+    created_at     = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class TailorJobRecord(Base):
     __tablename__ = "tailor_jobs"
 

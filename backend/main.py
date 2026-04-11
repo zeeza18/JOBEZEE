@@ -43,21 +43,25 @@ os.makedirs(os.path.join(_cfg.UPLOAD_DIR, "resumes"), exist_ok=True)
 # ── 3-hour auto-search background loop ───────────────────────────────────────
 
 async def _auto_search_loop() -> None:
-    """Trigger Phase 1 search for every user with roles set — every 1 hour."""
+    """
+    Hourly cron: iterate every unique (role, country) pair across ALL users.
+    Uses preference_cache to decide hours_old: 720h (30d) for new pairs, 72h otherwise.
+    Saves globally to job_listings and fans out new jobs to all matching users.
+    """
     _log = logging.getLogger(__name__ + ".autosearch")
     _log.info("[AutoSearch] loop started — first run in 5 minutes")
-    await asyncio.sleep(5 * 60)   # short delay so DB is ready before first run
+    await asyncio.sleep(5 * 60)
     while True:
         _log.info("[AutoSearch] running 1-hour search cycle")
         try:
             from .database import AsyncSessionLocal
-            from .models import SearchSession, UserProfile
-            from .services.phase1_service import _RUNNING_PROFILES, run_phase1_search
+            from .models import SearchSession, UserProfile, PreferenceCache
+            from .services.phase1_service import _RUNNING_PROFILES, run_phase1_search, build_preferences, _normalise_countries
             from sqlalchemy import select, update as sa_update
             from datetime import datetime, timezone, timedelta
 
             async with AsyncSessionLocal() as db:
-                # Kill zombie sessions older than 30 min so they don't block cron
+                # Kill zombie sessions
                 zombie_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
                 await db.execute(
                     sa_update(SearchSession)
@@ -67,49 +71,64 @@ async def _auto_search_loop() -> None:
                 )
                 await db.commit()
 
-                # Find all users who have at least one desired role
-                res = await db.execute(select(UserProfile))
+                # Collect unique (role, country) pairs from all active profiles
+                res      = await db.execute(select(UserProfile))
                 profiles = res.scalars().all()
-                count = 0
-                for profile in profiles:
-                    if not getattr(profile, "desired_roles", None):
-                        continue
-                    if str(profile.id) in _RUNNING_PROFILES:
-                        _log.info("[AutoSearch] skipping user=%s — already running", profile.id)
-                        continue
-                    # Check no running session in DB either
-                    running = await db.execute(
-                        select(SearchSession)
-                        .where(SearchSession.user_id == str(profile.id))
-                        .where(SearchSession.status == "running")
-                    )
-                    if running.scalar_one_or_none():
-                        continue
-                    sid = str(_uuid.uuid4())[:8].upper()
-                    db.add(SearchSession(id=sid, status="running", user_id=str(profile.id)))
+
+            # Deduplicate pairs — one scrape serves all users with same prefs
+            unique_pairs: set[tuple[str, str]] = set()
+            pair_to_profile: dict[tuple[str, str], UserProfile] = {}
+            for profile in profiles:
+                roles = getattr(profile, "desired_roles", None) or []
+                if not roles:
+                    continue
+                try:
+                    prefs = build_preferences(profile)
+                    countries = prefs.effective_countries() or ["USA"]
+                except Exception:
+                    countries = ["USA"]
+                for role in roles:
+                    for country in countries:
+                        pair = (role.lower().strip(), country.lower().strip())
+                        unique_pairs.add(pair)
+                        if pair not in pair_to_profile:
+                            pair_to_profile[pair] = profile   # use first profile as search anchor
+
+            _log.info("[AutoSearch] %d unique (role, country) pairs to process", len(unique_pairs))
+
+            total_triggered = 0
+            for (role_tag, loc_tag), anchor_profile in pair_to_profile.items():
+                if str(anchor_profile.id) in _RUNNING_PROFILES:
+                    continue
+                sid = str(_uuid.uuid4())[:8].upper()
+                async with AsyncSessionLocal() as db:
+                    db.add(SearchSession(id=sid, status="running", user_id=str(anchor_profile.id)))
                     await db.commit()
-                    asyncio.create_task(run_phase1_search(profile, sid, include_workday=True))
-                    count += 1
-                    _log.info("[AutoSearch] triggered session=%s user=%s roles=%s",
-                              sid, profile.id, getattr(profile, "desired_roles", []))
-            _log.info("[AutoSearch] cycle complete — %d searches triggered", count)
+                asyncio.create_task(run_phase1_search(anchor_profile, sid, include_workday=True))
+                total_triggered += 1
+                _log.info("[AutoSearch] triggered session=%s role=%s loc=%s", sid, role_tag, loc_tag)
+
+            _log.info("[AutoSearch] cycle complete — %d sessions triggered", total_triggered)
         except Exception as exc:
             _log.exception("[AutoSearch] error: %s", exc)
-        await asyncio.sleep(60 * 60)   # 1 hour between cycles
+        await asyncio.sleep(60 * 60)
 
 
 # ── 5-hour job digest email loop ─────────────────────────────────────────────
 
 async def _digest_email_loop() -> None:
-    """Every 5 hours, accumulate all jobs pulled in the last 5 hours and send one digest email per user."""
+    """
+    Every 5 hours: find users who got new jobs in the last 5 hours and send a digest.
+    Queries user_job_states (new table) for recency, joins job_listings for content.
+    """
     _log = logging.getLogger(__name__ + ".digestemail")
     _log.info("[DigestEmail] loop started — first digest in 5 hours")
-    await asyncio.sleep(5 * 60 * 60)   # first digest after 5 hours
+    await asyncio.sleep(5 * 60 * 60)
     while True:
         _log.info("[DigestEmail] running 5-hour digest cycle")
         try:
             from .database import AsyncSessionLocal
-            from .models import UserProfile, PulledJob
+            from .models import UserProfile, UserJobState, JobListing
             from .services.email_service import send_new_jobs_email
             from .config import get_settings
             from sqlalchemy import select
@@ -119,20 +138,23 @@ async def _digest_email_loop() -> None:
             cutoff = datetime.now(timezone.utc) - timedelta(hours=5)
 
             async with AsyncSessionLocal() as db:
-                res = await db.execute(select(UserProfile))
+                res      = await db.execute(select(UserProfile))
                 profiles = res.scalars().all()
 
                 for profile in profiles:
                     if not getattr(profile, "desired_roles", None):
                         continue
-                    if not getattr(profile, "email", ""):
+                    email = getattr(profile, "email", "")
+                    if not email:
                         continue
 
+                    # Jobs added to this user's state in the last 5 hours
                     jobs_res = await db.execute(
-                        select(PulledJob)
-                        .where(PulledJob.user_profile_id == profile.id)
-                        .where(PulledJob.pulled_at >= cutoff)
-                        .order_by(PulledJob.pulled_at.desc())
+                        select(JobListing)
+                        .join(UserJobState, UserJobState.job_id == JobListing.id)
+                        .where(UserJobState.user_id == str(profile.id))
+                        .where(UserJobState.created_at >= cutoff)
+                        .order_by(UserJobState.created_at.desc())
                         .limit(50)
                     )
                     new_jobs = jobs_res.scalars().all()
@@ -142,20 +164,20 @@ async def _digest_email_loop() -> None:
 
                     try:
                         await send_new_jobs_email(
-                            to_email    = profile.email,
-                            name        = getattr(profile, "full_name", "") or profile.email,
+                            to_email    = email,
+                            name        = getattr(profile, "full_name", "") or email,
                             jobs        = new_jobs,
                             total_count = len(new_jobs),
                             app_url     = f"{_cfg.FRONTEND_URL}/app/search",
                         )
-                        _log.info("[DigestEmail] sent → %s (%d jobs)", profile.email, len(new_jobs))
+                        _log.info("[DigestEmail] sent → %s (%d jobs)", email, len(new_jobs))
                     except Exception as _exc:
-                        _log.warning("[DigestEmail] failed for %s: %s", profile.email, _exc)
+                        _log.warning("[DigestEmail] failed for %s: %s", email, _exc)
 
         except Exception as exc:
             _log.exception("[DigestEmail] error: %s", exc)
 
-        await asyncio.sleep(5 * 60 * 60)   # repeat every 5 hours
+        await asyncio.sleep(5 * 60 * 60)
 
 
 # ── 30-minute auto email scan background loop ─────────────────────────────────
@@ -169,7 +191,7 @@ async def _auto_email_scan_loop() -> None:
         _log.info("[EmailScan] running 30-min email scan cycle")
         try:
             from .database import AsyncSessionLocal
-            from .models import PulledJob, UserProfile
+            from .models import UserProfile
             from .routers.applied_jobs import (
                 _imap_search, _detect_status_from_text, _gpt_detect_status,
                 sync_linkedin_emails_for_user,
@@ -180,20 +202,8 @@ async def _auto_email_scan_loop() -> None:
             from .config import get_settings as _cfg
             if _cfg().GMAIL_USER and _cfg().GMAIL_APP_PASSWORD:
                 async with AsyncSessionLocal() as db:
-                    # Sync for any user that has at least one applied LinkedIn job
-                    res = await db.execute(
-                        select(UserProfile.id).distinct()
-                        .join(PulledJob, PulledJob.user_profile_id == UserProfile.id)
-                        .where(PulledJob.site == "linkedin")
-                        .limit(50)
-                    )
+                    res = await db.execute(select(UserProfile.id).limit(50))
                     user_ids = [str(row[0]) for row in res.all()]
-
-                # Also sync for all users (catches jobs applied manually outside the bot)
-                if not user_ids:
-                    async with AsyncSessionLocal() as db:
-                        res = await db.execute(select(UserProfile.id).limit(50))
-                        user_ids = [str(row[0]) for row in res.all()]
 
                 for uid in user_ids:
                     try:
@@ -204,15 +214,19 @@ async def _auto_email_scan_loop() -> None:
                         _log.error("[EmailScan] LinkedIn sync error for user %s: %s", uid, ue)
 
             # Step 2: update statuses of applied jobs via keyword/GPT scan
+            from .models import UserJobState, JobListing
             async with AsyncSessionLocal() as db:
                 res = await db.execute(
-                    select(PulledJob).where(PulledJob.status == "applied").limit(100)
+                    select(UserJobState, JobListing)
+                    .join(JobListing, JobListing.id == UserJobState.job_id)
+                    .where(UserJobState.status == "applied")
+                    .limit(100)
                 )
-                jobs = res.scalars().all()
+                rows = res.all()
 
                 loop = asyncio.get_event_loop()
                 updates = 0
-                for job in jobs:
+                for state, job in rows:
                     query = f"{job.company} {job.title}" if job.company else (job.title or "")
                     if not query.strip():
                         continue
@@ -224,8 +238,8 @@ async def _auto_email_scan_loop() -> None:
                     new_status = _detect_status_from_text(combined_text)
                     if not new_status:
                         new_status = await _gpt_detect_status(combined_text)
-                    if new_status and new_status != job.status:
-                        job.status = new_status
+                    if new_status and new_status != state.status:
+                        state.status = new_status
                         updates += 1
 
                 if updates:

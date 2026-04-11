@@ -90,7 +90,7 @@ from concurrent.futures import ProcessPoolExecutor as _PPE
 # no inherited file descriptors, so the parent's pool is never touched.
 _spawn_ctx   = _mp.get_context("spawn")
 _SCRAPER_POOL = _PPE(
-    max_workers=int(_os.getenv("SCRAPER_WORKERS", "3")),
+    max_workers=int(_os.getenv("SCRAPER_WORKERS", "2")),   # 2 = safe default for 512MB Render
     mp_context=_spawn_ctx,
 )
 
@@ -511,6 +511,195 @@ async def _save_jobs(
     return inserted
 
 
+async def _get_preference_cache(role_tag: str, location_tag: str):
+    """Return PreferenceCache row for (role_tag, location_tag) or None."""
+    from ..database import AsyncSessionLocal
+    from ..models import PreferenceCache
+    from sqlalchemy import select
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(PreferenceCache).where(
+                PreferenceCache.role_tag == role_tag,
+                PreferenceCache.location_tag == location_tag,
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+async def _save_jobs_v2(
+    jobs         : list[Any],
+    role_tag     : str,
+    location_tag : str,
+    session_id   : str,
+    hours_old    : int = 72,
+) -> int:
+    """
+    Global-pool version of _save_jobs.
+
+    Writes new job records to job_listings (deduped by URL globally, not per-user).
+    Fans out a user_job_states row (status='new') to EVERY user whose preferences
+    include this (role_tag, location_tag) pair.  Users who already have a state row
+    for a job are untouched (their saved/applied/hidden status is preserved).
+
+    Updates preference_cache.last_pulled_at after a successful save.
+    """
+    from ..database import AsyncSessionLocal
+    from ..models import JobListing, UserJobState, PreferenceCache, UserProfile
+    from sqlalchemy import select
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from datetime import datetime, timezone, timedelta
+
+    BATCH_SIZE  = 10
+    stale_limit = datetime.now(timezone.utc) - timedelta(hours=hours_old)
+
+    async with AsyncSessionLocal() as db:
+        # ── 1. Load global URL→id map ────────────────────────────────────────
+        existing_rows = (await db.execute(select(JobListing.url, JobListing.id))).fetchall()
+        url_to_id: dict[str, uuid.UUID] = {
+            row.url: row.id for row in existing_rows if row.url
+        }
+
+        inserted = 0
+        skipped  = 0
+        new_job_ids: list[uuid.UUID] = []
+
+        # ── 2. Insert genuinely new jobs into job_listings ───────────────────
+        for rec in jobs:
+            # Date filter
+            raw_posted = getattr(rec, "date_posted", None)
+            if raw_posted:
+                try:
+                    if isinstance(raw_posted, str):
+                        from dateutil.parser import parse as _parse_date
+                        posted_dt = _parse_date(raw_posted)
+                        if posted_dt.tzinfo is None:
+                            posted_dt = posted_dt.replace(tzinfo=timezone.utc)
+                    else:
+                        posted_dt = raw_posted
+                        if hasattr(posted_dt, "tzinfo") and posted_dt.tzinfo is None:
+                            posted_dt = posted_dt.replace(tzinfo=timezone.utc)
+                    if posted_dt < stale_limit:
+                        skipped += 1
+                        continue
+                except Exception:
+                    pass
+
+            url = (getattr(rec, "job_url", "") or getattr(rec, "url", "") or "").strip()[:1000]
+            if not url:
+                skipped += 1
+                continue
+
+            if url in url_to_id:
+                # Job already globally known — still fan out to users who haven't seen it
+                new_job_ids.append(url_to_id[url])
+                skipped += 1
+                continue
+
+            # Build salary text
+            smin = getattr(rec, "min_amount", None) or getattr(rec, "salary_min", None)
+            smax = getattr(rec, "max_amount", None) or getattr(rec, "salary_max", None)
+            cur  = getattr(rec, "currency", "USD") or "USD"
+            if smin and smax:
+                salary_text = f"{cur} {int(smin):,} – {int(smax):,}"
+            elif smin:
+                salary_text = f"{cur} {int(smin):,}+"
+            else:
+                salary_text = ""
+
+            job_id = uuid.uuid4()
+            db.add(JobListing(
+                id             = job_id,
+                title          = (getattr(rec, "title",       "") or "")[:300],
+                company        = (getattr(rec, "company",     "") or "")[:200],
+                location       = (getattr(rec, "location",    "") or "")[:200],
+                country        = (getattr(rec, "country",     "") or "")[:100],
+                url            = url,
+                description    = getattr(rec, "description",  "") or "",
+                job_type       = str(getattr(rec, "job_type", "") or ""),
+                salary_min     = smin,
+                salary_max     = smax,
+                salary_currency= cur[:10],
+                salary_text    = salary_text[:200],
+                source         = (getattr(rec, "source", "") or "jobspy")[:100],
+                site           = (getattr(rec, "site",   "") or "")[:100],
+                posted_at      = str(getattr(rec, "date_posted", "") or ""),
+                skills         = [],
+            ))
+            url_to_id[url] = job_id
+            new_job_ids.append(job_id)
+            inserted += 1
+
+            if inserted % BATCH_SIZE == 0:
+                await db.commit()
+                await _update_session(session_id, "running", inserted, mark_finished=False)
+
+        await db.commit()
+        log.info("[Phase1][v2] inserted=%d skipped=%d role=%s loc=%s",
+                 inserted, skipped, role_tag, location_tag)
+
+        if not new_job_ids:
+            return inserted
+
+        # ── 3. Find all users whose preferences match (role_tag, location_tag) ─
+        all_profiles = (await db.execute(select(UserProfile))).scalars().all()
+        matching_user_ids: list[str] = []
+        for p in all_profiles:
+            roles     = [r.lower().strip() for r in (p.desired_roles or [])]
+            countries = [c.lower().strip() for c in (p.preferred_countries or [])]
+            locations = [l.lower().strip() for l in (p.preferred_locations or [])]
+            all_locs  = countries + locations
+            if role_tag in roles and (location_tag in all_locs or not all_locs):
+                matching_user_ids.append(str(p.id))
+
+        log.info("[Phase1][v2] fanning out %d jobs → %d users",
+                 len(new_job_ids), len(matching_user_ids))
+
+        # ── 4. Bulk fan-out via INSERT ... ON CONFLICT DO NOTHING ─────────────
+        if matching_user_ids:
+            fan_rows = [
+                {
+                    "id"         : str(uuid.uuid4()),
+                    "user_id"    : uid,
+                    "job_id"     : str(jid),
+                    "status"     : "new",
+                    "created_at" : datetime.now(timezone.utc),
+                    "updated_at" : datetime.now(timezone.utc),
+                }
+                for uid in matching_user_ids
+                for jid in new_job_ids
+            ]
+            # Batch in chunks to avoid huge parameter lists
+            CHUNK = 500
+            for i in range(0, len(fan_rows), CHUNK):
+                await db.execute(
+                    pg_insert(UserJobState)
+                    .values(fan_rows[i:i + CHUNK])
+                    .on_conflict_do_nothing(index_elements=["user_id", "job_id"])
+                )
+            await db.commit()
+
+        # ── 5. Upsert preference_cache ────────────────────────────────────────
+        await db.execute(
+            pg_insert(PreferenceCache)
+            .values(
+                role_tag=role_tag,
+                location_tag=location_tag,
+                last_pulled_at=datetime.now(timezone.utc),
+                total_jobs=len(url_to_id),
+            )
+            .on_conflict_do_update(
+                index_elements=["role_tag", "location_tag"],
+                set_={
+                    "last_pulled_at": datetime.now(timezone.utc),
+                    "total_jobs":     len(url_to_id),
+                },
+            )
+        )
+        await db.commit()
+
+    return inserted
+
+
 async def _update_session(
     session_id   : str,
     status       : str,
@@ -791,13 +980,31 @@ async def run_phase1_search(
                  prefs.job_titles, prefs.effective_locations(), prefs.remote_ok)
 
         # ── CHECKPOINT 2: build jobspy kwargs ───────────────────────────────
-        # search_boards() now uses countries= to auto-select boards + cities
         target_countries = prefs.effective_countries() or ["USA"]
+
+        # ── Cache-aware hours_old ─────────────────────────────────────────────
+        # If ANY (role, country) pair has never been pulled → use 720h (30 days).
+        # If ALL pairs were pulled before → use 72h (3 days, incremental).
+        all_cached = True
+        from datetime import timedelta as _td
+        _one_hour_ago = datetime.now(timezone.utc) - _td(hours=1)
+        for _title in prefs.job_titles:
+            for _country in target_countries:
+                _cache = await _get_preference_cache(_title.lower().strip(), _country.lower().strip())
+                if _cache is None or _cache.last_pulled_at is None:
+                    all_cached = False
+                    break
+            if not all_cached:
+                break
+
+        effective_hours_old = 72 if all_cached else 720
+        log.info("[Phase1][2] cache_status=all_cached=%s → hours_old=%d", all_cached, effective_hours_old)
+
         kwargs = {
             "queries":          prefs.job_titles,
             "countries":        target_countries,
-            "results_per_site": prefs.results_per_site or 50,
-            "hours_old":        prefs.hours_old or 72,
+            "results_per_site": min(prefs.results_per_site or 50, 100),
+            "hours_old":        effective_hours_old,
         }
         log.info("[Phase1][2] jobspy kwargs = %s", kwargs)
 
@@ -997,12 +1204,18 @@ async def run_phase1_search(
                 t_idx, len(prefs.job_titles), len(title_unique), len(title_new),
             )
 
-            inserted = await _save_jobs(title_new, profile_id, session_id, prefs.hours_old)
-            total_inserted += inserted
+            # Save to global pool + fan out to all matching users
+            _role_tag = title.lower().strip()
+            _loc_tags = sorted(c.lower().strip() for c in target_countries)
+            for _loc_tag in _loc_tags:
+                inserted = await _save_jobs_v2(
+                    title_new, _role_tag, _loc_tag, session_id, effective_hours_old
+                )
+                total_inserted += inserted
             await _update_session(session_id, "running", total_inserted, mark_finished=False)
             log.info(
                 "[Phase1][3] Title %d/%d saved — +%d, running total=%d (visible on frontend)",
-                t_idx, len(prefs.job_titles), inserted, total_inserted,
+                t_idx, len(prefs.job_titles), total_inserted // max(t_idx, 1), total_inserted,
             )
 
             saved_urls.update(
@@ -1107,7 +1320,11 @@ async def run_phase1_search(
                 wd_unique = deduplicate(wd_new)
                 log.info("[Phase1][4] After internal dedup: %d unique Workday jobs — saving", len(wd_unique))
 
-                wd_inserted = await _save_jobs(wd_unique, profile_id, session_id, prefs.hours_old)
+                wd_inserted = 0
+                for _wloc in sorted(c.lower().strip() for c in target_countries):
+                    wd_inserted += await _save_jobs_v2(
+                        wd_unique, "workday", _wloc, session_id, effective_hours_old
+                    )
                 total_inserted += wd_inserted
                 await _update_session(session_id, "running", total_inserted, mark_finished=False)
                 log.info("[Phase1][4] Workday phase complete — %d additional jobs", wd_inserted)
@@ -1166,7 +1383,11 @@ async def run_phase1_search(
                 gh_unique = deduplicate(gh_new)
                 log.info("[Phase1][5] Greenhouse after dedup: %d new jobs — saving", len(gh_unique))
 
-                gh_inserted = await _save_jobs(gh_unique, profile_id, session_id, prefs.hours_old)
+                gh_inserted = 0
+                for _gloc in sorted(c.lower().strip() for c in target_countries):
+                    gh_inserted += await _save_jobs_v2(
+                        gh_unique, "greenhouse", _gloc, session_id, effective_hours_old
+                    )
                 total_inserted += gh_inserted
                 await _update_session(session_id, "running", total_inserted, mark_finished=False)
                 log.info("[Phase1][5] Greenhouse phase complete — %d additional jobs", gh_inserted)
@@ -1254,7 +1475,11 @@ async def run_phase1_search(
                     smart_unique = deduplicate(smart_new)
                     log.info("[Phase1][5] SmartExtract after internal dedup: %d unique — saving", len(smart_unique))
 
-                    smart_inserted = await _save_jobs(smart_unique, profile_id, session_id, prefs.hours_old)
+                    smart_inserted = 0
+                    for _sloc in sorted(c.lower().strip() for c in target_countries):
+                        smart_inserted += await _save_jobs_v2(
+                            smart_unique, "smartextract", _sloc, session_id, effective_hours_old
+                        )
                     total_inserted += smart_inserted
                     await _update_session(session_id, "running", total_inserted, mark_finished=False)
                     log.info("[Phase1][5] SmartExtract complete — %d additional jobs", smart_inserted)

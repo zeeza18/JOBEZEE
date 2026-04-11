@@ -210,24 +210,24 @@ class PortfolioConfigResponse(PortfolioConfigBase):
 
 class PulledJobResponse(BaseModel):
     id                : UUID
-    user_profile_id   : Optional[UUID]
-    search_session_id : str
+    user_profile_id   : Optional[UUID]   = None
+    search_session_id : str              = ""
     title             : str
     company           : str
     location          : str
-    country           : str
+    country           : str              = ""
     url               : str
-    description       : str
-    job_type          : str
-    salary_min        : Optional[float]
-    salary_max        : Optional[float]
-    salary_currency   : str
-    salary_text       : str
-    source            : str
-    site              : str
-    posted_at         : str
-    skills            : list[str]
-    status            : str
+    description       : str              = ""
+    job_type          : str              = ""
+    salary_min        : Optional[float]  = None
+    salary_max        : Optional[float]  = None
+    salary_currency   : str              = "USD"
+    salary_text       : str              = ""
+    source            : str              = ""
+    site              : str              = ""
+    posted_at         : str              = ""
+    skills            : list[str]        = []
+    status            : str              = "new"
     pulled_at         : datetime
 
     model_config = {"from_attributes": True}
