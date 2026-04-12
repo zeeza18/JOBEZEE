@@ -255,6 +255,7 @@ class SearchTriggerRequest(BaseModel):
     results_per_site : int | None       = None
     include_workday  : bool             = True
     workday_only     : bool             = False  # skip boards, run Workday phase only
+    force_full_pull  : bool             = False  # bypass preference cache → use hours_old=720 (30d)
 
 
 class SearchTriggerResponse(BaseModel):

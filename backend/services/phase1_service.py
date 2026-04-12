@@ -937,6 +937,7 @@ async def run_phase1_search(
     session_id: str,
     include_workday: bool = True,
     workday_only: bool = False,
+    force_full_pull: bool = False,
 ) -> None:
     """
     Execute Phase 1 job discovery using the user's saved preferences.
@@ -1017,22 +1018,25 @@ async def run_phase1_search(
         target_countries = prefs.effective_countries() or ["USA"]
 
         # ── Cache-aware hours_old ─────────────────────────────────────────────
-        # If ANY (role, country) pair has never been pulled → use 720h (30 days).
-        # If ALL pairs were pulled before → use 72h (3 days, incremental).
-        all_cached = True
-        from datetime import timedelta as _td
-        _one_hour_ago = datetime.now(timezone.utc) - _td(hours=1)
-        for _title in prefs.job_titles:
-            for _country in target_countries:
-                _cache = await _get_preference_cache(_title.lower().strip(), _country.lower().strip())
-                if _cache is None or _cache.last_pulled_at is None:
-                    all_cached = False
+        # force_full_pull=True  → always use 720h (manual trigger / forced refresh).
+        # all caches exist      → use 72h (incremental hourly auto-search).
+        # any cache missing     → use 720h (first pull for a new role/country).
+        if force_full_pull:
+            all_cached          = False
+            effective_hours_old = 720
+            log.info("[Phase1][2] force_full_pull=True → hours_old=720 (30d full pull)")
+        else:
+            all_cached = True
+            for _title in prefs.job_titles:
+                for _country in target_countries:
+                    _cache = await _get_preference_cache(_title.lower().strip(), _country.lower().strip())
+                    if _cache is None or _cache.last_pulled_at is None:
+                        all_cached = False
+                        break
+                if not all_cached:
                     break
-            if not all_cached:
-                break
-
-        effective_hours_old = 72 if all_cached else 720
-        log.info("[Phase1][2] cache_status=all_cached=%s → hours_old=%d", all_cached, effective_hours_old)
+            effective_hours_old = 72 if all_cached else 720
+            log.info("[Phase1][2] cache_status=all_cached=%s → hours_old=%d", all_cached, effective_hours_old)
 
         kwargs = {
             "queries":          prefs.job_titles,

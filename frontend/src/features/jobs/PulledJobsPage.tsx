@@ -1098,7 +1098,7 @@ export default function PulledJobsPage() {
         // After boards complete, silently fire Workday as a second session
         // so board results are always visible first
         try {
-          const wd = await searchApi.trigger({ include_workday: true, workday_only: true })
+          const wd = await searchApi.trigger({ include_workday: true, workday_only: true, force_full_pull: true })
           sessionJobsCount.current = 0
           setSessionId(wd.session_id + ':workday')
           setPolling(true)
@@ -1124,8 +1124,9 @@ export default function PulledJobsPage() {
   const triggerSearch = useCallback(async () => {
     setSearching(true)
     try {
-      // Always boards-only first — Workday fires after boards complete
-      const res = await searchApi.trigger({ include_workday: false, workday_only: false })
+      // Always boards-only first — Workday fires after boards complete.
+      // force_full_pull=true → bypass preference cache → 30-day pull for fresher results
+      const res = await searchApi.trigger({ include_workday: false, workday_only: false, force_full_pull: true })
       const roleLabel = res.roles?.slice(0, 2).join(', ') || 'your roles'
       const locLabel  = res.locations?.slice(0, 2).join(', ') || 'your locations'
       sessionJobsCount.current = 0

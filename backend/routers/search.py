@@ -119,7 +119,7 @@ async def trigger_search(
         session_id, merged.desired_roles, merged.preferred_locations, merged.preferred_countries,
         merged.preferred_regions, merged.remote_preference,
     )
-    background_tasks.add_task(run_phase1_search, merged, session_id, filters.include_workday, filters.workday_only)
+    background_tasks.add_task(run_phase1_search, merged, session_id, filters.include_workday, filters.workday_only, filters.force_full_pull)
 
     roles     = merged.desired_roles      or ["software engineer"]
     locations = (
