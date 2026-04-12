@@ -19,6 +19,13 @@ const TYPE_CFG: Record<FeedbackType, { icon: React.ElementType; label: string; c
   general: { icon: MessageCircle, label: 'General',         color: 'text-cyan-600   bg-cyan-50   border-cyan-200'  },
 }
 
+const SESSION_KEY = 'feedback_dismissed'
+
+function close(setOpen: (v: boolean) => void) {
+  sessionStorage.setItem(SESSION_KEY, '1')
+  setOpen(false)
+}
+
 export default function FeedbackWidget() {
   const location = useLocation()
   const [open,    setOpen]    = useState(false)
@@ -29,6 +36,11 @@ export default function FeedbackWidget() {
   const [sending, setSending] = useState(false)
   const [sent,    setSent]    = useState(false)
   const [error,   setError]   = useState('')
+
+  // Auto-open on fresh session (resets when browser is fully closed)
+  useEffect(() => {
+    if (!sessionStorage.getItem(SESSION_KEY)) setOpen(true)
+  }, [])
 
   // Auto-capture context snapshot when widget opens
   const [ctx, setCtx] = useState<Record<string, unknown>>({})
@@ -104,17 +116,10 @@ export default function FeedbackWidget() {
     <>
       {/* Floating trigger */}
       <button
-        onClick={() => { setOpen(v => !v); if (!open) reset() }}
-        className={`hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-2 rounded-full shadow-lg px-4 py-2.5 text-sm font-semibold transition-all
-          ${open
-            ? 'bg-slate-800 text-slate-300 border border-white/10'
-            : 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:-translate-y-0.5'
-          }`}
+        onClick={() => { if (open) { close(setOpen) } else { reset(); setOpen(true) } }}
+        className="hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-2 rounded-full shadow-lg px-4 py-2.5 text-sm font-semibold transition-all bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:-translate-y-0.5"
       >
-        {open
-          ? <><X className="h-4 w-4" /> Close</>
-          : <><MessageSquarePlus className="h-4 w-4" /> Feedback</>
-        }
+        <MessageSquarePlus className="h-4 w-4" /> Feedback
       </button>
 
       {/* Panel */}
@@ -124,7 +129,10 @@ export default function FeedbackWidget() {
           <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
             <MessageSquarePlus className="h-4 w-4 text-cyan-500" />
             <p className="text-sm font-semibold text-slate-800">Send Feedback</p>
-            <span className="ml-auto text-[10px] text-slate-400 font-mono truncate max-w-[100px]">{location.pathname}</span>
+            <span className="text-[10px] text-slate-400 font-mono truncate max-w-[80px]">{location.pathname}</span>
+            <button onClick={() => close(setOpen)} className="ml-auto p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
 
           <div className="p-4 space-y-4">
