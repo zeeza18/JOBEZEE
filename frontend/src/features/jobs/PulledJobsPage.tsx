@@ -943,7 +943,6 @@ function FilterPanel({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const THREE_HOURS = 3 * 60 * 60 * 1000
 const ONE_HOUR    = 60 * 60 * 1000
 
 export default function PulledJobsPage() {

@@ -87,7 +87,6 @@ export const useTailorStore = create<TailorState>((set, _get) => ({
       ],
       score: null,
       hasPdf: false,
-      hasTex: false,
       pdflatexAvailable: null,
       errorMsg: null,
     })

@@ -3,7 +3,8 @@ import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronUp,
   Clock, Download, ExternalLink, FileText, Loader2, XCircle,
 } from 'lucide-react'
-import { TailorCard as TailorCardType, useTailorCards } from '../../store/useTailorCards'
+import type { TailorCard as TailorCardType } from '../../store/useTailorCards'
+import { useTailorCards } from '../../store/useTailorCards'
 import { Card } from '../../components/ui/Card'
 
 const BASE = import.meta.env.VITE_API_URL || ''
