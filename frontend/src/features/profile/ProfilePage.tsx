@@ -16,6 +16,7 @@ import {
 import { SectionHeader } from '../../components/common/SectionHeader'
 import { profileApi, searchApi, type UserProfile } from '../../lib/api'
 import { useAppStore } from '../../store/useAppStore'
+import { useApiCache } from '../../store/useApiCache'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -226,21 +227,26 @@ function StepperInput({ value, onChange, step = 1, min = 0 }: {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const { pushToast } = useAppStore()
+  const cache = useApiCache()
 
   const [tab, setTab]               = useState<TabId>('personal')
-  const [form, setForm]             = useState<Partial<UserProfile>>(emptyProfile)
-  const [loading, setLoading]       = useState(false)
+  const [form, setForm]             = useState<Partial<UserProfile>>(() => cache.profileForm ?? emptyProfile)
+  const [loading, setLoading]       = useState(!cache.profileForm)
   const [saving, setSaving]         = useState(false)
   const [searching, setSearching]   = useState(false)
   const [sessionId, setSessionId]   = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    setLoading(true)
+    const silent = !!useApiCache.getState().profileForm
+    if (!silent) setLoading(true)
     profileApi.get()
-      .then((p) => setForm(p))
+      .then((p) => {
+        setForm(p)
+        useApiCache.getState().setProfileForm(p)
+      })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => { if (!silent) setLoading(false) })
   }, [])
 
   const set = useCallback(<K extends keyof UserProfile>(k: K, v: UserProfile[K]) => {

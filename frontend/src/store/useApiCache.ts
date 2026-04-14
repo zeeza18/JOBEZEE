@@ -6,7 +6,7 @@
  * Pattern: on mount, read cache → show instantly → fetch silently → update cache.
  */
 import { create } from 'zustand'
-import type { PulledJob, JobStats } from '../lib/api'
+import type { PulledJob, JobStats, UserProfile } from '../lib/api'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -60,6 +60,9 @@ interface ApiCacheState {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   portfolioData : { profile: any; config: any | null } | null
 
+  // Profile page
+  profileForm   : Partial<UserProfile> | null
+
   // Actions
   setPulledJobs    : (jobs: PulledJob[]) => void
   setJobStats      : (stats: JobStats) => void
@@ -69,6 +72,7 @@ interface ApiCacheState {
   setTailorResume  : (r: CachedTailorResume) => void
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setPortfolioData : (data: { profile: any; config: any | null }) => void
+  setProfileForm   : (form: Partial<UserProfile>) => void
   updateJobStatus  : (id: string, status: string) => void
   mergeJobs        : (fresh: PulledJob[]) => void
 }
@@ -81,6 +85,7 @@ export const useApiCache = create<ApiCacheState>((set) => ({
   dashNews      : null,
   tailorResume  : null,
   portfolioData : null,
+  profileForm   : null,
 
   setPulledJobs   : (jobs)    => set({ pulledJobs: jobs }),
   setJobStats     : (stats)   => set({ jobStats: stats }),
@@ -89,6 +94,7 @@ export const useApiCache = create<ApiCacheState>((set) => ({
   setDashNews     : (news)    => set({ dashNews: news }),
   setTailorResume : (r)       => set({ tailorResume: r }),
   setPortfolioData: (data)    => set({ portfolioData: data }),
+  setProfileForm  : (form)    => set({ profileForm: form }),
 
   updateJobStatus: (id, status) =>
     set((s) => ({ pulledJobs: s.pulledJobs.map((j) => (j.id === id ? { ...j, status } : j)) })),
