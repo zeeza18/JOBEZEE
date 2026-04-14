@@ -561,5 +561,7 @@ class TailorJobRecord(Base):
     error_msg       = Column(Text, nullable=True)
     final_resume    = Column(Text, nullable=True)
     progress_events = Column(JSON, default=list)   # persisted for refresh/restart recovery
+    pdf_b64         = Column(Text, nullable=True)  # base64 PDF from Hetzner worker (survives Render restarts)
+    docx_b64        = Column(Text, nullable=True)  # base64 DOCX from Hetzner worker
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
     expires_at      = Column(DateTime(timezone=True), nullable=False)
