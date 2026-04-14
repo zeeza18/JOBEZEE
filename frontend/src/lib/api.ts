@@ -375,6 +375,17 @@ export const tailorApi = {
   downloadDocxUrl : (tailorJobId: string) => `${BASE}/api/tailor/download-docx/${tailorJobId}`,
 
   streamUrl : (tailorJobId: string) => `${BASE}/api/tailor/stream/${tailorJobId}`,
+
+  myJobs : () => get<Array<{
+    pulled_job_id : string
+    tailor_job_id : string
+    status        : string   // queued/running/complete/error
+    score         : number | null
+    filename      : string | null
+    has_pdf       : boolean
+    has_docx      : boolean
+    company_name  : string | null
+  }>>('/api/tailor/my-jobs'),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

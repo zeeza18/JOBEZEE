@@ -165,6 +165,7 @@ async def run_column_migrations() -> None:
         _tj_cols: list[tuple[str, str]] = [
             ("progress_events", "JSON         DEFAULT '[]'::json"),
             ("final_resume",    "TEXT         DEFAULT ''"),
+            ("pulled_job_id",   "VARCHAR(36)  DEFAULT NULL"),
             ("job_url",         "VARCHAR(1000) DEFAULT ''"),
             ("pdf_b64",         "TEXT         DEFAULT NULL"),
             ("docx_b64",        "TEXT         DEFAULT NULL"),

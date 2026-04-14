@@ -552,6 +552,7 @@ class TailorJobRecord(Base):
     id              = Column(String(36), primary_key=True)
     user_id         = Column(String(36), nullable=False, index=True)
     status          = Column(String(20), default="queued")  # queued/running/complete/error/stale
+    pulled_job_id   = Column(String(36), nullable=True, index=True)  # links back to the job card
     company_name    = Column(String(200), nullable=True)
     job_url         = Column(String(1000), nullable=True)
     score           = Column(Integer, nullable=True)

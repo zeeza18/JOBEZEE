@@ -529,7 +529,8 @@ function JobDetailDrawer({
 
                 {tailorState?.status === 'tailoring' ? (
                   <button disabled className="flex items-center gap-1.5 rounded-xl border border-teal-300 bg-teal-500 px-3 py-2 text-sm font-medium text-white cursor-not-allowed animate-pulse">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Tailoring…
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Tailoring{tailorState.roundsDone === 1 ? '.' : tailorState.roundsDone === 2 ? '..' : tailorState.roundsDone >= 3 ? '...' : ''}
                   </button>
                 ) : tailorState?.status === 'queued' ? (
                   <button disabled className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-400 cursor-not-allowed">
@@ -719,7 +720,10 @@ function JobCard({
           {tailorState?.status === 'tailoring' ? (
             <button disabled
               className="flex items-center gap-1 rounded-lg border border-teal-300 bg-teal-500 px-2 md:px-3 py-1.5 text-xs font-semibold text-white cursor-not-allowed shrink-0 animate-pulse">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> <span className="hidden sm:inline">Tailoring…</span>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span className="hidden sm:inline">
+                Tailoring{tailorState.roundsDone === 1 ? '.' : tailorState.roundsDone === 2 ? '..' : tailorState.roundsDone >= 3 ? '...' : ''}
+              </span>
             </button>
           ) : tailorState?.status === 'queued' ? (
             <button disabled
@@ -1256,6 +1260,13 @@ export default function PulledJobsPage() {
             es.close()
             esSources.current.delete(tailorJobId)
             if (data.status === 'complete') {
+              // Show "Tailoring..." (3 dots) while files are being packaged
+              setTailorJobs(prev => {
+                const next = new Map(prev)
+                const cur = next.get(job.id)
+                if (cur) next.set(job.id, { ...cur, roundsDone: 3 })
+                return next
+              })
               const fetchStatus = () =>
                 tailorApi.status(tailorJobId).then(r => {
                   setTailorJobs(prev => {
@@ -1391,31 +1402,82 @@ export default function PulledJobsPage() {
     try { localStorage.setItem(TAILOR_LS_KEY, JSON.stringify(obj)) } catch {}
   }, [tailorJobs])
 
-  // On mount: poll status for any tailoring jobs restored from localStorage
+  // On mount: restore tailor state from DB (survives refreshes + clears localStorage gaps)
   const _restoredRef = useRef(false)
   useEffect(() => {
     if (_restoredRef.current) return
     _restoredRef.current = true
-    tailorJobs.forEach((state, pulledJobId) => {
-      if (state.status !== 'tailoring' || !state.tailorJobId) return
-      const jid = state.tailorJobId
-      const poll = setInterval(async () => {
-        try {
-          const r = await tailorApi.status(jid)
-          if (r.status === 'complete' || r.status === 'error') {
-            clearInterval(poll)
-            setTailorJobs(prev => {
-              const next = new Map(prev)
-              if (r.status === 'complete') {
-                next.set(pulledJobId, { tailorJobId: jid, status: 'done', score: r.score, filename: r.filename, error: null, roundsDone: 2 })
-              } else {
-                next.set(pulledJobId, { tailorJobId: jid, status: 'error', score: null, filename: null, error: r.error || 'Failed', roundsDone: 0 })
-              }
-              return next
+
+    tailorApi.myJobs().then(records => {
+      setTailorJobs(prev => {
+        const next = new Map(prev)
+        for (const r of records) {
+          // Only overwrite if the DB record is more authoritative (complete/error)
+          // or if we have no local state at all for this job
+          const existing = next.get(r.pulled_job_id)
+          const dbStatus = r.status === 'complete' ? 'done'
+                         : r.status === 'error'    ? 'error'
+                         : 'tailoring'             // queued/running → show as tailoring
+          if (!existing || dbStatus === 'done' || dbStatus === 'error') {
+            next.set(r.pulled_job_id, {
+              tailorJobId : r.tailor_job_id,
+              status      : dbStatus,
+              score       : r.score,
+              filename    : r.filename,
+              error       : null,
+              roundsDone  : dbStatus === 'done' ? 2 : 0,
             })
           }
-        } catch { clearInterval(poll) }
-      }, 3000)
+        }
+        return next
+      })
+
+      // For any still-running jobs (tailoring status), poll until complete
+      for (const r of records) {
+        if (r.status !== 'queued' && r.status !== 'running') continue
+        const jid = r.tailor_job_id
+        const pulledJobId = r.pulled_job_id
+        const poll = setInterval(async () => {
+          try {
+            const s = await tailorApi.status(jid)
+            if (s.status === 'complete' || s.status === 'error') {
+              clearInterval(poll)
+              setTailorJobs(prev => {
+                const next = new Map(prev)
+                if (s.status === 'complete') {
+                  next.set(pulledJobId, { tailorJobId: jid, status: 'done', score: s.score, filename: s.filename, error: null, roundsDone: 2 })
+                } else {
+                  next.set(pulledJobId, { tailorJobId: jid, status: 'error', score: null, filename: null, error: s.error || 'Failed', roundsDone: 0 })
+                }
+                return next
+              })
+            }
+          } catch { clearInterval(poll) }
+        }, 3000)
+      }
+    }).catch(() => {
+      // Fall back to localStorage-restored jobs polling (old behaviour)
+      tailorJobs.forEach((state, pulledJobId) => {
+        if (state.status !== 'tailoring' || !state.tailorJobId) return
+        const jid = state.tailorJobId
+        const poll = setInterval(async () => {
+          try {
+            const r = await tailorApi.status(jid)
+            if (r.status === 'complete' || r.status === 'error') {
+              clearInterval(poll)
+              setTailorJobs(prev => {
+                const next = new Map(prev)
+                if (r.status === 'complete') {
+                  next.set(pulledJobId, { tailorJobId: jid, status: 'done', score: r.score, filename: r.filename, error: null, roundsDone: 2 })
+                } else {
+                  next.set(pulledJobId, { tailorJobId: jid, status: 'error', score: null, filename: null, error: r.error || 'Failed', roundsDone: 0 })
+                }
+                return next
+              })
+            }
+          } catch { clearInterval(poll) }
+        }, 3000)
+      })
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

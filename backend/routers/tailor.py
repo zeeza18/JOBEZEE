@@ -185,6 +185,7 @@ async def start_tailor_for_job(
         user_id=str(current_user.id),
         status="queued",
         company_name=company,
+        pulled_job_id=req.job_id,
         expires_at=_expires,
     ))
     await db.commit()
@@ -199,6 +200,47 @@ async def start_tailor_for_job(
         anthropic_api_key=anthropic_key,
     )
     return {"job_id": tailor_job_id, "status": "queued", "company_name": company}
+
+
+# ── List all tailor records for current user (for refresh restore) ────────────
+
+@router.get("/my-jobs")
+async def my_tailor_jobs(current_user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Return all non-expired tailor records that have a pulled_job_id link.
+    Frontend uses this on mount to rebuild the tailorJobs map from the DB."""
+    from sqlalchemy import and_
+    now = datetime.now(timezone.utc)
+    res = await db.execute(
+        select(TailorJobRecord).where(
+            and_(
+                TailorJobRecord.user_id == str(current_user.id),
+                TailorJobRecord.pulled_job_id.isnot(None),
+                TailorJobRecord.expires_at > now,
+            )
+        ).order_by(TailorJobRecord.created_at.desc())
+    )
+    records = res.scalars().all()
+
+    # De-duplicate: keep only the most recent tailor record per pulled_job_id
+    seen: dict[str, TailorJobRecord] = {}
+    for r in records:
+        pid = str(r.pulled_job_id)
+        if pid not in seen:
+            seen[pid] = r
+
+    out = []
+    for r in seen.values():
+        out.append({
+            "pulled_job_id": str(r.pulled_job_id),
+            "tailor_job_id": r.id,
+            "status":        r.status,          # queued/running/complete/error
+            "score":         r.score,
+            "filename":      r.filename,
+            "has_pdf":       r.has_pdf,
+            "has_docx":      r.has_docx,
+            "company_name":  r.company_name,
+        })
+    return out
 
 
 # ── Poll status ───────────────────────────────────────────────────────────────
