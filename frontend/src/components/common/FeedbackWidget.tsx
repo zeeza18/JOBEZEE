@@ -1,11 +1,12 @@
 /**
- * Floating feedback widget — always visible in the bottom-right corner.
+ * Floating feedback widget — draggable, collapsed by default.
+ * Click the icon to expand. Drag to any position.
  * Captures page context automatically: URL, profile, tracker status, news.
  * Submits to POST /api/logs/feedback.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
-import { MessageSquarePlus, X, Star, Send, Loader2, Check, Bug, Lightbulb, MessageCircle } from 'lucide-react'
+import { MessageSquarePlus, X, Star, Send, Loader2, Check, Bug, Lightbulb, MessageCircle, ChevronLeft } from 'lucide-react'
 
 const BASE  = import.meta.env.VITE_API_URL || ''
 const token = () => document.cookie.match(/access_token=([^;]+)/)?.[1]
@@ -19,35 +20,47 @@ const TYPE_CFG: Record<FeedbackType, { icon: React.ElementType; label: string; c
   general: { icon: MessageCircle, label: 'General',         color: 'text-cyan-600   bg-cyan-50   border-cyan-200'  },
 }
 
-const SESSION_KEY = 'feedback_dismissed'
+const DISMISSED_KEY = 'feedback_dismissed'
 
-function close(setOpen: (v: boolean) => void) {
-  sessionStorage.setItem(SESSION_KEY, '1')
-  setOpen(false)
-}
+const MINI_W  = 36    // collapsed icon size
+const MINI_H  = 36
+const BTN_W   = 148  // expanded button group width
+const BTN_H   = 42
+const PANEL_W = 320
+const PANEL_H = 460
 
 export default function FeedbackWidget() {
   const location = useLocation()
-  const [open,    setOpen]    = useState(false)
-  const [type,    setType]    = useState<FeedbackType>('general')
-  const [rating,  setRating]  = useState<number>(0)
-  const [hovered, setHovered] = useState<number>(0)
-  const [message, setMessage] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sent,    setSent]    = useState(false)
-  const [error,   setError]   = useState('')
 
-  // Auto-open on fresh session (resets when browser is fully closed)
+  // Collapsed by default on every startup
+  const [expanded, setExpanded] = useState(false)
+  const [open,     setOpen]     = useState(false)
+  const [type,     setType]     = useState<FeedbackType>('general')
+  const [rating,   setRating]   = useState<number>(0)
+  const [hovered,  setHovered]  = useState<number>(0)
+  const [message,  setMessage]  = useState('')
+  const [sending,  setSending]  = useState(false)
+  const [sent,     setSent]     = useState(false)
+  const [error,    setError]    = useState('')
+  const [ctx,      setCtx]      = useState<Record<string, unknown>>({})
+
+  // Draggable position — bottom-right on first mount
+  const [pos,      setPos]      = useState<{ x: number; y: number } | null>(null)
+  const dragging    = useRef(false)
+  const hasDragged  = useRef(false)
+  const dragOffset  = useRef({ x: 0, y: 0 })
+
+  // Set default position bottom-right on first mount
   useEffect(() => {
-    if (!sessionStorage.getItem(SESSION_KEY)) setOpen(true)
+    setPos({
+      x: window.innerWidth  - BTN_W - 24,
+      y: window.innerHeight - BTN_H - 24,
+    })
   }, [])
 
-  // Auto-capture context snapshot when widget opens
-  const [ctx, setCtx] = useState<Record<string, unknown>>({})
-
+  // Auto-capture context when panel opens
   useEffect(() => {
     if (!open) return
-    // Snapshot everything visible on the page
     const snapshot: Record<string, unknown> = {
       page:       location.pathname,
       url:        window.location.href,
@@ -55,33 +68,27 @@ export default function FeedbackWidget() {
       viewport:   `${window.innerWidth}x${window.innerHeight}`,
       timestamp:  new Date().toISOString(),
     }
-
-    // Grab profile info if available in DOM
-    const nameEl = document.querySelector('[data-ctx="profile-name"]')
+    const nameEl    = document.querySelector('[data-ctx="profile-name"]')
     if (nameEl) snapshot.profile_name = nameEl.textContent
-
-    // Grab tracker job count
     const trackerEl = document.querySelector('[data-ctx="tracker-count"]')
     if (trackerEl) snapshot.tracker_jobs = trackerEl.textContent
-
-    // Grab applied count
     const appliedEl = document.querySelector('[data-ctx="applied-count"]')
     if (appliedEl) snapshot.applied_count = appliedEl.textContent
-
-    // Grab news headline count
-    const newsEls = document.querySelectorAll('[data-ctx="news-item"]')
+    const newsEls   = document.querySelectorAll('[data-ctx="news-item"]')
     if (newsEls.length) snapshot.news_visible = newsEls.length
-
-    // Grab visible job count on jobs page
-    const jobEls = document.querySelectorAll('[data-ctx="job-card"]')
+    const jobEls    = document.querySelectorAll('[data-ctx="job-card"]')
     if (jobEls.length) snapshot.jobs_visible = jobEls.length
-
     setCtx(snapshot)
   }, [open, location.pathname])
 
   const reset = () => {
     setType('general'); setRating(0); setHovered(0)
     setMessage(''); setSent(false); setError('')
+  }
+
+  const closePanel = () => {
+    sessionStorage.setItem(DISMISSED_KEY, '1')
+    setOpen(false)
   }
 
   const submit = async () => {
@@ -112,31 +119,121 @@ export default function FeedbackWidget() {
     setSending(false)
   }
 
+  // ── Drag logic ────────────────────────────────────────────────────────────
+  const currentW = expanded ? BTN_W : MINI_W
+  const currentH = expanded ? BTN_H : MINI_H
+
+  const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button')) return
+    dragging.current   = true
+    hasDragged.current = false
+    dragOffset.current = {
+      x: e.clientX - (pos?.x ?? 0),
+      y: e.clientY - (pos?.y ?? 0),
+    }
+    e.preventDefault()
+  }, [pos])
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragging.current) return
+      hasDragged.current = true
+      // Clamp to viewport — no edge snap, free positioning
+      const w = expanded ? BTN_W : MINI_W
+      const h = expanded ? BTN_H : MINI_H
+      const x = Math.max(0, Math.min(window.innerWidth  - w, e.clientX - dragOffset.current.x))
+      const y = Math.max(0, Math.min(window.innerHeight - h, e.clientY - dragOffset.current.y))
+      setPos({ x, y })
+    }
+
+    const onUp = () => {
+      dragging.current = false
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup',   onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup',   onUp)
+    }
+  }, [expanded])
+
+  if (pos === null) return null
+
+  // Panel position: prefer above button, fall back to below; prefer right-aligned, fall back to left
+  const panelLeft = pos.x + PANEL_W > window.innerWidth  ? pos.x + currentW - PANEL_W : pos.x
+  const panelTop  = pos.y - PANEL_H - 8 < 0             ? pos.y + currentH + 8        : pos.y - PANEL_H - 8
+
   return (
     <>
-      {/* Floating trigger */}
-      <button
-        onClick={() => { if (open) { close(setOpen) } else { reset(); setOpen(true) } }}
-        className="hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-2 rounded-full shadow-lg px-4 py-2.5 text-sm font-semibold transition-all bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:-translate-y-0.5"
+      {/* Floating trigger — draggable wrapper */}
+      <div
+        className={`hidden md:flex fixed z-50 items-stretch select-none transition-all`}
+        style={{ left: pos.x, top: pos.y, cursor: dragging.current ? 'grabbing' : 'grab' }}
+        onMouseDown={onMouseDown}
       >
-        <MessageSquarePlus className="h-4 w-4" /> Feedback
-      </button>
+        {!expanded ? (
+          /* ── Collapsed state: small icon pill ── */
+          <button
+            onClick={() => { if (!hasDragged.current) setExpanded(true) }}
+            style={{ cursor: 'pointer' }}
+            title="Open feedback"
+            className="flex items-center justify-center h-9 w-9 rounded-full shadow-md bg-gradient-to-br from-cyan-500 to-sky-500 text-white hover:shadow-cyan-400/50 hover:scale-110 transition-all"
+          >
+            <MessageSquarePlus className="h-4 w-4" />
+          </button>
+        ) : (
+          /* ── Expanded state: full button group ── */
+          <>
+            {/* Collapse arrow */}
+            <button
+              onClick={() => { setExpanded(false); setOpen(false) }}
+              style={{ cursor: 'pointer' }}
+              title="Collapse feedback"
+              className="flex items-center justify-center rounded-l-full shadow-lg px-2 bg-sky-400 text-white/80 hover:bg-sky-600 hover:text-white transition-colors"
+            >
+              <ChevronLeft className="h-3 w-3" />
+            </button>
+
+            {/* Feedback button */}
+            <button
+              onClick={() => { if (!hasDragged.current) { if (open) { closePanel() } else { reset(); setOpen(true) } } }}
+              style={{ cursor: 'pointer' }}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-all bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:-translate-y-0.5"
+            >
+              <MessageSquarePlus className="h-4 w-4" /> Feedback
+            </button>
+
+            {/* Dismiss X — collapses back to icon */}
+            <button
+              onClick={() => { setExpanded(false); setOpen(false) }}
+              style={{ cursor: 'pointer' }}
+              title="Collapse"
+              className="flex items-center justify-center rounded-r-full shadow-lg px-2.5 bg-sky-500 text-white/80 hover:bg-red-400 hover:text-white transition-colors border-l border-sky-400/40"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </>
+        )}
+      </div>
 
       {/* Panel */}
-      {open && (
-        <div className="hidden md:block fixed bottom-20 right-6 z-50 w-80 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+      {open && expanded && (
+        <div
+          className="hidden md:block fixed z-50 w-80 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden"
+          style={{ left: panelLeft, top: panelTop }}
+        >
           {/* Header */}
           <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
             <MessageSquarePlus className="h-4 w-4 text-cyan-500" />
             <p className="text-sm font-semibold text-slate-800">Send Feedback</p>
             <span className="text-[10px] text-slate-400 font-mono truncate max-w-[80px]">{location.pathname}</span>
-            <button onClick={() => close(setOpen)} className="ml-auto p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors">
+            <button onClick={closePanel} className="ml-auto p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
 
           <div className="p-4 space-y-4">
-
             {sent ? (
               <div className="flex flex-col items-center py-6 gap-3">
                 <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center">
