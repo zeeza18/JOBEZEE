@@ -372,6 +372,7 @@ export const tailorApi = {
   // Returns a URL — use as <a href> or window.open
   downloadPdfUrl  : (tailorJobId: string) => `${BASE}/api/tailor/download/${tailorJobId}`,
   downloadTexUrl  : (tailorJobId: string) => `${BASE}/api/tailor/download-tex/${tailorJobId}`,
+  downloadDocxUrl : (tailorJobId: string) => `${BASE}/api/tailor/download-docx/${tailorJobId}`,
 
   streamUrl : (tailorJobId: string) => `${BASE}/api/tailor/stream/${tailorJobId}`,
 }

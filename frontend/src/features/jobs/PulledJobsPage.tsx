@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowUpRight, Bookmark, BookmarkCheck, Bot, CheckCircle2, ChevronRight,
-  Download, Eye, EyeOff, FileText, Filter, Loader2, RefreshCw,
+  Download, Eye, EyeOff, Filter, Loader2, RefreshCw,
   Search, Sparkles, Trash2, X, XCircle, Zap,
 } from 'lucide-react'
 import { applyApi, jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
@@ -19,9 +19,8 @@ import { useApiCache } from '../../store/useApiCache'
 
 interface TailorJobState {
   tailorJobId : string
-  status      : 'tailoring' | 'done' | 'error'
+  status      : 'queued' | 'tailoring' | 'done' | 'error'
   score       : number | null
-  resumeText  : string
   filename    : string | null
   error       : string | null
 }
@@ -344,75 +343,16 @@ function JobDescription({ text }: { text: string }) {
   )
 }
 
-// ─── Tailored Resume Modal ────────────────────────────────────────────────────
-
-function TailoredResumeModal({ state, onClose }: { state: TailorJobState; onClose: () => void }) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', h)
-    return () => document.removeEventListener('keydown', h)
-  }, [onClose])
-
-  return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 16 }} transition={{ type: 'spring', stiffness: 380, damping: 38 }}
-        className="relative z-10 flex w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden max-h-[90vh]"
-      >
-        <div className="flex items-center justify-between gap-4 bg-gradient-to-br from-cyan-600 to-sky-700 px-6 py-4 flex-shrink-0">
-          <div>
-            <p className="text-sm font-semibold text-white/80">Tailored Resume</p>
-            {state.filename && <p className="text-xs text-white/60 mt-0.5">{state.filename}</p>}
-          </div>
-          <div className="flex items-center gap-3">
-            {state.score != null && (
-              <div className="rounded-xl bg-white/20 px-3 py-1.5 text-sm font-bold text-white">
-                ATS Score: {state.score}/100
-              </div>
-            )}
-            <button onClick={onClose} className="rounded-lg p-1.5 text-white/60 hover:bg-white/10 hover:text-white transition">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto p-6">
-          {state.resumeText
-            ? <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-700 bg-slate-50 rounded-xl p-4 border border-slate-100">{state.resumeText}</pre>
-            : <p className="text-sm text-slate-400 italic">No resume text available.</p>}
-        </div>
-        <div className="flex-shrink-0 border-t border-slate-100 bg-white px-6 py-4 flex flex-wrap items-center gap-3">
-          <a href={tailorApi.downloadPdfUrl(state.tailorJobId)} target="_blank" rel="noreferrer"
-            className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition">
-            <Download className="h-4 w-4" /> Download PDF
-          </a>
-          <a href={tailorApi.downloadTexUrl(state.tailorJobId)} target="_blank" rel="noreferrer"
-            className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 transition">
-            <Download className="h-4 w-4" /> Download .tex
-          </a>
-          <button onClick={onClose} className="ml-auto rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-500 hover:border-slate-300 transition">
-            Close
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>,
-    document.body,
-  )
-}
-
 // ─── Job Detail Drawer ────────────────────────────────────────────────────────
 
 function JobDetailDrawer({
-  job, onClose, onStatusChange, tailorState, onTailor, onViewTailor, descCache,
+  job, onClose, onStatusChange, tailorState, onTailor, descCache,
 }: {
   job            : PulledJob
   onClose        : () => void
   onStatusChange : (id: string, s: string) => void
   tailorState?   : TailorJobState
   onTailor       : (job: PulledJob) => void
-  onViewTailor   : (state: TailorJobState) => void
   descCache      : React.RefObject<Map<string, string>>
 }) {
   const [updating, setUpdating]         = useState(false)
@@ -586,15 +526,32 @@ function JobDetailDrawer({
                   </span>
                 )}
 
-                {tailorState?.status === 'tailoring' ? (
-                  <button disabled className="flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-500 opacity-70 cursor-not-allowed">
+                {(tailorState?.status === 'tailoring' || tailorState?.status === 'queued') ? (
+                  <button disabled className="flex items-center gap-1.5 rounded-xl border border-teal-300 bg-teal-500 px-3 py-2 text-sm font-medium text-white cursor-not-allowed animate-pulse">
                     <Loader2 className="h-4 w-4 animate-spin" /> Tailoring…
                   </button>
                 ) : tailorState?.status === 'done' ? (
-                  <button onClick={() => onViewTailor(tailorState)}
-                    className="flex items-center gap-1.5 rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-100 transition">
-                    <FileText className="h-4 w-4" /> View Resume {tailorState.score != null && <span className="ml-1 opacity-60 text-xs">{tailorState.score}</span>}
-                  </button>
+                  <>
+                    {tailorState.score != null && (
+                      <span className={`flex items-center rounded-xl border px-3 py-2 text-sm font-bold ${
+                        tailorState.score >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        tailorState.score >= 60 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        'bg-red-50 text-red-700 border-red-200'
+                      }`}>
+                        {tailorState.score}/100
+                      </span>
+                    )}
+                    <a href={tailorApi.downloadPdfUrl(tailorState.tailorJobId)}
+                       target="_blank" rel="noreferrer"
+                       className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition">
+                      <Download className="h-4 w-4" /> PDF
+                    </a>
+                    <a href={tailorApi.downloadDocxUrl(tailorState.tailorJobId)}
+                       target="_blank" rel="noreferrer"
+                       className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:border-slate-300 transition">
+                      <Download className="h-4 w-4" /> DOCX
+                    </a>
+                  </>
                 ) : job.status !== 'applied' ? (
                   <button onClick={() => onTailor(job)}
                     className="flex items-center gap-1.5 rounded-xl bg-cyan-600 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-700 transition">
@@ -627,7 +584,7 @@ function JobDetailDrawer({
 // ─── Job Card ─────────────────────────────────────────────────────────────────
 
 function JobCard({
-  job, tailorState, applyState, onStatusChange, onOpenDrawer, onTailor, onViewTailor, onAutoApply,
+  job, tailorState, applyState, onStatusChange, onOpenDrawer, onTailor, onAutoApply,
   convertHourly,
 }: {
   job            : PulledJob
@@ -636,7 +593,6 @@ function JobCard({
   onStatusChange : (id: string, s: string) => void
   onOpenDrawer   : (job: PulledJob) => void
   onTailor       : (job: PulledJob) => void
-  onViewTailor   : (state: TailorJobState) => void
   onAutoApply    : (job: PulledJob) => void
   convertHourly? : boolean
 }) {
@@ -755,18 +711,35 @@ function JobCard({
             </span>
           )}
 
-          {tailorState?.status === 'tailoring' ? (
+          {(tailorState?.status === 'tailoring' || tailorState?.status === 'queued') ? (
             <button disabled
-              className="flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-2 md:px-3 py-1.5 text-xs font-semibold text-cyan-500 cursor-not-allowed shrink-0">
+              className="flex items-center gap-1 rounded-lg border border-teal-300 bg-teal-500 px-2 md:px-3 py-1.5 text-xs font-semibold text-white cursor-not-allowed shrink-0 animate-pulse">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> <span className="hidden sm:inline">Tailoring…</span>
             </button>
           ) : tailorState?.status === 'done' ? (
-            <button onClick={e => { e.stopPropagation(); onViewTailor(tailorState) }}
-              className="flex items-center gap-1 rounded-lg border border-cyan-300 bg-cyan-50 px-2 md:px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-100 transition shrink-0">
-              <FileText className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Resume</span>
-              {tailorState.score != null && <span className="opacity-70">{tailorState.score}</span>}
-            </button>
+            <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+              {tailorState.score != null && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                  tailorState.score >= 80 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                  tailorState.score >= 60 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  'bg-red-50 text-red-700 border-red-200'
+                }`}>
+                  {tailorState.score}
+                </span>
+              )}
+              <a href={tailorApi.downloadPdfUrl(tailorState.tailorJobId)}
+                 target="_blank" rel="noreferrer"
+                 onClick={e => e.stopPropagation()}
+                 className="flex items-center gap-0.5 rounded-lg bg-slate-900 px-2 md:px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition shrink-0">
+                <Download className="h-3 w-3" /> PDF
+              </a>
+              <a href={tailorApi.downloadDocxUrl(tailorState.tailorJobId)}
+                 target="_blank" rel="noreferrer"
+                 onClick={e => e.stopPropagation()}
+                 className="flex items-center gap-0.5 rounded-lg border border-slate-200 px-2 md:px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 transition shrink-0">
+                <Download className="h-3 w-3" /> DOCX
+              </a>
+            </div>
           ) : job.status !== 'applied' ? (
             <button onClick={e => { e.stopPropagation(); onTailor(job) }}
               className="flex items-center gap-1 rounded-lg bg-cyan-600 px-2 md:px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700 transition shrink-0">
@@ -967,7 +940,6 @@ export default function PulledJobsPage() {
   const [filterOpen, setFilterOpen]     = useState(false)
   const [filters, setFilters]           = useState<Filters>(EMPTY_FILTERS)
   const [selectedJob, setSelectedJob]   = useState<PulledJob | null>(null)
-  const [viewingTailor, setViewingTailor] = useState<TailorJobState | null>(null)
   const [tailorJobs, setTailorJobs]     = useState<Map<string, TailorJobState>>(new Map())
   const [applyJobs,  setApplyJobs]      = useState<Map<string, ApplyJobState>>(new Map())
 
@@ -1207,20 +1179,38 @@ export default function PulledJobsPage() {
     }
   }
 
-  // ── Tailor SSE ────────────────────────────────────────────────────────────────
-  const handleTailor = useCallback(async (job: PulledJob) => {
-    const existing = tailorJobs.get(job.id)
-    if (existing?.status === 'tailoring') return
+  // ── Tailor queue — max 2 simultaneous workers ────────────────────────────────
+  const MAX_TAILOR_WORKERS = 2
+  const tailorQueueRef  = useRef<PulledJob[]>([])
+  const startTailorRef  = useRef<(job: PulledJob) => void>(() => {})
+
+  const _startTailor = useCallback(async (job: PulledJob) => {
+    // Ensure status is 'tailoring' before we hit the API
+    setTailorJobs(prev => {
+      const next = new Map(prev)
+      const cur = next.get(job.id)
+      next.set(job.id, { tailorJobId: cur?.tailorJobId ?? '', status: 'tailoring', score: null, filename: null, error: null })
+      return next
+    })
+
+    const _startNext = () => {
+      const nextJob = tailorQueueRef.current.shift()
+      if (nextJob) startTailorRef.current(nextJob)
+    }
+
     try {
       const res = await tailorApi.runForJob(job.id)
       const tailorJobId = res.job_id
       setTailorJobs(prev => {
         const next = new Map(prev)
-        next.set(job.id, { tailorJobId, status: 'tailoring', score: null, resumeText: '', filename: null, error: null })
+        const cur = next.get(job.id)
+        if (cur) next.set(job.id, { ...cur, tailorJobId })
         return next
       })
+
       const es = new EventSource(tailorApi.streamUrl(tailorJobId))
       esSources.current.set(tailorJobId, es)
+
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
@@ -1228,30 +1218,31 @@ export default function PulledJobsPage() {
             es.close()
             esSources.current.delete(tailorJobId)
             if (data.status === 'complete') {
-              const fetchResume = () =>
-                tailorApi.getResume(tailorJobId).then(r => {
+              const fetchStatus = () =>
+                tailorApi.status(tailorJobId).then(r => {
                   setTailorJobs(prev => {
                     const next = new Map(prev)
-                    next.set(job.id, { tailorJobId, status: 'done', score: r.score, resumeText: r.resume ?? '', filename: r.filename, error: null })
+                    next.set(job.id, { tailorJobId, status: 'done', score: r.score, filename: r.filename, error: null })
                     return next
                   })
                   pushToast({ title: `Resume tailored for ${job.company}`, type: 'success' })
                 })
-              fetchResume().catch(() => setTimeout(() => fetchResume().catch(() => {
+              fetchStatus().catch(() => setTimeout(() => fetchStatus().catch(() => {
                 setTailorJobs(prev => {
                   const next = new Map(prev)
-                  next.set(job.id, { tailorJobId, status: 'error', score: data.score, resumeText: '', filename: data.filename, error: 'Could not fetch resume text' })
+                  next.set(job.id, { tailorJobId, status: 'error', score: null, filename: null, error: 'Could not fetch result' })
                   return next
                 })
               }), 2000))
             } else {
               setTailorJobs(prev => {
                 const next = new Map(prev)
-                next.set(job.id, { tailorJobId, status: 'error', score: null, resumeText: '', filename: null, error: data.error || 'Tailoring failed' })
+                next.set(job.id, { tailorJobId, status: 'error', score: null, filename: null, error: data.error || 'Tailoring failed' })
                 return next
               })
               pushToast({ title: `Tailoring failed for ${job.company}`, description: data.error, type: 'error' })
             }
+            _startNext()
           }
         } catch { /* ignore */ }
       }
@@ -1264,11 +1255,39 @@ export default function PulledJobsPage() {
           if (cur?.status === 'tailoring') next.set(job.id, { ...cur, status: 'error', error: 'Connection error' })
           return next
         })
+        _startNext()
       }
     } catch (e: unknown) {
+      setTailorJobs(prev => {
+        const next = new Map(prev)
+        next.set(job.id, { tailorJobId: '', status: 'error', score: null, filename: null, error: 'Could not start tailoring' })
+        return next
+      })
       pushToast({ title: 'Could not start tailoring', description: e instanceof Error ? e.message : 'Tailoring failed', type: 'error' })
+      _startNext()
     }
-  }, [tailorJobs, pushToast])
+  }, [pushToast])
+
+  useEffect(() => { startTailorRef.current = _startTailor }, [_startTailor])
+
+  // ── Tailor SSE ────────────────────────────────────────────────────────────────
+  const handleTailor = useCallback((job: PulledJob) => {
+    const existing = tailorJobs.get(job.id)
+    if (existing?.status === 'tailoring' || existing?.status === 'queued') return
+
+    const activeCount = [...tailorJobs.values()].filter(s => s.status === 'tailoring').length
+    if (activeCount < MAX_TAILOR_WORKERS) {
+      _startTailor(job)
+    } else {
+      // Over worker limit — queue silently (no queue label shown to user)
+      setTailorJobs(prev => {
+        const next = new Map(prev)
+        next.set(job.id, { tailorJobId: '', status: 'queued', score: null, filename: null, error: null })
+        return next
+      })
+      tailorQueueRef.current.push(job)
+    }
+  }, [tailorJobs, _startTailor])
 
   // ── Auto Apply SSE ───────────────────────────────────────────────────────────
   const handleAutoApply = useCallback(async (job: PulledJob) => {
@@ -1674,7 +1693,6 @@ export default function PulledJobsPage() {
                       onStatusChange={handleStatusChange}
                       onOpenDrawer={setSelectedJob}
                       onTailor={handleTailor}
-                      onViewTailor={setViewingTailor}
                       onAutoApply={handleAutoApply}
                       convertHourly={jobSettings.convertHourlyToMonthly}
                     />
@@ -1696,21 +1714,11 @@ export default function PulledJobsPage() {
             onStatusChange={handleStatusChange}
             tailorState={tailorJobs.get(selectedJob.id)}
             onTailor={handleTailor}
-            onViewTailor={setViewingTailor}
             descCache={descCache}
           />
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {viewingTailor && (
-          <TailoredResumeModal
-            key={viewingTailor.tailorJobId}
-            state={viewingTailor}
-            onClose={() => setViewingTailor(null)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   )
 }
