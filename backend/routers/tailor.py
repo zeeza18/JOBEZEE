@@ -135,6 +135,35 @@ async def start_tailor_for_job(
             "No resume on file. Please upload your resume (Profile → Resume Upload) before tailoring."
         )
 
+    # Resolve resume text — fall back to DB-stored bytes when the ephemeral
+    # Render disk has been wiped (deploy/restart) so the file is no longer on disk.
+    from pathlib import Path as _Path
+    from ..config import get_settings as _cfg_fn
+    _cfg_s = _cfg_fn()
+    _jobezee_root = _Path(__file__).resolve().parent.parent.parent
+    _upload_root  = _jobezee_root / _cfg_s.UPLOAD_DIR
+    _rel = resume_url.lstrip("/")
+    if _rel.startswith("uploads/"):
+        _rel = _rel[len("uploads/"):]
+    _file_path = _upload_root / _rel
+    if not _file_path.exists():
+        _bytes_b64 = getattr(profile, "resume_bytes", "") or ""
+        if _bytes_b64:
+            import base64 as _b64, tempfile as _tmp, pathlib as _pl
+            _tmp_dir  = _pl.Path(_tmp.mkdtemp())
+            _tmp_path = _tmp_dir / _file_path.name
+            _tmp_path.write_bytes(_b64.b64decode(_bytes_b64))
+            _file_path = _tmp_path
+        else:
+            raise HTTPException(
+                404,
+                f"Resume file missing from server ({_file_path.name}). "
+                "Please re-upload your resume via Profile → Resume."
+            )
+    resume_text = _extract_resume_text(_file_path)
+    if not resume_text.strip():
+        raise HTTPException(422, "Could not extract text from your resume. Please re-upload.")
+
     # Build a clean output filename: username_company
     name_raw = current_user.full_name or current_user.email.split("@")[0]
     username = name_raw.replace(" ", "_")
@@ -162,7 +191,7 @@ async def start_tailor_for_job(
     start_tailor_job_for_job(
         tailor_job_id,
         pulled_job.description,
-        resume_url,
+        resume_text,
         username,
         company,
         openai_api_key=openai_key,

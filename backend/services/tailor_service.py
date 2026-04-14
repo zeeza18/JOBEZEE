@@ -288,7 +288,7 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
 def start_tailor_job_for_job(
     tailor_job_id: str,
     job_description: str,
-    resume_url: str,
+    resume_text: str,
     username: str,
     company: str,
     openai_api_key: str = "",
@@ -302,9 +302,7 @@ def start_tailor_job_for_job(
 
         def _prepare_and_delegate():
             try:
-                resume_file = _JOBEZEE_ROOT / resume_url.lstrip('/')
-                resume_text = _extract_resume_text(resume_file)
-                resume_text = _apply_contact_header(resume_text, contact_header)
+                final_resume = _apply_contact_header(resume_text, contact_header)
 
                 clean_jd = _clean_job_description(job_description)
                 raw_words   = len(job_description.split())
@@ -319,7 +317,7 @@ def start_tailor_job_for_job(
                 with _lock:
                     _jobs[tailor_job_id]["status"] = "running"
 
-                _delegate_to_hetzner(tailor_job_id, clean_jd, resume_text, openai_api_key, username, company, anthropic_api_key)
+                _delegate_to_hetzner(tailor_job_id, clean_jd, final_resume, openai_api_key, username, company, anthropic_api_key)
             except Exception as exc:
                 with _lock:
                     _jobs[tailor_job_id]["status"] = "error"
@@ -327,13 +325,13 @@ def start_tailor_job_for_job(
 
         _thr.Thread(target=_prepare_and_delegate, daemon=True).start()
     else:
-        _get_executor().submit(_run_tailor_for_job, tailor_job_id, job_description, resume_url, username, company, openai_api_key, contact_header, anthropic_api_key)
+        _get_executor().submit(_run_tailor_for_job, tailor_job_id, job_description, resume_text, username, company, openai_api_key, contact_header, anthropic_api_key)
 
 
 def _run_tailor_for_job(
     tailor_job_id: str,
     job_description: str,
-    resume_url: str,
+    resume_text: str,
     username: str,
     company: str,
     openai_api_key: str = "",
@@ -356,9 +354,6 @@ def _run_tailor_for_job(
     progress_callback({"event": "company_detected", "company_name": company})
 
     try:
-        # Resolve resume file from URL path (/uploads/resumes/<filename>)
-        resume_file = _JOBEZEE_ROOT / resume_url.lstrip('/')
-        resume_text = _extract_resume_text(resume_file)
         resume_text = _apply_contact_header(resume_text, contact_header)
         clean_jd = _clean_job_description(job_description)
 
