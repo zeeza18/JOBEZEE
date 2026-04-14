@@ -1324,8 +1324,6 @@ export default function PulledJobsPage() {
       })
       tailorQueueRef.current.push(job)
     }
-    // Switch to tailored tab immediately so user sees the job appear there
-    setActiveTab('tailored')
   }, [tailorJobs, _startTailor])
 
   // ── Auto Apply SSE ───────────────────────────────────────────────────────────
