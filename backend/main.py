@@ -53,7 +53,7 @@ async def _send_job_digests() -> None:
     _log = logging.getLogger(__name__ + ".digestemail")
     try:
         from .database import AsyncSessionLocal
-        from .models import User, UserProfile, UserJobState, JobListing
+        from .models import User, UserProfile
         from .services.email_service import send_new_jobs_email
         from .config import get_settings
         from sqlalchemy import select, cast, String as _SAStr
@@ -91,12 +91,12 @@ async def _send_job_digests() -> None:
                 # Show jobs added since last email (or last 5 hours if first ever)
                 cutoff = last_sent if last_sent else (now - cooldown)
 
+                from .models import PulledJob
                 jobs_res = await db.execute(
-                    select(JobListing)
-                    .join(UserJobState, UserJobState.job_id == JobListing.id)
-                    .where(UserJobState.user_id == str(profile.id))
-                    .where(UserJobState.created_at >= cutoff)
-                    .order_by(UserJobState.created_at.desc())
+                    select(PulledJob)
+                    .where(PulledJob.user_profile_id == profile.id)
+                    .where(PulledJob.pulled_at >= cutoff)
+                    .order_by(PulledJob.pulled_at.desc())
                     .limit(50)
                 )
                 new_jobs = jobs_res.scalars().all()
