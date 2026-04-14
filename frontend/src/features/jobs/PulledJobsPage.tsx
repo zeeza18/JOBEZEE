@@ -526,9 +526,13 @@ function JobDetailDrawer({
                   </span>
                 )}
 
-                {(tailorState?.status === 'tailoring' || tailorState?.status === 'queued') ? (
+                {tailorState?.status === 'tailoring' ? (
                   <button disabled className="flex items-center gap-1.5 rounded-xl border border-teal-300 bg-teal-500 px-3 py-2 text-sm font-medium text-white cursor-not-allowed animate-pulse">
                     <Loader2 className="h-4 w-4 animate-spin" /> Tailoring…
+                  </button>
+                ) : tailorState?.status === 'queued' ? (
+                  <button disabled className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-400 cursor-not-allowed">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Queued
                   </button>
                 ) : tailorState?.status === 'done' ? (
                   <>
@@ -711,10 +715,15 @@ function JobCard({
             </span>
           )}
 
-          {(tailorState?.status === 'tailoring' || tailorState?.status === 'queued') ? (
+          {tailorState?.status === 'tailoring' ? (
             <button disabled
               className="flex items-center gap-1 rounded-lg border border-teal-300 bg-teal-500 px-2 md:px-3 py-1.5 text-xs font-semibold text-white cursor-not-allowed shrink-0 animate-pulse">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> <span className="hidden sm:inline">Tailoring…</span>
+            </button>
+          ) : tailorState?.status === 'queued' ? (
+            <button disabled
+              className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 px-2 md:px-3 py-1.5 text-xs font-semibold text-slate-400 cursor-not-allowed shrink-0">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> <span className="hidden sm:inline">Queued</span>
             </button>
           ) : tailorState?.status === 'done' ? (
             <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
