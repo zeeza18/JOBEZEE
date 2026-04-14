@@ -23,6 +23,7 @@ interface TailorJobState {
   score       : number | null
   filename    : string | null
   error       : string | null
+  roundsDone  : number
 }
 
 interface ApplyJobState {
@@ -925,7 +926,8 @@ function FilterPanel({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const ONE_HOUR    = 60 * 60 * 1000
+const ONE_HOUR       = 60 * 60 * 1000
+const TAILOR_LS_KEY  = 'jz_pull_tailor'
 
 export default function PulledJobsPage() {
   const { pushToast } = useAppStore()
@@ -949,7 +951,24 @@ export default function PulledJobsPage() {
   const [filterOpen, setFilterOpen]     = useState(false)
   const [filters, setFilters]           = useState<Filters>(EMPTY_FILTERS)
   const [selectedJob, setSelectedJob]   = useState<PulledJob | null>(null)
-  const [tailorJobs, setTailorJobs]     = useState<Map<string, TailorJobState>>(new Map())
+  const [tailorJobs, setTailorJobs] = useState<Map<string, TailorJobState>>(() => {
+    try {
+      const raw = localStorage.getItem(TAILOR_LS_KEY)
+      if (!raw) return new Map()
+      const saved = JSON.parse(raw) as Record<string, TailorJobState>
+      const map = new Map<string, TailorJobState>()
+      for (const [id, state] of Object.entries(saved)) {
+        if (state.status === 'done' || state.status === 'error') {
+          map.set(id, { ...state, roundsDone: state.roundsDone ?? 0 })
+        } else if (state.status === 'tailoring' && state.tailorJobId) {
+          // Will poll status on mount to see if completed while away
+          map.set(id, { ...state, roundsDone: state.roundsDone ?? 0 })
+        }
+        // drop queued / tailoring without tailorJobId (API call never completed)
+      }
+      return map
+    } catch { return new Map() }
+  })
   const [applyJobs,  setApplyJobs]      = useState<Map<string, ApplyJobState>>(new Map())
 
   // ── Search session polling ────────────────────────────────────────────────────
@@ -1194,11 +1213,10 @@ export default function PulledJobsPage() {
   const startTailorRef  = useRef<(job: PulledJob) => void>(() => {})
 
   const _startTailor = useCallback(async (job: PulledJob) => {
-    // Ensure status is 'tailoring' before we hit the API
     setTailorJobs(prev => {
       const next = new Map(prev)
       const cur = next.get(job.id)
-      next.set(job.id, { tailorJobId: cur?.tailorJobId ?? '', status: 'tailoring', score: null, filename: null, error: null })
+      next.set(job.id, { tailorJobId: cur?.tailorJobId ?? '', status: 'tailoring', score: null, filename: null, error: null, roundsDone: cur?.roundsDone ?? 0 })
       return next
     })
 
@@ -1223,7 +1241,18 @@ export default function PulledJobsPage() {
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
-          if (data.event === 'done') {
+          if (data.event === 'round_complete') {
+            setTailorJobs(prev => {
+              const next = new Map(prev)
+              const cur = next.get(job.id)
+              if (cur) next.set(job.id, {
+                ...cur,
+                roundsDone: (cur.roundsDone || 0) + 1,
+                score: data.evaluation?.score != null ? Number(data.evaluation.score) : cur.score,
+              })
+              return next
+            })
+          } else if (data.event === 'done') {
             es.close()
             esSources.current.delete(tailorJobId)
             if (data.status === 'complete') {
@@ -1231,7 +1260,7 @@ export default function PulledJobsPage() {
                 tailorApi.status(tailorJobId).then(r => {
                   setTailorJobs(prev => {
                     const next = new Map(prev)
-                    next.set(job.id, { tailorJobId, status: 'done', score: r.score, filename: r.filename, error: null })
+                    next.set(job.id, { tailorJobId, status: 'done', score: r.score, filename: r.filename, error: null, roundsDone: 2 })
                     return next
                   })
                   pushToast({ title: `Resume tailored for ${job.company}`, type: 'success' })
@@ -1239,14 +1268,14 @@ export default function PulledJobsPage() {
               fetchStatus().catch(() => setTimeout(() => fetchStatus().catch(() => {
                 setTailorJobs(prev => {
                   const next = new Map(prev)
-                  next.set(job.id, { tailorJobId, status: 'error', score: null, filename: null, error: 'Could not fetch result' })
+                  next.set(job.id, { tailorJobId, status: 'error', score: null, filename: null, error: 'Could not fetch result', roundsDone: 0 })
                   return next
                 })
               }), 2000))
             } else {
               setTailorJobs(prev => {
                 const next = new Map(prev)
-                next.set(job.id, { tailorJobId, status: 'error', score: null, filename: null, error: data.error || 'Tailoring failed' })
+                next.set(job.id, { tailorJobId, status: 'error', score: null, filename: null, error: data.error || 'Tailoring failed', roundsDone: 0 })
                 return next
               })
               pushToast({ title: `Tailoring failed for ${job.company}`, description: data.error, type: 'error' })
@@ -1269,7 +1298,7 @@ export default function PulledJobsPage() {
     } catch (e: unknown) {
       setTailorJobs(prev => {
         const next = new Map(prev)
-        next.set(job.id, { tailorJobId: '', status: 'error', score: null, filename: null, error: 'Could not start tailoring' })
+        next.set(job.id, { tailorJobId: '', status: 'error', score: null, filename: null, error: 'Could not start tailoring', roundsDone: 0 })
         return next
       })
       pushToast({ title: 'Could not start tailoring', description: e instanceof Error ? e.message : 'Tailoring failed', type: 'error' })
@@ -1288,14 +1317,15 @@ export default function PulledJobsPage() {
     if (activeCount < MAX_TAILOR_WORKERS) {
       _startTailor(job)
     } else {
-      // Over worker limit — queue silently (no queue label shown to user)
       setTailorJobs(prev => {
         const next = new Map(prev)
-        next.set(job.id, { tailorJobId: '', status: 'queued', score: null, filename: null, error: null })
+        next.set(job.id, { tailorJobId: '', status: 'queued', score: null, filename: null, error: null, roundsDone: 0 })
         return next
       })
       tailorQueueRef.current.push(job)
     }
+    // Switch to tailored tab immediately so user sees the job appear there
+    setActiveTab('tailored')
   }, [tailorJobs, _startTailor])
 
   // ── Auto Apply SSE ───────────────────────────────────────────────────────────
@@ -1356,6 +1386,41 @@ export default function PulledJobsPage() {
     }
   }, [applyJobs, pushToast])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Persist tailor states across page refreshes ───────────────────────────────
+  useEffect(() => {
+    const obj: Record<string, TailorJobState> = {}
+    tailorJobs.forEach((v, k) => { obj[k] = v })
+    try { localStorage.setItem(TAILOR_LS_KEY, JSON.stringify(obj)) } catch {}
+  }, [tailorJobs])
+
+  // On mount: poll status for any tailoring jobs restored from localStorage
+  const _restoredRef = useRef(false)
+  useEffect(() => {
+    if (_restoredRef.current) return
+    _restoredRef.current = true
+    tailorJobs.forEach((state, pulledJobId) => {
+      if (state.status !== 'tailoring' || !state.tailorJobId) return
+      const jid = state.tailorJobId
+      const poll = setInterval(async () => {
+        try {
+          const r = await tailorApi.status(jid)
+          if (r.status === 'complete' || r.status === 'error') {
+            clearInterval(poll)
+            setTailorJobs(prev => {
+              const next = new Map(prev)
+              if (r.status === 'complete') {
+                next.set(pulledJobId, { tailorJobId: jid, status: 'done', score: r.score, filename: r.filename, error: null, roundsDone: 2 })
+              } else {
+                next.set(pulledJobId, { tailorJobId: jid, status: 'error', score: null, filename: null, error: r.error || 'Failed', roundsDone: 0 })
+              }
+              return next
+            })
+          }
+        } catch { clearInterval(poll) }
+      }, 3000)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Derived data ─────────────────────────────────────────────────────────────
   const allLocations = useMemo(() => {
     const SKIP = new Set(['remote', 'in-office', 'hybrid', 'on-site', 'onsite', 'worldwide', 'global', 'anywhere'])
@@ -1401,7 +1466,7 @@ export default function PulledJobsPage() {
       if (activeTab === 'saved')    return j.status === 'saved' || j.status === 'favourite'
       if (activeTab === 'hidden')   return j.status === 'hidden'
       if (activeTab === 'applied')  return j.status === 'applied'
-      if (activeTab === 'tailored') return tailorJobs.get(j.id)?.status === 'done' || j.status === 'applied'
+      if (activeTab === 'tailored') return tailorJobs.has(j.id) || j.status === 'applied'
       // ALL: exclude hidden
       if (j.status === 'hidden') return false
 
@@ -1449,11 +1514,13 @@ export default function PulledJobsPage() {
         const bS = b.status === 'saved' || b.status === 'favourite' ? 1 : 0
         if (aS !== bS) return bS - aS
       }
-      // Tailored tab: tailored-first (done), applied-last
+      // Tailored tab: done > tailoring > queued > applied
       if (activeTab === 'tailored') {
-        const aDone = tailorJobs.get(a.id)?.status === 'done' ? 1 : 0
-        const bDone = tailorJobs.get(b.id)?.status === 'done' ? 1 : 0
-        if (aDone !== bDone) return bDone - aDone
+        const statePriority = (s?: string) =>
+          s === 'done' ? 3 : s === 'tailoring' ? 2 : s === 'queued' ? 1 : 0
+        const ap = statePriority(tailorJobs.get(a.id)?.status)
+        const bp = statePriority(tailorJobs.get(b.id)?.status)
+        if (ap !== bp) return bp - ap
         const aApp = a.status === 'applied' ? 0 : 1
         const bApp = b.status === 'applied' ? 0 : 1
         if (aApp !== bApp) return bApp - aApp
@@ -1482,7 +1549,7 @@ export default function PulledJobsPage() {
   const hiddenCount   = stats?.hidden ?? 0
   const appliedCount  = stats?.applied ?? 0
   const tailoredCount = useMemo(
-    () => jobs.filter(j => tailorJobs.get(j.id)?.status === 'done' || j.status === 'applied').length,
+    () => jobs.filter(j => tailorJobs.has(j.id) || j.status === 'applied').length,
     [jobs, tailorJobs],
   )
 
