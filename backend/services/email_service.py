@@ -158,7 +158,7 @@ _JOBS_HTML = """\
     <div class="header">
       <div class="logo">JOB<em>EZEE</em></div>
       <p class="header-title">{count} new roles in your digest</p>
-      <p class="header-sub">Compiled from hourly scans &mdash; delivered every 5 hours</p>
+      <p class="header-sub">Compiled from hourly scans &mdash; new listings since your last digest</p>
     </div>
     <div class="body">
       <div class="stat-row">
@@ -258,7 +258,7 @@ async def send_new_jobs_email(
     lines = [
         f"Hi {name or 'there'},",
         "",
-        f"Your 5-hour job digest: {total_count} new listings matching your profile.",
+        f"Your job digest: {total_count} new listings matching your profile.",
         "",
     ]
     for j in preview_jobs:

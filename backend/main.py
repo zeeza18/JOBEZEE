@@ -41,27 +41,29 @@ os.makedirs(os.path.join(_cfg.UPLOAD_DIR, "resumes"), exist_ok=True)
 
 
 # ── Shared: send job digest emails to users with new jobs ────────────────────
+# Interval is driven by DIGEST_INTERVAL_MINUTES env var (default 300 = 5 hours).
 # Per-user cooldown stored in DB (user_profiles.last_digest_at) so it survives
-# server restarts / deploys. Max 1 email per user per 5 hours.
-_EMAIL_COOLDOWN_HOURS = 5
+# server restarts / deploys.
 
 async def _send_job_digests() -> None:
     """
-    Send one digest email per user, at most every 5 hours.
-    Uses DB-persisted last_digest_at so restarts don't reset the cooldown.
+    Send one digest email per user, at most once per DIGEST_INTERVAL_MINUTES.
+    Queries user_job_states + job_listings (the live tables) for new jobs since
+    the user's last digest, so every job pulled from any source is included.
     """
     _log = logging.getLogger(__name__ + ".digestemail")
     try:
         from .database import AsyncSessionLocal
-        from .models import User, UserProfile
+        from .models import User, UserProfile, UserJobState, JobListing
         from .services.email_service import send_new_jobs_email
         from .config import get_settings
         from sqlalchemy import select, cast, String as _SAStr
         from datetime import datetime, timezone, timedelta
 
         _cfg2 = get_settings()
+        interval_minutes = _cfg2.DIGEST_INTERVAL_MINUTES
         now = datetime.now(timezone.utc)
-        cooldown = timedelta(hours=_EMAIL_COOLDOWN_HOURS)
+        cooldown = timedelta(minutes=interval_minutes)
 
         async with AsyncSessionLocal() as db:
             res = await db.execute(
@@ -79,7 +81,7 @@ async def _send_job_digests() -> None:
                 if not email:
                     continue
 
-                # ── Per-user 5-hour cooldown from DB ──────────────────────
+                # ── Per-user cooldown from DB ─────────────────────────────
                 last_sent = getattr(profile, "last_digest_at", None)
                 if last_sent and last_sent.tzinfo is None:
                     last_sent = last_sent.replace(tzinfo=timezone.utc)
@@ -88,19 +90,21 @@ async def _send_job_digests() -> None:
                     _log.debug("[DigestEmail] skip %s — cooldown, %d min left", email, remaining)
                     continue
 
-                # Show jobs added since last email (or last 7 days if first ever)
-                cutoff = last_sent if last_sent else (now - timedelta(days=7))
+                # Show jobs added since last email; if first ever, use one interval back
+                cutoff = last_sent if last_sent else (now - cooldown)
 
-                from .models import PulledJob
+                # Query live tables: user_job_states + job_listings
                 jobs_res = await db.execute(
-                    select(PulledJob)
-                    .where(PulledJob.user_profile_id == profile.id)
-                    .where(PulledJob.pulled_at >= cutoff)
-                    .order_by(PulledJob.pulled_at.desc())
+                    select(JobListing)
+                    .join(UserJobState, UserJobState.job_id == JobListing.id)
+                    .where(UserJobState.user_id == str(profile.id))
+                    .where(UserJobState.created_at >= cutoff)
+                    .order_by(UserJobState.created_at.desc())
                     .limit(50)
                 )
                 new_jobs = jobs_res.scalars().all()
                 if not new_jobs:
+                    _log.debug("[DigestEmail] skip %s — no new jobs since %s", email, str(cutoff)[:16])
                     continue
 
                 name = (getattr(profile, "full_name", "") or "").strip()
@@ -113,7 +117,7 @@ async def _send_job_digests() -> None:
                         name        = name or email,
                         jobs        = new_jobs,
                         total_count = len(new_jobs),
-                        app_url     = f"{_cfg2.FRONTEND_URL}/app/search",
+                        app_url     = f"{_cfg2.FRONTEND_URL}/app/pulled-jobs",
                     )
                     # Persist timestamp to DB so restarts don't reset cooldown
                     profile.last_digest_at = now
@@ -208,21 +212,23 @@ async def _auto_search_loop() -> None:
         await asyncio.sleep(60 * 60)  # next cycle in 1 hour
 
 
-# ── 5-hour job digest email loop ─────────────────────────────────────────────
+# ── Job digest email loop (interval from DIGEST_INTERVAL_MINUTES env var) ────
 
 async def _digest_email_loop() -> None:
     """
-    Digest loop: fires every 5 hours.  Per-user 5-hour cooldown in
-    _send_job_digests() ensures each user gets at most 1 email per 5 hours
-    showing ALL new jobs since their last digest.
+    Digest loop: fires every DIGEST_INTERVAL_MINUTES minutes (default 300 = 5h).
+    Set DIGEST_INTERVAL_MINUTES=5 in .env for a dry-run test.
     """
+    from .config import get_settings as _gs
+    _interval_sec = _gs().DIGEST_INTERVAL_MINUTES * 60
     _log = logging.getLogger(__name__ + ".digestemail")
-    _log.info("[DigestEmail] loop started — first digest in 5 hours")
-    await asyncio.sleep(5 * 60 * 60)   # initial 5-hour delay
+    _log.info("[DigestEmail] loop started — interval=%d min, first run in %d min",
+              _gs().DIGEST_INTERVAL_MINUTES, _gs().DIGEST_INTERVAL_MINUTES)
+    await asyncio.sleep(_interval_sec)   # initial delay = one interval
     while True:
-        _log.info("[DigestEmail] running 5-hour digest")
+        _log.info("[DigestEmail] running digest (interval=%d min)", _gs().DIGEST_INTERVAL_MINUTES)
         await _send_job_digests()
-        await asyncio.sleep(5 * 60 * 60)   # every 5 hours
+        await asyncio.sleep(_interval_sec)
 
 
 # ── 30-minute auto email scan background loop ─────────────────────────────────

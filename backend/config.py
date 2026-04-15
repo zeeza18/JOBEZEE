@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     # ── 2Captcha (automated CAPTCHA solving for LinkedIn bot) ─────────────────
     TWOCAPTCHA_API_KEY: str = ""                        # 2captcha.com API key
 
+    # ── Job digest email interval ─────────────────────────────────────────────
+    # Default 300 min (5 hours). Set to 5 for dry-run testing.
+    DIGEST_INTERVAL_MINUTES: int = 300
+
     # ── App ──────────────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://jobezee.org,https://www.jobezee.org"
