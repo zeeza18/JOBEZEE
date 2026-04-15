@@ -177,24 +177,29 @@ export default function FeedbackWidget() {
     <>
       {/* Floating pill trigger */}
       <div
-        className="hidden md:flex fixed z-50 items-stretch select-none"
+        className="hidden md:flex fixed z-50 items-center select-none rounded-full shadow-lg bg-brand text-white"
         style={{ left: pos.x, top: pos.y, cursor: 'grab' }}
         onMouseDown={onMouseDown}
       >
+        {/* Main click area */}
         <button
           onClick={() => { if (!hasDragged.current) { if (open) closePanel(); else { reset(); setOpen(true) } } }}
           style={{ cursor: 'pointer' }}
-          className="flex items-center gap-2 rounded-l-full shadow-md px-4 py-2 text-sm font-semibold transition-all bg-brand text-white hover:bg-brand-dark hover:shadow-lg hover:-translate-y-0.5"
+          className="flex items-center gap-2 pl-4 pr-3 py-2 text-sm font-semibold rounded-l-full transition-opacity hover:opacity-90"
         >
-          <MessageSquarePlus className="h-3.5 w-3.5" /> Feedback
+          <MessageSquarePlus className="h-3.5 w-3.5 shrink-0" />
+          <span>Feedback</span>
         </button>
 
-        {/* X — dismisses the widget for this session */}
+        {/* Subtle separator */}
+        <span className="w-px h-4 bg-white/25 shrink-0" />
+
+        {/* X — dismiss for this session */}
         <button
           onClick={() => { setDismissed(true); setOpen(false) }}
           style={{ cursor: 'pointer' }}
           title="Dismiss"
-          className="flex items-center justify-center rounded-r-full shadow-md px-2.5 bg-brand/80 text-white/70 hover:bg-slate-500 hover:text-white transition-colors border-l border-white/20"
+          className="flex items-center justify-center pl-2.5 pr-3 py-2 rounded-r-full text-white/60 hover:text-white transition-colors"
         >
           <X className="h-3 w-3" />
         </button>
