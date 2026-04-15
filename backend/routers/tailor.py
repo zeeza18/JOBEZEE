@@ -243,6 +243,26 @@ async def my_tailor_jobs(current_user=Depends(get_current_user), db: AsyncSessio
     return out
 
 
+# ── Delete tailor record for a pulled job ─────────────────────────────────────
+
+@router.delete("/my-jobs/{pulled_job_id}")
+async def delete_tailor_record(
+    pulled_job_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove the tailor record for a specific pulled job (user's own records only)."""
+    from sqlalchemy import delete as sa_delete
+    await db.execute(
+        sa_delete(TailorJobRecord).where(
+            TailorJobRecord.user_id == str(current_user.id),
+            TailorJobRecord.pulled_job_id == pulled_job_id,
+        )
+    )
+    await db.commit()
+    return {"deleted": True}
+
+
 # ── Poll status ───────────────────────────────────────────────────────────────
 
 @router.get("/status/{job_id}")

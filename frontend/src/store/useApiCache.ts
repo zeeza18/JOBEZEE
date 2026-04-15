@@ -44,8 +44,12 @@ export interface CachedTailorResume {
 
 const LS_JOBS_KEY  = 'jz_jobs_cache'
 const LS_STATS_KEY = 'jz_stats_cache'
-// Max jobs to cache — keeps localStorage well under the 5 MB limit
-const MAX_CACHED_JOBS = 300
+// Strip heavy description field before caching — descriptions are fetched
+// on demand and stored in the separate in-memory descCache.
+// Without descriptions a job is ~300 bytes; 2000 jobs ≈ 600 KB, well under 5 MB.
+const MAX_CACHED_JOBS = 2000
+
+type SlimJob = Omit<PulledJob, 'description'> & { description: string }
 
 function readJobsCache(): PulledJob[] {
   try {
@@ -53,14 +57,16 @@ function readJobsCache(): PulledJob[] {
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed as PulledJob[]
+    // Re-attach empty description so the type is satisfied
+    return (parsed as SlimJob[]).map(j => ({ ...j, description: j.description ?? '' }))
   } catch { return [] }
 }
 
 function writeJobsCache(jobs: PulledJob[]) {
   try {
-    // Keep only the most recent MAX_CACHED_JOBS to cap storage size
-    const toStore = jobs.length > MAX_CACHED_JOBS ? jobs.slice(0, MAX_CACHED_JOBS) : jobs
+    const toStore = (jobs.length > MAX_CACHED_JOBS ? jobs.slice(0, MAX_CACHED_JOBS) : jobs)
+      // Strip description — largest field, not needed for instant render
+      .map(({ description: _d, ...rest }) => rest)
     localStorage.setItem(LS_JOBS_KEY, JSON.stringify(toStore))
   } catch { /* ignore quota errors */ }
 }

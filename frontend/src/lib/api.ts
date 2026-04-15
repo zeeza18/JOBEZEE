@@ -376,6 +376,9 @@ export const tailorApi = {
 
   streamUrl : (tailorJobId: string) => `${BASE}/api/tailor/stream/${tailorJobId}`,
 
+  deleteTailorRecord : (pulledJobId: string) =>
+    del<{ deleted: boolean }>(`/api/tailor/my-jobs/${pulledJobId}`),
+
   myJobs : () => get<Array<{
     pulled_job_id : string
     tailor_job_id : string

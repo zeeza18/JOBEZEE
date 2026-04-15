@@ -591,16 +591,17 @@ function JobDetailDrawer({
 
 function JobCard({
   job, tailorState, applyState, onStatusChange, onOpenDrawer, onTailor, onAutoApply,
-  convertHourly,
+  onDeleteTailor, convertHourly,
 }: {
-  job            : PulledJob
-  tailorState?   : TailorJobState
-  applyState?    : ApplyJobState
-  onStatusChange : (id: string, s: string) => void
-  onOpenDrawer   : (job: PulledJob) => void
-  onTailor       : (job: PulledJob) => void
-  onAutoApply    : (job: PulledJob) => void
-  convertHourly? : boolean
+  job             : PulledJob
+  tailorState?    : TailorJobState
+  applyState?     : ApplyJobState
+  onStatusChange  : (id: string, s: string) => void
+  onOpenDrawer    : (job: PulledJob) => void
+  onTailor        : (job: PulledJob) => void
+  onAutoApply     : (job: PulledJob) => void
+  onDeleteTailor  : (jobId: string) => void
+  convertHourly?  : boolean
 }) {
   const [updating, setUpdating] = useState(false)
   const isSaved = job.status === 'saved' || job.status === 'favourite'
@@ -753,6 +754,12 @@ function JobCard({
                  className="flex items-center gap-0.5 rounded-lg border border-slate-200 px-2 md:px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 transition shrink-0">
                 <Download className="h-3 w-3" /> DOCX
               </a>
+              <button
+                onClick={e => { e.stopPropagation(); onDeleteTailor(job.id) }}
+                title="Remove tailored resume"
+                className="p-1.5 rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 transition shrink-0">
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
           ) : job.status !== 'applied' ? (
             <button onClick={e => { e.stopPropagation(); onTailor(job) }}
@@ -1367,6 +1374,17 @@ export default function PulledJobsPage() {
     }
   }, [tailorJobs, _startTailor])
 
+  // ── Delete tailored resume ────────────────────────────────────────────────────
+  const handleDeleteTailor = useCallback((pulledJobId: string) => {
+    setTailorJobs(prev => {
+      const next = new Map(prev)
+      next.delete(pulledJobId)
+      return next
+    })
+    // Best-effort DB delete — don't block UI on result
+    tailorApi.deleteTailorRecord(pulledJobId).catch(() => {})
+  }, [])
+
   // ── Auto Apply SSE ───────────────────────────────────────────────────────────
   const handleAutoApply = useCallback(async (job: PulledJob) => {
     const existing = applyJobs.get(job.id)
@@ -1861,6 +1879,7 @@ export default function PulledJobsPage() {
                       onOpenDrawer={setSelectedJob}
                       onTailor={handleTailor}
                       onAutoApply={handleAutoApply}
+                      onDeleteTailor={handleDeleteTailor}
                       convertHourly={jobSettings.convertHourlyToMonthly}
                     />
                   </motion.div>
