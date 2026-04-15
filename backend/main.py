@@ -357,6 +357,12 @@ async def _run_startup_db() -> None:
     delays port binding and triggers Render's 'no open ports' timeout.
     Tables and columns already exist in production — these are all idempotent.
     """
+    import os as _os
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import text as _text, update as _upd
+    from .database import AsyncSessionLocal
+    from .models import TailorJobRecord
+
     _log = logging.getLogger(__name__ + ".startup")
     try:
         await create_tables()
@@ -367,6 +373,30 @@ async def _run_startup_db() -> None:
         _log.info("[Startup] schema migration done")
     except Exception as exc:
         _log.error("[Startup] DB startup failed (non-fatal): %s", exc)
+
+    # ── Mark stuck tailor jobs as error ───────────────────────────────────────
+    # Any job that's been running/queued for > 35 min is assumed dead
+    # (Hetzner worker killed it or Render restarted mid-run).
+    # This unblocks the frontend SSE which would otherwise wait forever.
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=35)
+        async with AsyncSessionLocal() as _db:
+            result = await _db.execute(
+                _upd(TailorJobRecord)
+                .where(
+                    TailorJobRecord.status.in_(["running", "queued"]),
+                    TailorJobRecord.created_at < cutoff,
+                )
+                .values(status="error", error_msg="Worker restarted — please try tailoring again")
+                .returning(TailorJobRecord.id)
+            )
+            stuck = result.fetchall()
+            await _db.commit()
+            if stuck:
+                _log.warning("[Startup] Marked %d stuck tailor jobs as error: %s",
+                             len(stuck), [r[0] for r in stuck])
+    except Exception as exc:
+        _log.warning("[Startup] Stuck-job cleanup failed (non-fatal): %s", exc)
 
 
 @asynccontextmanager

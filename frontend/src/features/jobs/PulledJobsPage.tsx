@@ -24,6 +24,7 @@ interface TailorJobState {
   filename    : string | null
   error       : string | null
   roundsDone  : number
+  startedAt?  : number   // ms timestamp when tailoring began (for timeout detection)
 }
 
 interface ApplyJobState {
@@ -1236,8 +1237,12 @@ export default function PulledJobsPage() {
     tailorJobId : string,
     companyLabel: string,
     onDone      : () => void,
+    since       = 0,
   ) => {
-    const es = new EventSource(tailorApi.streamUrl(tailorJobId))
+    const sseUrl = since > 0
+      ? `${tailorApi.streamUrl(tailorJobId)}?since=${since}`
+      : tailorApi.streamUrl(tailorJobId)
+    const es = new EventSource(sseUrl)
     esSources.current.set(tailorJobId, es)
 
     const _markError = (msg: string) => {
@@ -1324,7 +1329,7 @@ export default function PulledJobsPage() {
     setTailorJobs(prev => {
       const next = new Map(prev)
       const cur = next.get(job.id)
-      next.set(job.id, { tailorJobId: cur?.tailorJobId ?? '', status: 'tailoring', score: null, filename: null, error: null, roundsDone: cur?.roundsDone ?? 0 })
+      next.set(job.id, { tailorJobId: cur?.tailorJobId ?? '', status: 'tailoring', score: null, filename: null, error: null, roundsDone: cur?.roundsDone ?? 0, startedAt: Date.now() })
       return next
     })
 
@@ -1457,7 +1462,12 @@ export default function PulledJobsPage() {
     _restoredRef.current = true
 
     // Build a set of pulled_job_ids that need SSE reconnect after DB merge
-    const reconnect = (pulledJobId: string, tailorJobId: string) => {
+    const reconnect = (
+      pulledJobId     : string,
+      tailorJobId     : string,
+      since           = 0,
+      initialRoundsDone = 0,
+    ) => {
       // First check if job already finished while we were away
       tailorApi.status(tailorJobId).then(s => {
         if (s.status === 'complete') {
@@ -1473,12 +1483,21 @@ export default function PulledJobsPage() {
             return next
           })
         } else {
-          // Still running — reconnect to SSE stream; server will push done when ready
-          _attachSSE(pulledJobId, tailorJobId, '', () => {})
+          // Restore correct dot count immediately so dots don't reset to 0
+          if (initialRoundsDone > 0) {
+            setTailorJobs(prev => {
+              const next = new Map(prev)
+              const cur = next.get(pulledJobId)
+              if (cur) next.set(pulledJobId, { ...cur, roundsDone: initialRoundsDone })
+              return next
+            })
+          }
+          // Still running — reconnect to SSE, skip already-delivered events
+          _attachSSE(pulledJobId, tailorJobId, '', () => {}, since)
         }
       }).catch(() => {
         // Status check failed — still try SSE; it handles reconnect internally
-        _attachSSE(pulledJobId, tailorJobId, '', () => {})
+        _attachSSE(pulledJobId, tailorJobId, '', () => {}, since)
       })
     }
 
@@ -1500,7 +1519,8 @@ export default function PulledJobsPage() {
               score       : r.score,
               filename    : r.filename,
               error       : null,
-              roundsDone  : dbStatus === 'done' ? 2 : 0,
+              // Restore correct dot count from DB (0 = no dots, 1 = ., 2 = .., ≥3 = ...)
+              roundsDone  : dbStatus === 'done' ? 2 : (r.rounds_done ?? 0),
             })
           }
         }
@@ -1510,7 +1530,8 @@ export default function PulledJobsPage() {
       // Reconnect SSE for DB-known in-progress jobs
       for (const r of records) {
         if (r.status === 'queued' || r.status === 'running') {
-          reconnect(r.pulled_job_id, r.tailor_job_id)
+          // Pass progress_count so SSE skips already-delivered events (no double-counting)
+          reconnect(r.pulled_job_id, r.tailor_job_id, r.progress_count ?? 0, r.rounds_done ?? 0)
         }
       }
 

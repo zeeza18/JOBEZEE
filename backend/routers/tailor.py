@@ -230,15 +230,29 @@ async def my_tailor_jobs(current_user=Depends(get_current_user), db: AsyncSessio
 
     out = []
     for r in seen.values():
+        # Use in-memory progress for actively running jobs (most up-to-date)
+        mem = _jobs.get(r.id)
+        if mem:
+            progress_events = mem.get("progress", [])
+            status = mem.get("status", r.status)
+        else:
+            progress_events = list(r.progress_events or [])
+            status = r.status
+
+        rounds_done    = sum(1 for e in progress_events if e.get("event") == "round_complete")
+        progress_count = len(progress_events)
+
         out.append({
-            "pulled_job_id": str(r.pulled_job_id),
-            "tailor_job_id": r.id,
-            "status":        r.status,          # queued/running/complete/error
-            "score":         r.score,
-            "filename":      r.filename,
-            "has_pdf":       r.has_pdf,
-            "has_docx":      r.has_docx,
-            "company_name":  r.company_name,
+            "pulled_job_id":  str(r.pulled_job_id),
+            "tailor_job_id":  r.id,
+            "status":         status,
+            "score":          r.score,
+            "filename":       r.filename,
+            "has_pdf":        r.has_pdf,
+            "has_docx":       r.has_docx,
+            "company_name":   r.company_name,
+            "rounds_done":    rounds_done,
+            "progress_count": progress_count,
         })
     return out
 

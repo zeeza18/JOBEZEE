@@ -380,14 +380,16 @@ export const tailorApi = {
     del<{ deleted: boolean }>(`/api/tailor/my-jobs/${pulledJobId}`),
 
   myJobs : () => get<Array<{
-    pulled_job_id : string
-    tailor_job_id : string
-    status        : string   // queued/running/complete/error
-    score         : number | null
-    filename      : string | null
-    has_pdf       : boolean
-    has_docx      : boolean
-    company_name  : string | null
+    pulled_job_id  : string
+    tailor_job_id  : string
+    status         : string   // queued/running/complete/error
+    score          : number | null
+    filename       : string | null
+    has_pdf        : boolean
+    has_docx        : boolean
+    company_name   : string | null
+    rounds_done    : number
+    progress_count : number
   }>>('/api/tailor/my-jobs'),
 }
 
