@@ -1,6 +1,6 @@
 /**
- * Floating feedback widget — collapsed icon by default.
- * Click icon to expand full button. Drag to any edge — position saved to localStorage.
+ * Floating feedback widget — always-visible pill button.
+ * X button dismisses for the session. Drag to any edge — position saved to localStorage.
  * Captures page context automatically: URL, profile, tracker status, news.
  * Submits to POST /api/logs/feedback.
  */
@@ -20,14 +20,12 @@ const TYPE_CFG: Record<FeedbackType, { icon: React.ElementType; label: string; c
   general: { icon: MessageCircle, label: 'General',         color: 'text-cyan-600   bg-cyan-50   border-cyan-200'  },
 }
 
-const POS_KEY  = 'feedback_pos'   // localStorage key for saved position
-const MINI_W   = 36
-const MINI_H   = 36
+const POS_KEY  = 'feedback_pos'
 const BTN_W    = 148
-const BTN_H    = 42
+const BTN_H    = 38
 const PANEL_W  = 320
 const PANEL_H  = 460
-const SNAP_PAD = 16  // px from edge when snapping
+const SNAP_PAD = 16
 
 function defaultPos() {
   return { x: window.innerWidth - BTN_W - SNAP_PAD, y: window.innerHeight - BTN_H - SNAP_PAD }
@@ -44,45 +42,36 @@ function loadPos(): { x: number; y: number } | null {
 }
 
 function snapToEdge(x: number, y: number, w: number, h: number) {
-  const midX = window.innerWidth  / 2
-  const midY = window.innerHeight / 2
-  // Snap horizontally to nearest edge
-  const snapX = (x + w / 2) < midX ? SNAP_PAD : window.innerWidth  - w - SNAP_PAD
-  // Keep Y clamped but don't snap vertically — let user place it where they want on the Y axis
+  const midX  = window.innerWidth / 2
+  const snapX = (x + w / 2) < midX ? SNAP_PAD : window.innerWidth - w - SNAP_PAD
   const clampY = Math.max(SNAP_PAD, Math.min(window.innerHeight - h - SNAP_PAD, y))
-  void midY  // not used for Y snap
   return { x: snapX, y: clampY }
 }
 
 export default function FeedbackWidget() {
   const location = useLocation()
 
-  // Collapsed (small icon) by default on every startup
-  const [expanded, setExpanded] = useState(false)
-  const [open,     setOpen]     = useState(false)
-  const [type,     setType]     = useState<FeedbackType>('general')
-  const [rating,   setRating]   = useState<number>(0)
-  const [hovered,  setHovered]  = useState<number>(0)
-  const [message,  setMessage]  = useState('')
-  const [sending,  setSending]  = useState(false)
-  const [sent,     setSent]     = useState(false)
-  const [error,    setError]    = useState('')
-  const [ctx,      setCtx]      = useState<Record<string, unknown>>({})
-  const [pos,      setPos]      = useState<{ x: number; y: number } | null>(null)
+  const [dismissed, setDismissed] = useState(false)
+  const [open,      setOpen]      = useState(false)
+  const [type,      setType]      = useState<FeedbackType>('general')
+  const [rating,    setRating]    = useState<number>(0)
+  const [hovered,   setHovered]   = useState<number>(0)
+  const [message,   setMessage]   = useState('')
+  const [sending,   setSending]   = useState(false)
+  const [sent,      setSent]      = useState(false)
+  const [error,     setError]     = useState('')
+  const [ctx,       setCtx]       = useState<Record<string, unknown>>({})
+  const [pos,       setPos]       = useState<{ x: number; y: number } | null>(null)
 
   const dragging   = useRef(false)
   const hasDragged = useRef(false)
   const dragOffset = useRef({ x: 0, y: 0 })
-  const expandedRef = useRef(expanded)
-  useEffect(() => { expandedRef.current = expanded }, [expanded])
 
-  // Init position from localStorage or default bottom-right
   useEffect(() => {
     const saved = loadPos()
     setPos(saved ?? defaultPos())
   }, [])
 
-  // Auto-capture context when panel opens
   useEffect(() => {
     if (!open) return
     const snapshot: Record<string, unknown> = {
@@ -153,10 +142,8 @@ export default function FeedbackWidget() {
     const onMove = (e: MouseEvent) => {
       if (!dragging.current) return
       hasDragged.current = true
-      const w = expandedRef.current ? BTN_W : MINI_W
-      const h = expandedRef.current ? BTN_H : MINI_H
-      const x = Math.max(0, Math.min(window.innerWidth  - w, e.clientX - dragOffset.current.x))
-      const y = Math.max(0, Math.min(window.innerHeight - h, e.clientY - dragOffset.current.y))
+      const x = Math.max(0, Math.min(window.innerWidth  - BTN_W, e.clientX - dragOffset.current.x))
+      const y = Math.max(0, Math.min(window.innerHeight - BTN_H, e.clientY - dragOffset.current.y))
       setPos({ x, y })
     }
 
@@ -164,12 +151,9 @@ export default function FeedbackWidget() {
       if (!dragging.current) return
       dragging.current = false
       if (hasDragged.current) {
-        // Snap to nearest horizontal edge, save position
-        const w = expandedRef.current ? BTN_W : MINI_W
-        const h = expandedRef.current ? BTN_H : MINI_H
         setPos(prev => {
           if (!prev) return prev
-          const snapped = snapToEdge(prev.x, prev.y, w, h)
+          const snapped = snapToEdge(prev.x, prev.y, BTN_W, BTN_H)
           localStorage.setItem(POS_KEY, JSON.stringify(snapped))
           return snapped
         })
@@ -184,63 +168,46 @@ export default function FeedbackWidget() {
     }
   }, [])
 
-  if (pos === null) return null
+  if (pos === null || dismissed) return null
 
-  const currentW = expanded ? BTN_W : MINI_W
-  const currentH = expanded ? BTN_H : MINI_H
-  const panelLeft = pos.x + PANEL_W > window.innerWidth  ? pos.x + currentW - PANEL_W : pos.x
-  const panelTop  = pos.y - PANEL_H - 8 < 0             ? pos.y + currentH + 8        : pos.y - PANEL_H - 8
+  const panelLeft = pos.x + PANEL_W > window.innerWidth  ? pos.x + BTN_W - PANEL_W : pos.x
+  const panelTop  = pos.y - PANEL_H - 8 < 0             ? pos.y + BTN_H + 8        : pos.y - PANEL_H - 8
 
   return (
     <>
-      {/* Floating trigger */}
+      {/* Floating pill trigger */}
       <div
         className="hidden md:flex fixed z-50 items-stretch select-none"
         style={{ left: pos.x, top: pos.y, cursor: 'grab' }}
         onMouseDown={onMouseDown}
       >
-        {!expanded ? (
-          /* ── Collapsed: small circle icon ── */
-          <button
-            onClick={() => { if (!hasDragged.current) setExpanded(true) }}
-            style={{ cursor: 'pointer' }}
-            title="Feedback"
-            className="flex items-center justify-center h-9 w-9 rounded-full shadow-md bg-gradient-to-br from-cyan-500 to-sky-500 text-white hover:shadow-cyan-400/50 hover:scale-110 transition-all"
-          >
-            <MessageSquarePlus className="h-4 w-4" />
-          </button>
-        ) : (
-          /* ── Expanded: full pill button ── */
-          <>
-            <button
-              onClick={() => { if (!hasDragged.current) { if (open) { closePanel() } else { reset(); setOpen(true) } } }}
-              style={{ cursor: 'pointer' }}
-              className="flex items-center gap-2 rounded-l-full shadow-lg px-4 py-2.5 text-sm font-semibold transition-all bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:-translate-y-0.5"
-            >
-              <MessageSquarePlus className="h-4 w-4" /> Feedback
-            </button>
+        <button
+          onClick={() => { if (!hasDragged.current) { if (open) closePanel(); else { reset(); setOpen(true) } } }}
+          style={{ cursor: 'pointer' }}
+          className="flex items-center gap-2 rounded-l-full shadow-md px-4 py-2 text-sm font-semibold transition-all bg-brand text-white hover:bg-brand-dark hover:shadow-lg hover:-translate-y-0.5"
+        >
+          <MessageSquarePlus className="h-3.5 w-3.5" /> Feedback
+        </button>
 
-            {/* X collapses back to icon */}
-            <button
-              onClick={() => { setExpanded(false); setOpen(false) }}
-              style={{ cursor: 'pointer' }}
-              title="Collapse"
-              className="flex items-center justify-center rounded-r-full shadow-lg px-2.5 bg-sky-500 text-white/80 hover:bg-red-400 hover:text-white transition-colors border-l border-sky-400/40"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </>
-        )}
+        {/* X — dismisses the widget for this session */}
+        <button
+          onClick={() => { setDismissed(true); setOpen(false) }}
+          style={{ cursor: 'pointer' }}
+          title="Dismiss"
+          className="flex items-center justify-center rounded-r-full shadow-md px-2.5 bg-brand/80 text-white/70 hover:bg-slate-500 hover:text-white transition-colors border-l border-white/20"
+        >
+          <X className="h-3 w-3" />
+        </button>
       </div>
 
       {/* Panel */}
-      {open && expanded && (
+      {open && (
         <div
           className="hidden md:block fixed z-50 w-80 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden"
           style={{ left: panelLeft, top: panelTop }}
         >
           <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
-            <MessageSquarePlus className="h-4 w-4 text-cyan-500" />
+            <MessageSquarePlus className="h-4 w-4 text-brand" />
             <p className="text-sm font-semibold text-slate-800">Send Feedback</p>
             <span className="text-[10px] text-slate-400 font-mono truncate max-w-[80px]">{location.pathname}</span>
             <button onClick={closePanel} className="ml-auto p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors">
@@ -306,7 +273,7 @@ export default function FeedbackWidget() {
                     onChange={e => setMessage(e.target.value)}
                     rows={4}
                     placeholder="Tell us more…"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none resize-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none resize-none focus:border-brand focus:ring-2 focus:ring-brand/10 transition"
                   />
                 </div>
 
@@ -329,7 +296,7 @@ export default function FeedbackWidget() {
                 {error && <p className="text-xs text-red-500">{error}</p>}
 
                 <button onClick={submit} disabled={sending}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 py-2.5 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-cyan-200">
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 text-sm font-semibold text-white disabled:opacity-60 transition-all hover:-translate-y-0.5 hover:bg-brand-dark hover:shadow-md">
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {sending ? 'Sending…' : 'Send Feedback'}
                 </button>
