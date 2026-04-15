@@ -88,8 +88,8 @@ async def _send_job_digests() -> None:
                     _log.debug("[DigestEmail] skip %s — cooldown, %d min left", email, remaining)
                     continue
 
-                # Show jobs added since last email (or last 5 hours if first ever)
-                cutoff = last_sent if last_sent else (now - cooldown)
+                # Show jobs added since last email (or last 7 days if first ever)
+                cutoff = last_sent if last_sent else (now - timedelta(days=7))
 
                 from .models import PulledJob
                 jobs_res = await db.execute(
