@@ -190,7 +190,9 @@ async def list_pulled_jobs(
         q = q.where(JobListing.title.ilike(like) | JobListing.company.ilike(like))
 
     # ── Job-type filter: only apply when user has explicit preferences set ───
-    # Maps our internal job_types values to the strings jobspy stores in job_type field
+    # Maps our internal job_types values to the strings jobspy stores in job_type field.
+    # IMPORTANT: jobspy often returns empty job_type strings — we always include those
+    # (treat empty/null as "unknown type, show it") so no jobs are silently dropped.
     _JOB_TYPE_KEYWORDS: dict[str, list[str]] = {
         "full_time":   ["full-time", "fulltime", "full time", "permanent"],
         "part_time":   ["part-time", "parttime", "part time"],
@@ -210,12 +212,15 @@ async def list_pulled_jobs(
         )
         if preferred_types:
             from sqlalchemy import or_
-            type_conditions = []
+            type_conditions = [
+                # always pass through jobs with no type info stored
+                JobListing.job_type.is_(None),
+                JobListing.job_type == "",
+            ]
             for jt in preferred_types:
                 for kw in _JOB_TYPE_KEYWORDS.get(jt.lower(), [jt.replace("_", "-")]):
                     type_conditions.append(sqlfunc.lower(JobListing.job_type).contains(kw))
-            if type_conditions:
-                q = q.where(or_(*type_conditions))
+            q = q.where(or_(*type_conditions))
 
     q = q.limit(limit).offset(offset)
 
