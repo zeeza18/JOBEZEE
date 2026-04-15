@@ -865,8 +865,10 @@ def build_preferences(profile: Any) -> "UserPreferences":
                            ),
 
         # ── Role type & level ──────────────────────────────────────────────
-        # job_type is a single string in DB; Phase 1 expects a list
-        job_types        = [profile.job_type] if profile.job_type else [],
+        # Prefer job_types (plural multi-select); fall back to legacy job_type (singular)
+        job_types        = list(getattr(profile, "job_types", None) or []) or (
+                               [profile.job_type] if profile.job_type else []
+                           ),
         experience_level = profile.experience_level or "mid",
         industries       = [i.lower() for i in (profile.industries or [])],
 

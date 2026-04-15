@@ -188,6 +188,35 @@ async def list_pulled_jobs(
     if search:
         like = f"%{search}%"
         q = q.where(JobListing.title.ilike(like) | JobListing.company.ilike(like))
+
+    # ── Job-type filter: only apply when user has explicit preferences set ───
+    # Maps our internal job_types values to the strings jobspy stores in job_type field
+    _JOB_TYPE_KEYWORDS: dict[str, list[str]] = {
+        "full_time":   ["full-time", "fulltime", "full time", "permanent"],
+        "part_time":   ["part-time", "parttime", "part time"],
+        "internship":  ["internship", "intern"],
+        "contract":    ["contract", "contractor", "freelance"],
+        "temporary":   ["temporary", "temp"],
+    }
+    profile_res = await db.execute(
+        select(UserProfile.job_types, UserProfile.job_type)
+        .where(UserProfile.email == current_user.email)
+    )
+    prof_row = profile_res.first()
+    if prof_row:
+        # prefer job_types (plural); fall back to job_type (singular)
+        preferred_types: list[str] = list(prof_row.job_types or []) or (
+            [prof_row.job_type] if prof_row.job_type else []
+        )
+        if preferred_types:
+            from sqlalchemy import or_
+            type_conditions = []
+            for jt in preferred_types:
+                for kw in _JOB_TYPE_KEYWORDS.get(jt.lower(), [jt.replace("_", "-")]):
+                    type_conditions.append(sqlfunc.lower(JobListing.job_type).contains(kw))
+            if type_conditions:
+                q = q.where(or_(*type_conditions))
+
     q = q.limit(limit).offset(offset)
 
     rows = (await db.execute(q)).mappings().all()
