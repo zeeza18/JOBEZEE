@@ -1,9 +1,8 @@
 /**
- * In-memory API response cache — persists across React Router navigation.
- * Cleared only on full browser refresh (no localStorage persistence by design;
- * the server is the source of truth).
+ * In-memory API response cache — persists across React Router navigation
+ * AND across full browser refreshes via localStorage.
  *
- * Pattern: on mount, read cache → show instantly → fetch silently → update cache.
+ * Pattern: on mount, read localStorage → show instantly → fetch silently → update cache.
  */
 import { create } from 'zustand'
 import type { PulledJob, JobStats, UserProfile } from '../lib/api'
@@ -39,6 +38,43 @@ export interface CachedNews {
 export interface CachedTailorResume {
   text     : string
   filename : string | null
+}
+
+// ── localStorage helpers ───────────────────────────────────────────────────────
+
+const LS_JOBS_KEY  = 'jz_jobs_cache'
+const LS_STATS_KEY = 'jz_stats_cache'
+// Max jobs to cache — keeps localStorage well under the 5 MB limit
+const MAX_CACHED_JOBS = 300
+
+function readJobsCache(): PulledJob[] {
+  try {
+    const raw = localStorage.getItem(LS_JOBS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed as PulledJob[]
+  } catch { return [] }
+}
+
+function writeJobsCache(jobs: PulledJob[]) {
+  try {
+    // Keep only the most recent MAX_CACHED_JOBS to cap storage size
+    const toStore = jobs.length > MAX_CACHED_JOBS ? jobs.slice(0, MAX_CACHED_JOBS) : jobs
+    localStorage.setItem(LS_JOBS_KEY, JSON.stringify(toStore))
+  } catch { /* ignore quota errors */ }
+}
+
+function readStatsCache(): JobStats | null {
+  try {
+    const raw = localStorage.getItem(LS_STATS_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as JobStats
+  } catch { return null }
+}
+
+function writeStatsCache(stats: JobStats) {
+  try { localStorage.setItem(LS_STATS_KEY, JSON.stringify(stats)) } catch {}
 }
 
 // ── Store ──────────────────────────────────────────────────────────────────────
@@ -78,8 +114,9 @@ interface ApiCacheState {
 }
 
 export const useApiCache = create<ApiCacheState>((set) => ({
-  pulledJobs    : [],
-  jobStats      : null,
+  // Seed from localStorage so the first render shows data instantly
+  pulledJobs    : readJobsCache(),
+  jobStats      : readStatsCache(),
   dashStats     : null,
   dashProfile   : null,
   dashNews      : null,
@@ -87,8 +124,16 @@ export const useApiCache = create<ApiCacheState>((set) => ({
   portfolioData : null,
   profileForm   : null,
 
-  setPulledJobs   : (jobs)    => set({ pulledJobs: jobs }),
-  setJobStats     : (stats)   => set({ jobStats: stats }),
+  setPulledJobs: (jobs) => {
+    writeJobsCache(jobs)
+    set({ pulledJobs: jobs })
+  },
+
+  setJobStats: (stats) => {
+    writeStatsCache(stats)
+    set({ jobStats: stats })
+  },
+
   setDashStats    : (stats)   => set({ dashStats: stats }),
   setDashProfile  : (profile) => set({ dashProfile: profile }),
   setDashNews     : (news)    => set({ dashNews: news }),
@@ -96,13 +141,20 @@ export const useApiCache = create<ApiCacheState>((set) => ({
   setPortfolioData: (data)    => set({ portfolioData: data }),
   setProfileForm  : (form)    => set({ profileForm: form }),
 
-  updateJobStatus: (id, status) =>
-    set((s) => ({ pulledJobs: s.pulledJobs.map((j) => (j.id === id ? { ...j, status } : j)) })),
+  updateJobStatus: (id, status) => {
+    set((s) => {
+      const updated = s.pulledJobs.map((j) => (j.id === id ? { ...j, status } : j))
+      writeJobsCache(updated)
+      return { pulledJobs: updated }
+    })
+  },
 
   mergeJobs: (fresh) =>
     set((s) => {
       const map = new Map(s.pulledJobs.map((j) => [j.id, j]))
       for (const j of fresh) map.set(j.id, j)
-      return { pulledJobs: [...map.values()] }
+      const merged = [...map.values()]
+      writeJobsCache(merged)
+      return { pulledJobs: merged }
     }),
 }))
