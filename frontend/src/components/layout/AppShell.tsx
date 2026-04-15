@@ -28,7 +28,7 @@ const AppShell = () => {
         </main>
       </div>
       <MobileDock />
-      <FeedbackWidget />
+      <FeedbackWidget sidebarOpen={sidebarOpen} />
     </div>
   )
 }
