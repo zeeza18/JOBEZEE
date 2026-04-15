@@ -51,8 +51,7 @@ function snapToEdge(x: number, y: number, w: number, h: number) {
 export default function FeedbackWidget() {
   const location = useLocation()
 
-  const [dismissed, setDismissed] = useState(false)
-  const [open,      setOpen]      = useState(false)
+  const [open,  setOpen]  = useState(false)
   const [type,      setType]      = useState<FeedbackType>('general')
   const [rating,    setRating]    = useState<number>(0)
   const [hovered,   setHovered]   = useState<number>(0)
@@ -131,7 +130,6 @@ export default function FeedbackWidget() {
 
   // ── Drag ─────────────────────────────────────────────────────────────────
   const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('button')) return
     dragging.current   = true
     hasDragged.current = false
     dragOffset.current = { x: e.clientX - (pos?.x ?? 0), y: e.clientY - (pos?.y ?? 0) }
@@ -168,41 +166,24 @@ export default function FeedbackWidget() {
     }
   }, [])
 
-  if (pos === null || dismissed) return null
+  if (pos === null) return null
 
   const panelLeft = pos.x + PANEL_W > window.innerWidth  ? pos.x + BTN_W - PANEL_W : pos.x
   const panelTop  = pos.y - PANEL_H - 8 < 0             ? pos.y + BTN_H + 8        : pos.y - PANEL_H - 8
 
   return (
     <>
-      {/* Floating pill trigger */}
+      {/* Floating pill — drag anywhere, click to open */}
       <div
-        className="hidden md:flex fixed z-50 items-center select-none rounded-full shadow-lg bg-brand text-white"
-        style={{ left: pos.x, top: pos.y, cursor: 'grab' }}
+        role="button"
+        tabIndex={0}
         onMouseDown={onMouseDown}
+        onClick={() => { if (!hasDragged.current) { if (open) closePanel(); else { reset(); setOpen(true) } } }}
+        className="hidden md:flex fixed z-50 items-center gap-2 select-none rounded-full shadow-lg bg-brand text-white px-4 py-2 text-sm font-semibold active:shadow-md transition-shadow"
+        style={{ left: pos.x, top: pos.y, cursor: 'grab' }}
       >
-        {/* Main click area */}
-        <button
-          onClick={() => { if (!hasDragged.current) { if (open) closePanel(); else { reset(); setOpen(true) } } }}
-          style={{ cursor: 'pointer' }}
-          className="flex items-center gap-2 pl-4 pr-3 py-2 text-sm font-semibold rounded-l-full transition-opacity hover:opacity-90"
-        >
-          <MessageSquarePlus className="h-3.5 w-3.5 shrink-0" />
-          <span>Feedback</span>
-        </button>
-
-        {/* Subtle separator */}
-        <span className="w-px h-4 bg-white/25 shrink-0" />
-
-        {/* X — dismiss for this session */}
-        <button
-          onClick={() => { setDismissed(true); setOpen(false) }}
-          style={{ cursor: 'pointer' }}
-          title="Dismiss"
-          className="flex items-center justify-center pl-2.5 pr-3 py-2 rounded-r-full text-white/60 hover:text-white transition-colors"
-        >
-          <X className="h-3 w-3" />
-        </button>
+        <MessageSquarePlus className="h-3.5 w-3.5 shrink-0" />
+        <span>Feedback</span>
       </div>
 
       {/* Panel */}
