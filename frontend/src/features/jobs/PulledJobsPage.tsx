@@ -1216,6 +1216,103 @@ export default function PulledJobsPage() {
   const tailorQueueRef  = useRef<PulledJob[]>([])
   const startTailorRef  = useRef<(job: PulledJob) => void>(() => {})
 
+  /**
+   * Attach an SSE listener to an already-running tailor job.
+   * Used both for new jobs (just started) and on refresh (reconnect).
+   * pulledJobId  = the job card's UUID (key in tailorJobs map)
+   * tailorJobId  = the tailor record UUID (used for SSE + status API)
+   * companyLabel = shown in toast (may be empty for restored jobs)
+   * onDone       = called after SSE done+fetchStatus, e.g. to advance queue
+   */
+  const _attachSSE = useCallback((
+    pulledJobId : string,
+    tailorJobId : string,
+    companyLabel: string,
+    onDone      : () => void,
+  ) => {
+    const es = new EventSource(tailorApi.streamUrl(tailorJobId))
+    esSources.current.set(tailorJobId, es)
+
+    const _markError = (msg: string) => {
+      setTailorJobs(prev => {
+        const next = new Map(prev)
+        const cur = next.get(pulledJobId)
+        if (cur?.status === 'tailoring')
+          next.set(pulledJobId, { ...cur, status: 'error', error: msg })
+        return next
+      })
+    }
+
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.event === 'round_complete') {
+          setTailorJobs(prev => {
+            const next = new Map(prev)
+            const cur = next.get(pulledJobId)
+            if (cur) next.set(pulledJobId, {
+              ...cur,
+              roundsDone: (cur.roundsDone || 0) + 1,
+              score: data.evaluation?.score != null ? Number(data.evaluation.score) : cur.score,
+            })
+            return next
+          })
+        } else if (data.event === 'done') {
+          es.close()
+          esSources.current.delete(tailorJobId)
+          if (data.status === 'complete') {
+            // Show "Tailoring..." (3 dots) while files are being packaged
+            setTailorJobs(prev => {
+              const next = new Map(prev)
+              const cur = next.get(pulledJobId)
+              if (cur) next.set(pulledJobId, { ...cur, roundsDone: 3 })
+              return next
+            })
+            const fetchStatus = () =>
+              tailorApi.status(tailorJobId).then(r => {
+                setTailorJobs(prev => {
+                  const next = new Map(prev)
+                  next.set(pulledJobId, { tailorJobId, status: 'done', score: r.score, filename: r.filename, error: null, roundsDone: 2 })
+                  return next
+                })
+                if (companyLabel) pushToast({ title: `Resume tailored for ${companyLabel}`, type: 'success' })
+              })
+            fetchStatus().catch(() => setTimeout(() => fetchStatus().catch(() => _markError('Could not fetch result')), 2000))
+          } else {
+            _markError(data.error || 'Tailoring failed')
+            if (companyLabel) pushToast({ title: `Tailoring failed for ${companyLabel}`, description: data.error, type: 'error' })
+          }
+          onDone()
+        }
+      } catch { /* ignore */ }
+    }
+
+    es.onerror = () => {
+      es.close()
+      esSources.current.delete(tailorJobId)
+      // SSE connection lost — fall back to polling every 5 s
+      const poll = setInterval(async () => {
+        try {
+          const s = await tailorApi.status(tailorJobId)
+          if (s.status === 'complete' || s.status === 'error') {
+            clearInterval(poll)
+            setTailorJobs(prev => {
+              const next = new Map(prev)
+              if (s.status === 'complete') {
+                next.set(pulledJobId, { tailorJobId, status: 'done', score: s.score, filename: s.filename, error: null, roundsDone: 2 })
+                if (companyLabel) pushToast({ title: `Resume tailored for ${companyLabel}`, type: 'success' })
+              } else {
+                next.set(pulledJobId, { tailorJobId, status: 'error', score: null, filename: null, error: s.error || 'Failed', roundsDone: 0 })
+              }
+              return next
+            })
+            onDone()
+          }
+        } catch { clearInterval(poll) }
+      }, 5000)
+    }
+  }, [pushToast])
+
   const _startTailor = useCallback(async (job: PulledJob) => {
     setTailorJobs(prev => {
       const next = new Map(prev)
@@ -1238,74 +1335,7 @@ export default function PulledJobsPage() {
         if (cur) next.set(job.id, { ...cur, tailorJobId })
         return next
       })
-
-      const es = new EventSource(tailorApi.streamUrl(tailorJobId))
-      esSources.current.set(tailorJobId, es)
-
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          if (data.event === 'round_complete') {
-            setTailorJobs(prev => {
-              const next = new Map(prev)
-              const cur = next.get(job.id)
-              if (cur) next.set(job.id, {
-                ...cur,
-                roundsDone: (cur.roundsDone || 0) + 1,
-                score: data.evaluation?.score != null ? Number(data.evaluation.score) : cur.score,
-              })
-              return next
-            })
-          } else if (data.event === 'done') {
-            es.close()
-            esSources.current.delete(tailorJobId)
-            if (data.status === 'complete') {
-              // Show "Tailoring..." (3 dots) while files are being packaged
-              setTailorJobs(prev => {
-                const next = new Map(prev)
-                const cur = next.get(job.id)
-                if (cur) next.set(job.id, { ...cur, roundsDone: 3 })
-                return next
-              })
-              const fetchStatus = () =>
-                tailorApi.status(tailorJobId).then(r => {
-                  setTailorJobs(prev => {
-                    const next = new Map(prev)
-                    next.set(job.id, { tailorJobId, status: 'done', score: r.score, filename: r.filename, error: null, roundsDone: 2 })
-                    return next
-                  })
-                  pushToast({ title: `Resume tailored for ${job.company}`, type: 'success' })
-                })
-              fetchStatus().catch(() => setTimeout(() => fetchStatus().catch(() => {
-                setTailorJobs(prev => {
-                  const next = new Map(prev)
-                  next.set(job.id, { tailorJobId, status: 'error', score: null, filename: null, error: 'Could not fetch result', roundsDone: 0 })
-                  return next
-                })
-              }), 2000))
-            } else {
-              setTailorJobs(prev => {
-                const next = new Map(prev)
-                next.set(job.id, { tailorJobId, status: 'error', score: null, filename: null, error: data.error || 'Tailoring failed', roundsDone: 0 })
-                return next
-              })
-              pushToast({ title: `Tailoring failed for ${job.company}`, description: data.error, type: 'error' })
-            }
-            _startNext()
-          }
-        } catch { /* ignore */ }
-      }
-      es.onerror = () => {
-        es.close()
-        esSources.current.delete(tailorJobId)
-        setTailorJobs(prev => {
-          const next = new Map(prev)
-          const cur = next.get(job.id)
-          if (cur?.status === 'tailoring') next.set(job.id, { ...cur, status: 'error', error: 'Connection error' })
-          return next
-        })
-        _startNext()
-      }
+      _attachSSE(job.id, tailorJobId, job.company, _startNext)
     } catch (e: unknown) {
       setTailorJobs(prev => {
         const next = new Map(prev)
@@ -1315,7 +1345,7 @@ export default function PulledJobsPage() {
       pushToast({ title: 'Could not start tailoring', description: e instanceof Error ? e.message : 'Tailoring failed', type: 'error' })
       _startNext()
     }
-  }, [pushToast])
+  }, [pushToast, _attachSSE])
 
   useEffect(() => { startTailorRef.current = _startTailor }, [_startTailor])
 
@@ -1402,22 +1432,49 @@ export default function PulledJobsPage() {
     try { localStorage.setItem(TAILOR_LS_KEY, JSON.stringify(obj)) } catch {}
   }, [tailorJobs])
 
-  // On mount: restore tailor state from DB (survives refreshes + clears localStorage gaps)
+  // On mount: restore tailor state + reconnect SSE for any in-progress jobs
   const _restoredRef = useRef(false)
   useEffect(() => {
     if (_restoredRef.current) return
     _restoredRef.current = true
 
+    // Build a set of pulled_job_ids that need SSE reconnect after DB merge
+    const reconnect = (pulledJobId: string, tailorJobId: string) => {
+      // First check if job already finished while we were away
+      tailorApi.status(tailorJobId).then(s => {
+        if (s.status === 'complete') {
+          setTailorJobs(prev => {
+            const next = new Map(prev)
+            next.set(pulledJobId, { tailorJobId, status: 'done', score: s.score, filename: s.filename, error: null, roundsDone: 2 })
+            return next
+          })
+        } else if (s.status === 'error') {
+          setTailorJobs(prev => {
+            const next = new Map(prev)
+            next.set(pulledJobId, { tailorJobId, status: 'error', score: null, filename: null, error: s.error || 'Failed', roundsDone: 0 })
+            return next
+          })
+        } else {
+          // Still running — reconnect to SSE stream; server will push done when ready
+          _attachSSE(pulledJobId, tailorJobId, '', () => {})
+        }
+      }).catch(() => {
+        // Status check failed — still try SSE; it handles reconnect internally
+        _attachSSE(pulledJobId, tailorJobId, '', () => {})
+      })
+    }
+
     tailorApi.myJobs().then(records => {
+      const dbCovered = new Set<string>()
+
       setTailorJobs(prev => {
         const next = new Map(prev)
         for (const r of records) {
-          // Only overwrite if the DB record is more authoritative (complete/error)
-          // or if we have no local state at all for this job
+          dbCovered.add(r.pulled_job_id)
           const existing = next.get(r.pulled_job_id)
           const dbStatus = r.status === 'complete' ? 'done'
                          : r.status === 'error'    ? 'error'
-                         : 'tailoring'             // queued/running → show as tailoring
+                         : 'tailoring'
           if (!existing || dbStatus === 'done' || dbStatus === 'error') {
             next.set(r.pulled_job_id, {
               tailorJobId : r.tailor_job_id,
@@ -1432,54 +1489,28 @@ export default function PulledJobsPage() {
         return next
       })
 
-      // For any still-running jobs (tailoring status), poll until complete
+      // Reconnect SSE for DB-known in-progress jobs
       for (const r of records) {
-        if (r.status !== 'queued' && r.status !== 'running') continue
-        const jid = r.tailor_job_id
-        const pulledJobId = r.pulled_job_id
-        const poll = setInterval(async () => {
-          try {
-            const s = await tailorApi.status(jid)
-            if (s.status === 'complete' || s.status === 'error') {
-              clearInterval(poll)
-              setTailorJobs(prev => {
-                const next = new Map(prev)
-                if (s.status === 'complete') {
-                  next.set(pulledJobId, { tailorJobId: jid, status: 'done', score: s.score, filename: s.filename, error: null, roundsDone: 2 })
-                } else {
-                  next.set(pulledJobId, { tailorJobId: jid, status: 'error', score: null, filename: null, error: s.error || 'Failed', roundsDone: 0 })
-                }
-                return next
-              })
-            }
-          } catch { clearInterval(poll) }
-        }, 3000)
+        if (r.status === 'queued' || r.status === 'running') {
+          reconnect(r.pulled_job_id, r.tailor_job_id)
+        }
       }
-    }).catch(() => {
-      // Fall back to localStorage-restored jobs polling (old behaviour)
+
+      // Also reconnect for localStorage-based tailoring jobs not covered by DB
+      // (jobs tailored before pulled_job_id column was added)
       tailorJobs.forEach((state, pulledJobId) => {
         if (state.status !== 'tailoring' || !state.tailorJobId) return
-        const jid = state.tailorJobId
-        const poll = setInterval(async () => {
-          try {
-            const r = await tailorApi.status(jid)
-            if (r.status === 'complete' || r.status === 'error') {
-              clearInterval(poll)
-              setTailorJobs(prev => {
-                const next = new Map(prev)
-                if (r.status === 'complete') {
-                  next.set(pulledJobId, { tailorJobId: jid, status: 'done', score: r.score, filename: r.filename, error: null, roundsDone: 2 })
-                } else {
-                  next.set(pulledJobId, { tailorJobId: jid, status: 'error', score: null, filename: null, error: r.error || 'Failed', roundsDone: 0 })
-                }
-                return next
-              })
-            }
-          } catch { clearInterval(poll) }
-        }, 3000)
+        if (dbCovered.has(pulledJobId)) return
+        reconnect(pulledJobId, state.tailorJobId)
+      })
+    }).catch(() => {
+      // myJobs API unavailable — reconnect all localStorage tailoring jobs
+      tailorJobs.forEach((state, pulledJobId) => {
+        if (state.status !== 'tailoring' || !state.tailorJobId) return
+        reconnect(pulledJobId, state.tailorJobId)
       })
     })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [_attachSSE]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived data ─────────────────────────────────────────────────────────────
   const allLocations = useMemo(() => {
