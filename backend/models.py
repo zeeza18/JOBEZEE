@@ -358,6 +358,7 @@ class JobListing(Base):
     site            = Column(String(100), default="")
     posted_at       = Column(String(100), default="")
     skills          = Column(JSON, default=list)
+    exp_years_min   = Column(Integer, nullable=True)   # min yrs experience extracted from title/desc
     first_seen_at   = Column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -22,6 +22,57 @@ from urllib.parse import urlparse
 
 log = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Experience year extractor
+# ---------------------------------------------------------------------------
+
+def _extract_exp_years(title: str, description: str) -> "int | None":
+    """
+    Parse minimum years of experience from job title (preferred) then description.
+
+    Returns an int (0 for intern/entry with no explicit year) or None if unknown.
+    Capped at 20 to avoid matching salary/percentage false positives.
+    """
+    _MAX_YEARS = 20
+
+    for text in [title or "", (description or "")[:3000]]:
+        t = text.lower()
+
+        # 0-year keyword shortcuts — checked before numeric patterns
+        if re.search(r"\bintern(ship)?\b|\bapprentice\b|\bco-?op\b|\btrainee\b", t):
+            return 0
+        if re.search(r"entry[\s-]level|no experience required|no prior experience", t):
+            return 0
+
+        # Numeric patterns, most-specific first
+        _PATTERNS = [
+            r"(\d+)\s*\+\s*years?\s*(?:of\s+)?(?:experience|exp)\b",          # 3+ years experience
+            r"minimum\s+(?:of\s+)?(\d+)\s*years?",                              # minimum 3 years
+            r"at\s+least\s+(\d+)\s*years?",                                      # at least 3 years
+            r"(\d+)\s*[-\u2013]\s*\d+\s*years?\s*(?:of\s+)?(?:experience|exp)\b",  # 3-5 years exp
+            r"(\d+)\s*years?\s*(?:of\s+)?(?:experience|exp\b|relevant|related|professional)",
+        ]
+        for pat in _PATTERNS:
+            m = re.search(pat, t)
+            if m:
+                val = int(m.group(1))
+                if val <= _MAX_YEARS:
+                    return val
+
+    return None
+
+
+# ── Experience level → year range thresholds ────────────────────────────────
+# 4 supported levels. NULL exp_years_min always passes through (unknown = show it).
+_EXP_LEVEL_YEARS: dict[str, tuple[int, int]] = {
+    "intern":  (0,  1),   # 0–1 yrs  (internships, apprentices)
+    "junior":  (0,  3),   # 0–3 yrs  (entry/jr roles)
+    "mid":     (2,  6),   # 2–6 yrs
+    "senior":  (5, 20),   # 5+ yrs
+}
+
+
 # ── PHASE1_JOB_SEARCH lives at the repo root (same level as backend/) ──────────
 _REPO_ROOT = Path(__file__).resolve().parents[2]   # …/JOBEZEE (repo root)
 if str(_REPO_ROOT) not in sys.path:
@@ -607,15 +658,17 @@ async def _save_jobs_v2(
             else:
                 salary_text = ""
 
-            job_id = uuid.uuid4()
+            job_id    = uuid.uuid4()
+            _title    = (getattr(rec, "title",       "") or "")[:300]
+            _desc     = getattr(rec, "description",  "") or ""
             db.add(JobListing(
                 id             = job_id,
-                title          = (getattr(rec, "title",       "") or "")[:300],
+                title          = _title,
                 company        = (getattr(rec, "company",     "") or "")[:200],
                 location       = (getattr(rec, "location",    "") or "")[:200],
                 country        = (getattr(rec, "country",     "") or "")[:100],
                 url            = url,
-                description    = getattr(rec, "description",  "") or "",
+                description    = _desc,
                 job_type       = str(getattr(rec, "job_type", "") or ""),
                 salary_min     = smin,
                 salary_max     = smax,
@@ -625,6 +678,7 @@ async def _save_jobs_v2(
                 site           = (getattr(rec, "site",   "") or "")[:100],
                 posted_at      = str(getattr(rec, "date_posted", "") or ""),
                 skills         = [],
+                exp_years_min  = _extract_exp_years(_title, _desc),
             ))
             url_to_id[url] = job_id
             new_job_ids.append(job_id)

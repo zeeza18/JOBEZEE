@@ -189,38 +189,83 @@ async def list_pulled_jobs(
         like = f"%{search}%"
         q = q.where(JobListing.title.ilike(like) | JobListing.company.ilike(like))
 
-    # ── Job-type filter: only apply when user has explicit preferences set ───
-    # Maps our internal job_types values to the strings jobspy stores in job_type field.
-    # IMPORTANT: jobspy often returns empty job_type strings — we always include those
-    # (treat empty/null as "unknown type, show it") so no jobs are silently dropped.
-    _JOB_TYPE_KEYWORDS: dict[str, list[str]] = {
-        "full_time":   ["full-time", "fulltime", "full time", "permanent"],
-        "part_time":   ["part-time", "parttime", "part time"],
-        "internship":  ["internship", "intern"],
-        "contract":    ["contract", "contractor", "freelance"],
-        "temporary":   ["temporary", "temp"],
+    # ── Per-user preference filters (job_type + experience_level) ───────────
+    # job_type field is empty for all jobs from jobspy, so we scan title+desc.
+    # exp_years_min is parsed from title/desc at pull time (NULL = unknown).
+    # 4 supported experience levels: intern / junior / mid / senior.
+    _EXP_LEVEL_YEARS: dict[str, tuple[int, int]] = {
+        "intern":  (0, 1),
+        "junior":  (0, 3),
+        "mid":     (2, 6),
+        "senior":  (5, 20),
     }
+
     profile_res = await db.execute(
-        select(UserProfile.job_types, UserProfile.job_type)
+        select(UserProfile.job_types, UserProfile.job_type,
+               UserProfile.experience_level, UserProfile.experience_levels)
         .where(UserProfile.email == current_user.email)
     )
     prof_row = profile_res.first()
     if prof_row:
-        # prefer job_types (plural); fall back to job_type (singular)
+        from sqlalchemy import or_, and_, true as sqltrue
+
+        # ── Job-type filter (title + description scan) ────────────────────
         preferred_types: list[str] = list(prof_row.job_types or []) or (
             [prof_row.job_type] if prof_row.job_type else []
         )
         if preferred_types:
-            from sqlalchemy import or_
-            type_conditions = [
-                # always pass through jobs with no type info stored
-                JobListing.job_type.is_(None),
-                JobListing.job_type == "",
-            ]
+            type_conditions = []
             for jt in preferred_types:
-                for kw in _JOB_TYPE_KEYWORDS.get(jt.lower(), [jt.replace("_", "-")]):
-                    type_conditions.append(sqlfunc.lower(JobListing.job_type).contains(kw))
-            q = q.where(or_(*type_conditions))
+                jt = jt.lower()
+                if jt == "internship":
+                    type_conditions.append(or_(
+                        sqlfunc.lower(JobListing.title).contains("intern"),
+                        sqlfunc.lower(JobListing.description).contains("internship"),
+                        sqlfunc.lower(JobListing.description).contains("intern program"),
+                    ))
+                elif jt == "part_time":
+                    type_conditions.append(or_(
+                        sqlfunc.lower(JobListing.title).contains("part-time"),
+                        sqlfunc.lower(JobListing.title).contains("part time"),
+                        sqlfunc.lower(JobListing.description).contains("part-time"),
+                        sqlfunc.lower(JobListing.description).contains("part time"),
+                    ))
+                elif jt == "contract":
+                    type_conditions.append(or_(
+                        sqlfunc.lower(JobListing.title).contains("contract"),
+                        sqlfunc.lower(JobListing.description).contains("contractor"),
+                        sqlfunc.lower(JobListing.description).contains("contract position"),
+                    ))
+                elif jt == "full_time":
+                    type_conditions.append(sqltrue())  # no restriction
+            if type_conditions:
+                q = q.where(or_(*type_conditions))
+
+        # ── Experience-level year-range filter ────────────────────────────
+        exp_list: list[str] = list(prof_row.experience_levels or []) or (
+            [prof_row.experience_level] if prof_row.experience_level else []
+        )
+        exp_lvl = exp_list[0].lower().strip() if exp_list else ""
+        yr_range = _EXP_LEVEL_YEARS.get(exp_lvl)
+        if yr_range:
+            lo, hi = yr_range
+            if exp_lvl == "intern":
+                # Strict: NULL only passes if title also has intern keyword
+                _intern_title = or_(
+                    sqlfunc.lower(JobListing.title).contains("intern"),
+                    sqlfunc.lower(JobListing.title).contains("co-op"),
+                    sqlfunc.lower(JobListing.title).contains("apprentice"),
+                )
+                q = q.where(or_(
+                    and_(JobListing.exp_years_min >= lo, JobListing.exp_years_min <= hi),
+                    and_(JobListing.exp_years_min.is_(None), _intern_title),
+                ))
+            else:
+                # junior / mid / senior: NULL passes freely
+                q = q.where(or_(
+                    JobListing.exp_years_min.is_(None),
+                    and_(JobListing.exp_years_min >= lo, JobListing.exp_years_min <= hi),
+                ))
 
     q = q.limit(limit).offset(offset)
 
