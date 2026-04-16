@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     TWOCAPTCHA_API_KEY: str = ""                        # 2captcha.com API key
 
     # ── Job digest email interval ─────────────────────────────────────────────
-    # Default 300 min (5 hours). Set to 5 for dry-run testing.
-    DIGEST_INTERVAL_MINUTES: int = 300
+    # Default 600 min (10 hours). Set to 5 for dry-run testing.
+    DIGEST_INTERVAL_MINUTES: int = 600
 
     # ── App ──────────────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"
