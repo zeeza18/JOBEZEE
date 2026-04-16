@@ -15,10 +15,11 @@ def _check_secret(authorization: str | None) -> None:
     secret = get_settings().WORKER_SECRET
     if not secret:
         raise HTTPException(503, "WORKER_SECRET not configured")
-    # Accept any token in a comma-separated list (handles multi-environment setups)
+    # Split both sides by comma so multi-token secrets match regardless of order
     bearer = (authorization or "").removeprefix("Bearer ").strip()
-    accepted = {s.strip() for s in secret.split(",") if s.strip()}
-    if bearer not in accepted:
+    bearer_tokens  = {t.strip() for t in bearer.split(",")  if t.strip()}
+    allowed_tokens = {t.strip() for t in secret.split(",") if t.strip()}
+    if not bearer_tokens.intersection(allowed_tokens):
         raise HTTPException(401, "Unauthorized")
 
 
