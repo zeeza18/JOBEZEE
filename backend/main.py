@@ -27,7 +27,7 @@ from .config import get_settings
 from .database import create_tables, run_column_migrations, run_schema_migration
 from .routers import auth, jobs, portfolio, profile, search, tailor
 from .routers import apply_auto, applied_jobs, dashboard, auth_linkedin
-from .routers import analytics, logs
+from .routers import analytics, logs, internal
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -55,7 +55,6 @@ async def _send_job_digests() -> None:
     try:
         from .database import AsyncSessionLocal
         from .models import User, UserProfile, UserJobState, JobListing
-        from .services.email_service import send_new_jobs_email
         from .config import get_settings
         from sqlalchemy import select, cast, String as _SAStr
         from datetime import datetime, timezone, timedelta
@@ -112,12 +111,12 @@ async def _send_job_digests() -> None:
                     name = (getattr(user, "full_name", "") or "").strip()
 
                 try:
-                    await send_new_jobs_email(
-                        to_email    = email,
-                        name        = name or email,
-                        jobs        = new_jobs,
-                        total_count = len(new_jobs),
-                        app_url     = f"{_cfg2.FRONTEND_URL}/app/pulled-jobs",
+                    # Delegate SMTP to Render (avoids Hetzner port-587 block)
+                    await _send_digest_via_render(
+                        cfg      = _cfg2,
+                        to_email = email,
+                        name     = name or email,
+                        jobs     = new_jobs,
                     )
                     # Persist timestamp to DB so restarts don't reset cooldown
                     profile.last_digest_at = now
@@ -128,6 +127,52 @@ async def _send_job_digests() -> None:
                     _log.warning("[DigestEmail] failed for %s: %s", email, _exc)
     except Exception as exc:
         _log.exception("[DigestEmail] error in _send_job_digests: %s", exc)
+
+
+async def _send_digest_via_render(cfg, to_email: str, name: str, jobs: list) -> None:
+    """
+    POST job digest data to Render's /api/internal/send-digest so Render
+    handles SMTP (avoids Hetzner outbound port-587 block).
+    Falls back to direct SMTP if API_BASE_URL or WORKER_SECRET is not set.
+    """
+    import httpx
+
+    if cfg.API_BASE_URL and cfg.WORKER_SECRET:
+        payload = {
+            "to_email"   : to_email,
+            "name"       : name,
+            "total_count": len(jobs),
+            "jobs"       : [
+                {
+                    "title"      : j.title or "",
+                    "company"    : j.company or "",
+                    "location"   : j.location or "",
+                    "job_type"   : j.job_type or "",
+                    "salary_text": j.salary_text or "",
+                    "site"       : j.site or "",
+                    "source"     : j.source or "",
+                    "url"        : j.url or "",
+                }
+                for j in jobs
+            ],
+        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"{cfg.API_BASE_URL}/api/internal/send-digest",
+                json=payload,
+                headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+            )
+            r.raise_for_status()
+    else:
+        # Fallback: direct SMTP (works if not on Hetzner or port is open)
+        from .services.email_service import send_new_jobs_email
+        await send_new_jobs_email(
+            to_email    = to_email,
+            name        = name,
+            jobs        = jobs,
+            total_count = len(jobs),
+            app_url     = f"{cfg.FRONTEND_URL}/app/pulled-jobs",
+        )
 
 
 # ── Hourly auto-search background loop ───────────────────────────────────────
@@ -466,6 +511,7 @@ app.include_router(applied_jobs.router, prefix="/api/applied-jobs", tags=["appli
 app.include_router(dashboard.router,    prefix="/api/dashboard",    tags=["dashboard"])
 app.include_router(analytics.router,    prefix="/api/analytics",    tags=["analytics"])
 app.include_router(logs.router,         prefix="/api/logs",         tags=["logs"])
+app.include_router(internal.router,     prefix="/api/internal",     tags=["internal"])
 
 # ── Static files (uploaded resumes) ──────────────────────────────────────────
 
