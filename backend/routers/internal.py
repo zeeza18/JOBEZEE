@@ -15,8 +15,10 @@ def _check_secret(authorization: str | None) -> None:
     secret = get_settings().WORKER_SECRET
     if not secret:
         raise HTTPException(503, "WORKER_SECRET not configured")
-    expected = f"Bearer {secret}"
-    if authorization != expected:
+    # Accept any token in a comma-separated list (handles multi-environment setups)
+    bearer = (authorization or "").removeprefix("Bearer ").strip()
+    accepted = {s.strip() for s in secret.split(",") if s.strip()}
+    if bearer not in accepted:
         raise HTTPException(401, "Unauthorized")
 
 
