@@ -356,9 +356,19 @@ async def job_stats(
     sources_res = await db.execute(sources_q)
     sources = [r[0] for r in sources_res if r[0]]
 
+    # "new" = jobs pulled in the last 48 hours (today + yesterday)
+    new_48h_res = await db.execute(
+        select(sqlfunc.count())
+        .where(
+            UserJobState.user_id == user_id,
+            UserJobState.created_at >= text("NOW() - INTERVAL '48 hours'"),
+        )
+    )
+    new_48h: int = new_48h_res.scalar() or 0
+
     return {
         "total"     : sum(status_map.values()),
-        "new"       : status_map.get("new", 0),
+        "new"       : new_48h,
         "saved"     : status_map.get("saved", 0),
         "applied"   : status_map.get("applied", 0),
         "favourite" : status_map.get("favourite", 0),

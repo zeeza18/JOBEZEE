@@ -1592,7 +1592,7 @@ export default function PulledJobsPage() {
 
     return jobs.filter(j => {
       // Tab filter
-      if (activeTab === 'new')      return j.status === 'new'
+      if (activeTab === 'new')      return Date.now() - new Date(j.pulled_at).getTime() < 48 * 3_600_000
       if (activeTab === 'saved')    return j.status === 'saved' || j.status === 'favourite'
       if (activeTab === 'hidden')   return j.status === 'hidden'
       if (activeTab === 'applied')  return j.status === 'applied'
