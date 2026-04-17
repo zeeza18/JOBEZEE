@@ -16,12 +16,18 @@ const SECTION_KEYS = ['about', 'skills', 'experience', 'projects', 'education', 
 const DEFAULT_SECTIONS: Record<string, boolean> = Object.fromEntries(SECTION_KEYS.map(k => [k, true]))
 
 const CATEGORY_DEFAULTS: Record<string, { primary: string; accent: string }> = {
-  tech       : { primary: '#06b6d4', accent: '#a78bfa' },
-  creative   : { primary: '#f59e0b', accent: '#ef4444' },
-  business   : { primary: '#c9a84c', accent: '#f5edd8' },
-  finance    : { primary: '#00d46a', accent: '#ffd700' },
-  healthcare : { primary: '#0891b2', accent: '#14b8a6' },
-  marketing  : { primary: '#8b5cf6', accent: '#ec4899' },
+  'modern-minimal'       : { primary: '#2563EB', accent: '#18181B' },
+  'bold-impactful'       : { primary: '#FF3B00', accent: '#FFFFFF' },
+  'dark-sleek'           : { primary: '#C9A96E', accent: '#E8E8E8' },
+  'warm-human'           : { primary: '#C0622B', accent: '#2C2416' },
+  'creative-studio'      : { primary: '#7B5EA7', accent: '#1A1A1A' },
+  'tech-cyber'           : { primary: '#00FF88', accent: '#00BFFF' },
+  'classic-professional' : { primary: '#2A5298', accent: '#1B2A4A' },
+  'vibrant-playful'      : { primary: '#FF6B6B', accent: '#1A1A2E' },
+  'editorial'            : { primary: '#E63946', accent: '#111111' },
+  'glass-depth'          : { primary: '#A78BFA', accent: '#FFFFFF' },
+  'nature-organic'       : { primary: '#5C7A3E', accent: '#2C3E2D' },
+  'retro-vintage'        : { primary: '#B5451B', accent: '#2E1A0E' },
 }
 
 // ── Canva presets ──────────────────────────────────────────────────────────────
@@ -53,20 +59,26 @@ const PROFILE_PHOTOS = [
   { id: 'photo4',   label: 'Style 4',  url: 'https://i.pravatar.cc/300?img=32' },
 ]
 
-// ── Category cards ────────────────────────────────────────────────────────────
+// ── Theme cards ───────────────────────────────────────────────────────────────
 interface CategoryCard {
-  id: string; label: string; tagline: string
+  id: string; label: string; tagline: string; sampleId: string
   Icon: React.ElementType; gradient: string; textColor: string; iconBg: string
   templateId: string; previewBg: string; accentHex: string
 }
 
 const CARDS: CategoryCard[] = [
-  { id: 'tech',       label: 'Tech',       tagline: 'For developers & engineers',    Icon: Code2,        gradient: 'from-slate-900 via-cyan-950 to-slate-900',      textColor: 'text-cyan-300',    iconBg: 'bg-cyan-500/20',    templateId: 'ModernDev',      previewBg: '#0a0a0f', accentHex: '#06b6d4' },
-  { id: 'creative',   label: 'Creative',   tagline: 'For designers & artists',       Icon: Palette,      gradient: 'from-rose-950 via-orange-950 to-yellow-950',    textColor: 'text-amber-300',   iconBg: 'bg-amber-500/20',   templateId: 'ArtCanvas',      previewBg: '#0d0d0d', accentHex: '#f59e0b' },
-  { id: 'business',   label: 'Business',   tagline: 'For executives & managers',     Icon: Briefcase,    gradient: 'from-slate-800 via-blue-950 to-slate-900',      textColor: 'text-amber-300',   iconBg: 'bg-amber-500/20',   templateId: 'ExecutiveSuite', previewBg: '#0f2044', accentHex: '#c9a84c' },
-  { id: 'finance',    label: 'Finance',    tagline: 'For analysts & bankers',        Icon: BarChart2,    gradient: 'from-green-950 via-emerald-950 to-slate-900',   textColor: 'text-emerald-400', iconBg: 'bg-emerald-500/20', templateId: 'WallStreet',     previewBg: '#070f0a', accentHex: '#00d46a' },
-  { id: 'healthcare', label: 'Healthcare', tagline: 'For medical professionals',     Icon: Stethoscope,  gradient: 'from-teal-50 via-cyan-50 to-blue-50',           textColor: 'text-teal-700',    iconBg: 'bg-teal-100',       templateId: 'CareFlow',       previewBg: '#f0fdfa', accentHex: '#0891b2' },
-  { id: 'marketing',  label: 'Marketing',  tagline: 'For marketers & growth leads',  Icon: TrendingUp,   gradient: 'from-violet-600 via-purple-600 to-pink-600',    textColor: 'text-white',       iconBg: 'bg-white/20',       templateId: 'BrandStudio',    previewBg: '#0f0f14', accentHex: '#ec4899' },
+  { id: 'modern-minimal',       label: 'Modern Minimal',       tagline: 'Clean · whitespace · type-first',        sampleId: 'tech',       Icon: Layers,      gradient: 'from-zinc-50 via-blue-50 to-slate-100',           textColor: 'text-blue-700',     iconBg: 'bg-blue-100',        templateId: 'ModernDev',      previewBg: '#FAFAFA', accentHex: '#2563EB' },
+  { id: 'bold-impactful',       label: 'Bold Impactful',       tagline: 'Dark · huge type · commanding',          sampleId: 'creative',   Icon: Zap,         gradient: 'from-zinc-900 via-zinc-800 to-red-950',           textColor: 'text-red-400',      iconBg: 'bg-red-500/20',      templateId: 'WallStreet',     previewBg: '#0A0A0A', accentHex: '#FF3B00' },
+  { id: 'dark-sleek',           label: 'Dark Sleek',           tagline: 'Premium dark · gold accents',            sampleId: 'tech',       Icon: Sparkles,    gradient: 'from-zinc-900 via-neutral-800 to-yellow-950',     textColor: 'text-yellow-400',   iconBg: 'bg-yellow-500/20',   templateId: 'NeonGrid',       previewBg: '#0D0D0D', accentHex: '#C9A96E' },
+  { id: 'warm-human',           label: 'Warm Human',           tagline: 'Earthy · rounded · personal',            sampleId: 'healthcare', Icon: Heart,       gradient: 'from-orange-50 via-amber-50 to-stone-100',        textColor: 'text-orange-700',   iconBg: 'bg-orange-100',      templateId: 'CareFlow',       previewBg: '#FAF7F2', accentHex: '#C0622B' },
+  { id: 'creative-studio',      label: 'Creative Studio',      tagline: 'Asymmetric · expressive · artistic',     sampleId: 'creative',   Icon: Palette,     gradient: 'from-stone-100 via-purple-50 to-stone-200',       textColor: 'text-purple-700',   iconBg: 'bg-purple-100',      templateId: 'ArtCanvas',      previewBg: '#F0EDEB', accentHex: '#7B5EA7' },
+  { id: 'tech-cyber',           label: 'Tech Cyber',           tagline: 'Terminal · neon · matrix grid',          sampleId: 'tech',       Icon: Code2,       gradient: 'from-slate-900 via-cyan-950 to-slate-900',        textColor: 'text-cyan-300',     iconBg: 'bg-cyan-500/20',     templateId: 'ModernDev',      previewBg: '#040A10', accentHex: '#00FF88' },
+  { id: 'classic-professional', label: 'Classic Professional', tagline: 'Serif · structured · print-ready',       sampleId: 'business',   Icon: Briefcase,   gradient: 'from-slate-50 via-blue-50 to-slate-100',          textColor: 'text-blue-800',     iconBg: 'bg-blue-100',        templateId: 'ExecutiveSuite', previewBg: '#F8F8F6', accentHex: '#2A5298' },
+  { id: 'vibrant-playful',      label: 'Vibrant Playful',      tagline: 'Multi-color · rounded · energetic',      sampleId: 'marketing',  Icon: TrendingUp,  gradient: 'from-yellow-50 via-orange-50 to-pink-50',         textColor: 'text-rose-600',     iconBg: 'bg-rose-100',        templateId: 'BrandStudio',    previewBg: '#FFFBF0', accentHex: '#FF6B6B' },
+  { id: 'editorial',            label: 'Editorial',            tagline: 'Magazine layout · pull quotes',           sampleId: 'creative',   Icon: Type,        gradient: 'from-stone-50 via-red-50 to-stone-100',           textColor: 'text-red-700',      iconBg: 'bg-red-100',         templateId: 'InkStudio',      previewBg: '#FDFCFA', accentHex: '#E63946' },
+  { id: 'glass-depth',          label: 'Glass Depth',          tagline: 'Glassmorphism · aurora background',      sampleId: 'finance',    Icon: Layers,      gradient: 'from-purple-950 via-indigo-950 to-violet-950',    textColor: 'text-violet-300',   iconBg: 'bg-violet-500/20',   templateId: 'QuantEdge',      previewBg: '#0F0C29', accentHex: '#A78BFA' },
+  { id: 'nature-organic',       label: 'Nature Organic',       tagline: 'Botanical · fluid · earthy',             sampleId: 'healthcare', Icon: Stethoscope, gradient: 'from-stone-100 via-green-50 to-lime-50',          textColor: 'text-green-700',    iconBg: 'bg-green-100',       templateId: 'MedProfile',     previewBg: '#F4F1EC', accentHex: '#5C7A3E' },
+  { id: 'retro-vintage',        label: 'Retro Vintage',        tagline: 'Grain texture · slab serif · parchment', sampleId: 'creative',   Icon: BarChart2,   gradient: 'from-amber-50 via-stone-100 to-orange-50',        textColor: 'text-amber-800',    iconBg: 'bg-amber-100',       templateId: 'GrowthHacker',   previewBg: '#F5F0E8', accentHex: '#B5451B' },
 ]
 
 // ── Per-category demo profiles ─────────────────────────────────────────────
@@ -164,21 +176,29 @@ const SAMPLE = SAMPLES.tech
 
 // ── Mini Preview (card thumbnails) ────────────────────────────────────────────
 const PREVIEW_DATA: Record<string, { role: string; skills: string[]; companies: string[] }> = {
-  tech:       { role: 'Senior Software Engineer',  skills: ['Python',    'React',       'AWS',      'Docker'],   companies: ['Stripe',    'Google']      },
-  creative:   { role: 'Art Director',              skills: ['Figma',     'Photoshop',   'Cinema 4D','Procreate'],companies: ['Pentagram', 'IDEO']         },
-  business:   { role: 'Chief Operating Officer',   skills: ['Strategy',  'P&L Mgmt',   'OKRs',     'M&A'],      companies: ['McKinsey',  'Deloitte']     },
-  finance:    { role: 'Portfolio Manager, CFA',    skills: ['Equities',  'Bloomberg',   'DCF/LBO',  'Risk Mgmt'],companies: ['Goldman',   'BlackRock']    },
-  healthcare: { role: 'Cardiologist, MD FACC',     skills: ['Cardiology','Epic EHR',   'PACS',     'ACLS'],     companies: ['Mayo Clinic','Mass General'] },
-  marketing:  { role: 'VP of Marketing',           skills: ['Meta Ads',  'SEO/SEM',    'HubSpot',  'GA4'],      companies: ['Ogilvy',    'Unilever']     },
+  'modern-minimal'       : { role: 'Product Designer',        skills: ['Figma',      'React',      'CSS',       'Framer'],   companies: ['Apple',     'Notion']      },
+  'bold-impactful'       : { role: 'Creative Director',       skills: ['Branding',   'Motion',     'Copy',      'Art Dir'],  companies: ['W+K',       'BBDO']        },
+  'dark-sleek'           : { role: 'UX Lead',                 skills: ['Design Sys', 'Framer',     'Swift',     'Figma'],    companies: ['Vercel',    'Linear']      },
+  'warm-human'           : { role: 'UX Researcher',           skills: ['User Tests', 'Figma',      'Miro',      'Research'], companies: ['IDEO',      'Mailchimp']   },
+  'creative-studio'      : { role: 'Art Director',            skills: ['Illustrator','Cinema 4D',  'Figma',     'Brand'],    companies: ['Pentagram', 'Collins']     },
+  'tech-cyber'           : { role: 'Senior Engineer',         skills: ['Go',         'Rust',        'K8s',       'Terraform'],companies: ['Stripe',    'Cloudflare']  },
+  'classic-professional' : { role: 'VP of Operations',        skills: ['Strategy',   'P&L',         'OKRs',      'PMO'],      companies: ['McKinsey',  'Deloitte']    },
+  'vibrant-playful'      : { role: 'Growth Marketer',         skills: ['Meta Ads',   'SEO',         'HubSpot',   'GA4'],      companies: ['Shopify',   'Duolingo']    },
+  'editorial'            : { role: 'Content Strategist',      skills: ['SEO',        'CMS',         'Copywrite', 'Analytics'],companies: ['NYT',       'Substack']    },
+  'glass-depth'          : { role: 'ML Engineer',             skills: ['PyTorch',    'CUDA',        'Python',    'Ray'],      companies: ['OpenAI',    'DeepMind']    },
+  'nature-organic'       : { role: 'Wellness Coach',          skills: ['Coaching',   'Nutrition',   'Mindful',   'Yoga'],     companies: ['Headspace', 'Calm']        },
+  'retro-vintage'        : { role: 'Brand Historian',         skills: ['Typography', 'Print',       'Brand',     'Research'], companies: ['Taschen',   'Monocle']     },
 }
 
+const DARK_THEMES = new Set(['bold-impactful','dark-sleek','tech-cyber','glass-depth'])
+
 function MiniPreview({ card }: { card: CategoryCard }) {
-  const isDark = ['tech', 'finance', 'marketing', 'business', 'creative'].includes(card.id)
+  const isDark = DARK_THEMES.has(card.id)
   const textColor = isDark ? 'rgba(255,255,255,0.9)' : '#111'
   const subColor = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'
   const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
-  const data = PREVIEW_DATA[card.id] ?? PREVIEW_DATA.tech
-  const sampleName = SAMPLES[card.id]?.full_name ?? 'Alex Morgan'
+  const data = PREVIEW_DATA[card.id] ?? PREVIEW_DATA['modern-minimal']
+  const sampleName = SAMPLES[card.sampleId]?.full_name ?? 'Alex Morgan'
 
   return (
     <div className="w-full rounded-xl overflow-hidden shadow-2xl" style={{ background: card.previewBg, border: `1px solid ${borderColor}` }}>
@@ -306,7 +326,7 @@ export default function PortfolioPage() {
     setOpenCat(card)
   }, [])
 
-  const demoProfile     = SAMPLES[openCat?.id ?? 'tech'] ?? SAMPLE
+  const demoProfile     = SAMPLES[openCat?.sampleId ?? 'tech'] ?? SAMPLE
   const previewProfile  = isConverted ? (profile ?? SAMPLE) : demoProfile
   const portfolioSlug   = ((profile ?? SAMPLE).preferred_name || (profile ?? SAMPLE).full_name || 'user').toLowerCase().replace(/\s+/g, '')
   const portfolioUrl    = `${window.location.origin}/portfolio/${portfolioSlug}`
@@ -667,8 +687,8 @@ export default function PortfolioPage() {
         <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 mb-6">
           <div>
             <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Portfolio Builder</p>
-            <h1 className="text-2xl md:text-3xl font-black text-slate-900">Choose your style</h1>
-            <p className="text-sm text-slate-500 mt-1.5 max-w-xl">Pick a category, customize with our Canva-like editor, then publish in one click.</p>
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900">Choose your theme</h1>
+            <p className="text-sm text-slate-500 mt-1.5 max-w-xl">Pick a theme, customize with our Canva-like editor, then publish in one click.</p>
           </div>
           <div className="hidden xl:flex items-center gap-3 shrink-0">
             {['1-click publish', 'Canva editor', 'Shareable URL'].map(f => (

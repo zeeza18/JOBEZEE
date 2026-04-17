@@ -25,7 +25,7 @@ const PANEL_W  = 320
 const PANEL_H  = 460
 const SNAP_PAD = 16
 
-function defaultPos(minX: number) {
+function defaultPos(_minX: number) {
   return { x: window.innerWidth - BTN_SIZE - SNAP_PAD, y: window.innerHeight - BTN_SIZE - SNAP_PAD - 24 }
 }
 
