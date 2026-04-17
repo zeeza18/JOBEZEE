@@ -92,8 +92,9 @@ async def _send_job_digests() -> None:
                 # Show jobs added since last email; if first ever, use one interval back
                 cutoff = last_sent if last_sent else (now - cooldown)
 
-                # Query live tables: user_job_states + job_listings
-                jobs_res = await db.execute(
+                # Query live tables with the same preference filters as GET /api/jobs
+                from sqlalchemy import func as _sqlfunc, or_ as _or_, and_ as _and_
+                _q = (
                     select(JobListing)
                     .join(UserJobState, UserJobState.job_id == JobListing.id)
                     .where(UserJobState.user_id == str(profile.id))
@@ -101,6 +102,62 @@ async def _send_job_digests() -> None:
                     .order_by(UserJobState.created_at.desc())
                     .limit(50)
                 )
+
+                # ── Job-type filter ──────────────────────────────────────────
+                _preferred_types: list[str] = list(getattr(profile, "job_types", None) or []) or (
+                    [profile.job_type] if getattr(profile, "job_type", None) else []
+                )
+                if _preferred_types:
+                    _type_conds = []
+                    for _jt in _preferred_types:
+                        _jt = _jt.lower()
+                        if _jt == "internship":
+                            _type_conds.append(_or_(
+                                _sqlfunc.lower(JobListing.title).contains("intern"),
+                                _sqlfunc.lower(JobListing.description).contains("internship"),
+                                _sqlfunc.lower(JobListing.description).contains("intern program"),
+                            ))
+                        elif _jt == "part_time":
+                            _type_conds.append(_or_(
+                                _sqlfunc.lower(JobListing.title).contains("part-time"),
+                                _sqlfunc.lower(JobListing.title).contains("part time"),
+                                _sqlfunc.lower(JobListing.description).contains("part-time"),
+                                _sqlfunc.lower(JobListing.description).contains("part time"),
+                            ))
+                        elif _jt == "contract":
+                            _type_conds.append(_or_(
+                                _sqlfunc.lower(JobListing.title).contains("contract"),
+                                _sqlfunc.lower(JobListing.description).contains("contractor"),
+                                _sqlfunc.lower(JobListing.description).contains("contract position"),
+                            ))
+                        elif _jt == "full_time":
+                            pass  # no restriction
+                    if _type_conds:
+                        _q = _q.where(_or_(*_type_conds))
+
+                # ── Experience-level filter ──────────────────────────────────
+                _exp_list: list[str] = list(getattr(profile, "experience_levels", None) or []) or (
+                    [profile.experience_level] if getattr(profile, "experience_level", None) else []
+                )
+                _exp_lvl = _exp_list[0].lower().strip() if _exp_list else ""
+                _EXP_YEARS = {"intern": (0,1), "junior": (0,3), "mid": (2,6), "senior": (5,20)}
+                _yr = _EXP_YEARS.get(_exp_lvl)
+                if _yr:
+                    _lo, _hi = _yr
+                    if _exp_lvl == "intern":
+                        # Title must have intern keyword (exp_years_min is unreliable)
+                        _q = _q.where(_or_(
+                            _sqlfunc.lower(JobListing.title).contains("intern"),
+                            _sqlfunc.lower(JobListing.title).contains("co-op"),
+                            _sqlfunc.lower(JobListing.title).contains("apprentice"),
+                        ))
+                    else:
+                        _q = _q.where(_or_(
+                            JobListing.exp_years_min.is_(None),
+                            _and_(JobListing.exp_years_min >= _lo, JobListing.exp_years_min <= _hi),
+                        ))
+
+                jobs_res = await db.execute(_q)
                 new_jobs = jobs_res.scalars().all()
                 if not new_jobs:
                     _log.debug("[DigestEmail] skip %s — no new jobs since %s", email, str(cutoff)[:16])
