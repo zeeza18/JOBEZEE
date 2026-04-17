@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portfolio Editor</title>
+  <script src="./portfolio-config.js"></script>
+  <style>
+    :root {
+      --editor-bg: #F5F6FA;
+      --editor-surface: #FFFFFF;
+      --editor-border: #D8DEEA;
+      --editor-accent: #2563EB;
+      --editor-text: #111827;
+      --editor-muted: #6B7280;
+      --editor-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+      --editor-radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: var(--editor-bg); color: var(--editor-text); }
+    button, input, textarea, select { font: inherit; }
+    button, a, summary { cursor: pointer; }
+    a { color: inherit; }
+    .app { display: grid; grid-template-columns: 380px minmax(0, 1fr); min-height: 100vh; gap: 24px; padding: 24px; }
+    .panel, .workspace, .card { background: var(--editor-surface); border: 1px solid var(--editor-border); border-radius: var(--editor-radius); box-shadow: var(--editor-shadow); }
+    .panel { padding: 20px; overflow: auto; max-height: calc(100vh - 48px); }
+    .workspace { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 16px; padding: 20px; min-width: 0; }
+    .stack { display: grid; gap: 16px; }
+    .heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    h1, h2, h3, h4, p { margin: 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--editor-muted); }
+    .muted { color: var(--editor-muted); }
+    .section { border-top: 1px solid var(--editor-border); padding-top: 18px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .field { display: grid; gap: 8px; }
+    .field label { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--editor-muted); }
+    .field input, .field textarea, .field select { width: 100%; border-radius: 12px; border: 1px solid var(--editor-border); background: #fff; padding: 12px 14px; color: var(--editor-text); }
+    .field textarea { resize: vertical; min-height: 94px; }
+    .inline-actions, .footer-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .btn { border: 1px solid var(--editor-border); background: #fff; border-radius: 12px; padding: 10px 14px; font-weight: 700; color: var(--editor-text); }
+    .btn.primary { background: var(--editor-accent); border-color: var(--editor-accent); color: #fff; }
+    .btn.ghost { background: transparent; }
+    .item-card { border: 1px solid var(--editor-border); border-radius: 16px; padding: 14px; display: grid; gap: 12px; background: linear-gradient(180deg, #fff, #fbfcff); }
+    .theme-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .theme-card { border: 1px solid var(--editor-border); border-radius: 16px; padding: 10px; background: #fff; display: grid; gap: 10px; text-align: left; }
+    .theme-card.active { border-color: var(--editor-accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
+    .thumb { height: 96px; border-radius: 12px; overflow: hidden; display: grid; align-items: end; padding: 12px; color: #fff; font-weight: 800; letter-spacing: 0.04em; position: relative; }
+    .thumb span { position: relative; z-index: 1; }
+    .thumb::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.55)); }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .tokens { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .preview-shell { min-height: 0; overflow: hidden; border-radius: 18px; border: 1px solid var(--editor-border); background: #fff; }
+    iframe { width: 100%; height: 100%; min-height: 980px; border: 0; display: block; }
+    .footer { display: grid; gap: 12px; }
+    .codebox { width: 100%; min-height: 180px; border-radius: 14px; border: 1px solid var(--editor-border); padding: 14px; font-family: ui-monospace, SFMono-Regular, monospace; background: #f8fafc; }
+    .toast { position: fixed; right: 24px; bottom: 24px; background: #111827; color: #fff; padding: 12px 16px; border-radius: 999px; box-shadow: var(--editor-shadow); opacity: 0; transform: translateY(10px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 1180px) {
+      .app { grid-template-columns: 1fr; }
+      .panel { max-height: none; }
+      .theme-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .tokens { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .app { padding: 14px; gap: 14px; }
+      .theme-grid, .tokens, .grid-2 { grid-template-columns: 1fr; }
+      .workspace { padding: 16px; }
+      iframe { min-height: 760px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel stack" id="editor-panel"></aside>
+    <main class="workspace">
+      <div class="heading">
+        <div>
+          <h1>Portfolio Generator</h1>
+          <p class="muted">Edit content, switch themes, tune tokens, preview live.</p>
+        </div>
+        <button class="btn ghost" id="reset-state">Reset local edits</button>
+      </div>
+      <section class="card stack" style="padding:16px;">
+        <div class="toolbar">
+          <div>
+            <h2>Theme Selector</h2>
+            <p class="muted" id="theme-label"></p>
+          </div>
+        </div>
+        <div class="theme-grid" id="theme-grid"></div>
+      </section>
+      <section class="card stack" style="padding:16px; min-height:0;">
+        <div class="toolbar">
+          <div>
+            <h2>Theme Tokens</h2>
+            <p class="muted">Colors update live. Fonts apply on refresh.</p>
+          </div>
+        </div>
+        <div class="tokens" id="token-grid"></div>
+        <div class="preview-shell">
+          <iframe id="preview" title="Portfolio preview" loading="eager"></iframe>
+        </div>
+      </section>
+      <section class="footer">
+        <div class="footer-actions">
+          <button class="btn primary" id="save-config">Save to Config</button>
+          <button class="btn" id="open-theme">Open in New Tab</button>
+          <button class="btn" id="download-html">Download HTML</button>
+          <button class="btn" id="copy-config">Copy Config</button>
+        </div>
+        <textarea class="codebox" id="config-output" spellcheck="false"></textarea>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast">Copied!</div>
+  <script>
+    const THEME_META = [
+      ['01-modern-minimal.html', 'modern-minimal', 'Modern Minimal', 'linear-gradient(135deg,#fafafa,#dbeafe)'],
+      ['02-bold-impactful.html', 'bold-impactful', 'Bold Impactful', 'linear-gradient(135deg,#0a0a0a,#ff3b00)'],
+      ['03-dark-sleek.html', 'dark-sleek', 'Dark Sleek', 'linear-gradient(135deg,#0d0d0d,#c9a96e)'],
+      ['04-warm-human.html', 'warm-human', 'Warm Human', 'linear-gradient(135deg,#faf7f2,#c0622b)'],
+      ['05-creative-studio.html', 'creative-studio', 'Creative Studio', 'linear-gradient(135deg,#f0edeb,#7b5ea7)'],
+      ['06-tech-cyber.html', 'tech-cyber', 'Tech Cyber', 'linear-gradient(135deg,#040a10,#00ff88)'],
+      ['07-classic-professional.html', 'classic-professional', 'Classic Professional', 'linear-gradient(135deg,#f8f8f6,#2a5298)'],
+      ['08-vibrant-playful.html', 'vibrant-playful', 'Vibrant Playful', 'linear-gradient(135deg,#fffbf0,#ff6b6b)'],
+      ['09-editorial.html', 'editorial', 'Editorial', 'linear-gradient(135deg,#fdfcfa,#e63946)'],
+      ['10-glass-depth.html', 'glass-depth', 'Glass Depth', 'linear-gradient(135deg,#0f0c29,#a78bfa)'],
+      ['11-nature-organic.html', 'nature-organic', 'Nature Organic', 'linear-gradient(135deg,#f4f1ec,#5c7a3e)'],
+      ['12-retro-vintage.html', 'retro-vintage', 'Retro Vintage', 'linear-gradient(135deg,#f5f0e8,#b5451b)']
+    ].map(function (item) {
+      return { file: item[0], slug: item[1], name: item[2], preview: item[3] }
+    })
+
+    const FONT_OPTIONS = [
+      "'Archivo', sans-serif",
+      "'Space Grotesk', sans-serif",
+      "'Bebas Neue', sans-serif",
+      "'Inter', sans-serif",
+      "'Syne', sans-serif",
+      "'DM Sans', sans-serif",
+      "'Lora', serif",
+      "'Raleway', sans-serif",
+      "'JetBrains Mono', monospace",
+      "'Fira Code', monospace",
+      "'Playfair Display', serif",
+      "'Source Sans 3', sans-serif",
+      "'Plus Jakarta Sans', sans-serif",
+      "'Nunito', sans-serif",
+      "'IBM Plex Serif', serif",
+      "'Outfit', sans-serif",
+      "'Cormorant Garamond', serif",
+      "'Jost', sans-serif",
+      "'Arvo', serif",
+      "'Karla', sans-serif"
+    ]
+
+    const editorPanel = document.getElementById('editor-panel')
+    const tokenGrid = document.getElementById('token-grid')
+    const themeGrid = document.getElementById('theme-grid')
+    const iframe = document.getElementById('preview')
+    const configOutput = document.getElementById('config-output')
+    const themeLabel = document.getElementById('theme-label')
+    const toast = document.getElementById('toast')
+    const defaults = JSON.parse(JSON.stringify(window.PORTFOLIO))
+    let state = JSON.parse(JSON.stringify(window.PORTFOLIO))
+    let activeTheme = window.localStorage.getItem('portfolio-editor-theme') || 'modern-minimal'
+    let previewTimer = null
+
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value))
+    }
+
+    function saveState() {
+      window.localStorage.setItem('portfolio-editor-state', JSON.stringify(state))
+      window.localStorage.setItem('portfolio-editor-theme', activeTheme)
+    }
+
+    function showToast(message) {
+      toast.textContent = message
+      toast.classList.add('show')
+      window.clearTimeout(showToast.timer)
+      showToast.timer = window.setTimeout(function () {
+        toast.classList.remove('show')
+      }, 1600)
+    }
+
+    function configText() {
+      return 'window.PORTFOLIO = ' + JSON.stringify(state, null, 2) + ';'
+    }
+
+    function setValue(path, value) {
+      let ref = state
+      for (let i = 0; i < path.length - 1; i += 1) ref = ref[path[i]]
+      ref[path[path.length - 1]] = value
+      saveState()
+      queuePreview()
+      configOutput.value = configText()
+    }
+
+    function removeItem(collection, index) {
+      state[collection].splice(index, 1)
+      saveState()
+      renderEditor()
+      queuePreview()
+    }
+
+    function addItem(collection, factory) {
+      state[collection].push(factory())
+      saveState()
+      renderEditor()
+      queuePreview()
+    }
+
+    function field(label, value, oninput, type) {
+      if (type === 'textarea') {
+        return '<div class="field"><label>' + label + '</label><textarea data-handler="' + oninput + '">' + escapeHtml(value || '') + '</textarea></div>'
+      }
+      return '<div class="field"><label>' + label + '</label><input data-handler="' + oninput + '" value="' + escapeAttr(value || '') + '" type="' + (type || 'text') + '"></div>'
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>]/g, function (char) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[char]
+      })
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/"/g, '&quot;')
+    }
+
+    function bindHandlers(scope) {
+      scope.querySelectorAll('[data-handler]').forEach(function (input) {
+        input.addEventListener('input', function (event) {
+          const parts = event.currentTarget.getAttribute('data-handler').split('.')
+          const value = event.currentTarget.tagName === 'TEXTAREA' ? event.currentTarget.value : event.currentTarget.value
+          setValue(parts, value)
+        })
+      })
+      scope.querySelectorAll('[data-level]').forEach(function (input) {
+        input.addEventListener('input', function (event) {
+          const index = Number(event.currentTarget.getAttribute('data-level'))
+          state.skills[index].level = Number(event.currentTarget.value || 0)
+          saveState()
+          queuePreview()
+          configOutput.value = configText()
+        })
+      })
+      scope.querySelectorAll('[data-tags]').forEach(function (input) {
+        input.addEventListener('input', function (event) {
+          const index = Number(event.currentTarget.getAttribute('data-tags'))
+          state.projects[index].tags = event.currentTarget.value.split(',').map(function (tag) { return tag.trim() }).filter(Boolean)
+          saveState()
+          queuePreview()
+          configOutput.value = configText()
+        })
+      })
+      scope.querySelectorAll('[data-featured]').forEach(function (input) {
+        input.addEventListener('change', function (event) {
+          const index = Number(event.currentTarget.getAttribute('data-featured'))
+          state.projects[index].featured = event.currentTarget.checked
+          saveState()
+          queuePreview()
+        })
+      })
+      scope.querySelectorAll('[data-remove]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          removeItem(button.getAttribute('data-remove'), Number(button.getAttribute('data-index')))
+        })
+      })
+    }
+
+    function renderEditor() {
+      editorPanel.innerHTML = ''
+      const userSection = document.createElement('section')
+      userSection.className = 'stack'
+      userSection.innerHTML = '<div><h1>Profile Data</h1><p class="muted">This panel edits the shared config object.</p></div><div class="grid-2">' +
+        field('Name', state.user.name, 'user.name') +
+        field('Title', state.user.title, 'user.title') +
+        field('Tagline', state.user.tagline, 'user.tagline', 'textarea') +
+        field('Email', state.user.email, 'user.email', 'email') +
+        field('Phone', state.user.phone, 'user.phone') +
+        field('Location', state.user.location, 'user.location') +
+        field('LinkedIn', state.user.linkedin, 'user.linkedin') +
+        field('GitHub', state.user.github, 'user.github') +
+        field('Website', state.user.website, 'user.website') +
+        field('Avatar URL', state.user.avatar, 'user.avatar') +
+        field('Resume URL', state.user.resumeUrl, 'user.resumeUrl') +
+        field('Bio', state.user.bio, 'user.bio', 'textarea') +
+      '</div>'
+      editorPanel.appendChild(userSection)
+
+      ;['skills', 'experience', 'projects', 'education'].forEach(function (collection) {
+        const section = document.createElement('section')
+        section.className = 'stack section'
+        const label = collection.charAt(0).toUpperCase() + collection.slice(1)
+        section.innerHTML = '<div class="heading"><div><h2>' + label + '</h2><p class="muted">Editable array items.</p></div><button class="btn" data-add="' + collection + '">Add</button></div>'
+        state[collection].forEach(function (item, index) {
+          const card = document.createElement('div')
+          card.className = 'item-card'
+          if (collection === 'skills') {
+            card.innerHTML =
+              field('Skill', item.name, collection + '.' + index + '.name') +
+              '<div class="field"><label>Level</label><input type="range" min="0" max="100" value="' + item.level + '" data-level="' + index + '"><div class="muted">' + item.level + '%</div></div>' +
+              '<div class="inline-actions"><button class="btn ghost" data-remove="' + collection + '" data-index="' + index + '">Remove</button></div>'
+          }
+          if (collection === 'experience') {
+            card.innerHTML =
+              field('Company', item.company, collection + '.' + index + '.company') +
+              field('Role', item.role, collection + '.' + index + '.role') +
+              field('Period', item.period, collection + '.' + index + '.period') +
+              field('Description', item.description, collection + '.' + index + '.description', 'textarea') +
+              '<div class="inline-actions"><button class="btn ghost" data-remove="' + collection + '" data-index="' + index + '">Remove</button></div>'
+          }
+          if (collection === 'projects') {
+            card.innerHTML =
+              field('Title', item.title, collection + '.' + index + '.title') +
+              field('Description', item.description, collection + '.' + index + '.description', 'textarea') +
+              field('Image URL', item.image, collection + '.' + index + '.image') +
+              field('Live URL', item.liveUrl, collection + '.' + index + '.liveUrl') +
+              field('GitHub URL', item.githubUrl, collection + '.' + index + '.githubUrl') +
+              '<div class="field"><label>Tags</label><input data-tags="' + index + '" value="' + escapeAttr((item.tags || []).join(', ')) + '"></div>' +
+              '<label class="muted"><input type="checkbox" data-featured="' + index + '"' + (item.featured ? ' checked' : '') + '> Featured first</label>' +
+              '<div class="inline-actions"><button class="btn ghost" data-remove="' + collection + '" data-index="' + index + '">Remove</button></div>'
+          }
+          if (collection === 'education') {
+            card.innerHTML =
+              field('School', item.school, collection + '.' + index + '.school') +
+              field('Degree', item.degree, collection + '.' + index + '.degree') +
+              field('Period', item.period, collection + '.' + index + '.period') +
+              field('Note', item.note, collection + '.' + index + '.note', 'textarea') +
+              '<div class="inline-actions"><button class="btn ghost" data-remove="' + collection + '" data-index="' + index + '">Remove</button></div>'
+          }
+          section.appendChild(card)
+        })
+        editorPanel.appendChild(section)
+      })
+
+      editorPanel.querySelectorAll('[data-add]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          const map = {
+            skills: function () { return { name: 'New Skill', level: 50 } },
+            experience: function () { return { company: 'Company', role: 'Role', period: '2024 - Present', description: 'Describe the work.' } },
+            projects: function () { return { title: 'Project', description: 'Describe the project.', tags: ['Tag'], image: 'https://picsum.photos/seed/new/800/560', liveUrl: '#', githubUrl: '#', featured: false } },
+            education: function () { return { school: 'School', degree: 'Degree', period: '2018 - 2022', note: 'Additional detail.' } }
+          }
+          addItem(button.getAttribute('data-add'), map[button.getAttribute('data-add')])
+        })
+      })
+      bindHandlers(editorPanel)
+    }
+
+    function renderThemeCards() {
+      themeGrid.innerHTML = ''
+      THEME_META.forEach(function (theme) {
+        const card = document.createElement('button')
+        card.type = 'button'
+        card.className = 'theme-card' + (theme.slug === activeTheme ? ' active' : '')
+        card.innerHTML = '<div class="thumb" style="background:' + theme.preview + ';"><span>' + theme.name + '</span></div><strong>' + theme.name + '</strong><span class="muted">' + theme.slug + '</span>'
+        card.addEventListener('click', function () {
+          activeTheme = theme.slug
+          saveState()
+          renderThemeCards()
+          renderTokenGrid()
+          queuePreview()
+        })
+        themeGrid.appendChild(card)
+      })
+      const current = THEME_META.find(function (theme) { return theme.slug === activeTheme })
+      themeLabel.textContent = current ? current.file : ''
+    }
+
+    function renderTokenGrid() {
+      tokenGrid.innerHTML = ''
+      const theme = state.themes[activeTheme]
+      Object.keys(theme).forEach(function (token) {
+        const wrapper = document.createElement('div')
+        wrapper.className = 'field'
+        if (token.indexOf('font') > -1) {
+          wrapper.innerHTML = '<label>' + token + '</label><select data-token="' + token + '">' +
+            FONT_OPTIONS.map(function (font) {
+              return '<option value="' + escapeAttr(font) + '"' + (theme[token] === font ? ' selected' : '') + '>' + font.replace(/['"]/g, '') + '</option>'
+            }).join('') + '</select>'
+        } else {
+          wrapper.innerHTML = '<label>' + token + '</label><input type="color" data-token="' + token + '" value="' + theme[token] + '"><input data-token-text="' + token + '" value="' + theme[token] + '">'
+        }
+        tokenGrid.appendChild(wrapper)
+      })
+      tokenGrid.querySelectorAll('[data-token]').forEach(function (input) {
+        input.addEventListener('input', function (event) {
+          state.themes[activeTheme][event.currentTarget.getAttribute('data-token')] = event.currentTarget.value
+          saveState()
+          queuePreview()
+          configOutput.value = configText()
+          if (event.currentTarget.type === 'color') {
+            const textInput = tokenGrid.querySelector('[data-token-text="' + event.currentTarget.getAttribute('data-token') + '"]')
+            if (textInput) textInput.value = event.currentTarget.value
+          }
+        })
+      })
+      tokenGrid.querySelectorAll('[data-token-text]').forEach(function (input) {
+        input.addEventListener('input', function (event) {
+          state.themes[activeTheme][event.currentTarget.getAttribute('data-token-text')] = event.currentTarget.value
+          saveState()
+          queuePreview()
+          configOutput.value = configText()
+        })
+      })
+    }
+
+    function currentThemeFile() {
+      const theme = THEME_META.find(function (item) { return item.slug === activeTheme }) || THEME_META[0]
+      return './themes/' + theme.file
+    }
+
+    function queuePreview() {
+      window.clearTimeout(previewTimer)
+      previewTimer = window.setTimeout(updatePreview, 400)
+    }
+
+    function updatePreview() {
+      saveState()
+      iframe.src = currentThemeFile() + '?t=' + Date.now()
+    }
+
+    document.getElementById('save-config').addEventListener('click', function () {
+      configOutput.value = configText()
+      saveState()
+      showToast('Config ready')
+    })
+
+    document.getElementById('copy-config').addEventListener('click', function () {
+      configOutput.value = configText()
+      navigator.clipboard.writeText(configOutput.value).then(function () {
+        showToast('Copied!')
+      })
+    })
+
+    document.getElementById('open-theme').addEventListener('click', function () {
+      saveState()
+      window.open(currentThemeFile(), '_blank', 'noreferrer')
+    })
+
+    document.getElementById('download-html').addEventListener('click', async function () {
+      saveState()
+      const response = await fetch(currentThemeFile())
+      const html = await response.text()
+      const inline = html.replace('<script src="../portfolio-config.js"></script>', '<script>' + configText() + '</script>')
+      const blob = new Blob([inline], { type: 'text/html' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = activeTheme + '-portfolio.html'
+      anchor.click()
+      URL.revokeObjectURL(url)
+    })
+
+    document.getElementById('reset-state').addEventListener('click', function () {
+      state = clone(window.__PORTFOLIO_DEFAULT__)
+      activeTheme = 'modern-minimal'
+      window.localStorage.removeItem('portfolio-editor-state')
+      window.localStorage.removeItem('portfolio-editor-theme')
+      renderEditor()
+      renderThemeCards()
+      renderTokenGrid()
+      configOutput.value = configText()
+      queuePreview()
+    })
+
+    configOutput.value = configText()
+    renderEditor()
+    renderThemeCards()
+    renderTokenGrid()
+    updatePreview()
+  </script>
+</body>
+</html>

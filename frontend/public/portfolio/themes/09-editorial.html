@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Editorial Portfolio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=IBM+Plex+Serif:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="../portfolio-config.js"></script>
+  <script>const THEME_SLUG='editorial';Object.entries(window.PORTFOLIO.themes[THEME_SLUG]).forEach(([k,v])=>document.documentElement.style.setProperty(k,v))</script>
+  <style>
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)}a,button{cursor:pointer;color:inherit;text-decoration:none}img{display:block;max-width:100%}
+    .shell{max-width:1280px;margin:0 auto;padding:0 24px 90px}.nav{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:18px 0;background:rgba(253,252,250,.95);border-bottom:1px solid var(--color-border)}
+    .hero{padding-top:56px}.hero h1{font-family:var(--font-heading);font-size:clamp(64px,12vw,120px);line-height:.9;margin:0}.byline{font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-muted);margin:16px 0 32px}.quote{font-family:var(--font-heading);font-style:italic;font-size:40px;text-align:center;color:var(--color-accent);max-width:14ch;margin:32px auto}
+    .bio{column-count:2;column-gap:32px;line-height:1.9;font-size:18px}.bio::first-letter{float:left;font-family:var(--font-heading);font-size:96px;line-height:.8;padding-right:12px;color:var(--color-accent)}
+    section{padding-top:68px}.title{display:flex;justify-content:space-between;align-items:end;padding-bottom:12px;border-bottom:1px solid var(--color-border);margin-bottom:20px}h2,h3{font-family:var(--font-heading);margin:0}
+    .featured{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;padding-bottom:24px;border-bottom:1px solid var(--color-border)}.featured img{aspect-ratio:16/10;object-fit:cover}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:24px}.card{border-top:3px solid var(--color-accent);padding-top:12px}
+    .skills{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 28px}.skill-row{padding:12px 0;border-bottom:1px solid var(--color-border)}.exp article{padding:18px 0;border-bottom:1px solid var(--color-border)}.contact{display:flex;gap:14px;flex-wrap:wrap}
+    .reveal{opacity:0;transition:opacity .5s ease}.reveal.visible{opacity:1}:focus-visible{outline:2px solid var(--color-accent);outline-offset:4px}
+    @media(max-width:900px){.bio,.featured,.grid,.skills{column-count:1;grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.reveal{opacity:1;transition:none}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav"><a href="#top" id="brand"></a><div style="display:flex;gap:16px"><a href="#projects">Projects</a><a href="#skills">Skills</a><a href="#experience">Experience</a><a href="#education">Education</a><a href="#contact">Contact</a></div></nav>
+    <main id="app"></main>
+  </div>
+  <script>
+    const esc=v=>String(v||'').replace(/[&<>"]/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]))
+    const ordered=p=>[...p].sort((a,b)=>Number(b.featured)-Number(a.featured))
+    function renderPortfolio(){const p=window.PORTFOLIO;const projects=ordered(p.projects);const featured=projects[0];const rest=projects.slice(1);document.getElementById('brand').textContent=p.user.name;document.getElementById('app').innerHTML=`
+      <section class="hero reveal" id="top"><h1>${esc(p.user.name).replace(' ','<br>')}</h1><p class="byline">${esc(p.user.title)} · ${esc(p.user.location)}</p><div class="quote">"${esc(p.user.tagline)}"</div><div class="bio">${esc(p.user.bio)}</div></section>
+      <section id="projects" class="reveal"><div class="title"><h2>Projects</h2><span>Issue No. 01</span></div><article class="featured reveal"><img src="${esc(featured.image)}" alt="${esc(featured.title)} preview"><div><h3>${esc(featured.title)}</h3><p>${esc(featured.description)}</p><p style="color:var(--color-muted)">Tags: ${featured.tags.map(esc).join(', ')}</p></div></article><div class="grid">${rest.map(project=>`<article class="card reveal"><h3>${esc(project.title)}</h3><p>${esc(project.description)}</p><p style="color:var(--color-muted)">${project.tags.map(esc).join(' · ')}</p></article>`).join('')}</div></section>
+      <section id="skills" class="reveal"><div class="title"><h2>Skills</h2><span>Magazine sidebar</span></div><div class="skills">${p.skills.map(skill=>`<div class="skill-row reveal"><strong>${esc(skill.name)}</strong><div>${skill.level}%</div></div>`).join('')}</div></section>
+      <section id="experience" class="reveal"><div class="title"><h2>Experience</h2><span>Features & essays</span></div><div class="exp">${p.experience.map(item=>`<article class="reveal"><h3>${esc(item.company)}</h3><p style="color:var(--color-muted)">${esc(item.role)} · ${esc(item.period)}</p><p>${esc(item.description)}</p></article>`).join('')}</div></section>
+      <section id="education" class="reveal"><div class="title"><h2>Education</h2><span>Archive</span></div><div class="grid">${p.education.map(item=>`<article class="card reveal"><h3>${esc(item.degree)}</h3><p>${esc(item.school)}</p><p>${esc(item.period)}</p><p>${esc(item.note)}</p></article>`).join('')}</div></section>
+      <section id="contact" class="reveal"><div class="title"><h2>Contact</h2><span>Letters welcome</span></div><div class="contact"><a href="mailto:${esc(p.user.email)}">${esc(p.user.email)}</a><a href="${esc(p.user.linkedin)}" target="_blank" rel="noreferrer">LinkedIn</a><a href="${esc(p.user.github)}" target="_blank" rel="noreferrer">GitHub</a><a href="${esc(p.user.website)}" target="_blank" rel="noreferrer">Website</a></div></section>`;observe()}
+    function observe(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const o=new IntersectionObserver(e=>e.forEach(x=>x.isIntersecting&&x.target.classList.add('visible')),{threshold:.1});document.querySelectorAll('.reveal').forEach(el=>o.observe(el))}
+    window.renderPortfolio=renderPortfolio;renderPortfolio()
+  </script>
+</body>
+</html>

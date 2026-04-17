@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Classic Professional Portfolio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="../portfolio-config.js"></script>
+  <script>const THEME_SLUG='classic-professional';Object.entries(window.PORTFOLIO.themes[THEME_SLUG]).forEach(([k,v])=>document.documentElement.style.setProperty(k,v))</script>
+  <style>
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)}a,button{cursor:pointer;color:inherit;text-decoration:none}img{display:block;max-width:100%}
+    .shell{max-width:1160px;margin:0 auto;padding:0 24px 80px}.nav{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:18px 0;background:rgba(248,248,246,.94);border-bottom:1px solid var(--color-border)}.links{display:flex;gap:18px;color:var(--color-muted)}
+    .hero{padding:70px 0 44px;border-bottom:1px solid var(--color-border)}h1,h2,h3{font-family:var(--font-heading);margin:0;color:var(--color-primary)}h1{font-size:clamp(42px,7vw,78px)}.rule{height:1px;background:var(--color-accent);margin:18px 0 20px}.lead{max-width:70ch;font-size:18px;line-height:1.8}
+    .layout{display:grid;grid-template-columns:1.7fr .9fr;gap:42px;padding-top:44px}section{padding-top:48px}.section-title{padding-bottom:10px;border-bottom:2px solid var(--color-border);margin-bottom:18px}
+    .project,.entry,.side-card{padding:18px 0;border-bottom:1px solid var(--color-border)}.project-grid{display:grid;grid-template-columns:1fr 132px;gap:18px;align-items:start}.thumb{border-radius:12px;border:1px solid var(--color-border);aspect-ratio:4/3;object-fit:cover}
+    .bullets{margin:10px 0 0;padding-left:18px}.bullets li{margin:6px 0}.entry-head{display:grid;grid-template-columns:1fr auto;gap:16px}.tags,.contact{display:flex;gap:10px;flex-wrap:wrap}.tag,.btn{padding:8px 12px;border:1px solid var(--color-border);border-radius:999px}
+    .reveal{opacity:0;transform:translateY(18px);transition:opacity .45s ease,transform .45s ease}.reveal.visible{opacity:1;transform:none}:focus-visible{outline:2px solid var(--color-accent);outline-offset:4px}
+    @media(max-width:860px){.layout,.project-grid,.entry-head{grid-template-columns:1fr}}@media print{.nav,.btn{display:none}.shell{max-width:none;padding:0}body{background:#fff;color:#000}.layout{grid-template-columns:1.6fr .8fr;gap:24px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.reveal{opacity:1;transform:none;transition:none}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav"><a href="#top" id="brand"></a><div class="links"><a href="#projects">Projects</a><a href="#experience">Experience</a><a href="#skills">Skills</a><a href="#education">Education</a><a href="#contact">Contact</a></div></nav>
+    <main id="app"></main>
+  </div>
+  <script>
+    const esc=v=>String(v||'').replace(/[&<>"]/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]))
+    const ordered=p=>[...p].sort((a,b)=>Number(b.featured)-Number(a.featured))
+    function years(level){return Math.max(1,Math.round(level/20))+' years'}
+    function bullets(text){return `<ul class="bullets"><li>${esc(text)}</li></ul>`}
+    function renderPortfolio(){const p=window.PORTFOLIO;document.getElementById('brand').textContent=p.user.name;document.getElementById('app').innerHTML=`
+      <section class="hero reveal" id="top"><h1>${esc(p.user.name)}</h1><p>${esc(p.user.title)}</p><div class="rule"></div><p class="lead">${esc(p.user.tagline)} ${esc(p.user.bio)}</p><div class="contact" style="margin-top:20px"><a class="btn" href="mailto:${esc(p.user.email)}">${esc(p.user.email)}</a><a class="btn" href="${esc(p.user.resumeUrl)}" target="_blank" rel="noreferrer">Resume</a></div></section>
+      <div class="layout">
+        <div>
+          <section id="projects" class="reveal"><h2 class="section-title">Selected Projects</h2>${ordered(p.projects).map(project=>`<article class="project reveal"><div class="project-grid"><div><h3>${esc(project.title)}</h3><p>${esc(project.description)}</p>${bullets('Technology stack: '+project.tags.join(', '))}<div class="contact" style="margin-top:12px"><a class="tag" href="${esc(project.liveUrl)}" target="_blank" rel="noreferrer">Live</a><a class="tag" href="${esc(project.githubUrl)}" target="_blank" rel="noreferrer">Code</a></div></div><img class="thumb" src="${esc(project.image)}" alt="${esc(project.title)} thumbnail"></div></article>`).join('')}</section>
+          <section id="experience" class="reveal"><h2 class="section-title">Experience</h2>${p.experience.map(item=>`<article class="entry reveal"><div class="entry-head"><h3>${esc(item.company)}</h3><strong>${esc(item.period)}</strong></div><p>${esc(item.role)}</p>${bullets(item.description)}</article>`).join('')}</section>
+        </div>
+        <aside>
+          <section id="skills" class="reveal"><h2 class="section-title">Skills</h2>${p.skills.map(skill=>`<article class="side-card reveal"><strong>${esc(skill.name)}</strong><p>${years(skill.level)}</p></article>`).join('')}</section>
+          <section id="education" class="reveal"><h2 class="section-title">Education</h2>${p.education.map(item=>`<article class="side-card reveal"><h3>${esc(item.degree)}</h3><p>${esc(item.school)}</p><p>${esc(item.period)}</p><p>${esc(item.note)}</p></article>`).join('')}</section>
+          <section id="contact" class="reveal"><h2 class="section-title">Contact</h2><article class="side-card reveal"><p>${esc(p.user.location)}</p><p>${esc(p.user.phone)}</p><div class="contact"><a class="tag" href="${esc(p.user.linkedin)}" target="_blank" rel="noreferrer">LinkedIn</a><a class="tag" href="${esc(p.user.github)}" target="_blank" rel="noreferrer">GitHub</a><a class="tag" href="${esc(p.user.website)}" target="_blank" rel="noreferrer">Website</a></div></article></section>
+        </aside>
+      </div>`;observe()}
+    function observe(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const o=new IntersectionObserver(e=>e.forEach(x=>x.isIntersecting&&x.target.classList.add('visible')),{threshold:.1});document.querySelectorAll('.reveal').forEach(el=>o.observe(el))}
+    window.renderPortfolio=renderPortfolio;renderPortfolio()
+  </script>
+</body>
+</html>

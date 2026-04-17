@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Creative Studio Portfolio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;600;700;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="../portfolio-config.js"></script>
+  <script>const THEME_SLUG='creative-studio';Object.entries(window.PORTFOLIO.themes[THEME_SLUG]).forEach(([k,v])=>document.documentElement.style.setProperty(k,v))</script>
+  <style>
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)}a,button{cursor:pointer;color:inherit;text-decoration:none}img{display:block;max-width:100%}
+    .shell{padding:0 24px 80px;overflow:hidden}.nav{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:18px 0;background:rgba(240,237,235,.92);backdrop-filter:blur(10px)}.links{display:flex;gap:16px}
+    section{padding-top:72px}.hero{display:grid;grid-template-columns:1.2fr .8fr;gap:30px;align-items:center;min-height:90vh}.shape{position:absolute;width:340px;height:340px;background:var(--color-accent);border-radius:60% 40% 45% 55%/50% 55% 45% 50%;filter:blur(0);opacity:.2;transform:rotate(-8deg)}
+    .hero-copy{position:relative}.hero-copy h1{font-family:var(--font-heading);font-size:clamp(52px,10vw,104px);line-height:.9;transform:rotate(-2deg)}.hero-copy h1 strong{font-weight:800}.hero-copy h1 span{font-weight:300}.lede{max-width:54ch;font-size:18px;line-height:1.75}
+    .avatar{width:100%;border-radius:28px;object-fit:cover;transform:rotate(3deg);box-shadow:0 32px 64px rgba(26,26,26,.12)}.btns,.tags,.scatter,.contact{display:flex;gap:12px;flex-wrap:wrap}.btn,.tag{padding:12px 16px;border:1px solid var(--color-border);background:var(--color-surface)}
+    .clip{clip-path:polygon(0 0,100% 5%,100% 100%,0 95%);padding:36px 28px;background:var(--color-surface);margin-top:48px}.masonry{columns:2 280px;column-gap:18px}.project{break-inside:avoid;margin-bottom:18px;border:1px solid var(--color-border);background:var(--color-surface);padding:16px;transform:rotate(calc((var(--r) * 1deg)))}.project img{border-radius:18px;aspect-ratio:16/10;object-fit:cover;margin-bottom:14px}
+    .scatter .tag:nth-child(odd){transform:rotate(-3deg)}.scatter .tag:nth-child(even){transform:rotate(2deg)}.experience article{padding:20px 0;border-bottom:1px solid var(--color-border);display:grid;grid-template-columns:1fr auto;gap:16px}.experience h3{font-family:var(--font-heading);font-size:36px}
+    .reveal{opacity:0;transform:translateY(28px) scale(.98);transition:opacity .5s ease,transform .5s ease}.reveal.visible{opacity:1;transform:none}:focus-visible{outline:2px solid var(--color-accent);outline-offset:4px}
+    @media(max-width:780px){.shell{padding:0 16px 56px}.hero,.experience article{grid-template-columns:1fr}.shape{width:220px;height:220px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.reveal,.project{transition:none;transform:none;opacity:1}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav"><a href="#top" id="brand"></a><div class="links"><a href="#projects">Projects</a><a href="#skills">Skills</a><a href="#experience">Experience</a><a href="#education">Education</a><a href="#contact">Contact</a></div></nav>
+    <main id="app"></main>
+  </div>
+  <script>
+    const esc=v=>String(v||'').replace(/[&<>"]/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]))
+    const ordered=p=>[...p].sort((a,b)=>Number(b.featured)-Number(a.featured))
+    function renderPortfolio(){const p=window.PORTFOLIO;document.getElementById('brand').textContent=p.user.name;document.getElementById('app').innerHTML=`
+      <section class="hero reveal" id="top"><div class="hero-copy"><div class="shape" aria-hidden="true"></div><p style="letter-spacing:.18em;text-transform:uppercase;color:var(--color-accent)">${esc(p.user.title)}</p><h1><strong>${esc(p.user.name.split(' ')[0]||p.user.name)}</strong> <span>${esc(p.user.name.split(' ').slice(1).join(' '))}</span></h1><p class="lede">${esc(p.user.tagline)} ${esc(p.user.bio)}</p><div class="btns" style="margin-top:26px"><a class="btn" href="mailto:${esc(p.user.email)}">Email</a><a class="btn" href="${esc(p.user.resumeUrl)}" target="_blank" rel="noreferrer">Resume</a></div></div><img class="avatar" src="${esc(p.user.avatar)}" alt="${esc(p.user.name)} portrait"></section>
+      <section class="clip reveal" id="projects"><h2>Project Wall</h2><div class="masonry">${ordered(p.projects).map((project,index)=>`<article class="project reveal" style="--r:${index%3===0?-2:index%3===1?1:3}"><img src="${esc(project.image)}" alt="${esc(project.title)} preview"><h3>${esc(project.title)}</h3><p>${esc(project.description)}</p><div class="tags">${project.tags.map(tag=>`<span class="tag">${esc(tag)}</span>`).join('')}</div></article>`).join('')}</div></section>
+      <section class="reveal" id="skills"><h2>Skill Scatter</h2><div class="scatter">${p.skills.map(skill=>`<span class="tag">${esc(skill.name)} · ${skill.level}%</span>`).join('')}</div></section>
+      <section class="clip reveal experience" id="experience"><h2>Experience</h2>${p.experience.map(item=>`<article class="reveal"><div><h3>${esc(item.company)}</h3><p>${esc(item.role)}</p><p>${esc(item.description)}</p></div><div><p style="color:var(--color-accent)">${esc(item.period)}</p></div></article>`).join('')}</section>
+      <section class="reveal" id="education"><h2>Education</h2><div class="masonry">${p.education.map(item=>`<article class="project reveal" style="--r:1"><h3>${esc(item.degree)}</h3><p>${esc(item.school)}</p><p>${esc(item.period)}</p><p>${esc(item.note)}</p></article>`).join('')}</div></section>
+      <section class="clip reveal" id="contact"><h2>Contact</h2><div class="contact"><a class="btn" href="mailto:${esc(p.user.email)}">${esc(p.user.email)}</a><a class="btn" href="${esc(p.user.linkedin)}" target="_blank" rel="noreferrer">LinkedIn</a><a class="btn" href="${esc(p.user.github)}" target="_blank" rel="noreferrer">GitHub</a><a class="btn" href="${esc(p.user.website)}" target="_blank" rel="noreferrer">Website</a></div></section>`;observe()}
+    function observe(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const o=new IntersectionObserver(e=>e.forEach(x=>x.isIntersecting&&x.target.classList.add('visible')),{threshold:.1});document.querySelectorAll('.reveal').forEach(el=>o.observe(el))}
+    window.renderPortfolio=renderPortfolio;renderPortfolio()
+  </script>
+</body>
+</html>

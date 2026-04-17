@@ -3,6 +3,9 @@ Async SQLAlchemy engine + session factory wired to Neon PostgreSQL.
 """
 from __future__ import annotations
 
+import re
+import sys
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -14,14 +17,33 @@ from .config import get_settings
 
 _settings = get_settings()
 
+# ── Windows SSL workaround ────────────────────────────────────────────────────
+# asyncpg's URL-level ssl=require parameter uses a code path that triggers
+# WinError 10054 (connection forcibly closed) on Windows because the Proactor
+# event loop (even after switching to Selector) mishandles the SSL upgrade.
+# Fix: strip the ssl param from the URL and pass an explicit ssl.SSLContext via
+# connect_args instead.  Production on Linux is unaffected (the guard is win32).
+_db_url      = _settings.DATABASE_URL
+_connect_args: dict = {}
+
+if sys.platform == "win32":
+    import ssl as _ssl
+    _db_url = re.sub(r"[?&]ssl=\w+", "", _db_url)
+    _db_url = re.sub(r"[?&]sslmode=\w+", "", _db_url)
+    _ssl_ctx = _ssl.create_default_context()
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode    = _ssl.CERT_NONE
+    _connect_args["ssl"]    = _ssl_ctx
+
 engine = create_async_engine(
-    _settings.DATABASE_URL,
+    _db_url,
     echo=_settings.DEBUG,
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
     pool_timeout=15,        # fail fast instead of hanging when pool exhausted
     pool_recycle=300,       # recycle connections every 5 min (avoids stale sockets)
+    connect_args=_connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(

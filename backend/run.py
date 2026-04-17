@@ -28,6 +28,13 @@ if _env_path.exists():
             os.environ.setdefault(_k.strip(), _v.strip())
 
 if __name__ == "__main__":
+    # asyncpg + SSL on Windows uses ProactorEventLoop which has a known bug causing
+    # ConnectionResetError [WinError 64] during SSL handshake with Neon/PostgreSQL.
+    # SelectorEventLoop handles SSL correctly on Windows.
+    if sys.platform == "win32":
+        import asyncio
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     # Ensure uploads dir exists before uvicorn workers spin up
     os.makedirs(os.path.join("uploads", "resumes"), exist_ok=True)
 
