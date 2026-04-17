@@ -250,15 +250,13 @@ async def list_pulled_jobs(
         if yr_range:
             lo, hi = yr_range
             if exp_lvl == "intern":
-                # Strict: NULL only passes if title also has intern keyword
-                _intern_title = or_(
+                # Strict: title MUST have intern keyword — exp_years_min alone is
+                # unreliable because the extractor returns 0 for any job whose
+                # description mentions "internship" (many full-time jobs do).
+                q = q.where(or_(
                     sqlfunc.lower(JobListing.title).contains("intern"),
                     sqlfunc.lower(JobListing.title).contains("co-op"),
                     sqlfunc.lower(JobListing.title).contains("apprentice"),
-                )
-                q = q.where(or_(
-                    and_(JobListing.exp_years_min >= lo, JobListing.exp_years_min <= hi),
-                    and_(JobListing.exp_years_min.is_(None), _intern_title),
                 ))
             else:
                 # junior / mid / senior: NULL passes freely
