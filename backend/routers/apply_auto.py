@@ -946,15 +946,47 @@ async def li_connect_start(current_user=Depends(get_current_user)):
 
 @router.get("/worker-debug")
 async def worker_debug():
-    """Debug endpoint — check if settings are loading correctly."""
+    """Debug endpoint — check settings and test Hetzner connectivity."""
+    import httpx as _httpx
     from ..config import get_settings as _gs
     cfg = _gs()
-    return {
-        "BOT_WORKER_URL": cfg.BOT_WORKER_URL,
-        "WORKER_SECRET_set": bool(cfg.WORKER_SECRET),
-        "WORKER_SECRET_preview": cfg.WORKER_SECRET[:8] + "..." if cfg.WORKER_SECRET else "NOT SET",
-        "API_BASE_URL": cfg.API_BASE_URL,
-    }
+
+    # Test Hetzner health
+    health_ok = False
+    hetzner_secret_ok = False
+    try:
+        async with _httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(f"{cfg.BOT_WORKER_URL}/health")
+            health_ok = r.status_code == 200
+    except Exception as e:
+        return {"error": str(e), "BOT_WORKER_URL": cfg.BOT_WORKER_URL}
+
+    # Test Hetzner with our secret
+    try:
+        async with _httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(
+                f"{cfg.BOT_WORKER_URL}/connect/start",
+                json={"user_id": "debug-test"},
+                headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+            )
+            hetzner_secret_ok = r.status_code == 200
+            return {
+                "settings_ok": True,
+                "BOT_WORKER_URL": cfg.BOT_WORKER_URL,
+                "WORKER_SECRET_set": bool(cfg.WORKER_SECRET),
+                "hetzner_health": health_ok,
+                "hetzner_auth_ok": hetzner_secret_ok,
+                "hetzner_response": r.json() if r.status_code == 200 else {"error": r.text},
+            }
+    except Exception as e:
+        return {
+            "settings_ok": True,
+            "BOT_WORKER_URL": cfg.BOT_WORKER_URL,
+            "WORKER_SECRET_set": bool(cfg.WORKER_SECRET),
+            "hetzner_health": health_ok,
+            "hetzner_auth_ok": False,
+            "error": str(e),
+        }
 
 
 @router.post("/linkedin-connect/click")
