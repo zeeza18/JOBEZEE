@@ -930,6 +930,9 @@ async def li_connect_start(current_user=Depends(get_current_user)):
     cfg = _gs()
     if not cfg.BOT_WORKER_URL:
         raise HTTPException(400, "BOT_WORKER_URL not configured")
+    if not cfg.WORKER_SECRET:
+        raise HTTPException(500, "WORKER_SECRET not set on server")
+    secret_preview = cfg.WORKER_SECRET[:8] + "..."
     async with _httpx.AsyncClient(timeout=20) as client:
         r = await client.post(
             f"{cfg.BOT_WORKER_URL}/connect/start",
@@ -937,8 +940,21 @@ async def li_connect_start(current_user=Depends(get_current_user)):
             headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
         )
     if not r.is_success:
-        raise HTTPException(502, f"Worker error: {r.text}")
+        raise HTTPException(502, f"Worker error [{r.status_code}]: {r.text} (sent secret={secret_preview})")
     return r.json()
+
+
+@router.get("/worker-debug")
+async def worker_debug():
+    """Debug endpoint — check if settings are loading correctly."""
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    return {
+        "BOT_WORKER_URL": cfg.BOT_WORKER_URL,
+        "WORKER_SECRET_set": bool(cfg.WORKER_SECRET),
+        "WORKER_SECRET_preview": cfg.WORKER_SECRET[:8] + "..." if cfg.WORKER_SECRET else "NOT SET",
+        "API_BASE_URL": cfg.API_BASE_URL,
+    }
 
 
 @router.post("/linkedin-connect/click")
