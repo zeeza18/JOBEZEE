@@ -944,6 +944,24 @@ async def li_connect_start(current_user=Depends(get_current_user)):
     return r.json()
 
 
+@router.post("/worker-debug-test")
+async def worker_debug_test():
+    """Test POST call to Hetzner — no auth check, returns what worker received."""
+    import httpx as _httpx
+    from ..config import get_settings as _gs
+    cfg = _gs()
+    try:
+        async with _httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(
+                f"{cfg.BOT_WORKER_URL}/secrets-debug",
+                json={"test": "render-test"},
+                headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
+            )
+            return {"status_code": r.status_code, "body": r.json(), "cfg_secret": cfg.WORKER_SECRET[:8]+"..."}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @router.get("/worker-debug")
 async def worker_debug():
     """Debug endpoint — check settings and test Hetzner connectivity."""
@@ -952,31 +970,29 @@ async def worker_debug():
     cfg = _gs()
 
     # Test Hetzner health
-    health_ok = False
-    hetzner_secret_ok = False
     try:
         async with _httpx.AsyncClient(timeout=10) as client:
             r = await client.get(f"{cfg.BOT_WORKER_URL}/health")
             health_ok = r.status_code == 200
     except Exception as e:
-        return {"error": str(e), "BOT_WORKER_URL": cfg.BOT_WORKER_URL}
+        return {"error": str(e)}
 
-    # Test Hetzner with our secret
+    # Test Hetzner secrets-debug POST endpoint (no auth, just logs what it received)
     try:
         async with _httpx.AsyncClient(timeout=10) as client:
             r = await client.post(
-                f"{cfg.BOT_WORKER_URL}/connect/start",
-                json={"user_id": "debug-test"},
+                f"{cfg.BOT_WORKER_URL}/secrets-debug",
+                json={"test": "render-call"},
                 headers={"Authorization": f"Bearer {cfg.WORKER_SECRET}"},
             )
-            hetzner_secret_ok = r.status_code == 200
+            secrets_response = r.json()
             return {
                 "settings_ok": True,
                 "BOT_WORKER_URL": cfg.BOT_WORKER_URL,
                 "WORKER_SECRET_set": bool(cfg.WORKER_SECRET),
+                "WORKER_SECRET_preview": cfg.WORKER_SECRET[:8] + "...",
                 "hetzner_health": health_ok,
-                "hetzner_auth_ok": hetzner_secret_ok,
-                "hetzner_response": r.json() if r.status_code == 200 else {"error": r.text},
+                "hetzner_secrets_debug": secrets_response,
             }
     except Exception as e:
         return {
@@ -984,7 +1000,6 @@ async def worker_debug():
             "BOT_WORKER_URL": cfg.BOT_WORKER_URL,
             "WORKER_SECRET_set": bool(cfg.WORKER_SECRET),
             "hetzner_health": health_ok,
-            "hetzner_auth_ok": False,
             "error": str(e),
         }
 
