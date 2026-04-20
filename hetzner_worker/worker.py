@@ -143,6 +143,17 @@ def secrets_debug():
     }
 
 
+@app.post("/secrets-debug")
+async def secrets_debug_post(authorization: str = Header(...)):
+    """Debug endpoint - echoes back what Authorization header was received."""
+    print(f"[DEBUG] secrets-debug-post received: {authorization[:20]}...")
+    return {
+        "received": authorization,
+        "_WORKER_SECRETS_count": len(_WORKER_SECRETS),
+        "_WORKER_SECRETS": list(_WORKER_SECRETS),
+    }
+
+
 @app.post("/run-bot")
 async def run_bot(
     job: BotJobRequest,
