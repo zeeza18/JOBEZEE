@@ -126,7 +126,20 @@ def health():
         "active_jobs":      active,
         "queued_jobs":      queued,
         "max_concurrent":   MAX_CONCURRENT_BOTS,
-        "connect_sessions": connect_sessions,   # separate from bot slots
+        "connect_sessions": connect_sessions,
+        "_worker_secrets_count": len(_WORKER_SECRETS),
+        "_worker_secrets": list(_WORKER_SECRETS),
+    }
+
+
+@app.get("/secrets-debug")
+def secrets_debug():
+    """Debug endpoint to check what secrets are loaded."""
+    import os
+    return {
+        "env_WORKER_SECRET": os.environ.get("WORKER_SECRET", "[NOT SET]")[:20] + "...",
+        "_WORKER_SECRETS_count": len(_WORKER_SECRETS),
+        "_WORKER_SECRETS": list(_WORKER_SECRETS),
     }
 
 
