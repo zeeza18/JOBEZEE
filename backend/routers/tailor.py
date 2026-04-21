@@ -655,6 +655,34 @@ async def dismiss_job(
     return {"ok": True}
 
 
+# ── Clear ALL tailor cards for current user ───────────────────────────────────
+
+@router.delete("/my-jobs")
+async def clear_all_jobs(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark every non-stale tailor job for the user as stale (bulk dismiss)."""
+    res = await db.execute(
+        select(TailorJobRecord.id)
+        .where(TailorJobRecord.user_id == str(current_user.id))
+        .where(TailorJobRecord.status != "stale")
+    )
+    ids = [r[0] for r in res.fetchall()]
+    if ids:
+        await db.execute(
+            sa_update(TailorJobRecord)
+            .where(TailorJobRecord.user_id == str(current_user.id))
+            .where(TailorJobRecord.status != "stale")
+            .values(status="stale")
+        )
+        await db.commit()
+        with _lock:
+            for jid in ids:
+                _jobs.pop(jid, None)
+    return {"cleared": len(ids)}
+
+
 # ── Hetzner → Render callback (progress events + done) ───────────────────────
 
 class TailorCallbackPayload(BaseModel):

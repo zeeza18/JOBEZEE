@@ -11,7 +11,7 @@ type ResumeMode = 'text' | 'file' | 'profile'
 const BASE = import.meta.env.VITE_API_URL || ''
 
 const TailorPage = () => {
-  const { cards, loaded, loadCards, addCard, openStream } = useTailorCards()
+  const { cards, loaded, loadCards, addCard, openStream, clearAll } = useTailorCards()
   const cache = useApiCache()
   const [workerInfo, setWorkerInfo] = useState<{ max_workers: number; active: number } | null>(null)
 
@@ -276,6 +276,15 @@ const TailorPage = () => {
         const errored  = cards.filter(c => c.status === 'error')
         return (
           <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-400">{cards.length} job{cards.length !== 1 ? 's' : ''}</p>
+              <button
+                onClick={clearAll}
+                className="text-xs text-slate-400 hover:text-red-500 transition px-2 py-1 rounded hover:bg-red-50"
+              >
+                Clear all
+              </button>
+            </div>
             {active.length > 0 && (
               <div className="space-y-3">
                 <p className="text-sm font-semibold text-slate-700">

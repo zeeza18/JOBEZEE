@@ -50,6 +50,7 @@ interface TailorCardsStore {
   patchCard:    (jobId: string, patch: Partial<TailorCard>) => void
   toggleExpanded: (jobId: string) => void
   removeCard:   (jobId: string) => void
+  clearAll:     () => void
   openStream:   (jobId: string) => void
 }
 
@@ -180,8 +181,13 @@ export const useTailorCards = create<TailorCardsStore>((set, get) => ({
     _streams.get(jobId)?.close()
     _streams.delete(jobId)
     set(s => ({ cards: s.cards.filter(c => c.jobId !== jobId) }))
-    // Persist dismissal so it doesn't come back on refresh
     fetch(`${BASE}/api/tailor/job/${jobId}`, { method: 'DELETE', credentials: 'include' }).catch(() => {})
+  },
+
+  clearAll: () => {
+    for (const [id, es] of _streams) { es.close(); _streams.delete(id) }
+    set({ cards: [] })
+    fetch(`${BASE}/api/tailor/my-jobs`, { method: 'DELETE', credentials: 'include' }).catch(() => {})
   },
 
   openStream: (jobId) => {

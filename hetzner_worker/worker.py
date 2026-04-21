@@ -1471,7 +1471,13 @@ def _run_tailor_task(req: TailorJobRequest) -> None:
         final_resume = result.get("final_resume", "")
         final_score  = result.get("final_score")
         latex_summary = result.get("latex_summary", {})
-        company_raw  = result.get("keyword_analysis", {}).get("company_name", "") or req.company
+        _ai_co = (result.get("keyword_analysis", {}).get("company_name", "") or "").strip()
+        _BAD   = {"", "unk", "unknown", "unknown_company", "n/a", "na", "none", "company"}
+        company_raw = (
+            req.company if req.company and req.company.lower().strip() not in _BAD
+            else _ai_co if _ai_co.lower() not in _BAD
+            else req.company or "company"
+        )
 
         safe_name = _safe_filename(req.username, company_raw)
 
