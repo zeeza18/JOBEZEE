@@ -94,12 +94,16 @@ _CONNECT_CDP_PORT = 9223   # fixed CDP port for connect-session Chrome
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 def _auth(authorization: str) -> None:
+    print(f"[AUTH] raw header: {authorization[:50] if authorization else 'None'}")
     if _WORKER_SECRETS:
         token = authorization.removeprefix("Bearer ").strip()
+        print(f"[AUTH] stripped token: {token[:20]}..., _WORKER_SECRETS has {len(_WORKER_SECRETS)} secrets: {_WORKER_SECRETS}")
         # Accept either a single secret OR a comma-separated list (caller passes full env var)
         for part in token.split(","):
             if part.strip() in _WORKER_SECRETS:
+                print(f"[AUTH] matched part: {part.strip()[:10]}...")
                 return
+        print(f"[AUTH] NO MATCH — raising 401")
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
