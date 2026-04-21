@@ -970,7 +970,7 @@ export default function PulledJobsPage() {
       const saved = JSON.parse(raw) as Record<string, TailorJobState>
       const map = new Map<string, TailorJobState>()
       for (const [id, state] of Object.entries(saved)) {
-        if (state.status === 'done' || state.status === 'error') {
+        if (state.status === 'done') {
           map.set(id, { ...state, roundsDone: state.roundsDone ?? 0 })
         } else if (state.status === 'tailoring' && state.tailorJobId) {
           // Will poll status on mount to see if completed while away
@@ -1246,13 +1246,10 @@ export default function PulledJobsPage() {
     esSources.current.set(tailorJobId, es)
 
     const _markError = (msg: string) => {
-      setTailorJobs(prev => {
-        const next = new Map(prev)
-        const cur = next.get(pulledJobId)
-        if (cur?.status === 'tailoring')
-          next.set(pulledJobId, { ...cur, status: 'error', error: msg })
-        return next
-      })
+      // Auto-remove failed tailor jobs — they go back to showing the Tailor button
+      setTailorJobs(prev => { const next = new Map(prev); next.delete(pulledJobId); return next })
+      if (tailorJobId) tailorApi.dismissJob(tailorJobId).catch(() => {})
+      pushToast({ title: 'Tailoring failed', description: msg, type: 'error' })
     }
 
     es.onmessage = (event) => {
@@ -1314,7 +1311,9 @@ export default function PulledJobsPage() {
                 next.set(pulledJobId, { tailorJobId, status: 'done', score: s.score, filename: s.filename, error: null, roundsDone: 2 })
                 if (companyLabel) pushToast({ title: `Resume tailored for ${companyLabel}`, type: 'success' })
               } else {
-                next.set(pulledJobId, { tailorJobId, status: 'error', score: null, filename: null, error: s.error || 'Failed', roundsDone: 0 })
+                next.delete(pulledJobId)
+                tailorApi.dismissJob(tailorJobId).catch(() => {})
+                pushToast({ title: 'Tailoring failed', description: s.error || 'Failed', type: 'error' })
               }
               return next
             })
@@ -1349,11 +1348,7 @@ export default function PulledJobsPage() {
       })
       _attachSSE(job.id, tailorJobId, job.company, _startNext)
     } catch (e: unknown) {
-      setTailorJobs(prev => {
-        const next = new Map(prev)
-        next.set(job.id, { tailorJobId: '', status: 'error', score: null, filename: null, error: 'Could not start tailoring', roundsDone: 0 })
-        return next
-      })
+      setTailorJobs(prev => { const next = new Map(prev); next.delete(job.id); return next })
       pushToast({ title: 'Could not start tailoring', description: e instanceof Error ? e.message : 'Tailoring failed', type: 'error' })
       _startNext()
     }
@@ -1477,11 +1472,8 @@ export default function PulledJobsPage() {
             return next
           })
         } else if (s.status === 'error') {
-          setTailorJobs(prev => {
-            const next = new Map(prev)
-            next.set(pulledJobId, { tailorJobId, status: 'error', score: null, filename: null, error: s.error || 'Failed', roundsDone: 0 })
-            return next
-          })
+          setTailorJobs(prev => { const next = new Map(prev); next.delete(pulledJobId); return next })
+          tailorApi.dismissJob(tailorJobId).catch(() => {})
         } else {
           // Restore correct dot count immediately so dots don't reset to 0
           if (initialRoundsDone > 0) {
@@ -1509,10 +1501,13 @@ export default function PulledJobsPage() {
         for (const r of records) {
           dbCovered.add(r.pulled_job_id)
           const existing = next.get(r.pulled_job_id)
-          const dbStatus = r.status === 'complete' ? 'done'
-                         : r.status === 'error'    ? 'error'
-                         : 'tailoring'
-          if (!existing || dbStatus === 'done' || dbStatus === 'error') {
+          if (r.status === 'error') {
+            // Auto-dismiss failed tailor records — job goes back to Tailor button
+            tailorApi.dismissJob(r.tailor_job_id).catch(() => {})
+            continue
+          }
+          const dbStatus = r.status === 'complete' ? 'done' : 'tailoring'
+          if (!existing || dbStatus === 'done') {
             next.set(r.pulled_job_id, {
               tailorJobId : r.tailor_job_id,
               status      : dbStatus,
@@ -1596,7 +1591,7 @@ export default function PulledJobsPage() {
       if (activeTab === 'saved')    return j.status === 'saved' || j.status === 'favourite'
       if (activeTab === 'hidden')   return j.status === 'hidden'
       if (activeTab === 'applied')  return j.status === 'applied'
-      if (activeTab === 'tailored') return tailorJobs.has(j.id) || j.status === 'applied'
+      if (activeTab === 'tailored') return (tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error') || j.status === 'applied'
       // ALL: exclude hidden
       if (j.status === 'hidden') return false
 
@@ -1679,7 +1674,7 @@ export default function PulledJobsPage() {
   const hiddenCount   = stats?.hidden ?? 0
   const appliedCount  = stats?.applied ?? 0
   const tailoredCount = useMemo(
-    () => jobs.filter(j => tailorJobs.has(j.id) || j.status === 'applied').length,
+    () => jobs.filter(j => (tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error') || j.status === 'applied').length,
     [jobs, tailorJobs],
   )
 

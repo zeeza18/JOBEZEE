@@ -379,6 +379,9 @@ export const tailorApi = {
   deleteTailorRecord : (pulledJobId: string) =>
     del<{ deleted: boolean }>(`/api/tailor/my-jobs/${pulledJobId}`),
 
+  dismissJob : (tailorJobId: string) =>
+    del<{ ok: boolean }>(`/api/tailor/job/${tailorJobId}`),
+
   myJobs : () => get<Array<{
     pulled_job_id  : string
     tailor_job_id  : string
