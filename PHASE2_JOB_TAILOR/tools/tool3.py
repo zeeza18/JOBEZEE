@@ -9,20 +9,21 @@ from pathlib import Path
 import re
 from typing import Dict, List
 
-from openai import OpenAI
+from anthropic import Anthropic
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
 class ResumeEvaluator:
-    """Evaluate tailored resume against JD requirements using OpenAI"""
+    """Evaluate tailored resume against JD requirements using Claude"""
 
     def __init__(self, api_key: str | None = None) -> None:
-        if not api_key:
-            raise ValueError("OpenAI API key is required. Add it in Settings -> Credentials.")
-        self.client = OpenAI(api_key=api_key)
-        self.model = "gpt-4o"  # GPT-4o for evaluation
+        resolved_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
+        if not resolved_key:
+            raise ValueError("Anthropic API key is required.")
+        self.client = Anthropic(api_key=resolved_key)
+        self.model = "claude-sonnet-4-6"  # Sonnet for evaluation quality
 
         self.system_prompt = self._load_prompt('tool3_prompt.txt')
 
@@ -43,7 +44,7 @@ class ResumeEvaluator:
     ) -> Dict[str, object]:
         """Call OpenAI to evaluate the resume and return structured result"""
 
-        print("Evaluating resume with GPT-4o...")
+        print("Evaluating resume with Claude...")
 
         user_message = f"""Please evaluate this tailored resume against the job description:
 
@@ -61,22 +62,22 @@ Results: {', '.join(keywords.get('results', []))}
 Return ONLY valid JSON. No markdown, no extra text."""
 
         try:
-            response = self.client.chat.completions.create(
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=2500,
                 temperature=0,
+                system=self.system_prompt,
                 messages=[
-                    {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": user_message},
                 ],
             )
 
-            evaluation_content = response.choices[0].message.content
+            evaluation_content = response.content[0].text
             print("Resume evaluation complete.")
             return self._parse_evaluation_response(evaluation_content, tailored_resume)
 
         except Exception as exc:
-            print(f"Error calling OpenAI for resume evaluation: {exc}")
+            print(f"Error calling Claude for resume evaluation: {exc}")
             return {
                 "score": 0,
                 "keyword_analysis": {"found": [], "missing": [], "weak": []},
@@ -84,7 +85,7 @@ Return ONLY valid JSON. No markdown, no extra text."""
                 "ats_optimization": "Could not evaluate due to error",
                 "requirements_check": {"met": [], "missing": [], "partial": []},
                 "feedback": f"Evaluation failed due to error: {str(exc)}",
-                "recommendations": ["Please check OpenAI API connection and try again"],
+                "recommendations": ["Please check Anthropic API connection and try again"],
                 "raw_evaluation": f"Error: {str(exc)}"
             }
 

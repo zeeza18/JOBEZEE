@@ -12,10 +12,10 @@ from pathlib import Path
 from typing import Optional, Dict
 import re
 
-from openai import OpenAI
+from anthropic import Anthropic
 from dotenv import load_dotenv
 
-# Load environment variables so OPENAI_API_KEY is available
+# Load environment variables so ANTHROPIC_API_KEY is available
 load_dotenv()
 
 
@@ -23,10 +23,11 @@ class LatexResumeFormatter:
     """Generate a LaTeX resume document from the finalized tailored resume."""
 
     def __init__(self, api_key: str | None = None) -> None:
-        if not api_key:
-            raise ValueError("OpenAI API key is required. Add it in Settings -> Credentials.")
-        self.client = OpenAI(api_key=api_key)
-        self.model = "gpt-4o"  # Best OpenAI model
+        resolved_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
+        if not resolved_key:
+            raise ValueError("Anthropic API key is required.")
+        self.client = Anthropic(api_key=resolved_key)
+        self.model = "claude-sonnet-4-6"  # Sonnet for LaTeX quality
         self.system_prompt = self._load_prompt("tool4_prompt.txt")
 
         # Preload template example so we can reference it without re-reading on every call
@@ -150,21 +151,21 @@ class LatexResumeFormatter:
             f"{user_template.strip()}"
         )
 
-        print("Generating LaTeX resume with GPT-4o (Tool 4)...")
+        print("Generating LaTeX resume with Claude (Tool 4)...")
 
         raw_content = ""
 
         try:
-            response = self.client.chat.completions.create(
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=4000,
+                system=self.system_prompt,
                 messages=[
-                    {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": user_message},
                 ],
             )
 
-            raw_content = response.choices[0].message.content or ""
+            raw_content = response.content[0].text or ""
             latex_doc = self._extract_latex_source(raw_content)
             print("LaTeX resume generation complete.")
 
@@ -180,7 +181,7 @@ class LatexResumeFormatter:
             }
 
         except Exception as exc:
-            print(f"Error calling OpenAI for LaTeX formatting: {exc}")
+            print(f"Error calling Claude for LaTeX formatting: {exc}")
             return {
                 "latex_document": "",
                 "raw_response": raw_content or f"Error: {str(exc)}",

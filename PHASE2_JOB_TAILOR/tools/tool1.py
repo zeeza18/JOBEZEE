@@ -1,28 +1,29 @@
 #!/usr/bin/env python3
 """
 Tool 1: Keyword Extractor
-Uses OpenAI API to extract keywords, needs, and results from Job Description
+Uses Anthropic Claude API to extract keywords, needs, and results from Job Description
 """
 
 import json
 import os
 import re
 from pathlib import Path
-from openai import OpenAI
+from anthropic import Anthropic
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
 class KeywordExtractor:
-    """Extract keywords from Job Description using OpenAI"""
+    """Extract keywords from Job Description using Claude"""
 
     def __init__(self, api_key: str | None = None):
-        """Initialize OpenAI client"""
-        if not api_key:
-            raise ValueError("OpenAI API key is required. Add it in Settings -> Credentials.")
-        self.client = OpenAI(api_key=api_key)
-        self.model = "gpt-4o"  # Best OpenAI model
+        """Initialize Anthropic client"""
+        resolved_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
+        if not resolved_key:
+            raise ValueError("Anthropic API key is required.")
+        self.client = Anthropic(api_key=resolved_key)
+        self.model = "claude-haiku-4-5-20251001"  # Fast + cheap for keyword extraction
 
         self.system_prompt = self._load_prompt('tool1_prompt.txt')
 
@@ -46,34 +47,30 @@ class KeywordExtractor:
             dict: Contains keywords, needs, and results
         """
 
-        print("[PHASE 1] Analyzing Job Description with GPT-4o...")
+        print("[PHASE 1] Analyzing Job Description with Claude...")
 
         try:
-            # Make API call to OpenAI with JSON mode enabled
-            response = self.client.chat.completions.create(
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=2000,
                 temperature=0,
-                response_format={"type": "json_object"},
+                system=self.system_prompt,
                 messages=[
-                    {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": f"Please analyze this Job Description and return JSON:\n\n{job_description}"}
                 ]
             )
 
-            # Extract the response
-            analysis = response.choices[0].message.content
+            analysis = response.content[0].text
 
-            print("[OK] GPT-4o analysis complete!")
+            print("[OK] Claude analysis complete!")
 
-            # Parse the response (you might want to improve this parsing)
             parsed_result = self._parse_openai_response(analysis)
 
             return parsed_result
 
         except Exception as e:
-            print(f"[ERROR] Error calling OpenAI: {e}")
-            raise RuntimeError(f"Keyword extraction failed — check OpenAI API key: {e}") from e
+            print(f"[ERROR] Error calling Claude: {e}")
+            raise RuntimeError(f"Keyword extraction failed — check Anthropic API key: {e}") from e
 
     def _parse_openai_response(self, analysis):
         """Parse OpenAI JSON response into structured format."""

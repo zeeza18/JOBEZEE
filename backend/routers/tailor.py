@@ -64,17 +64,16 @@ async def start_tailor(
     if not req.resume.strip():
         raise HTTPException(400, "resume is required")
 
-    # Fetch user's API keys from DB — no env fallbacks
-    import uuid as _uuid
+    # Fetch user's API keys — system Anthropic key takes priority, user DB key as fallback
+    import uuid as _uuid, os as _os
     _pid = _uuid.UUID(current_user.id)
     _prof_res = await db.execute(select(UserProfile).where(UserProfile.id == _pid))
     _profile = _prof_res.scalar_one_or_none()
     openai_key = decrypt((getattr(_profile, "openai_api_key", "") or "")).strip()
-    anthropic_key = decrypt((getattr(_profile, "anthropic_api_key", "") or "")).strip()
-    if not openai_key:
-        raise HTTPException(400, "OpenAI API key not configured. Add it in Settings → Credentials.")
+    _user_anthropic = decrypt((getattr(_profile, "anthropic_api_key", "") or "")).strip()
+    anthropic_key = _os.getenv("ANTHROPIC_API_KEY", "").strip() or _user_anthropic
     if not anthropic_key:
-        raise HTTPException(400, "Anthropic API key not configured. Add it in Settings → Credentials.")
+        raise HTTPException(400, "Anthropic API key not configured.")
 
     # Prepend profile contact header so Tool 4 renders correct links in LaTeX
     resume_with_header = _inject_contact_header(req.resume, _profile, current_user)
@@ -170,11 +169,11 @@ async def start_tailor_for_job(
     company = pulled_job.company or "company"
 
     openai_key = decrypt((getattr(profile, "openai_api_key", "") or "")).strip()
-    anthropic_key = decrypt((getattr(profile, "anthropic_api_key", "") or "")).strip()
-    if not openai_key:
-        raise HTTPException(400, "OpenAI API key not configured. Add it in Settings → Credentials.")
+    _user_anthropic2 = decrypt((getattr(profile, "anthropic_api_key", "") or "")).strip()
+    import os as _os2
+    anthropic_key = _os2.getenv("ANTHROPIC_API_KEY", "").strip() or _user_anthropic2
     if not anthropic_key:
-        raise HTTPException(400, "Anthropic API key not configured. Add it in Settings → Credentials.")
+        raise HTTPException(400, "Anthropic API key not configured.")
 
     contact_header = _build_contact_header(profile, current_user)
 

@@ -6,6 +6,7 @@ Runs 2 iterations: Tool2→Tool3→Tool2→Tool3
 """
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -24,16 +25,17 @@ class ResumeCrew:
     """Complete resume processor with all 3 tools and iterative process"""
 
     def __init__(self, openai_api_key: str | None = None, anthropic_api_key: str | None = None):
-        """Initialize the crew with all 3 tools.
+        """Initialize the crew with all tools.
 
         Args:
-            openai_api_key: User's OpenAI key (tools 1, 3, 4).
-            anthropic_api_key: User's Anthropic key (tool 2).
+            anthropic_api_key: System or user Anthropic key — used for ALL tools (primary).
+            openai_api_key: User's OpenAI key — kept as fallback, not used unless Claude unavailable.
         """
-        self.keyword_extractor = KeywordExtractor(api_key=openai_api_key)
-        self.resume_tailor = ResumeTailor(api_key=anthropic_api_key)
-        self.resume_evaluator = ResumeEvaluator(api_key=openai_api_key)
-        self.latex_formatter = LatexResumeFormatter(api_key=openai_api_key)
+        _anthropic_key = anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", "") or None
+        self.keyword_extractor = KeywordExtractor(api_key=_anthropic_key)
+        self.resume_tailor = ResumeTailor(api_key=_anthropic_key)
+        self.resume_evaluator = ResumeEvaluator(api_key=_anthropic_key)
+        self.latex_formatter = LatexResumeFormatter(api_key=_anthropic_key)
         self.analyzer = ResumeAnalyzer()
         self.process_log = []
 
