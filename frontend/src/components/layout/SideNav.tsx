@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/useAuthStore'
 import LogoBrand from '../common/LogoBrand'
@@ -14,6 +14,7 @@ const mainNav = [
 
 const accountNav = [
   { to: '/app/profile',  label: 'Profile',  icon: User },
+  { to: '/app/billing',  label: 'Billing',  icon: CreditCard },
   { to: '/app/settings', label: 'Settings', icon: Settings },
 ]
 

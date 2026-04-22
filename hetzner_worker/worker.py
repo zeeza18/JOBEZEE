@@ -1468,9 +1468,10 @@ def _run_tailor_task(req: TailorJobRequest) -> None:
             req.job_description, req.resume_text, progress_callback, output_dir=job_dir
         )
 
-        final_resume = result.get("final_resume", "")
-        final_score  = result.get("final_score")
+        final_resume  = result.get("final_resume", "")
+        final_score   = result.get("final_score")
         latex_summary = result.get("latex_summary", {})
+        _usage        = result.get("total_usage", {})
         _ai_co = (result.get("keyword_analysis", {}).get("company_name", "") or "").strip()
         _BAD   = {"", "unk", "unknown", "unknown_company", "n/a", "na", "none", "company"}
         company_raw = (
@@ -1578,15 +1579,18 @@ def _run_tailor_task(req: TailorJobRequest) -> None:
                 print(f"[tailor_worker] reportlab PDF failed: {exc}")
 
         _cb({
-            "type":         "done",
-            "status":       "complete",
-            "score":        final_score,
-            "final_resume": final_resume,
-            "company_name": company_raw,
-            "filename":     safe_name,
-            "pdf_b64":      pdf_b64,
-            "docx_b64":     docx_b64,
-            "tex_b64":      tex_b64,
+            "type":          "done",
+            "status":        "complete",
+            "score":         final_score,
+            "final_resume":  final_resume,
+            "company_name":  company_raw,
+            "filename":      safe_name,
+            "pdf_b64":       pdf_b64,
+            "docx_b64":      docx_b64,
+            "tex_b64":       tex_b64,
+            "input_tokens":  _usage.get("input_tokens", 0),
+            "output_tokens": _usage.get("output_tokens", 0),
+            "cost_usd":      _usage.get("cost_usd", 0.0),
         })
 
     except Exception as exc:

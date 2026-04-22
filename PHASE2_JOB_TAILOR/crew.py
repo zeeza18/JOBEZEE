@@ -92,8 +92,14 @@ class ResumeCrew:
         # TOOL 1: Extract keywords from job description (run once)
         self.log_step("TOOL 1: Extracting keywords from job description", {})
 
+        _total_in = 0
+        _total_out = 0
+
         try:
             keyword_analysis = self.keyword_extractor.extract_keywords(job_description)
+            kw_usage = keyword_analysis.pop("usage", {})
+            _total_in += kw_usage.get("input_tokens", 0)
+            _total_out += kw_usage.get("output_tokens", 0)
 
             # Save the keyword analysis
             self.keyword_extractor.save_analysis(keyword_analysis, output_dir=output_dir)
@@ -257,6 +263,9 @@ class ResumeCrew:
                 latest_resume = tailored_data.get('tailored_resume', latest_resume)
 
                 # Store full tailoring result for memory tracking
+                tailored_usage = tailored_data.pop("usage", {})
+                _total_in  += tailored_usage.get("input_tokens", 0)
+                _total_out += tailored_usage.get("output_tokens", 0)
                 all_tailoring_results.append(tailored_data)
 
                 # === POST-ANALYSIS: update pre_analysis with ground-truth after Tool 2 ===
@@ -331,6 +340,9 @@ class ResumeCrew:
                 }
 
             # Always append exactly once per round (outside try-except)
+            eval_usage = evaluation.pop("usage", {})
+            _total_in  += eval_usage.get("input_tokens", 0)
+            _total_out += eval_usage.get("output_tokens", 0)
             all_evaluations.append(evaluation)
 
             self.log_step(f"ROUND {round_num} - Evaluation complete", {
@@ -426,6 +438,9 @@ class ResumeCrew:
         latex_summary = {"status": "skipped"}
         try:
             latex_result = self.latex_formatter.format_to_latex(best_resume, output_dir=output_dir)
+            latex_usage = latex_result.pop("usage", {})
+            _total_in  += latex_usage.get("input_tokens", 0)
+            _total_out += latex_usage.get("output_tokens", 0)
             latex_document = latex_result.get("latex_document", "")
             latex_summary["raw_response_length"] = len(latex_result.get("raw_response", ""))
 
@@ -514,6 +529,23 @@ class ResumeCrew:
                 "latex_summary": latex_summary,
             })
 
+        # Cost model: Haiku for keywords, Sonnet/Opus for rest
+        # We'll compute by tracking usage per call type
+        # Tool 1 (keywords) = haiku. Tools 2/3/4 = sonnet (input) + opus (output) pricing
+        def _call_cost(in_t, out_t, is_tool1_haiku):
+            if is_tool1_haiku:
+                return in_t / 1_000_000 * 0.80 + out_t / 1_000_000 * 3.20
+            return in_t / 1_000_000 * 3.00 + out_t / 1_000_000 * 75.00
+
+        _kw_cost = _call_cost(
+            kw_usage.get("input_tokens", 0), kw_usage.get("output_tokens", 0), True)
+        _other_cost = sum(
+            _call_cost(u.get("input_tokens", 0), u.get("output_tokens", 0), False)
+            for u in ([r.get("usage", {}) for r in all_tailoring_results]
+                     + [e.get("usage", {}) for e in all_evaluations])
+        )
+        _cost_usd = round(_kw_cost + _other_cost, 6)
+
         return {
             "job_description": job_description,
             "original_resume": current_resume,
@@ -525,6 +557,11 @@ class ResumeCrew:
             "best_evaluation": best_evaluation,
             "status": "complete_2_tool_process_finished",
             "latex_summary": latex_summary,
+            "total_usage": {
+                "input_tokens":  _total_in,
+                "output_tokens": _total_out,
+                "cost_usd":      round(_cost_usd, 6),
+            },
             "memory_state": {
                 "locked_changes": locked_changes,
                 "cumulative_keyword_status": cumulative_keyword_status,

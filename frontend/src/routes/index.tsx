@@ -19,6 +19,7 @@ const PortfolioPublic   = lazy(() => import('../features/portfolio/PortfolioPubl
 const ConnectorsPage    = lazy(() => import('../features/connectors/ConnectorsPage'))
 const ProfilePage       = lazy(() => import('../features/profile/ProfilePage'))
 const SettingsPage      = lazy(() => import('../pages/SettingsPage'))
+const BillingPage       = lazy(() => import('../pages/BillingPage'))
 const NotFoundPage      = lazy(() => import('../pages/NotFoundPage'))
 const PrivacyPage       = lazy(() => import('../pages/PrivacyPage'))
 const TermsPage         = lazy(() => import('../pages/TermsPage'))
@@ -68,6 +69,7 @@ const AppRoutes = () => (
         <Route path="/app/applications"   element={<ApplicationsPage />} />
         <Route path="/app/profile"        element={<ProfilePage />} />
         <Route path="/app/settings"       element={<SettingsPage />} />
+        <Route path="/app/billing"        element={<BillingPage />} />
       </Route>
 
       <Route path="/portfolio/:username" element={<PortfolioPublic />} />

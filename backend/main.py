@@ -28,6 +28,7 @@ from .database import create_tables, run_column_migrations, run_schema_migration
 from .routers import auth, jobs, portfolio, profile, search, tailor
 from .routers import apply_auto, applied_jobs, dashboard, auth_linkedin
 from .routers import analytics, logs, internal
+from .routers import billing
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -569,6 +570,7 @@ app.include_router(dashboard.router,    prefix="/api/dashboard",    tags=["dashb
 app.include_router(analytics.router,    prefix="/api/analytics",    tags=["analytics"])
 app.include_router(logs.router,         prefix="/api/logs",         tags=["logs"])
 app.include_router(internal.router,     prefix="/api/internal",     tags=["internal"])
+app.include_router(billing.router,      tags=["billing"])
 
 # ── Static files (uploaded resumes) ──────────────────────────────────────────
 
