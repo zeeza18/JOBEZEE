@@ -127,21 +127,27 @@ class ResumeTailor:
             # Make API call to Anthropic Claude
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=16000,
+                max_tokens=8192,
                 system=system_prompt,
                 messages=[
                     {"role": "user", "content": user_message}
-                ]
+                ],
+                timeout=120,
             )
 
             # Extract the response
             raw_response = response.content[0].text
+            usage = response.usage
 
             print("[OK] Resume tailoring complete!")
 
             # Parse the JSON response
             parsed_result = self._parse_json_response(raw_response, original_resume)
-
+            parsed_result["usage"] = {
+                "model":          self.model,
+                "input_tokens":   usage.input_tokens,
+                "output_tokens": usage.output_tokens,
+            }
             return parsed_result
 
         except Exception as e:

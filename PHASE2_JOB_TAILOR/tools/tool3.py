@@ -70,11 +70,19 @@ Return ONLY valid JSON. No markdown, no extra text."""
                 messages=[
                     {"role": "user", "content": user_message},
                 ],
+                timeout=90,
             )
 
+            usage = response.usage
             evaluation_content = response.content[0].text
             print("Resume evaluation complete.")
-            return self._parse_evaluation_response(evaluation_content, tailored_resume)
+            result = self._parse_evaluation_response(evaluation_content, tailored_resume)
+            result["usage"] = {
+                "model":          self.model,
+                "input_tokens":   usage.input_tokens,
+                "output_tokens": usage.output_tokens,
+            }
+            return result
 
         except Exception as exc:
             print(f"Error calling Claude for resume evaluation: {exc}")

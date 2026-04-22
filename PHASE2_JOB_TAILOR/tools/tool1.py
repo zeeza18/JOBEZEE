@@ -57,15 +57,21 @@ class KeywordExtractor:
                 system=self.system_prompt,
                 messages=[
                     {"role": "user", "content": f"Please analyze this Job Description and return JSON:\n\n{job_description}"}
-                ]
+                ],
+                timeout=90,
             )
 
             analysis = response.content[0].text
 
             print("[OK] Claude analysis complete!")
 
+            usage = response.usage
             parsed_result = self._parse_openai_response(analysis)
-
+            parsed_result["usage"] = {
+                "model":          self.model,
+                "input_tokens":   usage.input_tokens,
+                "output_tokens": usage.output_tokens,
+            }
             return parsed_result
 
         except Exception as e:

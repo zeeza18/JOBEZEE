@@ -163,9 +163,11 @@ class LatexResumeFormatter:
                 messages=[
                     {"role": "user", "content": user_message},
                 ],
+                timeout=120,
             )
 
             raw_content = response.content[0].text or ""
+            usage = response.usage
             latex_doc = self._extract_latex_source(raw_content)
             print("LaTeX resume generation complete.")
 
@@ -177,7 +179,12 @@ class LatexResumeFormatter:
 
             return {
                 "latex_document": latex_doc,
-                "raw_response": latex_doc,
+                "raw_response":   latex_doc,
+                "usage": {
+                    "model":          self.model,
+                    "input_tokens":   usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                },
             }
 
         except Exception as exc:
