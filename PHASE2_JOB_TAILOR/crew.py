@@ -24,18 +24,20 @@ _OUTPUT_DIR  = _MODULE_ROOT / "output"
 class ResumeCrew:
     """Complete resume processor with all 3 tools and iterative process"""
 
-    def __init__(self, openai_api_key: str | None = None, anthropic_api_key: str | None = None):
+    def __init__(self, openai_api_key: str | None = None, anthropic_api_key: str | None = None, anthropic_fallback_key: str | None = None):
         """Initialize the crew with all tools.
 
         Args:
-            anthropic_api_key: System or user Anthropic key — used for ALL tools (primary).
-            openai_api_key: User's OpenAI key — kept as fallback, not used unless Claude unavailable.
+            anthropic_api_key: System key — primary for all tools.
+            anthropic_fallback_key: User's own key — used if primary returns 401/402.
+            openai_api_key: Kept for legacy compatibility.
         """
         _anthropic_key = anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", "") or None
-        self.keyword_extractor = KeywordExtractor(api_key=_anthropic_key)
-        self.resume_tailor = ResumeTailor(api_key=_anthropic_key)
-        self.resume_evaluator = ResumeEvaluator(api_key=_anthropic_key)
-        self.latex_formatter = LatexResumeFormatter(api_key=_anthropic_key)
+        _fallback = (anthropic_fallback_key or "").strip() or None
+        self.keyword_extractor = KeywordExtractor(api_key=_anthropic_key, fallback_key=_fallback)
+        self.resume_tailor = ResumeTailor(api_key=_anthropic_key, fallback_key=_fallback)
+        self.resume_evaluator = ResumeEvaluator(api_key=_anthropic_key, fallback_key=_fallback)
+        self.latex_formatter = LatexResumeFormatter(api_key=_anthropic_key, fallback_key=_fallback)
         self.analyzer = ResumeAnalyzer()
         self.process_log = []
 

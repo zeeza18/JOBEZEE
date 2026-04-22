@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import get_current_user
 from ..crypto import decrypt
 from ..database import get_db
-from ..models import JobListing, PulledJob, TailorJobRecord, UserProfile
+from ..models import JobListing, PulledJob, TailorJobRecord, UserCredits, UserProfile
 from ..services.tailor_service import (
     _extract_resume_text,
     _jobs,
@@ -64,6 +64,12 @@ async def start_tailor(
     if not req.resume.strip():
         raise HTTPException(400, "resume is required")
 
+    # Check credit balance
+    cred_res = await db.execute(select(UserCredits).where(UserCredits.user_id == str(current_user.id)))
+    cred_row = cred_res.scalar_one_or_none()
+    if cred_row and cred_row.balance <= 0:
+        raise HTTPException(402, "No credits. Please add credits before tailoring.")
+
     # Fetch user's API keys — system Anthropic key takes priority, user DB key as fallback
     import uuid as _uuid, os as _os
     _pid = _uuid.UUID(current_user.id)
@@ -71,7 +77,9 @@ async def start_tailor(
     _profile = _prof_res.scalar_one_or_none()
     openai_key = decrypt((getattr(_profile, "openai_api_key", "") or "")).strip()
     _user_anthropic = decrypt((getattr(_profile, "anthropic_api_key", "") or "")).strip()
-    anthropic_key = _os.getenv("ANTHROPIC_API_KEY", "").strip() or _user_anthropic
+    _sys_anthropic = _os.getenv("ANTHROPIC_API_KEY", "").strip()
+    anthropic_key = _sys_anthropic or _user_anthropic
+    anthropic_fallback = _user_anthropic if _sys_anthropic else ""
     if not anthropic_key:
         raise HTTPException(400, "Anthropic API key not configured.")
 
@@ -90,7 +98,7 @@ async def start_tailor(
         expires_at=_expires,
     ))
     await db.commit()
-    start_tailor_job(job_id, req.job_description, resume_with_header, openai_api_key=openai_key, username=_username, anthropic_api_key=anthropic_key)
+    start_tailor_job(job_id, req.job_description, resume_with_header, openai_api_key=openai_key, username=_username, anthropic_api_key=anthropic_key, anthropic_fallback_key=anthropic_fallback)
     return {"job_id": job_id, "status": "queued"}
 
 
@@ -121,6 +129,12 @@ async def start_tailor_for_job(
         raise HTTPException(404, "Job not found")
     if not (pulled_job.description or "").strip():
         raise HTTPException(400, "Job has no description — cannot tailor")
+
+    # Check credit balance
+    cred_res = await db.execute(select(UserCredits).where(UserCredits.user_id == str(current_user.id)))
+    cred_row = cred_res.scalar_one_or_none()
+    if cred_row and cred_row.balance <= 0:
+        raise HTTPException(402, "No credits. Please add credits before tailoring.")
 
     # Load user profile to get resume path
     profile_id = uuid.UUID(current_user.id)
@@ -171,7 +185,9 @@ async def start_tailor_for_job(
     openai_key = decrypt((getattr(profile, "openai_api_key", "") or "")).strip()
     _user_anthropic2 = decrypt((getattr(profile, "anthropic_api_key", "") or "")).strip()
     import os as _os2
-    anthropic_key = _os2.getenv("ANTHROPIC_API_KEY", "").strip() or _user_anthropic2
+    _sys_anthropic2 = _os2.getenv("ANTHROPIC_API_KEY", "").strip()
+    anthropic_key = _sys_anthropic2 or _user_anthropic2
+    anthropic_fallback2 = _user_anthropic2 if _sys_anthropic2 else ""
     if not anthropic_key:
         raise HTTPException(400, "Anthropic API key not configured.")
 
@@ -197,6 +213,7 @@ async def start_tailor_for_job(
         openai_api_key=openai_key,
         contact_header=contact_header,
         anthropic_api_key=anthropic_key,
+        anthropic_fallback_key=anthropic_fallback2,
     )
     return {"job_id": tailor_job_id, "status": "queued", "company_name": company}
 
@@ -697,6 +714,9 @@ class TailorCallbackPayload(BaseModel):
     docx_b64:     str | None = None
     tex_b64:      str | None = None
     error:        str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd:     float | None = None
 
 
 @router.post("/internal/callback")
@@ -774,6 +794,19 @@ async def tailor_callback(
 
         pdf_path = docx_path = tex_path = None
 
+        # Fetch or create UserCredits row and deduct cost
+        _uid = _jobs[job_id].get("user_id", "")
+        if _uid and payload.cost_usd is not None and payload.cost_usd > 0:
+            try:
+                cred_res = await db.execute(select(UserCredits).where(UserCredits.user_id == _uid))
+                cred_row = cred_res.scalar_one_or_none()
+                if cred_row:
+                    cred_row.balance = max(0.0, cred_row.balance - payload.cost_usd)
+                else:
+                    db.add(UserCredits(user_id=_uid, balance=-payload.cost_usd))
+            except Exception:
+                pass
+
         if payload.status == "complete":
             safe_name = payload.filename or "tailored_resume"
 
@@ -824,6 +857,9 @@ async def tailor_callback(
                     final_resume=payload.final_resume,
                     pdf_b64=payload.pdf_b64 if payload.status == "complete" else None,
                     docx_b64=payload.docx_b64 if payload.status == "complete" else None,
+                    input_tokens=payload.input_tokens or 0,
+                    output_tokens=payload.output_tokens or 0,
+                    cost_usd=payload.cost_usd or 0.0,
                 )
             )
             await db.commit()

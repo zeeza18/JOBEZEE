@@ -19,18 +19,28 @@ load_dotenv()
 class ResumeTailor:
     """Tailor resume based on JD keywords using Anthropic Claude with memory support"""
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None, fallback_key: str | None = None):
         """Initialize Anthropic client"""
         resolved_key = api_key
         if not resolved_key:
             raise ValueError("Anthropic API key is required. Add it in Settings -> Credentials.")
         self.client = Anthropic(api_key=resolved_key)
+        self._fallback_key = (fallback_key or "").strip() or None
         self.model = "claude-sonnet-4-6"  # Claude Sonnet for resume tailoring
 
         self.prompts = {
             'round1': self._load_prompt('tool2_prompt.txt'),
             'evaluation': self._load_prompt('tool2_eval_prompt.txt')
         }
+
+    def _call(self, **kwargs):
+        try:
+            return self.client.messages.create(**kwargs)
+        except Exception as exc:
+            if self._fallback_key and getattr(exc, "status_code", None) in (401, 402):
+                print(f"[WARN] Primary key failed ({exc}), retrying with user fallback key...")
+                return Anthropic(api_key=self._fallback_key).messages.create(**kwargs)
+            raise
 
     def _load_config(self) -> dict:
         """Load user personal info from config.json at project root."""
@@ -125,7 +135,7 @@ class ResumeTailor:
 
         try:
             # Make API call to Anthropic Claude
-            response = self.client.messages.create(
+            response = self._call(
                 model=self.model,
                 max_tokens=8192,
                 system=system_prompt,

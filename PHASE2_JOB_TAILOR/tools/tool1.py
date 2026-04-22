@@ -17,15 +17,25 @@ load_dotenv()
 class KeywordExtractor:
     """Extract keywords from Job Description using Claude"""
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None, fallback_key: str | None = None):
         """Initialize Anthropic client"""
         resolved_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
         if not resolved_key:
             raise ValueError("Anthropic API key is required.")
         self.client = Anthropic(api_key=resolved_key)
+        self._fallback_key = (fallback_key or "").strip() or None
         self.model = "claude-haiku-4-5-20251001"  # Fast + cheap for keyword extraction
 
         self.system_prompt = self._load_prompt('tool1_prompt.txt')
+
+    def _call(self, **kwargs):
+        try:
+            return self.client.messages.create(**kwargs)
+        except Exception as exc:
+            if self._fallback_key and getattr(exc, "status_code", None) in (401, 402):
+                print(f"[WARN] Primary key failed ({exc}), retrying with user fallback key...")
+                return Anthropic(api_key=self._fallback_key).messages.create(**kwargs)
+            raise
 
     def _load_prompt(self, filename: str) -> str:
         prompt_path = Path(__file__).resolve().parent.parent / 'prompt' / filename
@@ -50,7 +60,7 @@ class KeywordExtractor:
         print("[PHASE 1] Analyzing Job Description with Claude...")
 
         try:
-            response = self.client.messages.create(
+            response = self._call(
                 model=self.model,
                 max_tokens=2000,
                 temperature=0,
