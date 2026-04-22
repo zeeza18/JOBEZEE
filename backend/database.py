@@ -379,4 +379,28 @@ async def run_schema_migration() -> None:
             "ALTER TABLE preference_cache ADD COLUMN IF NOT EXISTS total_jobs INTEGER DEFAULT 0"
         ))
 
+        # ── tailor_jobs: billing columns ──────────────────────────────────────
+        for col, defn in [
+            ("input_tokens",  "INTEGER DEFAULT 0"),
+            ("output_tokens", "INTEGER DEFAULT 0"),
+            ("cost_usd",      "FLOAT   DEFAULT 0.0"),
+        ]:
+            await conn.execute(text(
+                f"ALTER TABLE tailor_jobs ADD COLUMN IF NOT EXISTS {col} {defn}"
+            ))
+
+        # ── user_credits: create if not exists (safety net alongside create_all)
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS user_credits (
+                id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id    VARCHAR(36) NOT NULL UNIQUE,
+                balance    FLOAT       NOT NULL DEFAULT 0.0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_user_credits_user_id ON user_credits (user_id)"
+        ))
+
     log.info("[Migration] v2 schema migration complete")
