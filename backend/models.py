@@ -567,3 +567,20 @@ class TailorJobRecord(Base):
     docx_b64        = Column(Text, nullable=True)  # base64 DOCX from Hetzner worker
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
     expires_at      = Column(DateTime(timezone=True), nullable=False)
+    input_tokens    = Column(Integer, default=0)
+    output_tokens   = Column(Integer, default=0)
+    cost_usd        = Column(Float, default=0.0)
+
+
+# ---------------------------------------------------------------------------
+# UserCredits — credit balance for Claude token billing
+# ---------------------------------------------------------------------------
+
+class UserCredits(Base):
+    __tablename__ = "user_credits"
+
+    id        = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id   = Column(String(36), nullable=False, unique=True, index=True)
+    balance   = Column(Float, default=0.0)   # USD
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
