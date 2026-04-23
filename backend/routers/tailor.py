@@ -273,16 +273,17 @@ async def my_tailor_jobs(current_user=Depends(get_current_user), db: AsyncSessio
     return out
 
 
-# ── Delete tailor record for a pulled job ─────────────────────────────────────
+# ── Rerun tailor for a pulled job (retry/stuck jobs) ──────────────────────────
 
-@router.delete("/my-jobs/{pulled_job_id}")
-async def delete_tailor_record(
+@router.post("/rerun/{pulled_job_id}")
+async def rerun_tailor(
     pulled_job_id: str,
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove the tailor record for a specific pulled job (user's own records only)."""
+    """Delete the existing record for a pulled job and re-run tailoring fresh."""
     from sqlalchemy import delete as sa_delete
+    # Delete existing tailor record (if any)
     await db.execute(
         sa_delete(TailorJobRecord).where(
             TailorJobRecord.user_id == str(current_user.id),
@@ -290,7 +291,98 @@ async def delete_tailor_record(
         )
     )
     await db.commit()
-    return {"deleted": True}
+
+    # Re-call run-for-job logic inline
+    try:
+        jid = uuid.UUID(pulled_job_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid pulled_job_id")
+
+    jl_res = await db.execute(select(JobListing).where(JobListing.id == jid))
+    pulled_job = jl_res.scalar_one_or_none()
+    if not pulled_job:
+        pj_res = await db.execute(select(PulledJob).where(PulledJob.id == jid))
+        pulled_job = pj_res.scalar_one_or_none()
+    if not pulled_job:
+        raise HTTPException(404, "Job not found")
+    if not (pulled_job.description or "").strip():
+        raise HTTPException(400, "Job has no description — cannot tailor")
+
+    # Check credit balance
+    cred_res = await db.execute(select(UserCredits).where(UserCredits.user_id == str(current_user.id)))
+    cred_row = cred_res.scalar_one_or_none()
+    if cred_row and cred_row.balance <= 0:
+        raise HTTPException(402, "No credits. Please add credits before tailoring.")
+
+    profile_id = uuid.UUID(current_user.id)
+    prof_res = await db.execute(select(UserProfile).where(UserProfile.id == profile_id))
+    profile = prof_res.scalar_one_or_none()
+    resume_url = (profile.resume_url if profile else "") or ""
+    if not resume_url:
+        raise HTTPException(400, "No resume on file. Please upload your resume first.")
+
+    from pathlib import Path as _Path
+    from ..config import get_settings as _cfg_fn
+    _cfg_s = _cfg_fn()
+    _jobezee_root = _Path(__file__).resolve().parent.parent.parent
+    _upload_root = _jobezee_root / _cfg_s.UPLOAD_DIR
+    _rel = resume_url.lstrip("/")
+    if _rel.startswith("uploads/"):
+        _rel = _rel[len("uploads/"):]
+    _file_path = _upload_root / _rel
+    if not _file_path.exists():
+        _bytes_b64 = getattr(profile, "resume_bytes", "") or ""
+        if _bytes_b64:
+            import base64 as _b64, tempfile as _tmp, pathlib as _pl
+            _tmp_dir = _pl.Path(_tmp.mkdtemp())
+            _tmp_path = _tmp_dir / _file_path.name
+            _tmp_path.write_bytes(_b64.b64decode(_bytes_b64))
+            _file_path = _tmp_path
+        else:
+            raise HTTPException(404, f"Resume file missing from server. Please re-upload.")
+
+    resume_text = _extract_resume_text(_file_path)
+    if not resume_text.strip():
+        raise HTTPException(422, "Could not extract text from resume. Please re-upload.")
+
+    name_raw = current_user.full_name or current_user.email.split("@")[0]
+    username = name_raw.replace(" ", "_")
+    company = pulled_job.company or "company"
+
+    openai_key = decrypt((getattr(profile, "openai_api_key", "") or "")).strip()
+    _user_anthropic2 = decrypt((getattr(profile, "anthropic_api_key", "") or "")).strip()
+    import os as _os2
+    _sys_anthropic2 = _os2.getenv("ANTHROPIC_API_KEY", "").strip()
+    anthropic_key = _sys_anthropic2 or _user_anthropic2
+    anthropic_fallback2 = _user_anthropic2 if _sys_anthropic2 else ""
+    if not anthropic_key:
+        raise HTTPException(400, "Anthropic API key not configured.")
+
+    contact_header = _build_contact_header(profile, current_user)
+
+    tailor_job_id = create_job(user_id=str(current_user.id))
+    _expires = datetime.now(timezone.utc) + timedelta(days=2)
+    db.add(TailorJobRecord(
+        id=tailor_job_id,
+        user_id=str(current_user.id),
+        status="queued",
+        company_name=company,
+        pulled_job_id=pulled_job_id,
+        expires_at=_expires,
+    ))
+    await db.commit()
+    start_tailor_job_for_job(
+        tailor_job_id,
+        pulled_job.description,
+        resume_text,
+        username,
+        company,
+        openai_api_key=openai_key,
+        contact_header=contact_header,
+        anthropic_api_key=anthropic_key,
+        anthropic_fallback_key=anthropic_fallback2,
+    )
+    return {"job_id": tailor_job_id, "status": "queued", "company_name": company}
 
 
 # ── Poll status ───────────────────────────────────────────────────────────────
