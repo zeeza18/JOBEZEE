@@ -40,6 +40,8 @@ export interface TailorCard {
   resumeSnippet: string
   /** How many progress events this card already has from DB (used to skip replays on reconnect). */
   eventsSeenCount: number
+  /** Called when the user clicks Retry on an error card. */
+  onRetry?: () => void
 }
 
 interface TailorCardsStore {

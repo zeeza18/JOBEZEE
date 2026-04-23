@@ -282,6 +282,17 @@ export const TailorCard = ({ card }: Props) => {
           </div>
           <button onClick={dismiss} className={`p-1 transition ${isRestart ? 'text-amber-300 hover:text-amber-500' : 'text-red-300 hover:text-red-500'}`}>✕</button>
         </div>
+        {card.onRetry && (
+          <div className="px-4 pb-3 pt-2 flex gap-2">
+            <button
+              onClick={card.onRetry}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-semibold text-white transition"
+            >
+              <Loader2 className="h-3.5 w-3.5" />
+              Retry
+            </button>
+          </div>
+        )}
         <DetailsPanel card={card} />
       </Card>
     )

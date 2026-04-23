@@ -25,6 +25,8 @@ interface TailorJobState {
   error       : string | null
   roundsDone  : number
   startedAt?  : number   // ms timestamp when tailoring began (for timeout detection)
+  /** Called when user clicks Retry on an error card. */
+  onRetry?    : () => void
 }
 
 interface ApplyJobState {
@@ -1246,8 +1248,27 @@ export default function PulledJobsPage() {
     esSources.current.set(tailorJobId, es)
 
     const _markError = (msg: string) => {
-      // Auto-remove failed tailor jobs — they go back to showing the Tailor button
-      setTailorJobs(prev => { const next = new Map(prev); next.delete(pulledJobId); return next })
+      // Keep error state so Retry button appears — user can re-trigger via TailorCard
+      setTailorJobs(prev => {
+        const next = new Map(prev)
+        const cur = next.get(pulledJobId)
+        next.set(pulledJobId, {
+          tailorJobId: cur?.tailorJobId ?? tailorJobId ?? '',
+          status: 'error',
+          error: msg,
+          score: null,
+          filename: null,
+          roundsDone: cur?.roundsDone ?? 0,
+          onRetry: () => {
+            const fullJob = jobs.find(j => j.id === pulledJobId)
+            if (fullJob) {
+              setTailorJobs(prev2 => { const n = new Map(prev2); n.delete(pulledJobId); return n })
+              setTimeout(() => _startTailor(fullJob), 100)
+            }
+          },
+        })
+        return next
+      })
       if (tailorJobId) tailorApi.dismissJob(tailorJobId).catch(() => {})
       pushToast({ title: 'Tailoring failed', description: msg, type: 'error' })
     }
@@ -1311,7 +1332,21 @@ export default function PulledJobsPage() {
                 next.set(pulledJobId, { tailorJobId, status: 'done', score: s.score, filename: s.filename, error: null, roundsDone: 2 })
                 if (companyLabel) pushToast({ title: `Resume tailored for ${companyLabel}`, type: 'success' })
               } else {
-                next.delete(pulledJobId)
+                next.set(pulledJobId, {
+                  tailorJobId,
+                  status: 'error',
+                  error: s.error || 'Failed',
+                  score: null,
+                  filename: null,
+                  roundsDone: 0,
+                  onRetry: () => {
+                    const fullJob = jobs.find(j => j.id === pulledJobId)
+                    if (fullJob) {
+                      setTailorJobs(prev2 => { const n = new Map(prev2); n.delete(pulledJobId); return n })
+                      setTimeout(() => _startTailor(fullJob), 100)
+                    }
+                  },
+                })
                 tailorApi.dismissJob(tailorJobId).catch(() => {})
                 pushToast({ title: 'Tailoring failed', description: s.error || 'Failed', type: 'error' })
               }
