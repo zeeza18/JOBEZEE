@@ -175,7 +175,7 @@ async def start_tailor_for_job(
                 f"Resume file missing from server ({_file_path.name}). "
                 "Please re-upload your resume via Profile → Resume."
             )
-    resume_text = _extract_resume_text(_file_path)
+    resume_text = await asyncio.to_thread(_extract_resume_text, _file_path)
     if not resume_text.strip():
         raise HTTPException(422, "Could not extract text from your resume. Please re-upload.")
 
@@ -263,19 +263,28 @@ async def my_tailor_jobs(current_user=Depends(get_current_user), db: AsyncSessio
             status = r.status
             error_msg = r.error_msg
 
+        rounds_done    = sum(1 for e in progress_events if e.get("event") == "round_complete")
+        progress_count = len(progress_events)
+
         out.append({
-            "job_id":        r.id,
-            "pulled_job_id": str(r.pulled_job_id) if r.pulled_job_id else None,
-            "status":        status,
-            "score":         r.score,
-            "filename":      r.filename,
-            "has_pdf":       r.has_pdf,
-            "has_docx":      r.has_docx,
-            "company_name":  r.company_name,
-            "job_url":       r.job_url or "",
-            "error_msg":     error_msg,
-            "created_at":    r.created_at.isoformat() if r.created_at else "",
+            # used by useTailorCards store
+            "job_id":          r.id,
+            # used by PulledJobsPage (legacy field name, same value)
+            "tailor_job_id":   r.id,
+            "pulled_job_id":   str(r.pulled_job_id) if r.pulled_job_id else None,
+            "status":          status,
+            "score":           r.score,
+            "filename":        r.filename,
+            "has_pdf":         r.has_pdf,
+            "has_docx":        r.has_docx,
+            "company_name":    r.company_name,
+            "job_url":         r.job_url or "",
+            "error_msg":       error_msg,
+            "created_at":      r.created_at.isoformat() if r.created_at else "",
             "progress_events": progress_events,
+            # PulledJobsPage uses these for SSE reconnect and dot count
+            "rounds_done":     rounds_done,
+            "progress_count":  progress_count,
         })
     return out
 
@@ -348,7 +357,7 @@ async def rerun_tailor(
         else:
             raise HTTPException(404, f"Resume file missing from server. Please re-upload.")
 
-    resume_text = _extract_resume_text(_file_path)
+    resume_text = await asyncio.to_thread(_extract_resume_text, _file_path)
     if not resume_text.strip():
         raise HTTPException(422, "Could not extract text from resume. Please re-upload.")
 
