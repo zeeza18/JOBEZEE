@@ -1246,6 +1246,8 @@ export default function PulledJobsPage() {
       : tailorApi.streamUrl(tailorJobId)
     const es = new EventSource(sseUrl)
     esSources.current.set(tailorJobId, es)
+    let seenCount = since
+    let reconnectAttempts = 0
 
     const _markError = (msg: string) => {
       // Keep error state so Retry button appears — user can re-trigger via TailorCard
@@ -1274,6 +1276,7 @@ export default function PulledJobsPage() {
     }
 
     es.onmessage = (event) => {
+      seenCount++
       try {
         const data = JSON.parse(event.data)
         if (data.event === 'round_complete') {
@@ -1320,7 +1323,15 @@ export default function PulledJobsPage() {
     es.onerror = () => {
       es.close()
       esSources.current.delete(tailorJobId)
-      // SSE connection lost — fall back to polling every 5 s
+      // Try to reconnect SSE up to 3 times before falling back to polling
+      if (reconnectAttempts < 3) {
+        reconnectAttempts++
+        setTimeout(() => {
+          _attachSSE(pulledJobId, tailorJobId, companyLabel, onDone, seenCount)
+        }, 3000)
+        return
+      }
+      // Exhausted reconnects — poll only to detect terminal status
       const poll = setInterval(async () => {
         try {
           const s = await tailorApi.status(tailorJobId)
@@ -1394,8 +1405,12 @@ export default function PulledJobsPage() {
   // ── Tailor SSE ────────────────────────────────────────────────────────────────
   const handleTailor = useCallback((job: PulledJob) => {
     const existing = tailorJobs.get(job.id)
-    if (existing?.status === 'tailoring' || existing?.status === 'queued') return
+    if (existing?.status === 'tailoring' || existing?.status === 'queued') {
+      setActiveTab('tailored')
+      return
+    }
 
+    setActiveTab('tailored')
     const activeCount = [...tailorJobs.values()].filter(s => s.status === 'tailoring').length
     if (activeCount < MAX_TAILOR_WORKERS) {
       _startTailor(job)
