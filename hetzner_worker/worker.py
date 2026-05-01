@@ -1359,12 +1359,7 @@ def _run_bot_task(job: BotJobRequest) -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _tailor_max_workers() -> int:
-    try:
-        import psutil
-        available_gb = psutil.virtual_memory().available / (1024 ** 3)
-        return max(1, min(6, int(available_gb / 0.5)))
-    except Exception:
-        return 4
+    return 2  # 1.9GB RAM server: 2 tailor slots safe alongside bot Chrome
 
 _tailor_executor: ThreadPoolExecutor | None = None
 _tailor_executor_lock = threading.Lock()

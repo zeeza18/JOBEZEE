@@ -54,8 +54,8 @@ class ResumeTailor:
         try:
             return self.client.messages.create(**kwargs)
         except Exception as exc:
-            if self._fallback_key and getattr(exc, "status_code", None) in (401, 402):
-                print(f"[WARN] Primary key failed ({exc}), retrying with user fallback key...")
+            if self._fallback_key:
+                print(f"[WARN] OpusMax key failed ({exc}), retrying with fallback credentials...")
                 return _make_client(self._fallback_key).messages.create(**kwargs)
             raise
 
