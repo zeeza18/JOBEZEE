@@ -43,7 +43,7 @@ class ResumeTailor:
             raise ValueError("Anthropic API key is required. Add it in Settings -> Credentials.")
         self.client = _make_client(resolved_key)
         self._fallback_key = (fallback_key or "").strip() or None
-        self.model = "claude-sonnet-4-6"  # Claude Sonnet for resume tailoring
+        self.model = "claude-haiku-4-5-20251001"  # Haiku: 4-5x faster, acceptable quality
 
         self.prompts = {
             'round1': self._load_prompt('tool2_prompt.txt'),

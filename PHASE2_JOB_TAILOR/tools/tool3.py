@@ -42,7 +42,7 @@ class ResumeEvaluator:
             raise ValueError("Anthropic API key is required.")
         self.client = _make_client(resolved_key)
         self._fallback_key = (fallback_key or "").strip() or None
-        self.model = "claude-sonnet-4-6"  # Sonnet for evaluation quality
+        self.model = "claude-haiku-4-5-20251001"  # Haiku: fast evaluation, good enough
 
         self.system_prompt = self._load_prompt('tool3_prompt.txt')
 
