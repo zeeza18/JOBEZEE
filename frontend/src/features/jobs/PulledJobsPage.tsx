@@ -870,7 +870,9 @@ function FilterPanel({
               <select value={local.site} onChange={e => set('site', e.target.value)} className={selectCls}>
                 <option value="">All boards</option>
                 {allSites.map(s => (
-                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                  <option key={s} value={s}>
+                    {s === 'linkedin' ? 'LinkedIn' : s === 'indeed' ? 'Indeed' : s === 'workday' ? 'Workday' : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </option>
                 ))}
               </select>
             </div>
@@ -1634,10 +1636,7 @@ export default function PulledJobsPage() {
     return [...cities].sort()
   }, [jobs])
 
-  const allSites = useMemo(
-    () => [...new Set(jobs.map(j => j.site).filter(Boolean))].sort(),
-    [jobs],
-  )
+  const allSites = ['linkedin', 'indeed', 'workday']
 
   const visible = useMemo(() => {
     const q          = search.toLowerCase()
@@ -1673,7 +1672,13 @@ export default function PulledJobsPage() {
         const jobCities = (j.location || '').split(' | ').map(extractCity).filter(Boolean)
         if (!jobCities.includes(filters.location)) return false
       }
-      if (filters.site     && j.site !== filters.site) return false
+      if (filters.site) {
+        if (filters.site === 'workday') {
+          if (j.source !== 'workday') return false
+        } else {
+          if (j.site !== filters.site) return false
+        }
+      }
       if (filters.salaryMin > 0) {
         // Only apply salary filter if job has salary data; skip if completely unknown
         const hasSalary = (j.salary_min ?? 0) > 0 || (j.salary_max ?? 0) > 0 || !!j.salary_text
@@ -1682,8 +1687,9 @@ export default function PulledJobsPage() {
           if (lo < filters.salaryMin && hi < filters.salaryMin) return false
         }
       }
-      if (filters.postedAge !== 'any' && j.posted_at) {
-        const h = (Date.now() - new Date(j.posted_at).getTime()) / 3_600_000
+      if (filters.postedAge !== 'any') {
+        const dateStr = j.posted_at || j.pulled_at
+        const h = dateStr ? (Date.now() - new Date(dateStr).getTime()) / 3_600_000 : NaN
         if (!isNaN(h)) {
           if (filters.postedAge === 'today'     && h > 24)          return false
           if (filters.postedAge === 'yesterday' && (h < 24 || h > 48)) return false
