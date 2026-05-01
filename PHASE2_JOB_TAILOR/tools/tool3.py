@@ -129,16 +129,24 @@ Return ONLY valid JSON. No markdown, no extra text."""
         """Parse JSON evaluation response from GPT-4o and remove false positives."""
         try:
             clean = response.strip()
-            clean = re.sub(r'^```json\s*', '', clean, flags=re.IGNORECASE)
-            clean = re.sub(r'^```\s*', '', clean)
-            clean = re.sub(r'\s*```$', '', clean)
-            clean = clean.strip()
+            # Strip code fences
+            fence = re.search(r'```(?:json)?\s*([\s\S]*?)```', clean, re.IGNORECASE)
+            if fence:
+                clean = fence.group(1).strip()
+            else:
+                clean = re.sub(r'^```(?:json)?\s*', '', clean, flags=re.IGNORECASE)
+                clean = re.sub(r'\s*```$', '', clean).strip()
 
+            # Extract the outermost JSON object
             json_match = re.search(r'\{[\s\S]*\}', clean)
             if not json_match:
                 raise ValueError("No JSON object found in response")
 
-            parsed = json.loads(json_match.group(0))
+            raw_json = json_match.group(0)
+            # Fix trailing commas before ] or } — common Claude output issue
+            raw_json = re.sub(r',\s*([}\]])', r'\1', raw_json)
+
+            parsed = json.loads(raw_json)
             print("[TOOL3] Successfully parsed JSON evaluation")
 
             score = int(parsed.get("score", 0))

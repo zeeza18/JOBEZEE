@@ -1301,14 +1301,25 @@ export default function PulledJobsPage() {
               if (cur) next.set(pulledJobId, { ...cur, roundsDone: 3 })
               return next
             })
+            let _fetchAttempts = 0
             const fetchStatus = () =>
               tailorApi.status(tailorJobId).then(r => {
-                setTailorJobs(prev => {
-                  const next = new Map(prev)
-                  next.set(pulledJobId, { tailorJobId, status: 'done', score: r.score, filename: r.filename, error: null, roundsDone: 2 })
-                  return next
-                })
-                if (companyLabel) pushToast({ title: `Resume tailored for ${companyLabel}`, type: 'success' })
+                if (r.status === 'complete') {
+                  setTailorJobs(prev => {
+                    const next = new Map(prev)
+                    next.set(pulledJobId, { tailorJobId, status: 'done', score: r.score, filename: r.filename, error: null, roundsDone: 2 })
+                    return next
+                  })
+                  if (companyLabel) pushToast({ title: `Resume tailored for ${companyLabel}`, type: 'success' })
+                } else if (r.status === 'error') {
+                  _markError(r.error || 'Tailoring failed')
+                } else if (_fetchAttempts < 6) {
+                  // Backend not yet updated — retry up to 6×2s=12s
+                  _fetchAttempts++
+                  setTimeout(fetchStatus, 2000)
+                } else {
+                  _markError('Could not confirm completion')
+                }
               })
             fetchStatus().catch(() => setTimeout(() => fetchStatus().catch(() => _markError('Could not fetch result')), 2000))
           } else {

@@ -1392,17 +1392,20 @@ def _post_tailor_callback(callback_url: str, payload: dict) -> None:
     """POST to Render callback — retries once on failure."""
     for attempt in range(2):
         try:
-            httpx.post(
+            resp = httpx.post(
                 callback_url,
                 json=payload,
                 headers={"Authorization": f"Bearer {WORKER_SECRET}"},
                 timeout=30,
             )
-            return
+            if resp.status_code < 300:
+                print(f"[tailor_worker] callback ok ({resp.status_code})", flush=True)
+                return
+            print(f"[tailor_worker] callback attempt {attempt+1} got {resp.status_code}: {resp.text[:200]}", flush=True)
         except Exception as exc:
-            print(f"[tailor_worker] callback attempt {attempt+1} failed: {exc}")
-            if attempt == 0:
-                import time as _t; _t.sleep(3)
+            print(f"[tailor_worker] callback attempt {attempt+1} failed: {exc}", flush=True)
+        if attempt == 0:
+            import time as _t; _t.sleep(3)
 
 
 def _safe_filename(username: str, company: str) -> str:
