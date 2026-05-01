@@ -13,18 +13,29 @@ from typing import Dict, List, Optional, Any
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
+
+_OPUSMAX_BASE = "https://api.opusmax.pro"
+
+def _make_client(api_key: str) -> Anthropic:
+    if api_key.startswith("sk-ant-opm"):
+        return Anthropic(api_key=api_key, base_url=_OPUSMAX_BASE)
+    return Anthropic(api_key=api_key)
+
+def _resolve_key() -> str:
+    return (os.getenv("OPUSMAX_API_KEY", "").strip()
+            or os.getenv("ANTHROPIC_API_KEY", "").strip()
+            or os.getenv("CLAUDE_API_KEY", "").strip())
 
 class ResumeTailor:
     """Tailor resume based on JD keywords using Anthropic Claude with memory support"""
 
     def __init__(self, api_key: str | None = None, fallback_key: str | None = None):
         """Initialize Anthropic client"""
-        resolved_key = api_key
+        resolved_key = api_key or _resolve_key()
         if not resolved_key:
             raise ValueError("Anthropic API key is required. Add it in Settings -> Credentials.")
-        self.client = Anthropic(api_key=resolved_key)
+        self.client = _make_client(resolved_key)
         self._fallback_key = (fallback_key or "").strip() or None
         self.model = "claude-sonnet-4-6"  # Claude Sonnet for resume tailoring
 
@@ -39,7 +50,7 @@ class ResumeTailor:
         except Exception as exc:
             if self._fallback_key and getattr(exc, "status_code", None) in (401, 402):
                 print(f"[WARN] Primary key failed ({exc}), retrying with user fallback key...")
-                return Anthropic(api_key=self._fallback_key).messages.create(**kwargs)
+                return _make_client(self._fallback_key).messages.create(**kwargs)
             raise
 
     def _load_config(self) -> dict:

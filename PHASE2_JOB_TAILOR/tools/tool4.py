@@ -15,18 +15,29 @@ import re
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-# Load environment variables so ANTHROPIC_API_KEY is available
 load_dotenv()
+
+_OPUSMAX_BASE = "https://api.opusmax.pro"
+
+def _make_client(api_key: str) -> Anthropic:
+    if api_key.startswith("sk-ant-opm"):
+        return Anthropic(api_key=api_key, base_url=_OPUSMAX_BASE)
+    return Anthropic(api_key=api_key)
+
+def _resolve_key() -> str:
+    return (os.getenv("OPUSMAX_API_KEY", "").strip()
+            or os.getenv("ANTHROPIC_API_KEY", "").strip()
+            or os.getenv("CLAUDE_API_KEY", "").strip())
 
 
 class LatexResumeFormatter:
     """Generate a LaTeX resume document from the finalized tailored resume."""
 
     def __init__(self, api_key: str | None = None, fallback_key: str | None = None) -> None:
-        resolved_key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
+        resolved_key = api_key or _resolve_key()
         if not resolved_key:
             raise ValueError("Anthropic API key is required.")
-        self.client = Anthropic(api_key=resolved_key)
+        self.client = _make_client(resolved_key)
         self._fallback_key = (fallback_key or "").strip() or None
         self.model = "claude-sonnet-4-6"  # Sonnet for LaTeX quality
         self.system_prompt = self._load_prompt("tool4_prompt.txt")
@@ -40,7 +51,7 @@ class LatexResumeFormatter:
         except Exception as exc:
             if self._fallback_key and getattr(exc, "status_code", None) in (401, 402):
                 print(f"[WARN] Primary key failed ({exc}), retrying with user fallback key...")
-                return Anthropic(api_key=self._fallback_key).messages.create(**kwargs)
+                return _make_client(self._fallback_key).messages.create(**kwargs)
             raise
 
     def _load_prompt(self, filename: str) -> str:

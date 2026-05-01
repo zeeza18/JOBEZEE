@@ -77,9 +77,11 @@ async def start_tailor(
     _profile = _prof_res.scalar_one_or_none()
     openai_key = decrypt((getattr(_profile, "openai_api_key", "") or "")).strip()
     _user_anthropic = decrypt((getattr(_profile, "anthropic_api_key", "") or "")).strip()
-    _sys_anthropic = _os.getenv("ANTHROPIC_API_KEY", "").strip()
-    anthropic_key = _sys_anthropic or _user_anthropic
-    anthropic_fallback = _user_anthropic if _sys_anthropic else ""
+    _sys_key = (_os.getenv("OPUSMAX_API_KEY", "").strip()
+                or _os.getenv("ANTHROPIC_API_KEY", "").strip()
+                or _os.getenv("CLAUDE_API_KEY", "").strip())
+    anthropic_key = _sys_key or _user_anthropic
+    anthropic_fallback = _user_anthropic if _sys_key else ""
     if not anthropic_key:
         raise HTTPException(400, "Anthropic API key not configured.")
 
@@ -185,9 +187,11 @@ async def start_tailor_for_job(
     openai_key = decrypt((getattr(profile, "openai_api_key", "") or "")).strip()
     _user_anthropic2 = decrypt((getattr(profile, "anthropic_api_key", "") or "")).strip()
     import os as _os2
-    _sys_anthropic2 = _os2.getenv("ANTHROPIC_API_KEY", "").strip()
-    anthropic_key = _sys_anthropic2 or _user_anthropic2
-    anthropic_fallback2 = _user_anthropic2 if _sys_anthropic2 else ""
+    _sys_key2 = (_os2.getenv("OPUSMAX_API_KEY", "").strip()
+                 or _os2.getenv("ANTHROPIC_API_KEY", "").strip()
+                 or _os2.getenv("CLAUDE_API_KEY", "").strip())
+    anthropic_key = _sys_key2 or _user_anthropic2
+    anthropic_fallback2 = _user_anthropic2 if _sys_key2 else ""
     if not anthropic_key:
         raise HTTPException(400, "Anthropic API key not configured.")
 
@@ -230,45 +234,48 @@ async def my_tailor_jobs(current_user=Depends(get_current_user), db: AsyncSessio
         select(TailorJobRecord).where(
             and_(
                 TailorJobRecord.user_id == str(current_user.id),
-                TailorJobRecord.pulled_job_id.isnot(None),
                 TailorJobRecord.expires_at > now,
             )
-        ).order_by(TailorJobRecord.created_at.desc())
+        ).order_by(TailorJobRecord.created_at.desc()).limit(50)
     )
     records = res.scalars().all()
 
-    # De-duplicate: keep only the most recent tailor record per pulled_job_id
+    # De-duplicate by pulled_job_id (keep newest per job); plain-text jobs have no pulled_job_id
     seen: dict[str, TailorJobRecord] = {}
+    plain_jobs: list[TailorJobRecord] = []
     for r in records:
-        pid = str(r.pulled_job_id)
-        if pid not in seen:
-            seen[pid] = r
+        if r.pulled_job_id:
+            pid = str(r.pulled_job_id)
+            if pid not in seen:
+                seen[pid] = r
+        else:
+            plain_jobs.append(r)
 
     out = []
-    for r in seen.values():
-        # Use in-memory progress for actively running jobs (most up-to-date)
+    for r in list(seen.values()) + plain_jobs:
         mem = _jobs.get(r.id)
         if mem:
             progress_events = mem.get("progress", [])
             status = mem.get("status", r.status)
+            error_msg = mem.get("error") or r.error_msg
         else:
             progress_events = list(r.progress_events or [])
             status = r.status
-
-        rounds_done    = sum(1 for e in progress_events if e.get("event") == "round_complete")
-        progress_count = len(progress_events)
+            error_msg = r.error_msg
 
         out.append({
-            "pulled_job_id":  str(r.pulled_job_id),
-            "tailor_job_id":  r.id,
-            "status":         status,
-            "score":          r.score,
-            "filename":       r.filename,
-            "has_pdf":        r.has_pdf,
-            "has_docx":       r.has_docx,
-            "company_name":   r.company_name,
-            "rounds_done":    rounds_done,
-            "progress_count": progress_count,
+            "job_id":        r.id,
+            "pulled_job_id": str(r.pulled_job_id) if r.pulled_job_id else None,
+            "status":        status,
+            "score":         r.score,
+            "filename":      r.filename,
+            "has_pdf":       r.has_pdf,
+            "has_docx":      r.has_docx,
+            "company_name":  r.company_name,
+            "job_url":       r.job_url or "",
+            "error_msg":     error_msg,
+            "created_at":    r.created_at.isoformat() if r.created_at else "",
+            "progress_events": progress_events,
         })
     return out
 
@@ -352,9 +359,11 @@ async def rerun_tailor(
     openai_key = decrypt((getattr(profile, "openai_api_key", "") or "")).strip()
     _user_anthropic2 = decrypt((getattr(profile, "anthropic_api_key", "") or "")).strip()
     import os as _os2
-    _sys_anthropic2 = _os2.getenv("ANTHROPIC_API_KEY", "").strip()
-    anthropic_key = _sys_anthropic2 or _user_anthropic2
-    anthropic_fallback2 = _user_anthropic2 if _sys_anthropic2 else ""
+    _sys_key2 = (_os2.getenv("OPUSMAX_API_KEY", "").strip()
+                 or _os2.getenv("ANTHROPIC_API_KEY", "").strip()
+                 or _os2.getenv("CLAUDE_API_KEY", "").strip())
+    anthropic_key = _sys_key2 or _user_anthropic2
+    anthropic_fallback2 = _user_anthropic2 if _sys_key2 else ""
     if not anthropic_key:
         raise HTTPException(400, "Anthropic API key not configured.")
 

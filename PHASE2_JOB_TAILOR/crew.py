@@ -32,7 +32,11 @@ class ResumeCrew:
             anthropic_fallback_key: User's own key — used if primary returns 401/402.
             openai_api_key: Kept for legacy compatibility.
         """
-        _anthropic_key = anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", "") or None
+        _anthropic_key = anthropic_api_key or (
+            os.getenv("OPUSMAX_API_KEY", "").strip()
+            or os.getenv("ANTHROPIC_API_KEY", "").strip()
+            or os.getenv("CLAUDE_API_KEY", "").strip()
+        ) or None
         _fallback = (anthropic_fallback_key or "").strip() or None
         self.keyword_extractor = KeywordExtractor(api_key=_anthropic_key, fallback_key=_fallback)
         self.resume_tailor = ResumeTailor(api_key=_anthropic_key, fallback_key=_fallback)

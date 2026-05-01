@@ -67,12 +67,7 @@ _lock = threading.Lock()
 
 # Thread pool — size based on available RAM
 def _max_workers() -> int:
-    try:
-        available_gb = psutil.virtual_memory().available / (1024 ** 3)
-        n = max(1, min(6, int(available_gb / 0.5)))
-        return n
-    except Exception:
-        return 2
+    return 2  # 2 concurrent tailor slots; extras queue automatically
 
 _executor: Optional[ThreadPoolExecutor] = None
 _executor_lock = threading.Lock()
