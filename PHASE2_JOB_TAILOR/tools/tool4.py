@@ -29,6 +29,12 @@ def _resolve_key() -> str:
             or os.getenv("ANTHROPIC_API_KEY", "").strip()
             or os.getenv("CLAUDE_API_KEY", "").strip())
 
+def _extract_text(response) -> str:
+    for block in (response.content or []):
+        if getattr(block, "type", "") == "text":
+            return block.text
+    raise ValueError("No text block in response")
+
 
 class LatexResumeFormatter:
     """Generate a LaTeX resume document from the finalized tailored resume."""
@@ -187,7 +193,7 @@ class LatexResumeFormatter:
                 timeout=120,
             )
 
-            raw_content = response.content[0].text or ""
+            raw_content = _extract_text(response) or ""
             usage = response.usage
             latex_doc = self._extract_latex_source(raw_content)
             print("LaTeX resume generation complete.")

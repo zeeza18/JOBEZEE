@@ -25,6 +25,12 @@ def _resolve_key() -> str:
             or os.getenv("ANTHROPIC_API_KEY", "").strip()
             or os.getenv("CLAUDE_API_KEY", "").strip())
 
+def _extract_text(response) -> str:
+    for block in (response.content or []):
+        if getattr(block, "type", "") == "text":
+            return block.text
+    raise ValueError("No text block in response")
+
 class KeywordExtractor:
     """Extract keywords from Job Description using Claude"""
 
@@ -82,7 +88,7 @@ class KeywordExtractor:
                 timeout=90,
             )
 
-            analysis = response.content[0].text
+            analysis = _extract_text(response)
 
             print("[OK] Claude analysis complete!")
 

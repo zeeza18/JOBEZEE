@@ -26,6 +26,12 @@ def _resolve_key() -> str:
             or os.getenv("ANTHROPIC_API_KEY", "").strip()
             or os.getenv("CLAUDE_API_KEY", "").strip())
 
+def _extract_text(response) -> str:
+    for block in (response.content or []):
+        if getattr(block, "type", "") == "text":
+            return block.text
+    raise ValueError("No text block in response")
+
 
 class ResumeEvaluator:
     """Evaluate tailored resume against JD requirements using Claude"""
@@ -96,7 +102,7 @@ Return ONLY valid JSON. No markdown, no extra text."""
             )
 
             usage = response.usage
-            evaluation_content = response.content[0].text
+            evaluation_content = _extract_text(response)
             print("Resume evaluation complete.")
             result = self._parse_evaluation_response(evaluation_content, tailored_resume)
             result["usage"] = {

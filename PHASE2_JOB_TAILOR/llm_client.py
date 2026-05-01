@@ -20,3 +20,11 @@ def resolve_system_key() -> str:
         or os.getenv("ANTHROPIC_API_KEY", "").strip()
         or os.getenv("CLAUDE_API_KEY", "").strip()
     )
+
+
+def extract_text(response) -> str:
+    """Return text from the first text block — skips ThinkingBlocks from OpusMax."""
+    for block in (response.content or []):
+        if getattr(block, "type", "") == "text":
+            return block.text
+    raise ValueError(f"No text block in response. Block types: {[getattr(b,'type','?') for b in response.content]}")
