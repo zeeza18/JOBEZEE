@@ -159,7 +159,7 @@ class ResumeTailor:
                 messages=[
                     {"role": "user", "content": user_message}
                 ],
-                timeout=120,
+                timeout=300,
             )
 
             # Extract the response
