@@ -92,7 +92,7 @@ Return ONLY valid JSON. No markdown, no extra text."""
         try:
             response = self._call(
                 model=self.model,
-                max_tokens=2500,
+                max_tokens=6000,
                 temperature=0,
                 system=self.system_prompt,
                 messages=[
