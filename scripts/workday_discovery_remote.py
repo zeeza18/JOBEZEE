@@ -27,7 +27,10 @@ from pathlib import Path
 from typing import Callable
 import re
 
-from .models import JobRecord
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+from discovery.models import JobRecord
 
 log = logging.getLogger(__name__)
 
