@@ -266,8 +266,9 @@ def _structure_no_stale_imports():
         ["git", "grep", "-l", r"from PHASE1_JOB_SEARCH\|from PHASE2_JOB_TAILOR"],
         cwd=REPO_ROOT, capture_output=True, text=True
     )
-    # Exclude the CI file which contains these as grep patterns to check for
-    offending = [f for f in result.stdout.strip().splitlines() if ".github/workflows" not in f]
+    # Exclude files that use these strings as grep patterns, not actual imports
+    offending = [f for f in result.stdout.strip().splitlines()
+                 if ".github/workflows" not in f and "tests/test_all.py" not in f]
     assert offending == [], f"Stale PHASE imports found in:\n" + "\n".join(offending)
 check("structure — zero stale PHASE import statements in .py files", _structure_no_stale_imports)
 
