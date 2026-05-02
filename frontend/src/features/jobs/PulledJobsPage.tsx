@@ -236,6 +236,14 @@ function expMatchScore(job: PulledJob, userYears: number): 0 | 1 | 2 {
   return userYears >= required ? 2 : 0
 }
 
+function detectWorkMode(job: PulledJob): 'remote' | 'hybrid' | 'onsite' | 'unknown' {
+  const text = [(job.location || ''), (job.title || '')].join(' ').toLowerCase()
+  if (/\bremote\b/.test(text)) return 'remote'
+  if (/\bhybrid\b/.test(text)) return 'hybrid'
+  if (/\bon[\s-]?site\b|\bonsite\b|\bin[\s-]?person\b|\bin[\s-]?office\b/.test(text)) return 'onsite'
+  return 'unknown'
+}
+
 /** 2 = matches preferred location, 1 = no location info, 0 = doesn't match. */
 function locationMatchScore(job: PulledJob, prefLocs: string[]): 0 | 1 | 2 {
   if (!prefLocs || prefLocs.length === 0) return 2
@@ -810,13 +818,19 @@ type PostedAge = 'any' | 'today' | 'yesterday' | 'week' | 'older'
 interface Filters {
   location        : string
   salaryMin       : number
-  site            : string   // job board: linkedin / indeed / etc.
+  site            : string     // job board/source: linkedin / indeed / workday / greenhouse
   postedAge       : PostedAge
+  workMode        : string     // 'any' | 'remote' | 'hybrid' | 'onsite'
+  jobType         : string     // 'any' | 'full_time' | 'part_time' | 'contract' | 'internship'
+  expLevel        : string     // 'any' | 'entry' | 'mid' | 'senior'
+  sourceType      : string     // 'any' | 'boards' | 'portals'
   workdayInSearch : boolean
 }
 
 const EMPTY_FILTERS: Filters = {
-  location: '', salaryMin: 0, site: '', postedAge: 'any', workdayInSearch: true,
+  location: '', salaryMin: 0, site: '', postedAge: 'any',
+  workMode: 'any', jobType: 'any', expLevel: 'any', sourceType: 'any',
+  workdayInSearch: true,
 }
 
 const POSTED_OPTS: { value: PostedAge; label: string }[] = [
@@ -826,6 +840,23 @@ const POSTED_OPTS: { value: PostedAge; label: string }[] = [
   { value: 'week',      label: 'This week' },
   { value: 'older',     label: 'Week+'     },
 ]
+
+const SITE_LABELS: Record<string, string> = {
+  linkedin    : 'LinkedIn',
+  indeed      : 'Indeed',
+  glassdoor   : 'Glassdoor',
+  zip_recruiter: 'ZipRecruiter',
+  workday     : 'Workday',
+  greenhouse  : 'Greenhouse',
+}
+
+function pill(active: boolean) {
+  return `rounded-full border px-3 py-1 text-xs font-semibold transition ${
+    active
+      ? 'bg-cyan-600 border-cyan-600 text-white'
+      : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-400 hover:text-cyan-600'
+  }`
+}
 
 function FilterPanel({
   open, filters, allLocations, allSites, onApply, onClose,
@@ -854,7 +885,7 @@ function FilterPanel({
           className="border-b border-slate-100 bg-slate-50/80 px-4 py-4 space-y-3"
         >
           {/* Row 1 — dropdowns */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {/* Location */}
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Location</label>
@@ -864,16 +895,27 @@ function FilterPanel({
               </select>
             </div>
 
-            {/* Job board */}
+            {/* Source / Job board */}
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Job board</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Source</label>
               <select value={local.site} onChange={e => set('site', e.target.value)} className={selectCls}>
-                <option value="">All boards</option>
+                <option value="">All sources</option>
                 {allSites.map(s => (
-                  <option key={s} value={s}>
-                    {s === 'linkedin' ? 'LinkedIn' : s === 'indeed' ? 'Indeed' : s === 'workday' ? 'Workday' : s.charAt(0).toUpperCase() + s.slice(1)}
-                  </option>
+                  <option key={s} value={s}>{SITE_LABELS[s] ?? s}</option>
                 ))}
+              </select>
+            </div>
+
+            {/* Job type */}
+            <div>
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Job type</label>
+              <select value={local.jobType} onChange={e => set('jobType', e.target.value)} className={selectCls}>
+                <option value="any">Any type</option>
+                <option value="full_time">Full-time</option>
+                <option value="part_time">Part-time</option>
+                <option value="contract">Contract</option>
+                <option value="internship">Internship</option>
+                <option value="temporary">Temporary</option>
               </select>
             </div>
 
@@ -888,27 +930,69 @@ function FilterPanel({
             </div>
           </div>
 
-          {/* Row 2 — Posted pill buttons */}
+          {/* Row 2 — Work mode */}
           <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Posted</label>
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Work mode</label>
             <div className="flex flex-wrap gap-1.5">
-              {POSTED_OPTS.map(o => (
-                <button
-                  key={o.value}
-                  onClick={() => set('postedAge', o.value)}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                    local.postedAge === o.value
-                      ? 'bg-cyan-600 border-cyan-600 text-white'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-400 hover:text-cyan-600'
-                  }`}
-                >
+              {[
+                { value: 'any',    label: 'Any'      },
+                { value: 'remote', label: 'Remote'   },
+                { value: 'hybrid', label: 'Hybrid'   },
+                { value: 'onsite', label: 'On-site'  },
+              ].map(o => (
+                <button key={o.value} onClick={() => set('workMode', o.value)} className={pill(local.workMode === o.value)}>
                   {o.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Row 3 — Workday toggle + actions */}
+          {/* Row 3 — Experience level */}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Experience level</label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { value: 'any',    label: 'Any'        },
+                { value: 'entry',  label: 'Entry (0–2yr)'  },
+                { value: 'mid',    label: 'Mid (2–6yr)'    },
+                { value: 'senior', label: 'Senior (6yr+)'  },
+              ].map(o => (
+                <button key={o.value} onClick={() => set('expLevel', o.value)} className={pill(local.expLevel === o.value)}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 4 — Source type */}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Source type</label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { value: 'any',     label: 'All'            },
+                { value: 'boards',  label: 'Job boards'     },
+                { value: 'portals', label: 'Company portals'},
+              ].map(o => (
+                <button key={o.value} onClick={() => set('sourceType', o.value)} className={pill(local.sourceType === o.value)}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 5 — Posted pill buttons */}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Posted</label>
+            <div className="flex flex-wrap gap-1.5">
+              {POSTED_OPTS.map(o => (
+                <button key={o.value} onClick={() => set('postedAge', o.value)} className={pill(local.postedAge === o.value)}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 6 — Workday toggle + actions */}
           <div className="flex items-center justify-between gap-4 flex-wrap pt-0.5">
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <div
@@ -1636,7 +1720,15 @@ export default function PulledJobsPage() {
     return [...cities].sort()
   }, [jobs])
 
-  const allSites = ['linkedin', 'indeed', 'workday']
+  const allSites = useMemo(() => {
+    const present = new Set<string>()
+    jobs.forEach(j => {
+      if (j.source === 'workday' || j.source === 'greenhouse') present.add(j.source)
+      else if (j.site) present.add(j.site)
+    })
+    const order = ['linkedin', 'indeed', 'glassdoor', 'zip_recruiter', 'workday', 'greenhouse']
+    return order.filter(s => present.has(s))
+  }, [jobs])
 
   const visible = useMemo(() => {
     const q          = search.toLowerCase()
@@ -1655,8 +1747,13 @@ export default function PulledJobsPage() {
       // ALL: exclude hidden
       if (j.status === 'hidden') return false
 
-      // Text search
-      if (q && !j.title.toLowerCase().includes(q) && !j.company.toLowerCase().includes(q)) return false
+      // Text search — title, company, and skills
+      if (q) {
+        const inTitle   = j.title.toLowerCase().includes(q)
+        const inCompany = j.company.toLowerCase().includes(q)
+        const inSkills  = (j.skills || []).some(s => s.toLowerCase().includes(q))
+        if (!inTitle && !inCompany && !inSkills) return false
+      }
 
       // Panel filters
       if (filters.location) {
@@ -1673,8 +1770,8 @@ export default function PulledJobsPage() {
         if (!jobCities.includes(filters.location)) return false
       }
       if (filters.site) {
-        if (filters.site === 'workday') {
-          if (j.source !== 'workday') return false
+        if (filters.site === 'workday' || filters.site === 'greenhouse') {
+          if (j.source !== filters.site) return false
         } else {
           if (j.site !== filters.site) return false
         }
@@ -1695,6 +1792,34 @@ export default function PulledJobsPage() {
           if (filters.postedAge === 'yesterday' && (h < 24 || h > 48)) return false
           if (filters.postedAge === 'week'      && h > 168)         return false
           if (filters.postedAge === 'older'     && h < 168)         return false
+        }
+      }
+
+      // Work mode filter — scan location + title
+      if (filters.workMode !== 'any') {
+        const wm = detectWorkMode(j)
+        if (wm !== 'unknown' && wm !== filters.workMode) return false
+      }
+
+      // Job type filter
+      if (filters.jobType !== 'any') {
+        if (j.job_type && j.job_type !== filters.jobType) return false
+      }
+
+      // Source type filter — boards (indeed/linkedin) vs portals (workday/greenhouse)
+      if (filters.sourceType !== 'any') {
+        const isPortal = j.source === 'workday' || j.source === 'greenhouse'
+        if (filters.sourceType === 'boards'  && isPortal)  return false
+        if (filters.sourceType === 'portals' && !isPortal) return false
+      }
+
+      // Experience level filter — uses extractExpNum from description
+      if (filters.expLevel !== 'any') {
+        const yrs = extractExpNum(j.description || '')
+        if (yrs !== null) {
+          if (filters.expLevel === 'entry'  && yrs > 2)              return false
+          if (filters.expLevel === 'mid'    && (yrs < 2 || yrs > 6)) return false
+          if (filters.expLevel === 'senior' && yrs < 6)              return false
         }
       }
 
@@ -1732,7 +1857,7 @@ export default function PulledJobsPage() {
       const scoreB = salaryScore(b, userMin, userMax) + locationMatchScore(b, prefLocs) + expMatchScore(b, userYears)
       return scoreB - scoreA
     })
-  }, [jobs, activeTab, search, filters, userProfile])
+  }, [jobs, activeTab, search, filters, userProfile, tailorJobs])
 
   // ── Tab counts ───────────────────────────────────────────────────────────────
   const allCount      = stats ? (stats.total - (stats.hidden || 0)) : 0
@@ -1756,7 +1881,9 @@ export default function PulledJobsPage() {
 
   const hasActiveFilters = (
     !!filters.location || !!filters.site ||
-    filters.salaryMin > 0 || filters.postedAge !== 'any'
+    filters.salaryMin > 0 || filters.postedAge !== 'any' ||
+    filters.workMode !== 'any' || filters.jobType !== 'any' ||
+    filters.expLevel !== 'any' || filters.sourceType !== 'any'
   )
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -1827,7 +1954,16 @@ export default function PulledJobsPage() {
             >
               <Filter className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Filters</span>
-              {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />}
+              {hasActiveFilters && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[10px] font-bold text-white leading-none">
+                  {[
+                    !!filters.location, !!filters.site, filters.salaryMin > 0,
+                    filters.postedAge !== 'any', filters.workMode !== 'any',
+                    filters.jobType !== 'any', filters.expLevel !== 'any',
+                    filters.sourceType !== 'any',
+                  ].filter(Boolean).length}
+                </span>
+              )}
             </button>
           </div>
 
