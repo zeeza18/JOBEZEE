@@ -297,9 +297,10 @@ print("\n[scripts]")
 def _scripts_present():
     s = REPO_ROOT / "scripts"
     assert (s / "db_reset.py").exists()
+    assert (s / "reset.py").exists()
     assert (s / "workday_autodiscovery.py").exists()
     assert (s / "workday_discovery_remote.py").exists()
-check("scripts/ — db_reset, workday_autodiscovery, workday_discovery_remote present", _scripts_present)
+check("scripts/ — db_reset, reset, workday_autodiscovery, workday_discovery_remote present", _scripts_present)
 
 # ─────────────────────────────────────────────
 print("\n" + "="*60)
