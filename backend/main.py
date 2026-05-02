@@ -296,6 +296,7 @@ async def _auto_search_loop() -> None:
                     await db.commit()
                 _log.info("[AutoSearch] session=%s user=%s roles=%s — starting",
                           sid, uid, getattr(profile, "desired_roles", []))
+                profile.hours_old = 24  # incremental window: only jobs from last 24h
                 await run_phase1_search(profile, sid, include_workday=True)
                 # Read back how many jobs this session found
                 async with AsyncSessionLocal() as db:

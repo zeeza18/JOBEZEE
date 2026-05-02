@@ -1151,6 +1151,7 @@ async def run_phase1_search(
         # Build per-title kwargs (one query string at a time)
         base_kwargs = {k: v for k, v in kwargs.items() if k != "queries"}
         base_kwargs["results_per_site"] = min(kwargs.get("results_per_site", 50), 100)
+        base_kwargs["sites"] = ["indeed", "linkedin"]  # boards: indeed + linkedin only
 
         # Country filter — LinkedIn returns global remote jobs even for USA searches.
         # If the user specified countries, drop any job explicitly tagged to a
