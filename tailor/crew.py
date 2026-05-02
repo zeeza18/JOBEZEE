@@ -17,7 +17,7 @@ from .tools.tool3 import ResumeEvaluator
 from .tools.tool4 import LatexResumeFormatter
 from .tools.resume_analyzer import ResumeAnalyzer
 
-_MODULE_ROOT = Path(__file__).resolve().parent   # PHASE2_JOB_TAILOR/
+_MODULE_ROOT = Path(__file__).resolve().parent   # tailor/
 _OUTPUT_DIR  = _MODULE_ROOT / "output"
 
 

@@ -1,5 +1,5 @@
 """
-PHASE1_JOB_SEARCH — Targeted search test
+discovery — Targeted search test
 ==========================================
 Runs two real searches using UserPreferences:
 
@@ -7,15 +7,15 @@ Runs two real searches using UserPreferences:
   Search B — Global Remote · AI Engineer (all levels)
 
 Output:
-    test/output/targeted_YYYYMMDD_HHMMSS.xlsx
+    tests/discovery/output/targeted_YYYYMMDD_HHMMSS.xlsx
         Sheet "Chicago_AI_Fresher"  — Search A results
         Sheet "Global_Remote_AI"    — Search B results
         Sheet "Summary"             — counts and stats
 
 Run:
-    python test_targeted.py                  # boards + workday
-    python test_targeted.py --boards-only    # skip workday (faster)
-    python test_targeted.py --workday-only   # skip boards
+    python tests/discovery/test_targeted.py                  # boards + workday
+    python tests/discovery/test_targeted.py --boards-only    # skip workday (faster)
+    python tests/discovery/test_targeted.py --workday-only   # skip boards
 """
 from __future__ import annotations
 
@@ -30,9 +30,8 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Paths + env
 # ---------------------------------------------------------------------------
-TEST_DIR    = Path(__file__).parent           # .../PHASE1_JOB_SEARCH/test/
-PHASE1_DIR  = TEST_DIR.parent                 # .../PHASE1_JOB_SEARCH/
-JOBEZEE_DIR = PHASE1_DIR.parent               # .../JOBEZEE/
+TEST_DIR    = Path(__file__).parent           # .../tests/discovery/
+JOBEZEE_DIR = TEST_DIR.parent.parent          # .../JOBEZEE/
 PARENT_DIR  = JOBEZEE_DIR.parent              # .../RESUME-MAKER/  (has .env)
 OUTPUT_DIR  = TEST_DIR / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -40,7 +39,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 sys.path.insert(0, str(JOBEZEE_DIR))
 
 from dotenv import load_dotenv
-load_dotenv(PHASE1_DIR / ".env")
+load_dotenv(JOBEZEE_DIR / ".env")
 load_dotenv(PARENT_DIR / ".env")
 
 # ---------------------------------------------------------------------------
@@ -60,7 +59,7 @@ log = logging.getLogger("test_targeted")
 # ---------------------------------------------------------------------------
 # Imports
 # ---------------------------------------------------------------------------
-from PHASE1_JOB_SEARCH import (
+from discovery import (
     UserPreferences,
     JobRecord,
     deduplicate,
@@ -244,7 +243,7 @@ def save_excel(
 
     # ── Summary sheet ──────────────────────────────────────────────────────
     ws_sum = wb.create_sheet("Summary")
-    ws_sum["A1"] = "PHASE1_JOB_SEARCH — Targeted Search Results"
+    ws_sum["A1"] = "discovery — Targeted Search Results"
     ws_sum["A1"].font = Font(bold=True, size=14, color="1F4E79")
     ws_sum["A3"] = "Generated at:"
     ws_sum["B3"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -341,7 +340,7 @@ def main() -> None:
     t_start = time.perf_counter()
 
     log.info("=" * 65)
-    log.info("  PHASE1_JOB_SEARCH — Targeted AI Engineer Test")
+    log.info("  discovery — Targeted AI Engineer Test")
     log.info("=" * 65)
     log.info("")
     log.info("  Search A : USA · AI Engineer · Fresher · Chicago")

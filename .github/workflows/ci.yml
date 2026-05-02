@@ -17,23 +17,106 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install backend deps
-        run: pip install -r backend/requirements.txt
-
-      - name: Verify discovery imports
-        run: python -c "import sys; sys.path.insert(0, '.'); from discovery import JobRecord, SearchFilters, deduplicate; print('discovery OK')"
-
-      - name: Verify tailor imports
-        run: python -c "import sys; sys.path.insert(0, '.'); from tailor.crew import ResumeCrew; print('tailor OK')"
-
-      - name: Verify backend loads
-        run: python -c "import sys; sys.path.insert(0, '.'); sys.path.insert(0, 'apply'); from backend.config import Settings; print('backend config OK')"
-
-      - name: Check no old PHASE import names remain
+      - name: Install core deps (skip binary/system packages)
         run: |
-          # Check for old package import names (not function names like start_linkedin_bot)
-          if grep -rn "from PHASE1_JOB_SEARCH\|from PHASE2_JOB_TAILOR\|import PHASE1_JOB_SEARCH\|import PHASE2_JOB_TAILOR" --include="*.py" .; then
-            echo "ERROR: Old PHASE import names still in code"
+          pip install --upgrade pip
+          # Install only the pure-Python deps needed for import checks
+          # Exclude: tls-client (binary), selenium (needs Chrome), pyvirtualdisplay (needs Xvfb)
+          pip install \
+            fastapi \
+            uvicorn \
+            sqlalchemy[asyncio] \
+            asyncpg \
+            pydantic-settings \
+            python-jose[cryptography] \
+            bcrypt \
+            httpx \
+            python-dotenv \
+            python-multipart \
+            aiofiles \
+            openai \
+            anthropic \
+            pdfplumber \
+            python-docx \
+            reportlab \
+            psutil \
+            python-jobspy \
+            markdownify \
+            beautifulsoup4 \
+            lxml \
+            python-dateutil \
+            rich
+
+      - name: Check no stale PHASE imports in Python files
+        run: |
+          if git grep -l "from PHASE1_JOB_SEARCH\|from PHASE2_JOB_TAILOR\|import PHASE1_JOB_SEARCH\|import PHASE2_JOB_TAILOR" -- '*.py'; then
+            echo "ERROR: Stale PHASE import names found — update to discovery/tailor"
             exit 1
           fi
-          echo "No stale PHASE imports found — clean"
+          echo "No stale PHASE imports found"
+
+      - name: Verify folder structure
+        run: |
+          for dir in discovery tailor apply linkedin worker tests scripts; do
+            [ -d "$dir" ] || { echo "MISSING: $dir/"; exit 1; }
+          done
+          echo "All expected directories present"
+
+      - name: Verify old folders are gone
+        run: |
+          for dir in PHASE1_JOB_SEARCH PHASE2_JOB_TAILOR PHASE3_AUTO_APPLY linkedin_bot hetzner_worker; do
+            [ ! -d "$dir" ] || { echo "ERROR: Old folder still exists: $dir"; exit 1; }
+          done
+          echo "No old folder names at root"
+
+      - name: Verify discovery package imports
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, '.')
+          from discovery import (
+              JobRecord, UserPreferences, SearchFilters, deduplicate,
+              INDEED_COUNTRY_CODES, GLOBAL_EMPLOYERS, get_global_employers,
+          )
+          assert 'USA' in INDEED_COUNTRY_CODES
+          j = JobRecord(title='Test', company='Acme', url='https://x.com', source='indeed')
+          assert j.title == 'Test'
+          print('discovery OK')
+          "
+
+      - name: Verify tailor package structure
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, '.')
+          from tailor.llm_client import make_client, resolve_system_key
+          from pathlib import Path
+          prompts = list((Path('tailor') / 'prompt').glob('*.txt'))
+          assert len(prompts) >= 4, f'Expected 4+ prompts, got {len(prompts)}'
+          tools = list((Path('tailor') / 'tools').glob('tool*.py'))
+          assert len(tools) >= 4, f'Expected 4+ tools, got {len(tools)}'
+          print(f'tailor OK — {len(prompts)} prompts, {len(tools)} tools')
+          "
+
+      - name: Verify backend config and auth load
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, '.'); sys.path.insert(0, 'apply')
+          from backend.config import Settings
+          from backend.auth import create_access_token, hash_password
+          from backend.crypto import encrypt, decrypt
+          assert decrypt(encrypt('test')) == 'test'
+          print('backend OK')
+          "
+
+      - name: Verify applypilot importable
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, '.'); sys.path.insert(0, 'apply')
+          from applypilot import __version__
+          from applypilot.config import load_env, ensure_dirs
+          print(f'applypilot {__version__} OK')
+          "
+
+      - name: Syntax check all Python files
+        run: |
+          find backend discovery tailor apply/applypilot worker scripts tests -name '*.py' \
+            | xargs python -m py_compile && echo "All .py files syntax OK"

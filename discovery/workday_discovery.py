@@ -990,7 +990,7 @@ def get_global_employers(
 
     Example::
 
-        from PHASE1_JOB_SEARCH import search_workday, get_global_employers
+        from discovery import search_workday, get_global_employers
 
         eu_tech = get_global_employers(regions=["europe"], industries=["technology"])
         jobs    = search_workday(queries=["backend engineer"], employers=eu_tech)

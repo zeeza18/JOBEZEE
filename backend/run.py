@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # Make sure our Phase1 search logs are not filtered out
     for name in [
         "backend.services.phase1_service",
-        "PHASE1_JOB_SEARCH",
+        "discovery",
         "jobspy_discovery",
         "smartextract_discovery",
         "workday_discovery",

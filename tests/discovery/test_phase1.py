@@ -1,5 +1,5 @@
 """
-PHASE1_JOB_SEARCH — Integration test for all three discovery sources.
+discovery — Integration test for all three discovery sources.
 
 Tests:
     1. jobspy_discovery   — job boards (Indeed, LinkedIn, ZipRecruiter)
@@ -7,12 +7,12 @@ Tests:
     3. smartextract_discovery — AI-powered extraction (Playwright + LLM)
 
 Output:
-    test/output/jobs_YYYYMMDD_HHMMSS.xlsx
+    tests/discovery/output/jobs_YYYYMMDD_HHMMSS.xlsx
 
 Run:
-    python test_phase1.py                    # all three sources
-    python test_phase1.py --skip-smart       # skip smartextract (no Playwright needed)
-    python test_phase1.py --source jobspy    # single source
+    python tests/discovery/test_phase1.py                   # all three sources
+    python tests/discovery/test_phase1.py --skip-smart      # skip smartextract
+    python tests/discovery/test_phase1.py --source jobspy   # single source
 """
 from __future__ import annotations
 
@@ -29,19 +29,18 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 # Locate directories relative to this file
-TEST_DIR    = Path(__file__).parent                   # .../PHASE1_JOB_SEARCH/test/
-PHASE1_DIR  = TEST_DIR.parent                         # .../PHASE1_JOB_SEARCH/
-JOBEZEE_DIR = PHASE1_DIR.parent                       # .../JOBEZEE/
+TEST_DIR    = Path(__file__).parent                   # .../tests/discovery/
+JOBEZEE_DIR = TEST_DIR.parent.parent                  # .../JOBEZEE/
 PARENT_DIR  = JOBEZEE_DIR.parent                      # .../RESUME-MAKER/  <- has .env
 
 OUTPUT_DIR  = TEST_DIR / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# Add PHASE1_JOB_SEARCH to path so we can import it as a package
-sys.path.insert(0, str(PHASE1_DIR.parent))
+# Add JOBEZEE root to path so discovery package is importable
+sys.path.insert(0, str(JOBEZEE_DIR))
 
 from dotenv import load_dotenv
-load_dotenv(PHASE1_DIR / ".env")   # local overrides (if any)
+load_dotenv(JOBEZEE_DIR / ".env")  # local overrides (if any)
 load_dotenv(PARENT_DIR / ".env")   # OPENAI_API_KEY, GEMINI_API_KEY, etc.
 
 # ---------------------------------------------------------------------------
@@ -66,7 +65,7 @@ log = logging.getLogger("test_phase1")
 # Imports from our package
 # ---------------------------------------------------------------------------
 
-from PHASE1_JOB_SEARCH import (
+from discovery import (
     JobRecord,
     SearchFilters,
     LLMClient,
@@ -289,7 +288,7 @@ def save_excel(records: list[JobRecord], output_path: Path) -> None:
 
     # --- Summary sheet ---
     ws2 = wb.create_sheet("Summary")
-    ws2["A1"] = "PHASE1_JOB_SEARCH — Discovery Summary"
+    ws2["A1"] = "discovery — Discovery Summary"
     ws2["A1"].font = Font(bold=True, size=14, color="1F4E79")
 
     ws2["A3"] = "Total Records:"
@@ -345,7 +344,7 @@ def main() -> None:
     args = parser.parse_args()
 
     log.info("=" * 60)
-    log.info("PHASE1_JOB_SEARCH — Global Integration Test")
+    log.info("discovery — Global Integration Test")
     log.info("=" * 60)
     log.info("GEMINI_API_KEY      : %s", "set" if os.getenv("GEMINI_API_KEY") else "NOT SET")
     log.info("OPENAI_API_KEY      : %s", "set" if os.getenv("OPENAI_API_KEY") else "NOT SET")

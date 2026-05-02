@@ -38,7 +38,7 @@ if _env_file.exists():
 _WORKER_SECRETS = {s.strip() for s in os.environ.get("WORKER_SECRET", "").split(",") if s.strip()}
 WORKER_SECRET   = os.environ.get("WORKER_SECRET", "").split(",")[0].strip()  # kept for legacy use
 _JOBEZEE_ROOT = Path(__file__).resolve().parent.parent
-_BOT_DIR      = _JOBEZEE_ROOT / "linkedin_bot"
+_BOT_DIR      = _JOBEZEE_ROOT / "linkedin"
 _LAUNCHER     = _BOT_DIR / "linkedin_launcher.py"
 
 _procs: dict[str, subprocess.Popen] = {}
@@ -1457,7 +1457,7 @@ def _run_tailor_task(req: TailorJobRequest) -> None:
         if repo_root not in sys.path:
             sys.path.insert(0, repo_root)
 
-        from PHASE2_JOB_TAILOR.crew import ResumeCrew
+        from tailor.crew import ResumeCrew
 
         job_dir = _JOBEZEE_ROOT / "job_outputs" / job_id
         job_dir.mkdir(parents=True, exist_ok=True)

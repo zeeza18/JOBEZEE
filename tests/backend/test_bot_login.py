@@ -59,7 +59,7 @@ with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encodin
     json.dump(overrides, f)
     tmp = f.name
 
-bot_dir = os.path.join(os.path.dirname(__file__), '..', 'linkedin_bot')
+bot_dir = os.path.join(os.path.dirname(__file__), '..', 'linkedin')
 result = subprocess.run(
     [sys.executable, '-u', 'linkedin_launcher.py', '--config', tmp],
     cwd=bot_dir, timeout=90, capture_output=True, text=True

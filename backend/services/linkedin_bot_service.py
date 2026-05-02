@@ -1,5 +1,5 @@
 """
-linkedin_bot_service.py — runs the LinkedIn Easy Apply bot (linkedin_bot/runAiBot.py)
+linkedin_bot_service.py — runs the LinkedIn Easy Apply bot (linkedin/runAiBot.py)
 in a subprocess and streams stdout back as progress events.
 
 Job lifecycle: pending -> running -> complete | error
@@ -22,7 +22,7 @@ import httpx
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 _JOBEZEE_ROOT = Path(__file__).resolve().parent.parent.parent   # JOBEZEE/
-_BOT_DIR      = _JOBEZEE_ROOT / "linkedin_bot"
+_BOT_DIR      = _JOBEZEE_ROOT / "linkedin"
 _LAUNCHER     = _BOT_DIR / "linkedin_launcher.py"
 
 # ── In-memory job store ───────────────────────────────────────────────────────
@@ -399,7 +399,7 @@ def _run_bot(job_id: str, profile, resume_pdf_path: str = "", resume_url: str = 
                     "Worker secret mismatch (401) — WORKER_SECRET in Render env vars does not match "
                     "the secret on the Hetzner server. "
                     "Fix: SSH into Hetzner and run: "
-                    f"echo 'WORKER_SECRET={_cfg.WORKER_SECRET}' > /opt/jobezee/hetzner_worker/.env && systemctl restart jobezee-worker"
+                    f"echo 'WORKER_SECRET={_cfg.WORKER_SECRET}' > /opt/jobezee/worker/.env && systemctl restart jobezee-worker"
                 )
             if r.status_code != 200:
                 raise RuntimeError(f"Hetzner worker rejected job: {r.status_code} {r.text}")

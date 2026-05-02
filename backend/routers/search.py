@@ -210,10 +210,10 @@ async def debug_board_search(
 
         # Step 3: import check
         try:
-            from PHASE1_JOB_SEARCH import search_boards, INDEED_COUNTRY_CODES  # type: ignore
-            out["steps"].append(f"PHASE1_JOB_SEARCH imported OK")
+            from discovery import search_boards, INDEED_COUNTRY_CODES  # type: ignore
+            out["steps"].append(f"discovery imported OK")
         except Exception as e:
-            out["steps"].append(f"PHASE1_JOB_SEARCH IMPORT FAILED: {e}")
+            out["steps"].append(f"discovery IMPORT FAILED: {e}")
             out["error"] = str(e)
             return out
 

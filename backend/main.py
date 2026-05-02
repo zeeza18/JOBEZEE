@@ -415,6 +415,9 @@ def _start_global_chrome() -> None:
         _root = _P(__file__).resolve().parent.parent
         if str(_root) not in sys.path:
             sys.path.insert(0, str(_root))
+            _apply = _root / "apply"
+            if str(_apply) not in sys.path:
+                sys.path.insert(0, str(_apply))
         from applypilot.config import load_env, ensure_dirs
         from applypilot.apply.chrome import ensure_global_chrome
         load_env()

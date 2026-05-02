@@ -202,7 +202,7 @@ def build_targets_from_yaml(
 
     Args:
         sites_yaml_path:  Path to a sites.yaml file.  Defaults to the bundled
-                          PHASE1_JOB_SEARCH/config/sites.yaml when called via
+                          discovery/config/sites.yaml when called via
                           UserPreferences.get_site_targets().
         queries:          Search terms to inject into search-type URLs.
         default_location: Substituted for {location_encoded} in URLs.

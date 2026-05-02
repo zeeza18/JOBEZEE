@@ -463,6 +463,9 @@ async def browser_status(_user=Depends(get_current_user)):
         _root = _P(__file__).resolve().parent.parent.parent
         if str(_root) not in sys.path:
             sys.path.insert(0, str(_root))
+            _apply = _root / "apply"
+            if str(_apply) not in sys.path:
+                sys.path.insert(0, str(_apply))
         from applypilot.apply.chrome import is_global_chrome_alive, GLOBAL_CDP_PORT
         alive = is_global_chrome_alive()
         return {"alive": alive, "port": GLOBAL_CDP_PORT}
@@ -479,6 +482,9 @@ async def browser_start(_user=Depends(get_current_user)):
         _root = _P(__file__).resolve().parent.parent.parent
         if str(_root) not in sys.path:
             sys.path.insert(0, str(_root))
+            _apply = _root / "apply"
+            if str(_apply) not in sys.path:
+                sys.path.insert(0, str(_apply))
         from applypilot.config import load_env, ensure_dirs
         from applypilot.apply.chrome import ensure_global_chrome
         load_env()
@@ -505,6 +511,9 @@ async def browser_navigate(req: NavigateRequest, _user=Depends(get_current_user)
     _root = _P(__file__).resolve().parent.parent.parent
     if str(_root) not in sys.path:
         sys.path.insert(0, str(_root))
+        _apply = _root / "apply"
+        if str(_apply) not in sys.path:
+            sys.path.insert(0, str(_apply))
     try:
         from applypilot.apply.chrome import GLOBAL_CDP_PORT
         import urllib.request as _ur, json as _json
@@ -545,6 +554,9 @@ def _run_warm(warm_job_id: str, worker_id: int, headless: bool) -> None:
         _root = _Path(__file__).resolve().parent.parent.parent
         if str(_root) not in sys.path:
             sys.path.insert(0, str(_root))
+            _apply = _root / "apply"
+            if str(_apply) not in sys.path:
+                sys.path.insert(0, str(_apply))
 
         from applypilot.apply.warm_sessions import warm_sessions
         results = warm_sessions(worker_id=worker_id, headless=headless)

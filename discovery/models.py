@@ -549,7 +549,7 @@ class UserPreferences:
 
         Example::
 
-            from PHASE1_JOB_SEARCH import search_smart, LLMClient
+            from discovery import search_smart, LLMClient
             llm     = LLMClient.from_env()
             targets = prefs.get_site_targets()
             jobs    = search_smart(targets=targets, llm_client=llm)

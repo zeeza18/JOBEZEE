@@ -1,5 +1,5 @@
 """
-PHASE1_JOB_SEARCH — Global job discovery library.
+discovery — Global job discovery library.
 
 Three discovery sources, one unified interface.  Designed for worldwide reach:
   - 35+ country codes for Indeed regional searches
@@ -8,8 +8,8 @@ Three discovery sources, one unified interface.  Designed for worldwide reach:
 
 Quick start::
 
-    from PHASE1_JOB_SEARCH import search_boards, search_workday, search_smart
-    from PHASE1_JOB_SEARCH import (
+    from discovery import search_boards, search_workday, search_smart
+    from discovery import (
         JobRecord, SearchFilters, LLMClient, deduplicate,
         INDEED_COUNTRY_CODES, GLOBAL_EMPLOYERS, get_global_employers,
     )

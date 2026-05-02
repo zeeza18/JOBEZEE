@@ -1499,7 +1499,7 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                         out.append(' ')
                                 return ''.join(out)
                             _jd_for_tailor = _cp1252_safe(_jd_for_tailor)
-                            from PHASE2_JOB_TAILOR.crew import ResumeCrew
+                            from tailor.crew import ResumeCrew
                             from config.secrets import llm_api_key as _llm_key
                             _base_info = _cp1252_safe(globals().get("user_information_all", ""))
                             _openai_key = _llm_key if (_llm_key and _llm_key != "not-needed") else None

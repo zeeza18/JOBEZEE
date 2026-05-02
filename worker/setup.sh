@@ -28,12 +28,12 @@ fi
 echo "=== [4/7] Python virtualenv + deps ==="
 python3 -m venv "$INSTALL_DIR/.venv"
 "$INSTALL_DIR/.venv/bin/pip" install -q --upgrade pip
-"$INSTALL_DIR/.venv/bin/pip" install -q -r "$INSTALL_DIR/hetzner_worker/requirements.txt"
+"$INSTALL_DIR/.venv/bin/pip" install -q -r "$INSTALL_DIR/worker/requirements.txt"
 "$INSTALL_DIR/.venv/bin/pip" install -q -r "$INSTALL_DIR/backend/requirements.txt"
-"$INSTALL_DIR/.venv/bin/pip" install -q -r "$INSTALL_DIR/linkedin_bot/requirements.txt" 2>/dev/null || true
+"$INSTALL_DIR/.venv/bin/pip" install -q -r "$INSTALL_DIR/linkedin/requirements.txt" 2>/dev/null || true
 
 echo "=== [5/7] Write .env ==="
-cat > "$INSTALL_DIR/hetzner_worker/.env" <<EOF
+cat > "$INSTALL_DIR/worker/.env" <<EOF
 WORKER_SECRET=${WORKER_SECRET}
 EOF
 
@@ -55,14 +55,14 @@ EOF
 echo "=== [7/7] Worker systemd service ==="
 cat > /etc/systemd/system/jobezee-worker.service <<EOF
 [Unit]
-Description=JOBEZEE LinkedIn Bot Worker
+Description=JOBEZEE Hetzner Worker
 After=network.target xvfb.service
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=${INSTALL_DIR}/hetzner_worker
-EnvironmentFile=${INSTALL_DIR}/hetzner_worker/.env
+WorkingDirectory=${INSTALL_DIR}/worker
+EnvironmentFile=${INSTALL_DIR}/worker/.env
 ExecStart=${INSTALL_DIR}/.venv/bin/uvicorn worker:app --host 0.0.0.0 --port 8001
 Restart=always
 RestartSec=5

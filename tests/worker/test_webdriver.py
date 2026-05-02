@@ -3,7 +3,7 @@ WebDriver smoke test — run this ON THE HETZNER SERVER after setup.sh completes
 Verifies Chrome + ChromeDriver + Xvfb are working correctly.
 
 Usage:
-  python /opt/jobezee/hetzner_worker/test_webdriver.py
+  python /opt/jobezee/worker/test_webdriver.py
 """
 import os, sys, subprocess, time
 

@@ -11,11 +11,14 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-# ── Add JOBEZEE root to path (applypilot package lives at root/applypilot/) ───
+# ── Add apply/ to path so `applypilot` package is importable ─────────────────
 _SERVICE_DIR  = Path(__file__).resolve().parent          # backend/services/
 _JOBEZEE_ROOT = _SERVICE_DIR.parent.parent               # JOBEZEE/
+_APPLY_ROOT   = _JOBEZEE_ROOT / "apply"                  # JOBEZEE/apply/
 if str(_JOBEZEE_ROOT) not in sys.path:
     sys.path.insert(0, str(_JOBEZEE_ROOT))
+if str(_APPLY_ROOT) not in sys.path:
+    sys.path.insert(0, str(_APPLY_ROOT))
 
 # ── Patch dashboard.add_event to capture progress (only when applypilot is available) ──
 _event_callbacks: list[Callable[[str], None]] = []

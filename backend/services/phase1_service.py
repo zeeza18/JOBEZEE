@@ -73,14 +73,14 @@ _EXP_LEVEL_YEARS: dict[str, tuple[int, int]] = {
 }
 
 
-# ── PHASE1_JOB_SEARCH lives at the repo root (same level as backend/) ──────────
+# ── discovery package lives at the repo root (same level as backend/) ──────────
 _REPO_ROOT = Path(__file__).resolve().parents[2]   # …/JOBEZEE (repo root)
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 # ── Lazy-import Phase 1 so missing deps don't break the whole app ─────────────
 try:
-    from PHASE1_JOB_SEARCH import (  # type: ignore
+    from discovery import (  # type: ignore
         JobRecord,
         UserPreferences,
         SearchFilters,
@@ -93,19 +93,19 @@ try:
     _SMARTEXTRACT_AVAILABLE = False
 
     try:
-        from PHASE1_JOB_SEARCH import search_workday  # type: ignore
+        from discovery import search_workday  # type: ignore
         _WORKDAY_AVAILABLE = True
     except Exception as _we:
         log.info("Workday search not available (%s)", _we)
 
     try:
-        from PHASE1_JOB_SEARCH import search_greenhouse  # type: ignore
+        from discovery import search_greenhouse  # type: ignore
         _GREENHOUSE_AVAILABLE = True
     except Exception as _ghe:
         log.info("Greenhouse search not available (%s)", _ghe)
 
     try:
-        from PHASE1_JOB_SEARCH import search_smart, LLMClient  # type: ignore
+        from discovery import search_smart, LLMClient  # type: ignore
         _SMARTEXTRACT_AVAILABLE = True
     except Exception as _se:
         log.info("SmartExtract not available (%s)", _se)
@@ -165,8 +165,8 @@ def _scrape_boards_worker(kwargs: dict) -> list:
     print(f"[WORKER] pid={os.getpid()} kwargs={kwargs}", flush=True)
 
     try:
-        from PHASE1_JOB_SEARCH import search_boards  # type: ignore
-        print(f"[WORKER] PHASE1_JOB_SEARCH imported OK", flush=True)
+        from discovery import search_boards  # type: ignore
+        print(f"[WORKER] discovery imported OK", flush=True)
     except Exception as e:
         print(f"[WORKER] IMPORT FAILED: {e}", flush=True)
         print(traceback.format_exc(), flush=True)
@@ -855,7 +855,7 @@ def _normalise_countries(raw: list[str]) -> list[str]:
     Build a lowercase lookup once then map each input string.
     """
     try:
-        from PHASE1_JOB_SEARCH import INDEED_COUNTRY_CODES  # type: ignore
+        from discovery import INDEED_COUNTRY_CODES  # type: ignore
         lc_lookup = {k.lower(): k for k in INDEED_COUNTRY_CODES}
     except Exception:
         lc_lookup = {}
@@ -1167,7 +1167,7 @@ async def run_phase1_search(
 
         if target_countries and _PHASE1_AVAILABLE:
             try:
-                from PHASE1_JOB_SEARCH import INDEED_COUNTRY_CODES  # type: ignore
+                from discovery import INDEED_COUNTRY_CODES  # type: ignore
 
                 # Collect all indeed-codes that correspond to the user's targets
                 target_codes: set[str] = set()
@@ -1339,7 +1339,7 @@ async def run_phase1_search(
                 # Always filter employers by user's target countries first.
                 # This is the primary fix: without it, Canadian/European employers
                 # are queried even when the user only wants USA jobs.
-                from PHASE1_JOB_SEARCH.workday_discovery import GLOBAL_EMPLOYERS as _GE  # type: ignore
+                from discovery.workday_discovery import GLOBAL_EMPLOYERS as _GE  # type: ignore
                 if target_countries:
                     employers = {
                         k: v for k, v in _GE.items()

@@ -16,10 +16,11 @@ build/
 *.env
 backend/.env
 frontend/.env
-PHASE3_AUTO_APPLY/.env
+apply/.env
 !.env.example
 !backend/.env.example
 !frontend/.env.example
+!apply/.env.example
 
 # ── Uploads (user resumes) ────────────────────────────────────────────────────
 uploads/
@@ -36,8 +37,10 @@ Thumbs.db
 *.swp
 *.swo
 
-# ── Claude Code ───────────────────────────────────────────────────────────────
+# ── Claude Code (ignore settings, but track skills) ───────────────────────────
 .claude/
+!.claude/skills/
+!.claude/skills/**
 
 # ── Personal / PII files ──────────────────────────────────────────────────────
 *.pdf
@@ -52,20 +55,25 @@ image*.png
 *.db
 backend/jobezee.db
 
-# ── Phase 1 cache / outputs ───────────────────────────────────────────────────
-PHASE1_JOB_SEARCH/__pycache__/
+# ── Discovery cache / outputs ─────────────────────────────────────────────────
 *.xlsx
 *.csv
 data/
 
-# ── Phase 2 outputs (contain PII resume data) ─────────────────────────────────
-PHASE2_JOB_TAILOR/output/
+# ── Tailor outputs (contain PII resume data) ──────────────────────────────────
+tailor/output/
 output/
 job_outputs/
 
-# ── Phase 3 auto-apply (submodule / separate project) ────────────────────────
-PHASE3_AUTO_APPLY/
-applypilot/
+# ── Apply pipeline runtime outputs ────────────────────────────────────────────
+apply/runs/
+tests/apply/output/
+
+# ── LinkedIn bot runtime outputs ──────────────────────────────────────────────
+linkedin/logs/
+linkedin/output/
+linkedin/"all resumes"/
+linkedin/"all excels"/
 
 # ── LaTeX build artifacts ─────────────────────────────────────────────────────
 *.aux
@@ -73,8 +81,7 @@ applypilot/
 *.out
 *.synctex.gz
 
-# ── Dev/util scripts with hardcoded credentials ───────────────────────────────
-reset.py
+# ── Sensitive dev/util scripts ────────────────────────────────────────────────
 fix_db.py
 check_render.py
 setup_test_user.py
@@ -82,7 +89,7 @@ test_apply_linkedin.py
 test_render_callback.py
 test_concurrent.py
 test_full_search.py
-hetzner_worker/test_worker.py
+worker/test_worker.py
 
 # ── One-off env / secret files ────────────────────────────────────────────────
 render.env
@@ -90,7 +97,9 @@ render.env
 
 # ── Dev artifacts ─────────────────────────────────────────────────────────────
 local/
-output/
 
 # ── Personal resume LaTeX source (contains PII) ───────────────────────────────
 docs/latex/
+
+# ── Test outputs ──────────────────────────────────────────────────────────────
+tests/*/output/

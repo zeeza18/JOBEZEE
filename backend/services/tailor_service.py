@@ -1,5 +1,5 @@
 """
-Tailor service — runs the PHASE2_JOB_TAILOR crew in a background thread
+Tailor service — runs the tailor crew in a background thread
 and tracks job state in memory.
 """
 from __future__ import annotations
@@ -16,10 +16,10 @@ from typing import Any, Dict, Optional
 
 import psutil
 
-# PHASE2_JOB_TAILOR module root (two levels up from this file)
+# tailor module root (two levels up from this file)
 _SERVICE_DIR  = Path(__file__).resolve().parent          # backend/services/
 _JOBEZEE_ROOT = _SERVICE_DIR.parent.parent               # JOBEZEE/
-_TAILOR_ROOT  = _JOBEZEE_ROOT / "PHASE2_JOB_TAILOR"
+_TAILOR_ROOT  = _JOBEZEE_ROOT / "tailor"
 
 # Ensure repo root is importable regardless of which service module loaded first
 import sys as _sys
@@ -220,7 +220,7 @@ def _run_tailor_job(job_id: str, job_description: str, resume: str, openai_api_k
         _clean_jd = _cp1252_safe(_clean_job_description(job_description))
         _resume   = _cp1252_safe(resume)
 
-        from PHASE2_JOB_TAILOR.crew import ResumeCrew
+        from tailor.crew import ResumeCrew
 
         job_dir = _JOB_OUTPUTS / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
@@ -387,7 +387,7 @@ def _run_tailor_for_job(
             clean_jd    = _cp1252_safe(clean_jd)
             resume_text = _cp1252_safe(resume_text)
 
-        from PHASE2_JOB_TAILOR.crew import ResumeCrew
+        from tailor.crew import ResumeCrew
 
         safe_name = _safe_filename(username, company)
         job_dir = _JOB_OUTPUTS / tailor_job_id
