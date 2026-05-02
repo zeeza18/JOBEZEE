@@ -49,8 +49,13 @@ jobs:
 
       - name: Check no stale PHASE imports in Python files
         run: |
-          if git grep -l "from PHASE1_JOB_SEARCH\|from PHASE2_JOB_TAILOR\|import PHASE1_JOB_SEARCH\|import PHASE2_JOB_TAILOR" -- '*.py'; then
+          # Exclude files that reference these strings as grep patterns (not actual imports)
+          if git grep -l "from PHASE1_JOB_SEARCH\|from PHASE2_JOB_TAILOR\|import PHASE1_JOB_SEARCH\|import PHASE2_JOB_TAILOR" -- '*.py' \
+             | grep -v "tests/test_all.py" \
+             | grep -v ".github/workflows" \
+             | grep -q .; then
             echo "ERROR: Stale PHASE import names found — update to discovery/tailor"
+            git grep -l "from PHASE1_JOB_SEARCH\|from PHASE2_JOB_TAILOR\|import PHASE1_JOB_SEARCH\|import PHASE2_JOB_TAILOR" -- '*.py' | grep -v "tests/test_all.py" | grep -v ".github/workflows"
             exit 1
           fi
           echo "No stale PHASE imports found"
