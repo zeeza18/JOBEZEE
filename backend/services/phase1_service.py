@@ -1506,7 +1506,17 @@ async def run_phase1_search(
                     if (getattr(j, "url", "") or "").strip() not in saved_urls
                 ]
                 gh_unique = deduplicate(gh_new)
-                log.info("[Phase1][5] Greenhouse after dedup: %d new jobs — saving", len(gh_unique))
+                log.info("[Phase1][5] Greenhouse after dedup: %d new jobs", len(gh_unique))
+
+                # Country filter — Greenhouse API country param is best-effort only;
+                # many companies (e.g. Anthropic) list all offices globally regardless.
+                if _target_set:
+                    before_cf = len(gh_unique)
+                    gh_unique = [j for j in gh_unique if _passes_country(j)]
+                    log.info("[Phase1][5] Greenhouse country filter (%s): kept %d / %d",
+                             target_countries, len(gh_unique), before_cf)
+
+                log.info("[Phase1][5] Greenhouse saving %d jobs", len(gh_unique))
 
                 # Save Greenhouse jobs under each searched title (same fanout fix as Workday).
                 gh_inserted = 0
