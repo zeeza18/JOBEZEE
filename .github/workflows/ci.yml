@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend deps
+        run: pip install -r backend/requirements.txt
+
+      - name: Verify discovery imports
+        run: python -c "import sys; sys.path.insert(0, '.'); from discovery import JobRecord, SearchFilters, deduplicate; print('discovery OK')"
+
+      - name: Verify tailor imports
+        run: python -c "import sys; sys.path.insert(0, '.'); from tailor.crew import ResumeCrew; print('tailor OK')"
+
+      - name: Verify backend loads
+        run: python -c "import sys; sys.path.insert(0, '.'); sys.path.insert(0, 'apply'); from backend.config import Settings; print('backend config OK')"
+
+      - name: Check no old PHASE import names remain
+        run: |
+          # Check for old package import names (not function names like start_linkedin_bot)
+          if grep -rn "from PHASE1_JOB_SEARCH\|from PHASE2_JOB_TAILOR\|import PHASE1_JOB_SEARCH\|import PHASE2_JOB_TAILOR" --include="*.py" .; then
+            echo "ERROR: Old PHASE import names still in code"
+            exit 1
+          fi
+          echo "No stale PHASE imports found — clean"
