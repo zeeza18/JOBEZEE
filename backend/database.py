@@ -23,7 +23,7 @@ _settings = get_settings()
 # event loop (even after switching to Selector) mishandles the SSL upgrade.
 # Fix: strip the ssl param from the URL and pass an explicit ssl.SSLContext via
 # connect_args instead.  Production on Linux is unaffected (the guard is win32).
-_db_url      = _settings.DATABASE_URL
+_db_url      = _settings.DATABASE_URL or "postgresql+asyncpg://ci:ci@localhost/ci"
 _connect_args: dict = {}
 
 if sys.platform == "win32":
