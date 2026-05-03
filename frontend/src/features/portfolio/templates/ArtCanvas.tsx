@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import type { PortfolioTemplateProps } from '../types'
-import { buildAllSkills, getMetrics } from './skillUtils'
+import { buildAllSkills } from './skillUtils'
 
 const fadeUp: any = { hidden: { opacity: 0, y: 40 }, show: { opacity: 1, y: 0, transition: { duration: 0.7 } } }
 const slideLeft: any = { hidden: { opacity: 0, x: -60 }, show: { opacity: 1, x: 0, transition: { duration: 0.8 } } }
@@ -26,7 +26,6 @@ export default function ArtCanvas({
   const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
   const projects = profile.resume_facts_projects || []
   const companies = profile.resume_facts_companies || []
-  const schools = profile.resume_facts_schools || []
   const nameParts = name.split(' ')
   const firstName = nameParts[0] || name
   const lastName  = nameParts.slice(1).join(' ') || ''

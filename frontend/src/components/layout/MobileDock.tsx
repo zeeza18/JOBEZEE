@@ -1,15 +1,15 @@
 import { NavLink } from 'react-router-dom'
-import { Globe, Home, Wand2, Sparkles, Zap } from 'lucide-react'
+import { Globe, Home, Wand2, Sparkles, Linkedin } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 const leftDock = [
-  { to: '/app/pulled-jobs', label: 'Jobs',   icon: Sparkles, end: false },
-  { to: '/app/tailor',      label: 'Tailor', icon: Wand2,    end: false },
+  { to: '/app/pulled-jobs', label: 'Jobs',     icon: Sparkles,  end: false },
+  { to: '/app/tailor',      label: 'Resume',   icon: Wand2,     end: false },
 ]
 
 const rightDock = [
-  { to: '/app/apply',     label: 'Auto',      icon: Zap,  end: false },
-  { to: '/app/portfolio', label: 'Portfolio', icon: Globe, end: false },
+  { to: '/app/apply',     label: 'Apply',    icon: Globe,    end: false },
+  { to: '/app/linkedin',  label: 'LinkedIn', icon: Linkedin, end: false },
 ]
 
 const DockItem = ({ to, label, icon: Icon, end }: { to: string; label: string; icon: React.ElementType; end: boolean }) => (

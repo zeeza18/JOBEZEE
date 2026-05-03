@@ -1,14 +1,16 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
+import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight, CreditCard, Linkedin, Plug } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/useAuthStore'
 import LogoBrand from '../common/LogoBrand'
 
 const mainNav = [
   { to: '/app',              label: 'Dashboard', icon: Home,     end: true },
-  { to: '/app/pulled-jobs',  label: 'Jobs',      icon: Sparkles, badge: 'Live' },
-  { to: '/app/tailor',       label: 'Tailor',    icon: Wand2 },
+  { to: '/app/pulled-jobs',  label: 'Jobs',      icon: Sparkles },
+  { to: '/app/tailor',       label: 'Resume',    icon: Wand2 },
   { to: '/app/apply',        label: 'Apply',     icon: Send },
+  { to: '/app/linkedin',     label: 'LinkedIn',  icon: Linkedin },
+  { to: '/app/connectors',   label: 'Connectors',icon: Plug },
   { to: '/app/portfolio',    label: 'Portfolio', icon: Globe },
 ]
 

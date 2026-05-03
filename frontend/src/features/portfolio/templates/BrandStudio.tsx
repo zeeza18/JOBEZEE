@@ -6,16 +6,6 @@ const fadeIn: any = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { 
 const stagger: any = { show: { transition: { staggerChildren: 0.1 } } }
 const staggerFast: any = { show: { transition: { staggerChildren: 0.07 } } }
 
-const MARQUEE_ITEMS = ['Brand Strategy', 'Growth Marketing', 'Content Creation', 'Paid Media', 'SEO/SEM', 'Social Media', 'Email Campaigns', 'Performance Marketing', 'Influencer Collab', 'Analytics']
-const CHANNEL_CARDS = [
-  { abbr: 'SM', name: 'Social Media',      tools: ['Instagram', 'TikTok', 'LinkedIn'],   pct: 95 },
-  { abbr: 'EM', name: 'Email Marketing',   tools: ['Klaviyo', 'Mailchimp', 'HubSpot'],    pct: 88 },
-  { abbr: 'SE', name: 'SEO / SEM',         tools: ['Google Ads', 'SEMrush', 'Ahrefs'],    pct: 84 },
-  { abbr: 'PA', name: 'Paid Advertising',  tools: ['Meta Ads', 'Google Ads', 'TikTok Ads'], pct: 91 },
-  { abbr: 'CM', name: 'Content Marketing', tools: ['WordPress', 'Figma', 'Canva'],         pct: 90 },
-  { abbr: 'AN', name: 'Analytics',         tools: ['GA4', 'Mixpanel', 'Tableau'],          pct: 86 },
-]
-
 const BRAND_COLORS = ['#ff6b6b', '#feca57', '#48dbfb', '#ff9ff3', '#54a0ff', '#1dd1a1', '#fd9644', '#a29bfe']
 
 export default function BrandStudio({

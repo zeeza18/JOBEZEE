@@ -145,8 +145,8 @@ const TailorPage = () => {
     <div className="space-y-5 w-full">
       {/* Header */}
       <div>
-        <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">ATS-friendly · AI-powered</p>
-        <h1 className="text-xl md:text-2xl font-bold text-slate-900">Tailor Resume</h1>
+        <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Tailor</p>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900">Resume</h1>
       </div>
 
       {/* Inputs — JD + Resume */}

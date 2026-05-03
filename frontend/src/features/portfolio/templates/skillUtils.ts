@@ -1,4 +1,4 @@
-import type { UserProfile } from '../../lib/api'
+import type { UserProfile } from '../../../lib/api'
 
 // ── Build merged skill array from profile ─────────────────────────────────────
 export function buildAllSkills(profile: UserProfile): string[] {
