@@ -7,7 +7,7 @@ const stagger = { show: { transition: { staggerChildren: 0.08 } } }
 export default function InkStudio({ profile, primaryColor: _primaryColor, accentColor, showSections }: PortfolioTemplateProps) {
   const name      = profile.full_name || profile.preferred_name || 'Studio'
   const title     = profile.current_job_title || profile.target_role || 'Creative Director'
-  const allSkills = ['Adobe Photoshop', 'Illustrator', 'InDesign', 'Figma', 'Lightroom', 'Premiere Pro', 'After Effects', 'Procreate', 'Blender', 'Cinema 4D', 'DaVinci Resolve', 'Sketch']
+  const allSkills = [...(profile.skills_languages || []), ...(profile.skills_frameworks || []), ...(profile.skills_tools || [])]
 
   return (
     <div className="min-h-screen font-serif" style={{ background: '#fafaf9', color: '#1a1a1a' }}>

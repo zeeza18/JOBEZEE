@@ -5,34 +5,6 @@ const fadeUp: any = { hidden: { opacity: 0, y: 30 }, show: { opacity: 1, y: 0, t
 const fadeIn: any = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { duration: 0.7 } } }
 const stagger: any = { show: { transition: { staggerChildren: 0.08 } } }
 
-const TICKER_ITEMS = ['S&P 500 +1.24%', 'NASDAQ +0.87%', 'DOW +0.54%', 'BTC $67,420', 'GOLD $2,341', 'EUR/USD 1.0843', 'NIFTY 50 +0.92%', '10Y UST 4.28%', 'VIX 14.32', 'WTI OIL $78.40']
-
-const FINANCE_SECTORS = [
-  { name: 'Equities', pct: 92 },
-  { name: 'Fixed Income', pct: 78 },
-  { name: 'M&A Advisory', pct: 85 },
-  { name: 'Risk Management', pct: 88 },
-  { name: 'Derivatives', pct: 74 },
-  { name: 'Portfolio Mgmt', pct: 90 },
-]
-
-const MOCK_CERTS = [
-  { name: 'CFA', body: 'CFA Institute', level: 'Level III' },
-  { name: 'CPA', body: 'AICPA', level: 'Certified' },
-  { name: 'FRM', body: 'GARP', level: 'Part II' },
-  { name: 'Series 7', body: 'FINRA', level: 'Licensed' },
-]
-
-
-const QUARTERS = [
-  { label: 'Q1', val: 68, pos: true },
-  { label: 'Q2', val: 85, pos: true },
-  { label: 'Q3', val: 45, pos: false },
-  { label: 'Q4', val: 92, pos: true },
-  { label: 'Q1', val: 77, pos: true },
-  { label: 'Q2', val: 100, pos: true },
-]
-
 export default function WallStreet({
   profile, primaryColor, accentColor, showSections, profilePhoto, textOverrides,
 }: PortfolioTemplateProps) {
@@ -50,54 +22,34 @@ export default function WallStreet({
   const projects  = profile.resume_facts_projects  || []
   const schools   = profile.resume_facts_schools   || []
   const metrics   = profile.resume_facts_metrics   || []
-
-  const allSkillRows = [
-    { name: 'Equity Research',         cat: 'Analysis',   color: GREEN,    pct: 92 },
-    { name: 'Portfolio Management',    cat: 'Strategy',   color: GREEN,    pct: 90 },
-    { name: 'Financial Modeling',      cat: 'Analysis',   color: '#00c8ff', pct: 88 },
-    { name: 'Risk Assessment',         cat: 'Risk',       color: '#00c8ff', pct: 86 },
-    { name: 'Bloomberg Terminal',      cat: 'Tool',       color: accentColor || '#ffd700', pct: 94 },
-    { name: 'M&A Advisory',            cat: 'Strategy',   color: GREEN,    pct: 85 },
-    { name: 'Derivatives & Options',   cat: 'Asset Class',color: '#00c8ff', pct: 74 },
-    { name: 'DCF / LBO Valuation',     cat: 'Analysis',   color: GREEN,    pct: 88 },
-    { name: 'Fixed Income',            cat: 'Asset Class',color: '#00c8ff', pct: 78 },
-    { name: 'Capital IQ / FactSet',    cat: 'Tool',       color: accentColor || '#ffd700', pct: 82 },
-    { name: 'Regulatory Compliance',   cat: 'Risk',       color: '#00c8ff', pct: 80 },
-    { name: 'Excel Financial Models',  cat: 'Tool',       color: accentColor || '#ffd700', pct: 96 },
-  ]
+  const allSkills = [...(profile.skills_languages || []), ...(profile.skills_frameworks || []), ...(profile.skills_tools || [])]
 
   const heroMetrics = [
-    { label: 'AUM',     val: metrics[0] || '$2.4B' },
-    { label: 'Avg. Returns', val: metrics[1] || '18.4%' },
-    { label: 'Deals Closed', val: metrics[2] || '47+' },
-    { label: 'Years', val: `${profile.years_experience || 12}` },
+    { label: 'AUM',           val: metrics[0] || `${companies.length}+ Companies` },
+    { label: 'Returns',       val: metrics[1] || `${profile.years_experience || 12}+ Years` },
+    { label: 'Deals Closed',   val: metrics[2] || `${projects.length}+ Projects` },
+    { label: 'Years',         val: `${profile.years_experience || 12}` },
   ]
 
   const monoStyle: React.CSSProperties = { fontFamily: "'Courier New', 'Consolas', monospace" }
 
+  // Real skill rows — proficiency from position
+  const allSkillRows = allSkills.slice(0, 12).map((skill, i) => ({
+    name: skill,
+    cat: i < allSkills.length * 0.4 ? 'Strategy' : i < allSkills.length * 0.7 ? 'Analysis' : 'Tools',
+    color: i < allSkills.length * 0.4 ? GREEN : i < allSkills.length * 0.7 ? '#00c8ff' : (accentColor || '#ffd700'),
+    pct: Math.max(65, 95 - i * 5),
+  }))
+
   return (
     <div style={{ background: BG, color: GREEN, minHeight: '100vh', ...monoStyle }}>
-
-      {/* TICKER TAPE */}
-      <div style={{ background: '#000', borderBottom: `1px solid ${GREEN}40`, overflow: 'hidden', height: 36, display: 'flex', alignItems: 'center' }}>
-        <motion.div
-          animate={{ x: [0, -2000] }}
-          transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
-          style={{ display: 'flex', gap: 0, whiteSpace: 'nowrap' }}>
-          {[...TICKER_ITEMS, ...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
-            <span key={i} style={{ fontSize: 12, letterSpacing: '0.08em', padding: '0 24px', color: item.includes('-') ? RED : GREEN, borderRight: `1px solid ${GREEN}20` }}>
-              {item}
-            </span>
-          ))}
-        </motion.div>
-      </div>
 
       {/* NAV */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: `${BG}ee`, backdropFilter: 'blur(12px)', borderBottom: `1px solid ${GREEN}25` }}>
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 60px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ color: GREEN, fontWeight: 700, fontSize: 16, letterSpacing: '0.1em' }}>[{initials}]</span>
           <div style={{ display: 'flex', gap: 32, fontSize: 12, letterSpacing: '0.15em', color: DIM }}>
-            {['PROFILE', 'TRACK_RECORD', 'SECTORS', 'CERTS', 'CONTACT'].map(s => (
+            {['PROFILE', 'TRACK_RECORD', 'SKILLS', 'CONTACT'].map(s => (
               <a key={s} href={`#${s.toLowerCase()}`} style={{ textDecoration: 'none', color: 'inherit', transition: 'color 0.2s' }}
                 onMouseEnter={e => (e.currentTarget.style.color = GREEN)}
                 onMouseLeave={e => (e.currentTarget.style.color = DIM)}>
@@ -229,89 +181,53 @@ export default function WallStreet({
         <section id="track_record" style={{ padding: '80px 60px', background: `${GREEN}05` }}>
           <div style={{ maxWidth: 1400, margin: '0 auto' }}>
             <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-              <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Transaction History</motion.p>
+              <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Career History</motion.p>
               <motion.h2 variants={fadeUp} style={{ fontSize: 40, fontWeight: 900, color: GREEN, marginBottom: 48, letterSpacing: '-0.02em' }}>Track Record</motion.h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-                {companies.map((company, i) => {
-                  const dealTypes = ['M&A Buy-Side', 'IPO Lead', 'Debt Issuance', 'PE Investment', 'Restructuring', 'Cross-Border M&A']
-                  const dealType = dealTypes[i % dealTypes.length]
-                  return (
-                    <motion.div key={i} variants={fadeUp}
-                      whileHover={{ borderColor: GREEN }}
-                      style={{ padding: '28px', border: `1px solid ${GREEN}30`, background: BG, transition: 'border-color 0.3s' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                        <h3 style={{ fontSize: 20, fontWeight: 700, color: GREEN }}>{company}</h3>
-                        <span style={{ fontSize: 11, letterSpacing: '0.1em', padding: '4px 10px', border: `1px solid ${accentColor || '#ffd700'}50`, color: accentColor || '#ffd700' }}>
-                          {dealType}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 13, color: DIM, lineHeight: 1.9 }}>
-                        <div>Deal Value: <span style={{ color: GREEN }}>{metrics[i] || `$${(i + 1) * 240}M`}</span></div>
-                        <div>Status: <span style={{ color: GREEN }}>Completed</span></div>
-                        <div>Year: <span style={{ color: GREEN }}>{2024 - i}</span></div>
-                      </div>
-                      {projects[i] && <p style={{ marginTop: 12, fontSize: 13, color: `${GREEN}80`, borderTop: `1px solid ${GREEN}20`, paddingTop: 12 }}>{projects[i]}</p>}
-                    </motion.div>
-                  )
-                })}
+                {companies.map((company, i) => (
+                  <motion.div key={i} variants={fadeUp}
+                    whileHover={{ borderColor: GREEN }}
+                    style={{ padding: '28px', border: `1px solid ${GREEN}30`, background: BG, transition: 'border-color 0.3s' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                      <h3 style={{ fontSize: 20, fontWeight: 700, color: GREEN }}>{company}</h3>
+                      <span style={{ fontSize: 11, letterSpacing: '0.1em', padding: '4px 10px', border: `1px solid ${accentColor || '#ffd700'}50`, color: accentColor || '#ffd700' }}>
+                        #{String(i + 1).padStart(2, '0')}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, color: DIM, lineHeight: 1.9 }}>
+                      {(projects[i] || metrics[i]) && (
+                        <div style={{ color: `${GREEN}80` }}>{projects[i] || metrics[i]}</div>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
               </div>
             </motion.div>
           </div>
         </section>
       )}
 
-      {/* SECTORS */}
-      {showSections['about'] !== false && (
-        <section id="sectors" style={{ padding: '80px 60px' }}>
-          <div style={{ maxWidth: 1400, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80 }}>
-            <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-              <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Sector Expertise</motion.p>
-              <motion.h2 variants={fadeUp} style={{ fontSize: 36, fontWeight: 900, color: GREEN, marginBottom: 40 }}>Asset Classes</motion.h2>
-              {FINANCE_SECTORS.map((sec, i) => (
-                <motion.div key={i} variants={fadeUp} style={{ marginBottom: 20 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8 }}>
-                    <span style={{ color: GREEN }}>{sec.name}</span>
-                    <span style={{ color: DIM }}>{sec.pct}%</span>
-                  </div>
-                  <div style={{ height: 4, background: `${GREEN}20` }}>
-                    <motion.div initial={{ width: 0 }} whileInView={{ width: `${sec.pct}%` }} viewport={{ once: true }} transition={{ duration: 1, delay: i * 0.1 }}
-                      style={{ height: '100%', background: `linear-gradient(to right, ${GREEN}, ${accentColor || '#ffd700'})` }} />
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-            {/* Education */}
-            {showSections['education'] !== false && schools.length > 0 && (
-              <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-                <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Academic Credentials</motion.p>
-                <motion.h2 variants={fadeUp} style={{ fontSize: 36, fontWeight: 900, color: GREEN, marginBottom: 40 }}>Education</motion.h2>
-                {schools.map((school, i) => (
-                  <motion.div key={i} variants={fadeUp} style={{ padding: '20px 24px', border: `1px solid ${GREEN}30`, marginBottom: 12, background: `${GREEN}05` }}>
-                    <p style={{ fontSize: 16, fontWeight: 700, color: GREEN, marginBottom: 4 }}>{school}</p>
-                    <p style={{ fontSize: 13, color: DIM }}>{profile.education || 'Finance & Economics'}</p>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* CERTIFICATIONS */}
-      {showSections['projects'] !== false && (
-        <section id="certs" style={{ padding: '80px 60px', background: `${GREEN}05`, borderTop: `1px solid ${GREEN}20` }}>
+      {/* SKILLS TABLE */}
+      {showSections['skills'] !== false && allSkills.length > 0 && (
+        <section style={{ padding: '80px 60px', borderTop: `1px solid ${GREEN}20` }}>
           <div style={{ maxWidth: 1400, margin: '0 auto' }}>
             <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-              <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Professional Certifications</motion.p>
-              <motion.h2 variants={fadeUp} style={{ fontSize: 40, fontWeight: 900, color: GREEN, marginBottom: 48 }}>Credentials</motion.h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
-                {MOCK_CERTS.map((cert, i) => (
+              <motion.p variants={fadeUp} style={{ fontSize: 11, letterSpacing: '0.3em', color: DIM, marginBottom: 16, textTransform: 'uppercase' }}>Competency Matrix</motion.p>
+              <motion.h2 variants={fadeUp} style={{ fontSize: 40, fontWeight: 900, color: GREEN, marginBottom: 40, letterSpacing: '-0.02em' }}>Core Competencies</motion.h2>
+              <div style={{ border: `1px solid ${GREEN}30`, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 3fr 80px', background: `${GREEN}15`, padding: '12px 24px', borderBottom: `1px solid ${GREEN}30`, fontSize: 11, letterSpacing: '0.15em', color: DIM }}>
+                  <span>SKILL_NAME</span><span>CATEGORY</span><span>PROFICIENCY_BAR</span><span>PCT</span>
+                </div>
+                {allSkillRows.map((row, i) => (
                   <motion.div key={i} variants={fadeUp}
-                    whileHover={{ y: -4 }}
-                    style={{ padding: '36px 24px', border: `2px solid ${accentColor || '#ffd700'}50`, background: BG, textAlign: 'center', transition: 'transform 0.3s' }}>
-                    <div style={{ fontSize: 42, fontWeight: 900, color: accentColor || '#ffd700', marginBottom: 12 }}>{cert.name}</div>
-                    <div style={{ fontSize: 13, color: DIM, letterSpacing: '0.05em', marginBottom: 4 }}>{cert.body}</div>
-                    <div style={{ fontSize: 12, color: `${GREEN}80`, padding: '4px 12px', border: `1px solid ${GREEN}30`, display: 'inline-block', marginTop: 8 }}>{cert.level}</div>
+                    style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 3fr 80px', padding: '14px 24px', borderBottom: `1px solid ${GREEN}15`, fontSize: 13, alignItems: 'center', background: i % 2 === 0 ? 'transparent' : `${GREEN}05` }}>
+                    <span style={{ color: GREEN, fontWeight: 600 }}>{row.name}</span>
+                    <span style={{ color: row.color, fontSize: 11, letterSpacing: '0.1em' }}>{row.cat.toUpperCase()}</span>
+                    <div style={{ height: 6, background: `${GREEN}20`, borderRadius: 0, overflow: 'hidden' }}>
+                      <motion.div initial={{ width: 0 }} whileInView={{ width: `${row.pct}%` }} viewport={{ once: true }} transition={{ duration: 1, delay: i * 0.05 }}
+                        style={{ height: '100%', background: row.color }} />
+                    </div>
+                    <span style={{ color: row.color, fontSize: 12, textAlign: 'right' }}>{row.pct}%</span>
                   </motion.div>
                 ))}
               </div>

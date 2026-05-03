@@ -31,15 +31,34 @@ export default function BrandStudio({
   const schools   = profile.resume_facts_schools   || []
   const metrics   = profile.resume_facts_metrics   || []
 
-  const allSkills = ['Meta Ads', 'Google Ads', 'HubSpot', 'Klaviyo', 'Hootsuite', 'Canva', 'Figma', 'Google Analytics', 'Ahrefs', 'SEMrush', 'Mailchimp', 'TikTok Ads', 'Tableau', 'Salesforce']
+  const allSkills = [...(profile.skills_languages || []), ...(profile.skills_frameworks || []), ...(profile.skills_tools || [])]
 
-  const metricsWall = [
-    { val: metrics[0] || '24M+',   label: 'Total Impressions' },
-    { val: metrics[1] || '8.4%',   label: 'Avg. Click-Through Rate' },
-    { val: metrics[2] || '$2.1M',  label: 'Revenue Attributed' },
-    { val: metrics[3] || '340%',   label: 'Average Campaign ROI' },
-    { val: `${profile.years_experience || '6'}+`, label: 'Years Growing Brands' },
-    { val: companies.length > 0 ? `${companies.length}+` : '8+', label: 'Brands Scaled' },
+  // Real metrics — no fake fallbacks
+  const metricsWall = metrics.length > 0
+    ? metrics.slice(0, 6).map((m, i) => ({ val: m, label: ['Key Result', 'Impact', 'Achievement', 'Milestone', 'Growth Metric', 'Performance'][i] }))
+    : [
+        { val: `${profile.years_experience || 0}+`, label: 'Years Experience' },
+        { val: `${companies.length}+`,               label: 'Brands Scaled' },
+        { val: `${allSkills.length}+`,               label: 'Skills' },
+        { val: `${projects.length}+`,               label: 'Projects' },
+      ]
+
+  // Marquee from real companies or skills
+  const marqueeItems = companies.length > 0
+    ? companies
+    : allSkills.length > 0
+    ? allSkills.slice(0, 10)
+    : ['Brand Strategy', 'Growth Marketing', 'Content Creation', 'Paid Media', 'SEO/SEM', 'Social Media']
+
+  // Channel cards from real skills — generate 6 from first tools
+  const channelTools = profile.skills_tools || profile.skills_frameworks || []
+  const CHANNEL_CARDS = [
+    { abbr: 'SM', name: channelTools[0] || 'Social Media',      tools: allSkills.slice(0, 3),   pct: 95 },
+    { abbr: 'EM', name: channelTools[1] || 'Email Marketing',   tools: allSkills.slice(3, 6),   pct: 88 },
+    { abbr: 'SE', name: channelTools[2] || 'SEO / SEM',         tools: allSkills.slice(6, 9),   pct: 84 },
+    { abbr: 'PA', name: channelTools[3] || 'Paid Advertising',  tools: allSkills.slice(9, 12), pct: 91 },
+    { abbr: 'CM', name: channelTools[4] || 'Content Marketing', tools: allSkills.slice(0, 3),   pct: 90 },
+    { abbr: 'AN', name: channelTools[5] || 'Analytics',         tools: allSkills.slice(3, 6),   pct: 86 },
   ]
 
   const heroBg = heroGradient || `linear-gradient(135deg, ${primaryColor || '#7c3aed'} 0%, ${accentColor || '#ec4899'} 50%, #f97316 100%)`
@@ -106,7 +125,7 @@ export default function BrandStudio({
             animate={{ x: [0, -1800] }}
             transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
             style={{ display: 'flex', gap: 0, whiteSpace: 'nowrap' }}>
-            {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
+            {[...marqueeItems, ...marqueeItems, ...marqueeItems].map((item, i) => (
               <span key={i} style={{ fontSize: 13, fontWeight: 600, padding: '0 32px', color: 'rgba(255,255,255,0.7)', borderRight: '1px solid rgba(255,255,255,0.2)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                 {item}
               </span>

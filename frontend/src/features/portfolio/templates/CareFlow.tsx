@@ -33,9 +33,12 @@ export default function CareFlow({
   const schools    = profile.resume_facts_schools   || []
   const metrics    = profile.resume_facts_metrics   || []
 
-  const clinicalSkills   = ['Patient Assessment', 'Diagnosis', 'Treatment Planning', 'Emergency Medicine', 'Critical Care', 'Preventive Care']
-  const procedures       = ['Surgical Procedures', 'Minimally Invasive Surgery', 'Interventional Techniques', 'Laparoscopy', 'Endoscopy', 'Trauma Response']
-  const medicalSystems   = ['Epic EHR', 'PACS / DICOM', 'HL7 FHIR', 'ICD-10 Coding', 'Meditech', 'Cerner']
+  const allSkills = [...(profile.skills_languages || []), ...(profile.skills_frameworks || []), ...(profile.skills_tools || [])]
+
+  // Split skills into clinical categories — real data only
+  const clinicalSkills  = allSkills.slice(0, 6)
+  const procedures      = allSkills.slice(6, 12)
+  const medicalSystems  = profile.skills_tools?.length ? profile.skills_tools.slice(0, 6) : allSkills.slice(12, 18)
 
   const heroStats = [
     { label: 'Years Practice',    val: `${profile.years_experience || 12}+` },

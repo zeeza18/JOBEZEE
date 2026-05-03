@@ -10,7 +10,7 @@ export default function GrowthHacker({ profile, primaryColor, accentColor, showS
   const orange = accentColor  || '#f97316'
   const name   = profile.full_name || profile.preferred_name || 'Growth Lead'
   const title  = profile.current_job_title || profile.target_role || 'Growth Marketer'
-  const allSkills = ['Growth Hacking', 'A/B Testing', 'Funnel Optimization', 'Paid Acquisition', 'SEO / SEM', 'Product Analytics', 'Email Drip Campaigns', 'Viral Loops', 'Mixpanel / Amplitude', 'Google Analytics 4', 'Meta Ads', 'Retention Engineering']
+  const allSkills = [...(profile.skills_languages || []), ...(profile.skills_frameworks || []), ...(profile.skills_tools || [])]
   const initials  = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (

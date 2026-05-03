@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import type { PortfolioTemplateProps } from '../types'
+import { buildAllSkills, getMetrics } from './skillUtils'
 
 const fadeUp: any = { hidden: { opacity: 0, y: 40 }, show: { opacity: 1, y: 0, transition: { duration: 0.7 } } }
 const slideLeft: any = { hidden: { opacity: 0, x: -60 }, show: { opacity: 1, x: 0, transition: { duration: 0.8 } } }
@@ -7,7 +8,6 @@ const slideRight: any = { hidden: { opacity: 0, x: 60 }, show: { opacity: 1, x: 
 const stagger: any = { show: { transition: { staggerChildren: 0.1 } } }
 const staggerSlow: any = { show: { transition: { staggerChildren: 0.15 } } }
 
-const GALLERY_CATEGORIES = ['Photography', 'Brand Identity', 'Art Direction', 'Editorial', 'Motion Design', 'UI/UX']
 const GALLERY_GRADIENTS = [
   'linear-gradient(135deg,#ff6b6b,#feca57)',
   'linear-gradient(135deg,#48dbfb,#ff9ff3)',
@@ -16,7 +16,6 @@ const GALLERY_GRADIENTS = [
   'linear-gradient(135deg,#fd9644,#e84393)',
   'linear-gradient(135deg,#a29bfe,#6c5ce7)',
 ]
-const CREATIVE_TOOLS = ['Adobe Photoshop', 'Illustrator', 'Figma', 'Lightroom', 'Premiere Pro', 'After Effects', 'Blender', 'Procreate', 'InDesign', 'DaVinci Resolve', 'Sketch', 'Cinema 4D']
 
 export default function ArtCanvas({
   profile, primaryColor, accentColor, showSections, heroGradient, profilePhoto, textOverrides,
@@ -27,18 +26,23 @@ export default function ArtCanvas({
   const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
   const projects = profile.resume_facts_projects || []
   const companies = profile.resume_facts_companies || []
+  const schools = profile.resume_facts_schools || []
   const nameParts = name.split(' ')
   const firstName = nameParts[0] || name
   const lastName  = nameParts.slice(1).join(' ') || ''
 
-  const galleryItems = GALLERY_CATEGORIES.map((cat, i) => ({
+  // Real data drives gallery — fallback to skill categories if no projects
+  const skillCategories = profile.skills_languages?.length
+    ? profile.skills_languages.slice(0, 6)
+    : ['Design', 'Branding', 'Illustration', 'Art Direction', 'Typography', 'Motion']
+  const allSkills = buildAllSkills(profile)
+
+  const galleryItems = skillCategories.map((cat, i) => ({
     category: cat,
     title: projects[i] || cat,
-    gradient: GALLERY_GRADIENTS[i],
+    gradient: GALLERY_GRADIENTS[i % GALLERY_GRADIENTS.length],
     span: i === 0 || i === 3 ? 'col-span-2' : 'col-span-1',
   }))
-
-  const creativeTools = CREATIVE_TOOLS
 
   return (
     <div className="min-h-screen" style={{ background: '#0d0d0d', color: '#ffffff', fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -179,7 +183,7 @@ export default function ArtCanvas({
             <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={slideRight}>
               <p style={{ fontSize: 11, letterSpacing: '0.3em', textTransform: 'uppercase', color: accentColor, marginBottom: 24, fontWeight: 600 }}>Disciplines</p>
               <motion.div variants={stagger}>
-                {GALLERY_CATEGORIES.map((disc, i) => (
+                {skillCategories.map((disc, i) => (
                   <motion.div key={i} variants={fadeUp} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '18px 0', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                     <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', fontWeight: 700, letterSpacing: '0.1em' }}>0{i + 1}</span>
                     <span style={{ fontSize: 18, fontWeight: 600 }}>{disc}</span>
@@ -211,7 +215,7 @@ export default function ArtCanvas({
                 Creative Toolkit
               </motion.h2>
               <motion.div variants={stagger} style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                {creativeTools.map((tool, i) => (
+                {allSkills.slice(0, 16).map((tool, i) => (
                   <motion.span key={i} variants={fadeUp}
                     whileHover={{ scale: 1.05, borderColor: primaryColor }}
                     style={{ padding: '10px 20px', borderRadius: 2, border: '1px solid rgba(255,255,255,0.12)', fontSize: 14, color: 'rgba(255,255,255,0.8)', fontWeight: 500, cursor: 'default', transition: 'border-color 0.2s' }}>

@@ -45,7 +45,7 @@ function SkillBar({ skill, pct, color }: { skill: string; pct: number; color: st
 export default function CorporatePro({ profile, primaryColor, accentColor, showSections }: PortfolioTemplateProps) {
   const name      = profile.full_name || profile.preferred_name || 'Professional'
   const title     = profile.current_job_title || profile.target_role || 'Senior Manager'
-  const allSkills = ['Strategic Planning', 'P&L Management', 'Business Development', 'Stakeholder Management', 'Team Leadership', 'Change Management', 'Budgeting & Forecasting', 'Negotiation', 'CRM / Salesforce', 'Project Management', 'OKR Frameworks', 'Executive Communication']
+  const allSkills = [...(profile.skills_languages || []), ...(profile.skills_frameworks || []), ...(profile.skills_tools || [])]
   const initials  = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (

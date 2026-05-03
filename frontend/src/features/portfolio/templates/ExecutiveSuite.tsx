@@ -6,18 +6,6 @@ const fadeIn: any = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { 
 const slideLeft: any = { hidden: { opacity: 0, x: -60 }, show: { opacity: 1, x: 0, transition: { duration: 0.8 } } }
 const stagger: any = { show: { transition: { staggerChildren: 0.12 } } }
 
-const PRINCIPLES = [
-  { icon: '◈', title: 'Vision-Led Growth', desc: 'Setting bold, audacious targets and rallying entire organizations to achieve the previously impossible.' },
-  { icon: '◉', title: 'People First', desc: 'Building cultures of trust, accountability, and high performance that outlast any individual tenure.' },
-  { icon: '◆', title: 'Value Creation', desc: 'Translating bold strategy into measurable outcomes and compounding shareholder value year over year.' },
-]
-
-const MOCK_PUBLICATIONS = [
-  { pub: 'Forbes', title: 'Building Resilient Organizations in Volatile Markets', year: '2024' },
-  { pub: 'Harvard Business Review', title: 'The New Playbook for Executive Leadership', year: '2023' },
-  { pub: 'Fortune', title: 'How to Scale Culture Across Global Teams', year: '2023' },
-]
-
 export default function ExecutiveSuite({
   profile, primaryColor, showSections, heroGradient, profilePhoto, textOverrides,
 }: PortfolioTemplateProps) {
@@ -35,10 +23,10 @@ export default function ExecutiveSuite({
   const metrics   = profile.resume_facts_metrics   || []
 
   const impactStats = [
-    { value: metrics[0] || '₹450Cr+', label: 'Revenue Grown' },
-    { value: metrics[1] || '3,000+',  label: 'Professionals Led' },
-    { value: metrics[2] || '12+',     label: 'Companies Scaled' },
-    { value: `${profile.years_experience || '20'}+`, label: 'Years in Leadership' },
+    { value: metrics[0] || `${profile.years_experience || 20}+`, label: 'Years in Leadership' },
+    { value: metrics[1] || `${companies.length}+`,               label: 'Organizations Led' },
+    { value: metrics[2] || `${projects.length}+`,              label: 'Key Initiatives' },
+    { value: `${profile.years_experience || 20}+`,             label: 'Years Experience' },
   ]
 
   return (
@@ -186,94 +174,19 @@ export default function ExecutiveSuite({
                     {2024 - i * 3} – {i === 0 ? 'Present' : 2024 - (i - 1) * 3}
                   </p>
                   <h3 style={{ fontSize: 28, fontWeight: 700, color: '#f5edd8', marginBottom: 4 }}>{company}</h3>
-                  <p style={{ fontSize: 16, color: GOLD, marginBottom: 20, fontStyle: 'italic' }}>{title}</p>
-                  <ul style={{ paddingLeft: 20, color: 'rgba(232,220,200,0.6)', fontSize: 15, lineHeight: 2.1, fontFamily: 'system-ui, sans-serif' }}>
-                    {projects.slice(i * 2, i * 2 + 2).map((p, j) => <li key={j}>{p}</li>)}
-                    {projects.length <= i * 2 && <li>Led cross-functional transformation initiatives across the organization</li>}
-                    <li>Delivered {impactStats[0].value} in measurable business impact</li>
-                  </ul>
+                  <p style={{ fontSize: 16, color: GOLD, marginBottom: 12, fontStyle: 'italic' }}>{title}</p>
+                  {projects[i] && (
+                    <ul style={{ paddingLeft: 20, color: 'rgba(232,220,200,0.6)', fontSize: 14, lineHeight: 1.9, fontFamily: 'system-ui, sans-serif' }}>
+                      <li>{projects[i]}</li>
+                      {metrics[i] && <li>{metrics[i]}</li>}
+                    </ul>
+                  )}
                 </motion.div>
               ))}
             </motion.div>
           </div>
         </section>
       )}
-
-      {/* BOARD / ADVISORY */}
-      {showSections['projects'] !== false && projects.length > 0 && (
-        <section style={{ padding: '80px 80px', background: 'rgba(0,0,0,0.15)' }}>
-          <div style={{ maxWidth: 1300, margin: '0 auto' }}>
-            <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-              <motion.p variants={fadeUp} style={{ fontSize: 12, letterSpacing: '0.3em', textTransform: 'uppercase', color: GOLD, marginBottom: 16, fontFamily: 'system-ui, sans-serif', fontWeight: 600 }}>
-                Board & Advisory
-              </motion.p>
-              <motion.h2 variants={fadeUp} style={{ fontSize: 42, fontWeight: 900, color: '#f5edd8', marginBottom: 48, letterSpacing: '-0.02em' }}>
-                Strategic Engagements
-              </motion.h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
-                {projects.map((proj, i) => (
-                  <motion.div key={i} variants={fadeUp} style={{ padding: '24px', border: `1px solid ${GOLD}25`, background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ width: 44, height: 44, background: `${GOLD}20`, border: `1px solid ${GOLD}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: GOLD, flexShrink: 0 }}>
-                      {proj.charAt(0).toUpperCase()}
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#f5edd8', fontFamily: 'system-ui, sans-serif' }}>{proj}</span>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        </section>
-      )}
-
-      {/* LEADERSHIP PHILOSOPHY */}
-      {showSections['about'] !== false && (
-        <section id="philosophy" style={{ padding: '100px 80px' }}>
-          <div style={{ maxWidth: 1300, margin: '0 auto' }}>
-            <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-              <motion.p variants={fadeUp} style={{ textAlign: 'center', fontSize: 12, letterSpacing: '0.3em', textTransform: 'uppercase', color: GOLD, marginBottom: 16, fontFamily: 'system-ui, sans-serif', fontWeight: 600 }}>
-                Philosophy
-              </motion.p>
-              <motion.h2 variants={fadeUp} style={{ textAlign: 'center', fontSize: 48, fontWeight: 900, letterSpacing: '-0.02em', color: '#f5edd8', marginBottom: 72 }}>
-                Leadership Principles
-              </motion.h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 32 }}>
-                {PRINCIPLES.map((p, i) => (
-                  <motion.div key={i} variants={fadeUp}
-                    whileHover={{ y: -6 }}
-                    style={{ padding: '52px 40px', border: `1px solid ${GOLD}25`, background: 'rgba(255,255,255,0.02)', transition: 'transform 0.3s' }}>
-                    <div style={{ fontSize: 40, color: GOLD, marginBottom: 24 }}>{p.icon}</div>
-                    <h3 style={{ fontSize: 22, fontWeight: 700, color: '#f5edd8', marginBottom: 16 }}>{p.title}</h3>
-                    <p style={{ fontSize: 15, color: 'rgba(232,220,200,0.6)', lineHeight: 1.85, fontFamily: 'system-ui, sans-serif' }}>{p.desc}</p>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        </section>
-      )}
-
-      {/* PRESS / SPEAKING */}
-      <section style={{ padding: '80px 80px', background: 'rgba(0,0,0,0.2)' }}>
-        <div style={{ maxWidth: 1300, margin: '0 auto' }}>
-          <motion.div initial="hidden" whileInView="show" viewport={{ once: true }} variants={stagger}>
-            <motion.p variants={fadeUp} style={{ fontSize: 12, letterSpacing: '0.3em', textTransform: 'uppercase', color: GOLD, marginBottom: 16, fontFamily: 'system-ui, sans-serif', fontWeight: 600 }}>
-              Press & Thought Leadership
-            </motion.p>
-            <motion.h2 variants={fadeUp} style={{ fontSize: 42, fontWeight: 900, color: '#f5edd8', marginBottom: 48, letterSpacing: '-0.02em' }}>Featured In</motion.h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
-              {MOCK_PUBLICATIONS.map((pub, i) => (
-                <motion.div key={i} variants={fadeUp} style={{ padding: '36px', border: `1px solid ${GOLD}25`, background: 'rgba(255,255,255,0.02)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: GOLD, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'system-ui, sans-serif' }}>{pub.pub}</span>
-                    <span style={{ fontSize: 12, color: 'rgba(232,220,200,0.3)', fontFamily: 'system-ui, sans-serif' }}>{pub.year}</span>
-                  </div>
-                  <p style={{ fontSize: 17, color: '#f5edd8', lineHeight: 1.6, fontStyle: 'italic' }}>"{pub.title}"</p>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </section>
 
       {/* EDUCATION */}
       {showSections['education'] !== false && schools.length > 0 && (

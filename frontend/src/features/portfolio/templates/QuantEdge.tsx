@@ -27,7 +27,7 @@ export default function QuantEdge({ profile, primaryColor, accentColor, showSect
   const emerald   = accentColor  || '#10b981'
   const name      = profile.full_name || profile.preferred_name || 'Analyst'
   const title     = profile.current_job_title || profile.target_role || 'Quantitative Analyst'
-  const allSkills = ['Quantitative Analysis', 'Algorithmic Trading', 'Risk Modeling', 'Python / R (Quant)', 'Bloomberg API', 'Monte Carlo Simulation', 'Fixed Income', 'Derivatives Pricing', 'Portfolio Optimization', 'Factor Investing', 'VaR / CVaR', 'FactSet / Capital IQ']
+  const allSkills = [...(profile.skills_languages || []), ...(profile.skills_frameworks || []), ...(profile.skills_tools || [])]
   const initials  = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (

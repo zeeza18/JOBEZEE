@@ -22,7 +22,7 @@ export default function MedProfile({ profile, primaryColor, accentColor, showSec
   const sky     = accentColor  || '#60a5fa'
   const name    = profile.full_name || profile.preferred_name || 'Medical Professional'
   const title   = profile.current_job_title || profile.target_role || 'Healthcare Specialist'
-  const allSkills = ['Patient Assessment', 'Clinical Diagnosis', 'Evidence-Based Medicine', 'Epic EHR', 'HL7 FHIR', 'PACS / DICOM', 'Surgical Techniques', 'Critical Care', 'Pharmacology', 'ICD-10 Coding', 'Telemedicine', 'Research & Publication']
+  const allSkills = [...(profile.skills_languages || []), ...(profile.skills_frameworks || []), ...(profile.skills_tools || [])]
   const initials  = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (
