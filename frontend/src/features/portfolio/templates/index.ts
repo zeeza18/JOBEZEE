@@ -13,6 +13,8 @@ import CareFlow       from './CareFlow'
 import MedProfile     from './MedProfile'
 import BrandStudio    from './BrandStudio'
 import GrowthHacker   from './GrowthHacker'
+import TechnicalBold  from './TechnicalBold'
+import TechnicalModern from './TechnicalModern'
 
 export const TEMPLATE_REGISTRY: Record<string, ComponentType<PortfolioTemplateProps>> = {
   ModernDev,
@@ -27,4 +29,6 @@ export const TEMPLATE_REGISTRY: Record<string, ComponentType<PortfolioTemplatePr
   MedProfile,
   BrandStudio,
   GrowthHacker,
+  TechnicalBold,
+  TechnicalModern,
 }
