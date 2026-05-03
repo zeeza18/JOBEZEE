@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowUpRight, Bookmark, BookmarkCheck, Bot, CheckCircle2, ChevronRight,
   Download, Eye, EyeOff, Filter, Loader2, RefreshCw,
-  Search, Sparkles, Trash2, X, XCircle, Zap,
+  Sparkles, Trash2, X, XCircle, Zap,
 } from 'lucide-react'
 import { applyApi, jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
 import { useAppStore } from '../../store/useAppStore'
@@ -816,21 +816,19 @@ function JobCard({
 type PostedAge = 'any' | 'today' | 'yesterday' | 'week' | 'older'
 
 interface Filters {
-  location        : string
-  salaryMin       : number
-  site            : string     // job board/source: linkedin / indeed / workday / greenhouse
-  postedAge       : PostedAge
-  workMode        : string     // 'any' | 'remote' | 'hybrid' | 'onsite'
-  jobType         : string     // 'any' | 'full_time' | 'part_time' | 'contract' | 'internship'
-  expLevel        : string     // 'any' | 'entry' | 'mid' | 'senior'
-  sourceType      : string     // 'any' | 'boards' | 'portals'
-  workdayInSearch : boolean
+  location   : string
+  salaryMin  : number
+  site       : string     // job board/source: linkedin / indeed / workday / greenhouse
+  postedAge  : PostedAge
+  workMode   : string     // 'any' | 'remote' | 'hybrid' | 'onsite'
+  jobType    : string     // 'any' | 'full_time' | 'part_time' | 'contract' | 'internship'
+  expLevel   : string     // 'any' | 'entry' | 'mid' | 'senior'
+  sourceType : string     // 'any' | 'boards' | 'portals'
 }
 
 const EMPTY_FILTERS: Filters = {
   location: '', salaryMin: 0, site: '', postedAge: 'any',
   workMode: 'any', jobType: 'any', expLevel: 'any', sourceType: 'any',
-  workdayInSearch: true,
 }
 
 const POSTED_OPTS: { value: PostedAge; label: string }[] = [
@@ -842,23 +840,23 @@ const POSTED_OPTS: { value: PostedAge; label: string }[] = [
 ]
 
 const SITE_LABELS: Record<string, string> = {
-  linkedin    : 'LinkedIn',
-  indeed      : 'Indeed',
-  glassdoor   : 'Glassdoor',
+  linkedin     : 'LinkedIn',
+  indeed       : 'Indeed',
+  glassdoor    : 'Glassdoor',
   zip_recruiter: 'ZipRecruiter',
-  workday     : 'Workday',
-  greenhouse  : 'Greenhouse',
+  workday      : 'Workday',
+  greenhouse   : 'Greenhouse',
 }
 
 function pill(active: boolean) {
-  return `rounded-full border px-3 py-1 text-xs font-semibold transition ${
+  return `rounded-full border px-3 py-1.5 text-xs font-medium transition ${
     active
       ? 'bg-cyan-600 border-cyan-600 text-white'
       : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-400 hover:text-cyan-600'
   }`
 }
 
-function FilterPanel({
+function FilterDrawer({
   open, filters, allLocations, allSites, onApply, onClose,
 }: {
   open        : boolean
@@ -871,156 +869,185 @@ function FilterPanel({
   const [local, setLocal] = useState<Filters>(filters)
   useEffect(() => { setLocal(filters) }, [filters, open])
 
+  useEffect(() => {
+    if (!open) return
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [open, onClose])
+
   const set = <K extends keyof Filters>(k: K, v: Filters[K]) =>
     setLocal(prev => ({ ...prev, [k]: v }))
 
-  const selectCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-200 appearance-none'
+  const selectCls = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:bg-white focus:ring-1 focus:ring-cyan-200 appearance-none cursor-pointer'
 
-  return (
+  const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+      {children}
+    </div>
+  )
+
+  const activeCount = [
+    !!local.location, !!local.site, local.salaryMin > 0,
+    local.postedAge !== 'any', local.workMode !== 'any',
+    local.jobType !== 'any', local.expLevel !== 'any', local.sourceType !== 'any',
+  ].filter(Boolean).length
+
+  return createPortal(
     <AnimatePresence>
       {open && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}
-          className="border-b border-slate-100 bg-slate-50/80 px-4 py-4 space-y-3"
-        >
-          {/* Row 1 — dropdowns */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {/* Location */}
-            <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Location</label>
-              <select value={local.location} onChange={e => set('location', e.target.value)} className={selectCls}>
-                <option value="">Any location</option>
-                {allLocations.map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
-
-            {/* Source / Job board */}
-            <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Source</label>
-              <select value={local.site} onChange={e => set('site', e.target.value)} className={selectCls}>
-                <option value="">All sources</option>
-                {allSites.map(s => (
-                  <option key={s} value={s}>{SITE_LABELS[s] ?? s}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Job type */}
-            <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Job type</label>
-              <select value={local.jobType} onChange={e => set('jobType', e.target.value)} className={selectCls}>
-                <option value="any">Any type</option>
-                <option value="full_time">Full-time</option>
-                <option value="part_time">Part-time</option>
-                <option value="contract">Contract</option>
-                <option value="internship">Internship</option>
-                <option value="temporary">Temporary</option>
-              </select>
-            </div>
-
-            {/* Salary min */}
-            <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Min salary</label>
-              <select value={local.salaryMin} onChange={e => set('salaryMin', Number(e.target.value))} className={selectCls}>
-                {[0, 50000, 80000, 100000, 120000, 150000, 200000].map(v => (
-                  <option key={v} value={v}>{v === 0 ? 'Any' : `$${(v/1000).toFixed(0)}k+`}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Row 2 — Work mode */}
-          <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Work mode</label>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { value: 'any',    label: 'Any'      },
-                { value: 'remote', label: 'Remote'   },
-                { value: 'hybrid', label: 'Hybrid'   },
-                { value: 'onsite', label: 'On-site'  },
-              ].map(o => (
-                <button key={o.value} onClick={() => set('workMode', o.value)} className={pill(local.workMode === o.value)}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Row 3 — Experience level */}
-          <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Experience level</label>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { value: 'any',    label: 'Any'        },
-                { value: 'entry',  label: 'Entry (0–2yr)'  },
-                { value: 'mid',    label: 'Mid (2–6yr)'    },
-                { value: 'senior', label: 'Senior (6yr+)'  },
-              ].map(o => (
-                <button key={o.value} onClick={() => set('expLevel', o.value)} className={pill(local.expLevel === o.value)}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Row 4 — Source type */}
-          <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Source type</label>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { value: 'any',     label: 'All'            },
-                { value: 'boards',  label: 'Job boards'     },
-                { value: 'portals', label: 'Company portals'},
-              ].map(o => (
-                <button key={o.value} onClick={() => set('sourceType', o.value)} className={pill(local.sourceType === o.value)}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Row 5 — Posted pill buttons */}
-          <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Posted</label>
-            <div className="flex flex-wrap gap-1.5">
-              {POSTED_OPTS.map(o => (
-                <button key={o.value} onClick={() => set('postedAge', o.value)} className={pill(local.postedAge === o.value)}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Row 6 — Workday toggle + actions */}
-          <div className="flex items-center justify-between gap-4 flex-wrap pt-0.5">
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
-              <div
-                onClick={() => set('workdayInSearch', !local.workdayInSearch)}
-                className={`relative h-5 w-9 rounded-full transition ${local.workdayInSearch ? 'bg-cyan-500' : 'bg-slate-300'}`}
-              >
-                <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${local.workdayInSearch ? 'left-4' : 'left-0.5'}`} />
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px]"
+            onClick={onClose}
+          />
+          {/* Drawer */}
+          <motion.div
+            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+            className="fixed right-0 top-0 z-50 flex h-full w-80 flex-col bg-white shadow-2xl"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <span className="text-base font-semibold text-slate-900">Filters</span>
+                {activeCount > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-500 px-1.5 text-[10px] font-bold text-white">
+                    {activeCount}
+                  </span>
+                )}
               </div>
-              <span className="text-xs text-slate-600">
-                Include Workday in search
-                <span className="ml-1 text-slate-400">(slower)</span>
-              </span>
-            </label>
+              <div className="flex items-center gap-3">
+                {activeCount > 0 && (
+                  <button
+                    onClick={() => { setLocal(EMPTY_FILTERS); onApply(EMPTY_FILTERS) }}
+                    className="text-xs text-slate-500 hover:text-cyan-600 transition"
+                  >
+                    Reset all
+                  </button>
+                )}
+                <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
 
-            <div className="flex items-center gap-2">
-              <button onClick={() => { setLocal(EMPTY_FILTERS); onApply(EMPTY_FILTERS) }}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:border-slate-300 transition">
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+
+              <Section label="Location">
+                <select value={local.location} onChange={e => set('location', e.target.value)} className={selectCls}>
+                  <option value="">Any location</option>
+                  {allLocations.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </Section>
+
+              <Section label="Source">
+                <select value={local.site} onChange={e => set('site', e.target.value)} className={selectCls}>
+                  <option value="">All sources</option>
+                  {allSites.map(s => <option key={s} value={s}>{SITE_LABELS[s] ?? s}</option>)}
+                </select>
+              </Section>
+
+              <Section label="Source type">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'any',     label: 'All'             },
+                    { value: 'boards',  label: 'Job boards'      },
+                    { value: 'portals', label: 'Company portals' },
+                  ].map(o => (
+                    <button key={o.value} onClick={() => set('sourceType', o.value)} className={pill(local.sourceType === o.value)}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </Section>
+
+              <Section label="Work mode">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'any',    label: 'Any'     },
+                    { value: 'remote', label: 'Remote'  },
+                    { value: 'hybrid', label: 'Hybrid'  },
+                    { value: 'onsite', label: 'On-site' },
+                  ].map(o => (
+                    <button key={o.value} onClick={() => set('workMode', o.value)} className={pill(local.workMode === o.value)}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </Section>
+
+              <Section label="Job type">
+                <select value={local.jobType} onChange={e => set('jobType', e.target.value)} className={selectCls}>
+                  <option value="any">Any type</option>
+                  <option value="full_time">Full-time</option>
+                  <option value="part_time">Part-time</option>
+                  <option value="contract">Contract</option>
+                  <option value="internship">Internship</option>
+                  <option value="temporary">Temporary</option>
+                </select>
+              </Section>
+
+              <Section label="Experience level">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'any',    label: 'Any'       },
+                    { value: 'entry',  label: 'Entry'     },
+                    { value: 'mid',    label: 'Mid-level' },
+                    { value: 'senior', label: 'Senior'    },
+                  ].map(o => (
+                    <button key={o.value} onClick={() => set('expLevel', o.value)} className={pill(local.expLevel === o.value)}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </Section>
+
+              <Section label="Min salary">
+                <select value={local.salaryMin} onChange={e => set('salaryMin', Number(e.target.value))} className={selectCls}>
+                  {[0, 50000, 80000, 100000, 120000, 150000, 200000].map(v => (
+                    <option key={v} value={v}>{v === 0 ? 'Any' : `$${(v / 1000).toFixed(0)}k+`}</option>
+                  ))}
+                </select>
+              </Section>
+
+              <Section label="Date posted">
+                <div className="flex flex-wrap gap-2">
+                  {POSTED_OPTS.map(o => (
+                    <button key={o.value} onClick={() => set('postedAge', o.value)} className={pill(local.postedAge === o.value)}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </Section>
+
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 px-5 py-4 flex gap-3">
+              <button
+                onClick={() => { setLocal(EMPTY_FILTERS); onApply(EMPTY_FILTERS) }}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:border-slate-300 transition"
+              >
                 Reset
               </button>
-              <button onClick={() => { onApply(local); onClose() }}
-                className="rounded-lg bg-cyan-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700 transition">
+              <button
+                onClick={() => { onApply(local); onClose() }}
+                className="flex-1 rounded-xl bg-cyan-600 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700 transition"
+              >
                 Apply
               </button>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }
 
@@ -1047,7 +1074,6 @@ export default function PulledJobsPage() {
 
   // ── UI state ─────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab]       = useState<'all' | 'new' | 'saved' | 'hidden' | 'applied' | 'tailored'>('all')
-  const [search, setSearch]             = useState('')
   const [filterOpen, setFilterOpen]     = useState(false)
   const [filters, setFilters]           = useState<Filters>(EMPTY_FILTERS)
   const [selectedJob, setSelectedJob]   = useState<PulledJob | null>(null)
@@ -1207,7 +1233,7 @@ export default function PulledJobsPage() {
       setPolling(false)
       if (pollTimer.current) clearInterval(pollTimer.current)
     }
-  }, [load, filters.workdayInSearch])
+  }, [load])
 
   useEffect(() => {
     if (!polling || !sessionId) return
@@ -1731,7 +1757,6 @@ export default function PulledJobsPage() {
   }, [jobs])
 
   const visible = useMemo(() => {
-    const q          = search.toLowerCase()
     const userMin    = userProfile?.salary_min ?? 0
     const userMax    = userProfile?.salary_max ?? 0
     const userYears  = resolveUserYears(userProfile?.experience_level ?? '', userProfile?.years_experience ?? '')
@@ -1746,14 +1771,6 @@ export default function PulledJobsPage() {
       if (activeTab === 'tailored') return (tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error') || j.status === 'applied'
       // ALL: exclude hidden
       if (j.status === 'hidden') return false
-
-      // Text search — title, company, and skills
-      if (q) {
-        const inTitle   = j.title.toLowerCase().includes(q)
-        const inCompany = j.company.toLowerCase().includes(q)
-        const inSkills  = (j.skills || []).some(s => s.toLowerCase().includes(q))
-        if (!inTitle && !inCompany && !inSkills) return false
-      }
 
       // Panel filters
       if (filters.location) {
@@ -1857,7 +1874,7 @@ export default function PulledJobsPage() {
       const scoreB = salaryScore(b, userMin, userMax) + locationMatchScore(b, prefLocs) + expMatchScore(b, userYears)
       return scoreB - scoreA
     })
-  }, [jobs, activeTab, search, filters, userProfile, tailorJobs])
+  }, [jobs, activeTab, filters, userProfile, tailorJobs])
 
   // ── Tab counts ───────────────────────────────────────────────────────────────
   const allCount      = stats ? (stats.total - (stats.hidden || 0)) : 0
@@ -1890,96 +1907,77 @@ export default function PulledJobsPage() {
   return (
     <div className="flex flex-col h-screen bg-slate-50 -mx-4 -mt-5 -mb-20 md:-mx-8 md:-mt-6 md:-mb-6 w-[calc(100%+2rem)] md:w-[calc(100%+4rem)]">
 
-      {/* ── Top bar — always visible, not sticky — content below scrolls ── */}
-      <div className="flex-shrink-0 z-20 bg-white border-b border-slate-100 overflow-hidden">
-        <div className="px-4 py-3 space-y-2">
+      {/* ── Top bar ── */}
+      <div className="flex-shrink-0 z-20 bg-white border-b border-slate-100">
+        <div className="flex items-center gap-2 px-4 py-3">
+          <h1 className="text-lg md:text-xl font-bold text-slate-900 flex-1 min-w-0 truncate">Jobs</h1>
 
-          {/* Row 1 — always visible: title + icon actions */}
-          <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-lg md:text-xl font-bold text-slate-900 flex-1 min-w-0 truncate">Jobs</h1>
-            {polling && (
-              <span className="flex items-center gap-1 rounded-full bg-cyan-50 border border-cyan-200 px-2 py-0.5 text-xs text-cyan-600">
-                <Loader2 className="h-3 w-3 animate-spin" /> Searching…
+          {polling && (
+            <span className="flex items-center gap-1 rounded-full bg-cyan-50 border border-cyan-200 px-2 py-0.5 text-xs text-cyan-600 shrink-0">
+              <Loader2 className="h-3 w-3 animate-spin" /> Searching…
+            </span>
+          )}
+
+          {/* Filter button */}
+          <button
+            onClick={() => setFilterOpen(true)}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition shrink-0 ${
+              hasActiveFilters
+                ? 'border-cyan-400 bg-cyan-50 text-cyan-700'
+                : 'border-slate-200 text-slate-600 hover:border-slate-300'
+            }`}
+          >
+            <Filter className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline text-sm">Filters</span>
+            {hasActiveFilters && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[10px] font-bold text-white leading-none">
+                {[
+                  !!filters.location, !!filters.site, filters.salaryMin > 0,
+                  filters.postedAge !== 'any', filters.workMode !== 'any',
+                  filters.jobType !== 'any', filters.expLevel !== 'any',
+                  filters.sourceType !== 'any',
+                ].filter(Boolean).length}
               </span>
             )}
-            {/* Search trigger */}
-            <button
-              onClick={() => triggerSearch()}
-              disabled={searching || polling}
-              title="Trigger new job search"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 hover:border-slate-300 transition disabled:opacity-50"
-            >
-              {searching || polling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-              <span className="hidden sm:inline">Search</span>
-            </button>
-            {/* Clear all jobs */}
-            <button
-              onClick={clearJobs}
-              disabled={clearing || searching || polling}
-              title="Clear all jobs and start fresh search"
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-500 transition disabled:opacity-50"
-            >
-              {clearing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            </button>
-            {/* Refresh */}
-            <button onClick={() => load()} disabled={loading} title="Refresh job list"
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-300 transition disabled:opacity-50">
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
+          </button>
 
-          {/* Row 2 — search input + filter button */}
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by title or company…"
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-cyan-400 focus:bg-white focus:ring-1 focus:ring-cyan-200 transition"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => setFilterOpen(o => !o)}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition shrink-0 ${
-                filterOpen || hasActiveFilters
-                  ? 'border-cyan-400 bg-cyan-50 text-cyan-700'
-                  : 'border-slate-200 text-slate-600 hover:border-slate-300'
-              }`}
-            >
-              <Filter className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Filters</span>
-              {hasActiveFilters && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[10px] font-bold text-white leading-none">
-                  {[
-                    !!filters.location, !!filters.site, filters.salaryMin > 0,
-                    filters.postedAge !== 'any', filters.workMode !== 'any',
-                    filters.jobType !== 'any', filters.expLevel !== 'any',
-                    filters.sourceType !== 'any',
-                  ].filter(Boolean).length}
-                </span>
-              )}
-            </button>
-          </div>
+          {/* Search trigger */}
+          <button
+            onClick={() => triggerSearch()}
+            disabled={searching || polling}
+            title="Trigger new job search"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 hover:border-slate-300 transition disabled:opacity-50 shrink-0"
+          >
+            {searching || polling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">Search</span>
+          </button>
 
+          {/* Clear all jobs */}
+          <button
+            onClick={clearJobs}
+            disabled={clearing || searching || polling}
+            title="Clear all jobs"
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-500 transition disabled:opacity-50 shrink-0"
+          >
+            {clearing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </button>
+
+          {/* Refresh */}
+          <button onClick={() => load()} disabled={loading} title="Refresh job list"
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-300 transition disabled:opacity-50 shrink-0">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
-        {/* ── Filter panel (inside sticky so it doesn't break the stack) ── */}
-        <div className="border-t border-slate-100">
-          <FilterPanel
-            open={filterOpen}
-            filters={filters}
-            allLocations={allLocations}
-            allSites={allSites}
-            onApply={setFilters}
-            onClose={() => setFilterOpen(false)}
-          />
-        </div>
+        {/* Filter drawer (portal) */}
+        <FilterDrawer
+          open={filterOpen}
+          filters={filters}
+          allLocations={allLocations}
+          allSites={allSites}
+          onApply={setFilters}
+          onClose={() => setFilterOpen(false)}
+        />
 
         {/* ── Tabs ── */}
         <div className="border-t border-slate-100">
