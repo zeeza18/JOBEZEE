@@ -62,4 +62,14 @@ export const TEMPLATES: TemplateInfo[] = [
   // Marketing
   { id: 'BrandStudio',    category: 'marketing',  name: 'Brand Studio',     description: 'Bold gradient hero, results & metrics focus',    defaultPrimary: '#7c3aed', defaultAccent: '#ec4899', thumbnail: 'bg-pink-500'    },
   { id: 'GrowthHacker',   category: 'marketing',  name: 'Growth Hacker',    description: 'Dark + orange, analytics-dashboard aesthetic',   defaultPrimary: '#1c1917', defaultAccent: '#f97316', thumbnail: 'bg-orange-500'  },
+  // Technical Warm
+  { id: 'TechnicalWarm',  category: 'tech', name: 'Warm',              description: 'Soft warm colors, rounded shapes, human touch',     defaultPrimary: '#f97316', defaultAccent: '#eab308', thumbnail: 'bg-orange-400' },
+  // Technical themes
+  { id: 'TechnicalCreative',   category: 'tech', name: 'Creative Techie',    description: 'Dark cyber, neon accents, grid overlays, glitch',   defaultPrimary: '#00ff88', defaultAccent: '#ff00ff', thumbnail: 'bg-green-500' },
+  { id: 'TechnicalClassic',   category: 'tech', name: 'Classic Pro',        description: 'Traditional resume style, serif headings, ATS-safe',defaultPrimary: '#1e3a5f', defaultAccent: '#d97706', thumbnail: 'bg-blue-800' },
+  { id: 'TechnicalGlossy',   category: 'tech', name: 'Glossy',             description: 'Apple glassmorphism, shiny premium cards',          defaultPrimary: '#3b82f6', defaultAccent: '#0ea5e9', thumbnail: 'bg-sky-500' },
+  { id: 'TechnicalRetro',    category: 'tech', name: 'Retro Vintage',      description: 'Vintage print aesthetic, serifs, warm earth tones', defaultPrimary: '#92400e', defaultAccent: '#b45309', thumbnail: 'bg-amber-600' },
+  { id: 'TechnicalGraphicy', category: 'tech', name: 'Graphicy',           description: 'Data viz, charts, infographic style layout',        defaultPrimary: '#3b82f6', defaultAccent: '#f97316', thumbnail: 'bg-blue-500' },
+  { id: 'TechnicalAnimated', category: 'tech', name: 'Animated',          description: 'Parallax layers, scroll-driven motion, depth',     defaultPrimary: '#a855f7', defaultAccent: '#06b6d4', thumbnail: 'bg-purple-500' },
+  { id: 'TechnicalNature',   category: 'tech', name: 'Nature',           description: 'Earth tones, organic shapes, calm grounded feel',   defaultPrimary: '#1a2e1a', defaultAccent: '#4ade80', thumbnail: 'bg-green-600'   },
 ]

@@ -15,6 +15,16 @@ import BrandStudio    from './BrandStudio'
 import GrowthHacker   from './GrowthHacker'
 import TechnicalBold  from './TechnicalBold'
 import TechnicalModern from './TechnicalModern'
+import TechnicalClassic from './TechnicalClassic'
+import TechnicalGraphicy from './TechnicalGraphicy'
+import TechnicalWarm from './TechnicalWarm'
+import TechnicalRetro    from './TechnicalRetro'
+import TechnicalSleek  from './TechnicalSleek'
+import TechnicalVibrant from './TechnicalVibrant'
+import TechnicalAnimated from './TechnicalAnimated'
+import TechnicalGlossy from './TechnicalGlossy'
+import TechnicalCreative from './TechnicalCreative'
+import TechnicalNature from './TechnicalNature'
 
 export const TEMPLATE_REGISTRY: Record<string, ComponentType<PortfolioTemplateProps>> = {
   ModernDev,
@@ -31,4 +41,14 @@ export const TEMPLATE_REGISTRY: Record<string, ComponentType<PortfolioTemplatePr
   GrowthHacker,
   TechnicalBold,
   TechnicalModern,
+  TechnicalClassic,
+  TechnicalGraphicy,
+  TechnicalWarm,
+  TechnicalRetro,
+  TechnicalSleek,
+  TechnicalVibrant,
+  TechnicalAnimated,
+  TechnicalGlossy,
+  TechnicalCreative,
+  TechnicalNature,
 }

@@ -3,36 +3,36 @@ import type { PortfolioTemplateProps } from '../types'
 import { getThemeById } from '../themes/themeSystem'
 
 // ── Animation Variants ────────────────────────────────────────────────────────
-const fadeUp = {
+const fadeUp: any = {
   hidden: { opacity: 0, y: 60 },
   show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } }
 }
 
-const fadeIn = {
+const _fadeIn: any = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { duration: 0.8 } }
 }
 
-const slideInLeft = {
+const slideInLeft: any = {
   hidden: { opacity: 0, x: -80 },
   show: { opacity: 1, x: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } }
 }
 
-const slideInRight = {
+const slideInRight: any = {
   hidden: { opacity: 0, x: 80 },
   show: { opacity: 1, x: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } }
 }
 
-const scaleIn = {
+const scaleIn: any = {
   hidden: { opacity: 0, scale: 0.85 },
   show: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } }
 }
 
-const stagger = {
-  show: { transition: { staggerChildren: 0.1 } }
+const _stagger: any = {
+  show: { transition: { staggerChildren: 0.1 } },
 }
 
-const container = {
+const container: any = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -116,7 +116,7 @@ function DiagonalStrip({
   )
 }
 
-function PunchShadow({
+function _PunchShadow({
   children,
   className = ''
 }: {
@@ -361,10 +361,10 @@ function ProjectCard({
 
 export default function TechnicalBold({
   profile,
-  primaryColor,
-  accentColor,
+  primaryColor: _primaryColor,
+  accentColor: _accentColor,
   showSections,
-  heroGradient,
+  heroGradient: _heroGradient,
   profilePhoto
 }: PortfolioTemplateProps) {
   // Get theme config from themeSystem
@@ -374,7 +374,7 @@ export default function TechnicalBold({
   const name = profile.full_name || profile.preferred_name || 'Developer'
   const title = profile.current_job_title || profile.target_role || 'Software Engineer'
   const headline = profile.headline || `Building exceptional digital experiences with ${profile.years_experience ? profile.years_experience + ' years' : ''} of expertise in modern technologies.`
-  const bio = profile.bio || headline
+  const bio = headline
 
   // Combine all skills
   const allSkills = [
@@ -409,7 +409,7 @@ export default function TechnicalBold({
   const totalCompanies = companies.length || 3
 
   // Color system from theme
-  const colors = themeConfig?.colors || {
+  const _colors = themeConfig?.colors || {
     primary: '#000000',
     secondary: '#facc15',
     accent: '#ef4444',
@@ -475,7 +475,7 @@ export default function TechnicalBold({
         id="hero"
         className="relative min-h-screen flex items-center justify-center overflow-hidden"
         style={{
-          background: heroGradient || 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)'
+          background: _heroGradient || 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)'
         }}
       >
         {/* Background decorative shapes */}
