@@ -671,3 +671,24 @@ flowchart LR
 | `title_keywords` | `[]` | Disabled — LinkedIn filters handle role relevance |
 | `current_experience` | `-1` | Disabled — don't skip jobs based on JD text year-parsing |
 | `search_location` | `""` | Don't attempt to set the search bar location (causes click errors on LinkedIn) |
+
+---
+
+## Knowledge Graph
+
+A navigable code knowledge graph is maintained locally via [graphify](https://github.com/safishamsi/graphify). It maps every function, module, and concept across the entire codebase into communities — useful for understanding architecture and tracing cross-cutting dependencies.
+
+```bash
+# Build / update the graph
+/graphify
+
+# Query the graph
+/graphify query "how does the tailor pipeline work"
+```
+
+Outputs live in `graphify-out/` (gitignored) and include:
+- `graph.html` — interactive browser graph
+- `graph.json` — raw graph data (GraphRAG-ready)
+- `GRAPH_REPORT.md` — community audit with god nodes and surprising connections
+
+Run `/graphify --update` after code changes to incrementally refresh just the modified files.

@@ -101,5 +101,8 @@ local/
 # ── Personal resume LaTeX source (contains PII) ───────────────────────────────
 docs/latex/
 
+# ── Graphify knowledge graph outputs (regenerated on each run) ─────────────────
+graphify-out/
+
 # ── Test outputs ──────────────────────────────────────────────────────────────
 tests/*/output/
