@@ -411,10 +411,13 @@ export default function ProfileBoostPage() {
   const [result,         setResult]         = useState<BoostResult | null>(null)
   const [optimizeResult, setOptimizeResult] = useState<OptimizeResult | null>(null)
   const [error,          setError]          = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollRef      = useRef<ReturnType<typeof setInterval> | null>(null)
+  const notFoundRef  = useRef(0)   // consecutive 404 counter
+  const MAX_NOTFOUND = 6           // tolerate up to 6 × 2.5s = 15s of "not found" before giving up
 
   const stopPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    notFoundRef.current = 0
   }
 
   useEffect(() => () => stopPolling(), [])
@@ -637,24 +640,18 @@ export default function ProfileBoostPage() {
           <h1 className="text-xl md:text-2xl font-bold text-slate-900">Analyzing your profile…</h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[45%_55%] gap-6">
-          {/* LEFT — steps */}
-          <Card className="p-6">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">Progress</p>
-            <StepList currentStep={currentStep} />
-          </Card>
-
-          {/* RIGHT — illustration */}
-          <Card className="flex flex-col items-center justify-center gap-5 py-12 text-center min-h-[320px]">
-            <div className="relative">
-              <div className="h-20 w-20 rounded-full border-4 border-cyan-100 border-t-cyan-500 animate-spin" />
-              <Sparkles className="h-8 w-8 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-            </div>
-            <div>
-              <p className="text-base font-bold text-slate-700">
-                {ANALYZE_STEPS.find(s => s.id === currentStep)?.label ?? 'Processing…'}
-              </p>
-              <p className="text-xs text-slate-400 mt-2 max-w-[220px] mx-auto leading-relaxed">
+        <div className="flex justify-center">
+          <Card className="p-8 w-full max-w-md">
+            <div className="flex flex-col items-center gap-6">
+              <div className="relative">
+                <div className="h-14 w-14 rounded-full border-4 border-cyan-100 border-t-cyan-500 animate-spin" />
+                <Sparkles className="h-6 w-6 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <div className="w-full">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 text-center">Progress</p>
+                <StepList currentStep={currentStep} />
+              </div>
+              <p className="text-xs text-slate-400 text-center leading-relaxed">
                 Each section is scored individually against recruiter criteria
               </p>
             </div>
