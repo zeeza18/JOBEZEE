@@ -10,79 +10,30 @@ import { Button } from '../../components/ui/Button'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface BucketScore {
-  id:         string
-  label:      string
-  score:      number
-  max:        number
-  pct:        number
-  strengths:  string[]
-  gaps:       string[]
-  evaluated?: boolean
-  note?:      string
+  id: string; label: string; score: number; max: number; pct: number
+  strengths: string[]; gaps: string[]; evaluated?: boolean; note?: string
 }
-
-interface PriorityFix {
-  section: string
-  issue:   string
-  fix:     string
-  impact:  'High' | 'Medium' | 'Low'
-}
-
-interface HeadlineRewrite {
-  current:  string
-  improved: string
-  reason:   string
-}
-
-interface ImageResult {
-  score:        number
-  suggestions:  string[]
-  observations: Record<string, boolean | null>
-}
-
+interface PriorityFix { section: string; issue: string; fix: string; impact: 'High' | 'Medium' | 'Low' }
+interface HeadlineRewrite { current: string; improved: string; reason: string }
+interface ImageResult { score: number; suggestions: string[]; observations: Record<string, boolean | null> }
 interface ParsedSections {
-  headline?:   string
-  about?:      string
-  experience?: string[]
-  skills?:     string[]
-  education?:  string[]
+  headline?: string; about?: string; experience?: string[]
+  skills?: string[]; education?: string[]; has_recommendations?: boolean
 }
-
 interface BoostResult {
-  overall_score:    number
-  grade:            string
-  overall_verdict:  string
-  jd_fit_score:     number
-  buckets:          BucketScore[]
-  top_strengths:    string[]
-  top_gaps:         string[]
-  priority_fixes:   PriorityFix[]
-  headline_rewrite: HeadlineRewrite | null
-  about_tips:       string[]
-  visual_notes:     string[]
-  profile_image?:   ImageResult
-  cover_image?:     ImageResult
-  parsed_sections?: ParsedSections
-  pdf_text?:        string
+  overall_score: number; grade: string; overall_verdict: string; jd_fit_score: number
+  buckets: BucketScore[]; top_strengths: string[]; top_gaps: string[]
+  priority_fixes: PriorityFix[]; headline_rewrite: HeadlineRewrite | null
+  about_tips: string[]; visual_notes: string[]
+  profile_image?: ImageResult; cover_image?: ImageResult
+  parsed_sections?: ParsedSections; pdf_text?: string
 }
-
 interface OptimizeResult {
   headline?:   { current: string; optimized: string; reason: string }
   about?:      { current: string; optimized: string; key_changes: string[] }
-  experience?: Array<{
-    company:           string
-    title:             string
-    current_text:      string
-    optimized_bullets: string[]
-    key_changes:       string[]
-  }>
-  skills?: {
-    current:     string[]
-    reordered:   string[]
-    add_if_true: Array<{ skill: string; reason: string }>
-  }
+  experience?: Array<{ company: string; title: string; current_text: string; optimized_bullets: string[]; key_changes: string[] }>
+  skills?:     { current: string[]; reordered: string[]; add_if_true: Array<{ skill: string; reason: string }> }
 }
-
 type Phase = 'input' | 'analyzed' | 'optimizing' | 'optimized'
 
 // ─── Score bar ────────────────────────────────────────────────────────────────
@@ -96,34 +47,51 @@ function ScoreBar({ pct }: { pct: number }) {
   )
 }
 
+// ─── Word diff highlight ──────────────────────────────────────────────────────
+// New/changed words (>3 chars not in original) are highlighted cyan
+
+function WordDiff({ current, optimized }: { current: string; optimized: string }) {
+  const currentSet = new Set(
+    current.toLowerCase().split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''))
+  )
+  const words = optimized.split(/(\s+)/)
+  return (
+    <span>
+      {words.map((chunk, i) => {
+        if (/^\s+$/.test(chunk)) return <span key={i}>{chunk}</span>
+        const clean = chunk.toLowerCase().replace(/[^a-z0-9]/g, '')
+        const isNew = clean.length > 3 && !currentSet.has(clean)
+        return (
+          <span key={i} className={isNew ? 'bg-cyan-100 text-cyan-900 rounded px-0.5' : ''}>
+            {chunk}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
 // ─── Drop zone ────────────────────────────────────────────────────────────────
 
-function DropZone({
-  accept, label, hint, icon: Icon, file, onFile,
-}: {
-  accept: string
-  label:  string
-  hint:   string
-  icon:   React.ElementType
-  file:   File | null
-  onFile: (f: File) => void
+function DropZone({ accept, label, hint, icon: Icon, file, onFile }: {
+  accept: string; label: string; hint: string; icon: React.ElementType
+  file: File | null; onFile: (f: File) => void
 }) {
   const [dragOver, setDragOver] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
+  const ref = useRef<HTMLInputElement>(null)
   return (
     <div
       className={`rounded-xl border-2 border-dashed transition-all cursor-pointer ${
-        dragOver  ? 'border-cyan-400 bg-cyan-50' :
-        file      ? 'border-emerald-300 bg-emerald-50' :
-                    'border-slate-200 hover:border-cyan-300 hover:bg-slate-50'
+        dragOver ? 'border-cyan-400 bg-cyan-50' :
+        file     ? 'border-emerald-300 bg-emerald-50' :
+                   'border-slate-200 hover:border-cyan-300 hover:bg-slate-50'
       }`}
       onDragOver={e => { e.preventDefault(); setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}
       onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) onFile(f) }}
-      onClick={() => inputRef.current?.click()}
+      onClick={() => ref.current?.click()}
     >
-      <input ref={inputRef} type="file" accept={accept} className="hidden"
+      <input ref={ref} type="file" accept={accept} className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f) }} />
       <div className="flex items-center gap-3 px-4 py-3">
         {file ? (
@@ -157,12 +125,12 @@ function OverallBadge({ score, grade, verdict }: { score: number; grade: string;
     score >= 50 ? ['text-amber-600',   'bg-amber-50 border-amber-200']     :
                   ['text-red-600',     'bg-red-50 border-red-200']
   return (
-    <div className={`rounded-2xl border ${bg} p-5 flex items-center gap-5`}>
-      <div className={`text-6xl font-black tabular-nums ${color}`}>{score}</div>
-      <div>
+    <div className={`rounded-2xl border ${bg} px-5 py-4 flex items-center gap-4`}>
+      <div className={`text-5xl sm:text-6xl font-black tabular-nums shrink-0 ${color}`}>{score}</div>
+      <div className="min-w-0">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">/ 100</p>
-        <p className={`text-xl font-bold ${color}`}>{grade}</p>
-        <p className="text-xs text-slate-500 mt-0.5 max-w-sm leading-snug">{verdict}</p>
+        <p className={`text-lg sm:text-xl font-bold ${color}`}>{grade}</p>
+        <p className="text-xs text-slate-500 mt-0.5 leading-snug">{verdict}</p>
       </div>
     </div>
   )
@@ -177,7 +145,6 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
     bucket.pct >= 80 ? 'border-emerald-200' : bucket.pct >= 60 ? 'border-amber-200' : 'border-red-200'
   const textColor = !evaluated ? 'text-slate-400' :
     bucket.pct >= 80 ? 'text-emerald-600' : bucket.pct >= 60 ? 'text-amber-600' : 'text-red-600'
-
   return (
     <div className={`rounded-xl border ${borderColor} bg-white p-3.5 space-y-2`}>
       <div className="flex items-center gap-3 cursor-pointer" onClick={() => setOpen(o => !o)}>
@@ -186,19 +153,16 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
             <span className="text-sm font-semibold text-slate-800">{bucket.label}</span>
             {evaluated
               ? <span className={`text-sm font-bold shrink-0 ${textColor}`}>{bucket.score}/{bucket.max}</span>
-              : <span className="text-xs text-slate-400 italic shrink-0">Not evaluated</span>
-            }
+              : <span className="text-xs text-slate-400 italic shrink-0">Not evaluated</span>}
           </div>
           {evaluated
             ? <ScoreBar pct={bucket.pct} />
-            : <p className="text-xs text-slate-400">{bucket.note || 'Upload photos to evaluate'}</p>
-          }
+            : <p className="text-xs text-slate-400">{bucket.note || 'Upload photos to evaluate'}</p>}
         </div>
         <button className="text-slate-400 hover:text-slate-700 shrink-0 transition">
           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </div>
-
       {open && (
         <div className="space-y-2 pt-2 border-t border-slate-100">
           {bucket.strengths.length > 0 && (
@@ -206,7 +170,7 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
               <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Strengths</p>
               {bucket.strengths.map((s, i) => (
                 <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                  <span className="text-emerald-500 shrink-0">&#10003;</span>{s}
+                  <span className="text-emerald-500 shrink-0">✓</span>{s}
                 </p>
               ))}
             </div>
@@ -216,7 +180,7 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
               <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Gaps</p>
               {bucket.gaps.map((g, i) => (
                 <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                  <span className="text-red-400 shrink-0">&#10007;</span>{g}
+                  <span className="text-red-400 shrink-0">✗</span>{g}
                 </p>
               ))}
             </div>
@@ -237,13 +201,9 @@ function FixCard({ fix, idx }: { fix: PriorityFix; idx: number }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-1.5">
       <div className="flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-white text-xs font-bold shrink-0">
-          {idx + 1}
-        </span>
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-white text-xs font-bold shrink-0">{idx + 1}</span>
         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{fix.section}</span>
-        <span className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${impactClass}`}>
-          {fix.impact}
-        </span>
+        <span className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0 ${impactClass}`}>{fix.impact}</span>
       </div>
       <p className="text-sm font-semibold text-slate-800">{fix.issue}</p>
       <div className="flex items-start gap-1.5 text-xs text-slate-600">
@@ -274,22 +234,15 @@ function ImagePanel({ label, result }: { label: string; result: ImageResult }) {
   )
 }
 
-// ─── Section text card (left panel in analyzed) ───────────────────────────────
+// ─── Section block (left panel — current profile) ─────────────────────────────
 
-function SectionBlock({
-  label, text, score, max,
-}: {
-  label: string
-  text:  string | string[] | undefined
-  score?: number
-  max?:   number
+function SectionBlock({ label, text, score, max }: {
+  label: string; text: string | string[] | undefined; score?: number; max?: number
 }) {
   const [open, setOpen] = useState(false)
   if (!text || (Array.isArray(text) && text.length === 0)) return null
-
   const displayText = Array.isArray(text) ? text.join('\n\n') : text
   const pct = (score !== undefined && max) ? Math.round(score / max * 100) : undefined
-
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
       <button
@@ -299,10 +252,9 @@ function SectionBlock({
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-semibold text-slate-700">{label}</span>
           {score !== undefined && max !== undefined && (
-            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${
+            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md shrink-0 ${
               pct! >= 80 ? 'bg-emerald-100 text-emerald-700' :
-              pct! >= 60 ? 'bg-amber-100 text-amber-700' :
-                           'bg-red-100 text-red-700'
+              pct! >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
             }`}>{score}/{max}</span>
           )}
         </div>
@@ -310,14 +262,40 @@ function SectionBlock({
       </button>
       {open && (
         <div className="px-4 pb-4 border-t border-slate-100">
-          {pct !== undefined && (
-            <div className="pt-3 pb-2">
-              <ScoreBar pct={pct} />
-            </div>
-          )}
+          {pct !== undefined && <div className="pt-3 pb-2"><ScoreBar pct={pct} /></div>}
           <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap mt-2">{displayText}</p>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Raw text fallback (when section parser couldn't find headers) ─────────────
+
+function RawTextFallback({ pdfText }: { pdfText: string }) {
+  const [open, setOpen] = useState(false)
+  const preview = pdfText.slice(0, 300)
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-100 transition text-left"
+        onClick={() => setOpen(o => !o)}
+      >
+        <div className="flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+          <span className="text-sm font-semibold text-amber-800">Could not detect section headers</span>
+        </div>
+        {open ? <ChevronUp className="h-4 w-4 text-amber-400 shrink-0" /> : <ChevronDown className="h-4 w-4 text-amber-400 shrink-0" />}
+      </button>
+      <div className="px-4 pb-3 border-t border-amber-200">
+        <p className="text-xs text-amber-700 mt-2 mb-2 leading-relaxed">
+          Your PDF may use non-standard headers. The AI still scored your full text — check the feedback panel.
+        </p>
+        <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap font-mono bg-white rounded-lg p-3 border border-amber-100">
+          {open ? pdfText.slice(0, 2000) : preview}
+          {!open && pdfText.length > 300 && <span className="text-slate-400"> …</span>}
+        </p>
+      </div>
     </div>
   )
 }
@@ -333,13 +311,12 @@ function CopyButton({ text }: { text: string }) {
     >
       {copied
         ? <><ClipboardCheck className="h-3.5 w-3.5 text-emerald-500" /><span className="text-emerald-600">Copied!</span></>
-        : <><Copy className="h-3.5 w-3.5" /><span>Copy</span></>
-      }
+        : <><Copy className="h-3.5 w-3.5" /><span>Copy</span></>}
     </button>
   )
 }
 
-// ─── Optimized card ───────────────────────────────────────────────────────────
+// ─── Optimized card (right side, optimized phase) ─────────────────────────────
 
 function OptimizedCard({ label, children, copyText }: { label: string; children: React.ReactNode; copyText?: string }) {
   return (
@@ -353,7 +330,7 @@ function OptimizedCard({ label, children, copyText }: { label: string; children:
   )
 }
 
-// ─── Current (read-only) card ─────────────────────────────────────────────────
+// ─── Current card (left side, optimized phase) ────────────────────────────────
 
 function CurrentCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -396,9 +373,7 @@ export default function ProfileBoostPage() {
     if (targetRole.trim()) fd.append('target_role',     targetRole.trim())
 
     try {
-      const res  = await fetch('/api/linkedin-boost/analyze', {
-        method: 'POST', credentials: 'include', body: fd,
-      })
+      const res  = await fetch('/api/linkedin-boost/analyze', { method: 'POST', credentials: 'include', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Analysis failed')
       setResult(data as BoostResult)
@@ -415,17 +390,11 @@ export default function ProfileBoostPage() {
     if (!result?.pdf_text) return
     setPhase('optimizing')
     setError(null)
-
     try {
       const res = await fetch('/api/linkedin-boost/optimize', {
-        method:  'POST',
-        credentials: 'include',
+        method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          pdf_text:     result.pdf_text,
-          score_result: result,
-          target_role:  targetRole,
-        }),
+        body: JSON.stringify({ pdf_text: result.pdf_text, score_result: result, target_role: targetRole }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Optimization failed')
@@ -437,7 +406,16 @@ export default function ProfileBoostPage() {
     }
   }, [result, targetRole])
 
-  // ── Reset ─────────────────────────────────────────────────────────────────────
+  // ── Re-analyze (keep file, go back to input) ──────────────────────────────────
+  const handleReanalyze = () => {
+    setPhase('input')
+    setResult(null)
+    setOptimizeResult(null)
+    setError(null)
+    // keep pdfFile, profileImage, coverImage, targetRole, jdText
+  }
+
+  // ── Full reset ────────────────────────────────────────────────────────────────
   const handleReset = () => {
     setPhase('input')
     setResult(null)
@@ -450,27 +428,25 @@ export default function ProfileBoostPage() {
     setJdText('')
   }
 
-  const getBucketScore = (bucketId: string) =>
-    result?.buckets.find(b => b.id === bucketId)
+  const getBucket = (id: string) => result?.buckets.find(b => b.id === id)
+  const sectionsParsed = (ps?: ParsedSections) =>
+    ps && (ps.headline || ps.about || (ps.experience?.length ?? 0) > 0 || (ps.skills?.length ?? 0) > 0)
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // INPUT PHASE
-  // ─────────────────────────────────────────────────────────────────────────────
-
+  // ═════════════════════════════════════════════════════════════════════════════
+  // PHASE: INPUT
+  // ═════════════════════════════════════════════════════════════════════════════
   if (phase === 'input') {
     return (
       <div className="space-y-5">
         <div>
           <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
           <h1 className="text-xl md:text-2xl font-bold text-slate-900">LinkedIn Profile Scorer</h1>
-          <p className="text-sm text-slate-400 mt-0.5">
-            Upload your LinkedIn PDF and get an 8-bucket score with AI-powered suggestions
-          </p>
+          <p className="text-sm text-slate-400 mt-0.5">Upload your LinkedIn PDF — get an 8-bucket score + AI rewrites</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[45%_55%] gap-6">
 
-          {/* LEFT: Form — dims while loading */}
+          {/* LEFT — form (dims while loading) */}
           <div className={`space-y-4 transition-all duration-500 ${analyzing ? 'opacity-40 pointer-events-none select-none' : ''}`}>
             <Card className="p-4 space-y-2">
               <div className="flex items-center gap-2">
@@ -478,14 +454,9 @@ export default function ProfileBoostPage() {
                 <p className="text-sm font-semibold text-slate-800">LinkedIn Profile PDF</p>
                 <span className="ml-auto text-xs text-red-500 font-medium">required</span>
               </div>
-              <DropZone
-                accept=".pdf,.txt"
-                label="Upload your LinkedIn PDF export"
+              <DropZone accept=".pdf,.txt" label="Upload your LinkedIn PDF export"
                 hint='LinkedIn → "Save to PDF" on your profile page'
-                icon={Upload}
-                file={pdfFile}
-                onFile={setPdfFile}
-              />
+                icon={Upload} file={pdfFile} onFile={setPdfFile} />
             </Card>
 
             <Card className="p-4 space-y-3">
@@ -498,25 +469,13 @@ export default function ProfileBoostPage() {
               <div className="space-y-2">
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Profile Photo</p>
-                  <DropZone
-                    accept="image/jpeg,image/png,image/webp"
-                    label="Upload profile photo"
-                    hint="JPG, PNG, or WebP"
-                    icon={Camera}
-                    file={profileImage}
-                    onFile={setProfileImage}
-                  />
+                  <DropZone accept="image/jpeg,image/png,image/webp" label="Upload profile photo"
+                    hint="JPG, PNG, or WebP" icon={Camera} file={profileImage} onFile={setProfileImage} />
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-500 mb-1">Cover / Banner</p>
-                  <DropZone
-                    accept="image/jpeg,image/png,image/webp"
-                    label="Upload cover / banner image"
-                    hint="JPG, PNG, or WebP"
-                    icon={Upload}
-                    file={coverImage}
-                    onFile={setCoverImage}
-                  />
+                  <DropZone accept="image/jpeg,image/png,image/webp" label="Upload cover / banner"
+                    hint="JPG, PNG, or WebP" icon={Upload} file={coverImage} onFile={setCoverImage} />
                 </div>
               </div>
             </Card>
@@ -528,13 +487,9 @@ export default function ProfileBoostPage() {
                   Target Role <span className="text-slate-400 font-normal text-xs">(optional)</span>
                 </p>
               </div>
-              <input
-                type="text"
-                placeholder="e.g. Senior Data Engineer, Product Manager"
-                value={targetRole}
-                onChange={e => setTargetRole(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
-              />
+              <input type="text" placeholder="e.g. Senior Data Engineer, Product Manager"
+                value={targetRole} onChange={e => setTargetRole(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
             </Card>
 
             <Card className="p-4 space-y-2">
@@ -544,56 +499,49 @@ export default function ProfileBoostPage() {
                   Job Description <span className="text-slate-400 font-normal text-xs">(optional)</span>
                 </p>
               </div>
-              <textarea
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
+              <textarea className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
                 placeholder="Paste a job description for a JD fit score…"
-                value={jdText}
-                onChange={e => setJdText(e.target.value)}
-                rows={5}
-              />
+                value={jdText} onChange={e => setJdText(e.target.value)} rows={4} />
             </Card>
 
-            <Button
-              onClick={handleAnalyze}
-              disabled={!pdfFile || analyzing}
-              className="w-full py-3 text-sm flex items-center justify-center gap-2"
-            >
+            <Button onClick={handleAnalyze} disabled={!pdfFile || analyzing}
+              className="w-full py-3 text-sm flex items-center justify-center gap-2">
               {analyzing
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing…</>
-                : <><Zap className="h-4 w-4" /> Analyze Profile</>
-              }
+                ? <><Loader2 className="h-4 w-4 animate-spin" />Analyzing…</>
+                : <><Zap className="h-4 w-4" />Analyze Profile</>}
             </Button>
 
             {error && (
               <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <span>{error}</span>
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>{error}</span>
               </div>
             )}
           </div>
 
-          {/* RIGHT: Loading / empty state */}
+          {/* RIGHT — loading / empty */}
           <div>
             {analyzing ? (
-              <Card className="h-full flex flex-col items-center justify-center gap-5 py-20 text-center">
+              <Card className="h-full flex flex-col items-center justify-center gap-5 py-20 text-center min-h-[320px]">
                 <div className="relative">
                   <div className="h-16 w-16 rounded-full border-4 border-cyan-100 border-t-cyan-500 animate-spin" />
                   <Sparkles className="h-6 w-6 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
                 <div>
-                  <p className="text-base font-bold text-slate-700">Scoring your LinkedIn profile…</p>
-                  <p className="text-xs text-slate-400 mt-1.5">Claude Opus Max is analyzing 8 scoring buckets</p>
+                  <p className="text-base font-bold text-slate-700">Scoring your profile…</p>
+                  <p className="text-xs text-slate-400 mt-1.5">Claude Opus Max is analyzing 8 buckets</p>
                   <p className="text-xs text-slate-300 mt-1">This may take up to 2 minutes</p>
                 </div>
               </Card>
             ) : (
-              <Card className="h-full flex flex-col items-center justify-center gap-4 py-16 text-center border-2 border-dashed border-slate-200">
+              <Card className="h-full flex flex-col items-center justify-center gap-4 py-16 text-center border-2 border-dashed border-slate-200 min-h-[280px]">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
                   <Sparkles className="h-7 w-7 text-slate-400" />
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-600">No analysis yet</p>
-                  <p className="text-xs text-slate-400 mt-1">Upload your LinkedIn PDF and click Analyze Profile</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-[200px] mx-auto leading-relaxed">
+                    Upload your LinkedIn PDF and click Analyze Profile
+                  </p>
                 </div>
               </Card>
             )}
@@ -603,45 +551,46 @@ export default function ProfileBoostPage() {
     )
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ANALYZED PHASE
-  // ─────────────────────────────────────────────────────────────────────────────
-
+  // ═════════════════════════════════════════════════════════════════════════════
+  // PHASE: ANALYZED / OPTIMIZING
+  // ═════════════════════════════════════════════════════════════════════════════
   if ((phase === 'analyzed' || phase === 'optimizing') && result) {
-    const sections = result.parsed_sections
+    const ps = result.parsed_sections
+    const hasSections = sectionsParsed(ps)
 
     return (
       <div className="space-y-5">
-        {/* Header with Analyze Again */}
-        <div className="flex items-start justify-between gap-4">
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
             <h1 className="text-xl md:text-2xl font-bold text-slate-900">LinkedIn Profile Scorer</h1>
           </div>
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition shrink-0"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Analyze Again
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            {/* Re-analyze keeps file loaded */}
+            <button onClick={handleReanalyze}
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
+              <RefreshCw className="h-3.5 w-3.5" />Re-analyze
+            </button>
+            {/* New analysis clears everything */}
+            <button onClick={handleReset}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 border border-slate-100 hover:border-slate-300 rounded-xl px-3 py-2 transition">
+              New Analysis
+            </button>
+          </div>
         </div>
 
-        {/* Overall score banner */}
-        <OverallBadge
-          score={result.overall_score}
-          grade={result.grade}
-          verdict={result.overall_verdict}
-        />
+        {/* Overall score */}
+        <OverallBadge score={result.overall_score} grade={result.grade} verdict={result.overall_verdict} />
 
-        {/* JD Fit */}
+        {/* JD fit */}
         {result.jd_fit_score > 0 && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">JD Fit Score</span>
             <div className="flex items-center gap-3 shrink-0">
               <span className={`text-lg font-black ${
-                result.jd_fit_score >= 80 ? 'text-emerald-600' :
-                result.jd_fit_score >= 60 ? 'text-amber-600'   : 'text-red-600'
+                result.jd_fit_score >= 80 ? 'text-emerald-600' : result.jd_fit_score >= 60 ? 'text-amber-600' : 'text-red-600'
               }`}>{result.jd_fit_score}</span>
               <div className="w-24"><ScoreBar pct={result.jd_fit_score} /></div>
             </div>
@@ -651,107 +600,78 @@ export default function ProfileBoostPage() {
         {/* Left / Right */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* LEFT: Current profile sections */}
+          {/* LEFT — current profile sections */}
           <div className="space-y-3">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Current Profile</p>
 
-            <SectionBlock
-              label="Headline"
-              text={sections?.headline}
-              score={getBucketScore('headline')?.score}
-              max={getBucketScore('headline')?.max}
-            />
-            <SectionBlock
-              label="About / Summary"
-              text={sections?.about}
-              score={getBucketScore('about')?.score}
-              max={getBucketScore('about')?.max}
-            />
-            <SectionBlock
-              label="Experience"
-              text={sections?.experience}
-              score={getBucketScore('experience')?.score}
-              max={getBucketScore('experience')?.max}
-            />
-            <SectionBlock
-              label="Skills"
-              text={sections?.skills}
-              score={getBucketScore('skills')?.score}
-              max={getBucketScore('skills')?.max}
-            />
-            <SectionBlock
-              label="Education"
-              text={sections?.education}
-              score={getBucketScore('completeness')?.score}
-              max={getBucketScore('completeness')?.max}
-            />
-
-            {(!sections?.headline && !sections?.about && !sections?.experience && !sections?.skills) && (
-              <Card className="p-4 text-center text-sm text-slate-400">
-                Could not parse sections from the PDF — see feedback on the right.
-              </Card>
+            {hasSections ? (
+              <>
+                <SectionBlock label="Headline"       text={ps?.headline}   score={getBucket('headline')?.score}   max={getBucket('headline')?.max} />
+                <SectionBlock label="About / Summary" text={ps?.about}      score={getBucket('about')?.score}     max={getBucket('about')?.max} />
+                <SectionBlock label="Experience"     text={ps?.experience} score={getBucket('experience')?.score} max={getBucket('experience')?.max} />
+                <SectionBlock label="Skills"         text={ps?.skills}     score={getBucket('skills')?.score}    max={getBucket('skills')?.max} />
+                <SectionBlock label="Education"      text={ps?.education}  score={getBucket('completeness')?.score} max={getBucket('completeness')?.max} />
+                {ps?.has_recommendations && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <p className="text-xs font-semibold text-emerald-700">Recommendations section detected — good for proof score</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <RawTextFallback pdfText={result.pdf_text || ''} />
             )}
           </div>
 
-          {/* RIGHT: Full feedback */}
+          {/* RIGHT — AI feedback */}
           <div className="space-y-4">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">AI Feedback</p>
 
-            {/* Priority Fixes */}
             {result.priority_fixes.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Priority Fixes</p>
-                <div className="space-y-2">
-                  {result.priority_fixes.map((fix, i) => <FixCard key={i} fix={fix} idx={i} />)}
-                </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Priority Fixes</p>
+                {result.priority_fixes.map((fix, i) => <FixCard key={i} fix={fix} idx={i} />)}
               </div>
             )}
 
-            {/* Bucket Scores */}
             {result.buckets.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Bucket Scores</p>
-                <div className="space-y-2">
-                  {result.buckets.map(b => <BucketCard key={b.id} bucket={b} />)}
-                </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Bucket Scores</p>
+                {result.buckets.map(b => <BucketCard key={b.id} bucket={b} />)}
               </div>
             )}
 
-            {/* Headline Rewrite */}
             {result.headline_rewrite && (
               <Card className="p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <Pencil className="h-4 w-4 text-cyan-600" />
-                  <p className="text-sm font-semibold text-slate-800">Headline Rewrite Suggestion</p>
+                  <p className="text-sm font-semibold text-slate-800">Headline Rewrite</p>
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
                     <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-0.5">Current</p>
-                    <p className="text-slate-700">{result.headline_rewrite.current}</p>
+                    <p className="text-slate-700 text-xs">{result.headline_rewrite.current}</p>
                   </div>
                   <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
                     <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-0.5">Improved</p>
-                    <p className="text-slate-800 font-medium">{result.headline_rewrite.improved}</p>
+                    <p className="text-slate-800 font-medium text-xs">{result.headline_rewrite.improved}</p>
                   </div>
                   <p className="text-xs text-slate-400 italic">{result.headline_rewrite.reason}</p>
                 </div>
               </Card>
             )}
 
-            {/* About Tips */}
             {result.about_tips.length > 0 && (
               <Card className="p-4 space-y-2">
                 <p className="text-sm font-semibold text-slate-800">About Section Tips</p>
                 {result.about_tips.map((tip, i) => (
                   <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                    <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
-                    <span>{tip}</span>
+                    <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" /><span>{tip}</span>
                   </div>
                 ))}
               </Card>
             )}
 
-            {/* Visual Analysis */}
             {(result.profile_image || result.cover_image || result.visual_notes.length > 0) && (
               <Card className="p-4 space-y-3">
                 <div className="flex items-center gap-2">
@@ -762,14 +682,12 @@ export default function ProfileBoostPage() {
                 {result.cover_image   && <ImagePanel label="Cover / Banner" result={result.cover_image}   />}
                 {result.visual_notes.map((n, i) => (
                   <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                    <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
-                    <span>{n}</span>
+                    <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" /><span>{n}</span>
                   </div>
                 ))}
               </Card>
             )}
 
-            {/* Strengths & Gaps */}
             {(result.top_strengths.length > 0 || result.top_gaps.length > 0) && (
               <div className="grid grid-cols-2 gap-3">
                 {result.top_strengths.length > 0 && (
@@ -777,7 +695,7 @@ export default function ProfileBoostPage() {
                     <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Top Strengths</p>
                     {result.top_strengths.map((s, i) => (
                       <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                        <span className="text-emerald-500 shrink-0">&#10003;</span>{s}
+                        <span className="text-emerald-500 shrink-0">✓</span>{s}
                       </p>
                     ))}
                   </Card>
@@ -787,7 +705,7 @@ export default function ProfileBoostPage() {
                     <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Top Gaps</p>
                     {result.top_gaps.map((g, i) => (
                       <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                        <span className="text-red-400 shrink-0">&#10007;</span>{g}
+                        <span className="text-red-400 shrink-0">✗</span>{g}
                       </p>
                     ))}
                   </Card>
@@ -797,23 +715,18 @@ export default function ProfileBoostPage() {
 
             {/* Optimize CTA */}
             <div className="pt-2 border-t border-slate-100">
-              <Button
-                onClick={handleOptimize}
-                disabled={phase === 'optimizing'}
-                className="w-full py-3 text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500"
-              >
+              <Button onClick={handleOptimize} disabled={phase === 'optimizing'}
+                className="w-full py-3 text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500">
                 {phase === 'optimizing'
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Optimizing…</>
-                  : <><Sparkles className="h-4 w-4" /> Optimize Profile</>
-                }
+                  ? <><Loader2 className="h-4 w-4 animate-spin" />Optimizing…</>
+                  : <><Sparkles className="h-4 w-4" />Optimize Profile</>}
               </Button>
               <p className="text-xs text-slate-400 text-center mt-2">
-                AI will rewrite your headline, about, and experience sections
+                Rewrites headline, about, experience bullets and skills
               </p>
               {error && (
                 <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2 mt-2">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <span>{error}</span>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>{error}</span>
                 </div>
               )}
             </div>
@@ -829,7 +742,7 @@ export default function ProfileBoostPage() {
                 <Sparkles className="h-5 w-5 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
               <p className="text-sm font-semibold text-slate-700">Optimizing your profile…</p>
-              <p className="text-xs text-slate-400">Claude is rewriting your sections for maximum recruiter impact</p>
+              <p className="text-xs text-slate-400">Claude is rewriting sections for maximum recruiter impact</p>
             </div>
           </div>
         )}
@@ -837,49 +750,45 @@ export default function ProfileBoostPage() {
     )
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // OPTIMIZED PHASE
-  // ─────────────────────────────────────────────────────────────────────────────
-
+  // ═════════════════════════════════════════════════════════════════════════════
+  // PHASE: OPTIMIZED
+  // ═════════════════════════════════════════════════════════════════════════════
   if (phase === 'optimized' && optimizeResult && result) {
     return (
       <div className="space-y-5">
+
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
             <h1 className="text-xl md:text-2xl font-bold text-slate-900">Optimized Profile</h1>
-            <p className="text-sm text-slate-400 mt-0.5">AI rewrites ready — copy and paste into LinkedIn</p>
+            <p className="text-sm text-slate-400 mt-0.5">
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-sm bg-cyan-200 inline-block" />highlighted words are new
+              </span>
+            </p>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={() => setPhase('analyzed')}
-              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-2 transition"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Analysis
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setPhase('analyzed')}
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-2 transition">
+              <ArrowLeft className="h-3.5 w-3.5" />Back to Analysis
             </button>
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Analyze Again
+            <button onClick={handleReanalyze}
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
+              <RefreshCw className="h-3.5 w-3.5" />Re-analyze
+            </button>
+            <button onClick={handleReset}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 border border-slate-100 hover:border-slate-300 rounded-xl px-3 py-2 transition">
+              New Analysis
             </button>
           </div>
         </div>
 
-        {/* Score badge */}
-        <OverallBadge
-          score={result.overall_score}
-          grade={result.grade}
-          verdict={result.overall_verdict}
-        />
+        <OverallBadge score={result.overall_score} grade={result.grade} verdict={result.overall_verdict} />
 
-        {/* Left / Right */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* LEFT: Current (dimmed) */}
+          {/* LEFT — current (dimmed) */}
           <div className="space-y-4">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Current</p>
 
@@ -909,20 +818,24 @@ export default function ProfileBoostPage() {
             )}
           </div>
 
-          {/* RIGHT: Optimized */}
+          {/* RIGHT — optimized with word diff */}
           <div className="space-y-4">
             <p className="text-xs font-bold text-cyan-600 uppercase tracking-widest">AI Optimized</p>
 
             {optimizeResult.headline && (
               <OptimizedCard label="Headline" copyText={optimizeResult.headline.optimized}>
-                <p className="text-sm font-semibold text-slate-800 mb-2">{optimizeResult.headline.optimized}</p>
+                <p className="text-sm font-semibold text-slate-800 mb-2 leading-relaxed">
+                  <WordDiff current={optimizeResult.headline.current} optimized={optimizeResult.headline.optimized} />
+                </p>
                 <p className="text-xs text-slate-400 italic">{optimizeResult.headline.reason}</p>
               </OptimizedCard>
             )}
 
             {optimizeResult.about && (
               <OptimizedCard label="About" copyText={optimizeResult.about.optimized}>
-                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap mb-3">{optimizeResult.about.optimized}</p>
+                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap mb-3">
+                  <WordDiff current={optimizeResult.about.current} optimized={optimizeResult.about.optimized} />
+                </p>
                 {optimizeResult.about.key_changes.length > 0 && (
                   <div className="space-y-1 border-t border-cyan-100 pt-2">
                     <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider">Key Changes</p>
@@ -937,16 +850,13 @@ export default function ProfileBoostPage() {
             )}
 
             {optimizeResult.experience?.map((exp, i) => (
-              <OptimizedCard
-                key={i}
-                label={`${exp.title} @ ${exp.company}`}
-                copyText={exp.optimized_bullets.map(b => `• ${b}`).join('\n')}
-              >
-                <ul className="space-y-1.5 mb-3">
+              <OptimizedCard key={i} label={`${exp.title} @ ${exp.company}`}
+                copyText={exp.optimized_bullets.map(b => `• ${b}`).join('\n')}>
+                <ul className="space-y-2 mb-3">
                   {exp.optimized_bullets.map((bullet, j) => (
                     <li key={j} className="text-xs text-slate-700 flex gap-2 leading-relaxed">
                       <span className="text-cyan-500 shrink-0 mt-0.5">•</span>
-                      <span>{bullet}</span>
+                      <span><WordDiff current={exp.current_text} optimized={bullet} /></span>
                     </li>
                   ))}
                 </ul>
@@ -968,9 +878,14 @@ export default function ProfileBoostPage() {
                 <div className="mb-3">
                   <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider mb-2">Reordered for Impact</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {optimizeResult.skills.reordered.map((s, i) => (
-                      <span key={i} className="text-xs bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded-full">{s}</span>
-                    ))}
+                    {optimizeResult.skills.reordered.map((s, i) => {
+                      const isNew = !optimizeResult.skills!.current.includes(s)
+                      return (
+                        <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${
+                          isNew ? 'bg-cyan-200 text-cyan-900 font-semibold' : 'bg-cyan-100 text-cyan-800'
+                        }`}>{s}</span>
+                      )
+                    })}
                   </div>
                 </div>
                 {optimizeResult.skills.add_if_true.length > 0 && (
