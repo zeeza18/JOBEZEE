@@ -478,30 +478,11 @@ const LinkedInPage = () => {
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">LinkedIn</h1>
-          <p className="text-xs text-slate-400 mt-0.5">Easy Apply, profile optimization, and contact management</p>
+          <h1 className="text-xl font-bold text-slate-900">LinkedIn Easy Apply</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Automate applications on LinkedIn jobs</p>
         </div>
       </div>
 
-      {/* ── Tab bar ── */}
-      <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
-        {([
-          { id: 'easy-apply',     label: 'Easy Apply'     },
-          { id: 'profile-boost',  label: 'Profile Boost'  },
-          { id: 'contacts',       label: 'Contacts'       },
-        ] as { id: Tab; label: string }[]).map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => switchTab(tab.id)}
-            className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all
-              ${activeTab === tab.id
-                ? 'bg-white text-[#0077B5] shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
 
       {/* ══════════════ EASY APPLY TAB ══════════════ */}
       {activeTab === 'easy-apply' && (
