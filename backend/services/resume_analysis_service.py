@@ -17,7 +17,7 @@ from ..config import get_settings
 
 OPUSMAX_BASE_URL                  = "https://api.opusmax.pro"
 OPUSMAX_UNDERSTAND_IMAGE_URL      = f"{OPUSMAX_BASE_URL}/tools/understand_image"
-DEFAULT_MODEL                    = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-7-20261107")
+DEFAULT_MODEL                    = os.getenv("CLAUDE_MODEL", "claude-opus-4-7")
 CLAUDE_TIMEOUT_SECONDS            = float(os.getenv("CLAUDE_TIMEOUT_SECONDS", "45"))
 _OPUSMAX_PREFIX                  = "sk-ant-opm"
 

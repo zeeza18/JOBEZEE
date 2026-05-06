@@ -17,7 +17,7 @@ from .resume_analysis_service import (
     analyze_profile_picture,
 )
 
-LINKEDIN_MODEL = os.getenv("CLAUDE_OPUS_MODEL", os.getenv("CLAUDE_MODEL", "claude-opus-4-5-20250514"))
+LINKEDIN_MODEL = os.getenv("CLAUDE_OPUS_MODEL", os.getenv("CLAUDE_MODEL", "claude-opus-4-7"))
 
 BUCKET_MAX: dict[str, int] = {
     "searchability": 25,
