@@ -16,11 +16,13 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, FastAPI, Form, Header, HTTPException, UploadFile
+from fastapi.params import File as FFile
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -1649,3 +1651,159 @@ async def compile_pdf(req: CompilePdfRequest, authorization: str = Header(...)):
             raise HTTPException(500, f"pdflatex failed: {result.stdout[-500:]}")
         pdf_b64 = base64.b64encode(pdf_path.read_bytes()).decode()
     return {"pdf_b64": pdf_b64}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LinkedIn Profile Boost — runs here on Hetzner (2 GB RAM) not on Render
+# ══════════════════════════════════════════════════════════════════════════════
+
+_lb_jobs: dict[str, dict] = {}
+_LB_JOB_TTL = 1800  # 30 min
+
+
+def _lb_purge() -> None:
+    cutoff = time.time() - _LB_JOB_TTL
+    for k in [k for k, v in _lb_jobs.items() if v.get("created_at", 0) < cutoff]:
+        _lb_jobs.pop(k, None)
+
+
+def _lb_new_job(step: str = "extract") -> str:
+    _lb_purge()
+    jid = str(__import__("uuid").uuid4())
+    _lb_jobs[jid] = {"status": "processing", "step": step, "created_at": time.time()}
+    return jid
+
+
+def _lb_poll(job_id: str) -> dict:
+    job = _lb_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found or expired")
+    if job["status"] == "error":
+        raise HTTPException(500, job.get("error", "Job failed"))
+    if job["status"] == "done":
+        return {"status": "done", "result": job["result"]}
+    return {"status": "processing", "step": job.get("step", "working")}
+
+
+def _lb_run_analyze(job_id: str, **kwargs) -> None:
+    repo_root = str(_JOBEZEE_ROOT)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from backend.services.linkedin_boost_service import analyze_linkedin_profile
+
+    def on_step(step: str) -> None:
+        if job_id in _lb_jobs:
+            _lb_jobs[job_id]["step"] = step
+    try:
+        result = analyze_linkedin_profile(**kwargs, on_step=on_step)
+        _lb_jobs[job_id].update(status="done", result=result)
+    except Exception as exc:
+        _lb_jobs[job_id].update(status="error", error=str(exc))
+
+
+def _lb_run_optimize(job_id: str, **kwargs) -> None:
+    repo_root = str(_JOBEZEE_ROOT)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from backend.services.linkedin_boost_service import optimize_linkedin_profile
+    try:
+        _lb_jobs[job_id]["step"] = "rewriting"
+        result = optimize_linkedin_profile(**kwargs)
+        _lb_jobs[job_id].update(status="done", result=result)
+    except Exception as exc:
+        _lb_jobs[job_id].update(status="error", error=str(exc))
+
+
+@app.post("/api/linkedin-boost/analyze")
+async def lb_analyze(
+    authorization:  str             = Header(...),
+    profile_pdf:    UploadFile      = ...,
+    profile_image:  UploadFile|None = FFile(default=None),
+    cover_image:    UploadFile|None = FFile(default=None),
+    job_description: str            = Form(default=""),
+    target_role:    str             = Form(default=""),
+) -> dict:
+    _auth(authorization)
+
+    repo_root = str(_JOBEZEE_ROOT)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from backend.services.resume_analysis_service import _extract_pdf_text
+
+    if not profile_pdf.filename:
+        raise HTTPException(400, "profile_pdf is required")
+    suffix = Path(profile_pdf.filename).suffix.lower()
+    if suffix not in (".pdf", ".txt"):
+        raise HTTPException(400, "Upload a LinkedIn profile PDF.")
+
+    pdf_bytes = await profile_pdf.read()
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(pdf_bytes)
+        tmp_path = Path(tmp.name)
+    try:
+        pdf_text = _extract_pdf_text(tmp_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    if not pdf_text.strip():
+        raise HTTPException(422, "Could not extract text from the PDF.")
+
+    profile_image_bytes: bytes | None = None
+    profile_image_type:  str   | None = None
+    if profile_image and profile_image.filename:
+        profile_image_bytes = await profile_image.read()
+        profile_image_type  = profile_image.content_type or "image/jpeg"
+
+    cover_image_bytes: bytes | None = None
+    cover_image_type:  str   | None = None
+    if cover_image and cover_image.filename:
+        cover_image_bytes = await cover_image.read()
+        cover_image_type  = cover_image.content_type or "image/jpeg"
+
+    job_id = _lb_new_job("extract")
+    threading.Thread(
+        target=_lb_run_analyze,
+        kwargs=dict(
+            job_id              = job_id,
+            pdf_text            = pdf_text,
+            job_description     = job_description.strip(),
+            target_role         = target_role.strip(),
+            profile_image_bytes = profile_image_bytes,
+            profile_image_type  = profile_image_type,
+            cover_image_bytes   = cover_image_bytes,
+            cover_image_type    = cover_image_type,
+        ),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id}
+
+
+@app.get("/api/linkedin-boost/status/{job_id}")
+async def lb_status(job_id: str, authorization: str = Header(...)) -> dict:
+    _auth(authorization)
+    return _lb_poll(job_id)
+
+
+@app.post("/api/linkedin-boost/optimize")
+async def lb_optimize(body: dict, authorization: str = Header(...)) -> dict:
+    _auth(authorization)
+    pdf_text     = (body.get("pdf_text")    or "").strip()
+    score_result =  body.get("score_result") or {}
+    target_role  = (body.get("target_role") or "").strip()
+    if not pdf_text:
+        raise HTTPException(400, "pdf_text is required")
+    if not score_result:
+        raise HTTPException(400, "score_result is required")
+    job_id = _lb_new_job("rewriting")
+    threading.Thread(
+        target=_lb_run_optimize,
+        kwargs=dict(job_id=job_id, pdf_text=pdf_text, score_result=score_result, target_role=target_role),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id}
+
+
+@app.get("/api/linkedin-boost/optimize-status/{job_id}")
+async def lb_optimize_status(job_id: str, authorization: str = Header(...)) -> dict:
+    _auth(authorization)
+    return _lb_poll(job_id)
