@@ -3,7 +3,7 @@
 import subprocess, json, os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-SECRET = "0KjGN4CyApHlkxsPpxIG9QlYQfcaZsnQCP2jbA1kKLE"
+SECRETS = {t.strip() for t in "0KjGN4CyApHlkxsPpxIG9QlYQfcaZsnQCP2jbA1kKLE,akinHRQ3krbhoucmrfCGq1W97FP1XMRs_8B7S38TVIE".split(",")}
 PG_PASS = "Jobezee_PG_2026!"
 
 
@@ -14,7 +14,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self.rfile.read(int(self.headers.get("Content-Length", 0)))
         auth = self.headers.get("Authorization", "")
-        if auth != f"Bearer {SECRET}":
+        token = auth.removeprefix("Bearer ").strip()
+        if token not in SECRETS:
             self.send_response(401)
             self.end_headers()
             return
