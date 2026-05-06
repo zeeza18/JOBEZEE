@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 
 from ..services.resume_analysis_service import (
     _extract_pdf_text,
-    analyze_image,
+    analyze_profile_picture,
     analyze_resume,
 )
 
@@ -91,11 +91,22 @@ async def analyze_image_endpoint(file: UploadFile) -> dict:
         raise HTTPException(400, "Upload a JPG, PNG, or WebP image.")
 
     try:
-        contents = await file.read()
-        import base64 as _b64
-        b64 = _b64.b64encode(contents).decode().replace("\n", "")
-        result = analyze_image(b64)
-        return result
+        contents    = await file.read()
+        media_type  = file.content_type or "image/jpeg"
+        raw         = analyze_profile_picture(contents, media_type)
+        obs         = raw.get("observations", {})
+        def _b(k: str) -> str:
+            v = obs.get(k)
+            return "good" if v is True else "needs improvement" if v is False else "unknown"
+        return {
+            "score":           raw.get("score", 0),
+            "verdict":         "Good" if raw.get("score", 0) >= 70 else "Needs improvement",
+            "lighting":        _b("lighting_adequate"),
+            "background":      _b("background_clean"),
+            "framing":         _b("framing_professional"),
+            "face_visibility": _b("face_visible"),
+            "improvements":    raw.get("suggestions", []),
+        }
 
     except Exception as exc:
         raise HTTPException(500, f"Image analysis failed: {exc}")
