@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     # ── LLM Keys (Phase 1 / SmartExtract) ───────────────────────────────────
     OPUSMAX_API_KEY:   str = ""   # OpusMax — always first priority for Claude calls
     OPENAI_API_KEY:    str = ""
-    ANTHROPIC_API_KEY: str = ""   # Claude API key fallback
+    ANTHROPIC_API_KEY: str = ""   # Claude API key (OpusMax or standard)
+    CLAUDE_API_KEY:    str = ""   # Standard Anthropic key fallback (sk-ant-api)
     GOOGLE_API_KEY:    str = ""   # alias — same as GEMINI_API_KEY
     GEMINI_API_KEY:    str = ""   # preferred field name for Gemini
 

@@ -20,13 +20,13 @@ from ..config import get_settings
 
 
 def _resolve_fallback_key() -> str:
-    """Return a non-OpusMax key (ANTHROPIC_API_KEY / CLAUDE_API_KEY) for quota fallback."""
-    import os
+    """Return a standard Anthropic key (not OpusMax) for quota fallback."""
     cfg = get_settings()
-    return (
-        (cfg.ANTHROPIC_API_KEY or "").strip()
-        or os.getenv("CLAUDE_API_KEY", "").strip()
-    )
+    for key in [cfg.CLAUDE_API_KEY, cfg.ANTHROPIC_API_KEY]:
+        k = (key or "").strip()
+        if k and not k.startswith("sk-ant-opm"):
+            return k
+    return ""
 
 LINKEDIN_MODEL = os.getenv("CLAUDE_OPUS_MODEL", os.getenv("CLAUDE_MODEL", "claude-opus-4-7"))
 
