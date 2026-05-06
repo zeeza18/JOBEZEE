@@ -28,9 +28,11 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://jobezee:${POSTGRES_PASSWORD}@postgres:5432/jobezee
       PORT: "8000"
-      BOT_WORKER_URL: "http://localhost:8001"
+      BOT_WORKER_URL: "http://host.docker.internal:8001"
       FRONTEND_URL: "https://jobezee.org"
       CORS_ORIGINS: "https://jobezee.org,https://www.jobezee.org,http://localhost:5173"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "0.0.0.0:8000:8000"
     volumes:
