@@ -33,12 +33,13 @@ async def main() -> None:
     except Exception as exc:
         log.warning("[TasksRunner] DB startup warning (non-fatal): %s", exc)
 
-    from .main import _auto_search_loop, _digest_email_loop
-    log.info("[TasksRunner] Starting auto-search + digest-email loops")
+    from .main import _auto_search_loop, _digest_email_loop, _tailor_watchdog_loop
+    log.info("[TasksRunner] Starting auto-search + digest-email + tailor-watchdog loops")
 
     await asyncio.gather(
         _auto_search_loop(),
         _digest_email_loop(),
+        _tailor_watchdog_loop(),
     )
 
 

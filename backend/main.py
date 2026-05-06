@@ -431,6 +431,82 @@ def _start_global_chrome() -> None:
         _log.warning("[Chrome] Could not start global browser at startup: %s", exc)
 
 
+async def _tailor_watchdog_loop() -> None:
+    """
+    Re-dispatch tailor jobs that are stuck in queued/running state.
+
+    Runs every 5 min. If a job has been queued/running for >8 min and still has
+    a dispatch_payload, it re-POSTs to the worker. Gives up after 3 attempts
+    (the 35-min startup cleanup will then mark it error).
+    """
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select as _sel, update as _upd
+    from .database import AsyncSessionLocal
+    from .models import TailorJobRecord
+    import httpx as _httpx
+    import os as _os
+
+    _log = logging.getLogger(__name__ + ".tailor_watchdog")
+    await asyncio.sleep(120)  # let the server warm up first
+
+    while True:
+        await asyncio.sleep(300)  # check every 5 min
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(minutes=8)
+            async with AsyncSessionLocal() as db:
+                res = await db.execute(
+                    _sel(TailorJobRecord).where(
+                        TailorJobRecord.status.in_(["queued", "running"]),
+                        TailorJobRecord.created_at < cutoff,
+                        TailorJobRecord.dispatch_payload.isnot(None),
+                        TailorJobRecord.dispatch_count < 3,
+                    )
+                )
+                stuck_jobs = res.scalars().all()
+
+            if not stuck_jobs:
+                continue
+
+            _log.warning("[TailorWatchdog] %d stuck job(s) detected — re-dispatching", len(stuck_jobs))
+
+            worker_url = _os.getenv("BOT_WORKER_URL", "").rstrip("/")
+            worker_secret = _os.getenv("WORKER_SECRET", "")
+            api_base = _os.getenv("API_BASE_URL", "https://www.jobezee.org")
+            if not worker_url:
+                _log.warning("[TailorWatchdog] BOT_WORKER_URL not set — cannot re-dispatch")
+                continue
+
+            for job in stuck_jobs:
+                try:
+                    payload = dict(job.dispatch_payload)
+                    payload["job_id"] = job.id
+                    payload["callback_url"] = f"{api_base}/api/tailor/internal/callback"
+
+                    async with _httpx.AsyncClient(timeout=30) as client:
+                        r = await client.post(
+                            f"{worker_url}/run-tailor",
+                            json=payload,
+                            headers={"Authorization": f"Bearer {worker_secret}"},
+                        )
+                    _log.info("[TailorWatchdog] Re-dispatched %s → %d", job.id, r.status_code)
+
+                    async with AsyncSessionLocal() as db:
+                        await db.execute(
+                            _upd(TailorJobRecord)
+                            .where(TailorJobRecord.id == job.id)
+                            .values(
+                                status="running",
+                                dispatch_count=TailorJobRecord.dispatch_count + 1,
+                            )
+                        )
+                        await db.commit()
+                except Exception as exc:
+                    _log.error("[TailorWatchdog] Failed to re-dispatch %s: %s", job.id, exc)
+
+        except Exception as exc:
+            _log.error("[TailorWatchdog] Loop error: %s", exc)
+
+
 async def _tailor_cleanup_loop() -> None:
     """Delete expired tailor job records and their output files — runs every hour."""
     import shutil as _shutil
@@ -528,13 +604,15 @@ async def lifespan(app: FastAPI):
     _email_task = asyncio.create_task(_auto_email_scan_loop())
     _digest_task = asyncio.create_task(_digest_email_loop())
     _tailor_cleanup_task = asyncio.create_task(_tailor_cleanup_loop())
+    _tailor_watchdog_task = asyncio.create_task(_tailor_watchdog_loop())
     yield
     _bg_task.cancel()
     _email_task.cancel()
     _digest_task.cancel()
     _tailor_cleanup_task.cancel()
+    _tailor_watchdog_task.cancel()
     try:
-        await asyncio.gather(_bg_task, _email_task, _digest_task, _tailor_cleanup_task, return_exceptions=True)
+        await asyncio.gather(_bg_task, _email_task, _digest_task, _tailor_cleanup_task, _tailor_watchdog_task, return_exceptions=True)
     except asyncio.CancelledError:
         pass
 

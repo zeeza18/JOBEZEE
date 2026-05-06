@@ -379,11 +379,13 @@ async def run_schema_migration() -> None:
             "ALTER TABLE preference_cache ADD COLUMN IF NOT EXISTS total_jobs INTEGER DEFAULT 0"
         ))
 
-        # ── tailor_jobs: billing columns ──────────────────────────────────────
+        # ── tailor_jobs: billing + watchdog columns ────────────────────────────
         for col, defn in [
-            ("input_tokens",  "INTEGER DEFAULT 0"),
-            ("output_tokens", "INTEGER DEFAULT 0"),
-            ("cost_usd",      "FLOAT   DEFAULT 0.0"),
+            ("input_tokens",     "INTEGER DEFAULT 0"),
+            ("output_tokens",    "INTEGER DEFAULT 0"),
+            ("cost_usd",         "FLOAT   DEFAULT 0.0"),
+            ("dispatch_payload", "JSONB   DEFAULT NULL"),
+            ("dispatch_count",   "INTEGER DEFAULT 0"),
         ]:
             await conn.execute(text(
                 f"ALTER TABLE tailor_jobs ADD COLUMN IF NOT EXISTS {col} {defn}"

@@ -92,12 +92,23 @@ async def start_tailor(
     _username = (_name_raw if _name_raw and "@" not in _name_raw else current_user.email.split("@")[0]).replace(" ", "_")
     job_id = create_job(user_id=str(current_user.id))
     _expires = datetime.now(timezone.utc) + timedelta(days=2)
+    _dispatch_payload = {
+        "job_description": req.job_description,
+        "resume_text": resume_with_header,
+        "openai_api_key": openai_key,
+        "username": _username,
+        "company": "",
+        "anthropic_api_key": anthropic_key,
+        "anthropic_fallback_key": anthropic_fallback,
+    }
     db.add(TailorJobRecord(
         id=job_id,
         user_id=str(current_user.id),
         status="queued",
         job_url=(req.job_url or "").strip(),
         expires_at=_expires,
+        dispatch_payload=_dispatch_payload,
+        dispatch_count=1,
     ))
     await db.commit()
     start_tailor_job(job_id, req.job_description, resume_with_header, openai_api_key=openai_key, username=_username, anthropic_api_key=anthropic_key, anthropic_fallback_key=anthropic_fallback)
@@ -199,6 +210,16 @@ async def start_tailor_for_job(
 
     tailor_job_id = create_job(user_id=str(current_user.id))
     _expires = datetime.now(timezone.utc) + timedelta(days=2)
+    _dispatch_payload2 = {
+        "job_description": pulled_job.description,
+        "resume_text": resume_text,
+        "openai_api_key": openai_key,
+        "username": username,
+        "company": company,
+        "anthropic_api_key": anthropic_key,
+        "anthropic_fallback_key": anthropic_fallback2,
+        "contact_header": contact_header,
+    }
     db.add(TailorJobRecord(
         id=tailor_job_id,
         user_id=str(current_user.id),
@@ -206,6 +227,8 @@ async def start_tailor_for_job(
         company_name=company,
         pulled_job_id=req.job_id,
         expires_at=_expires,
+        dispatch_payload=_dispatch_payload2,
+        dispatch_count=1,
     ))
     await db.commit()
     start_tailor_job_for_job(
