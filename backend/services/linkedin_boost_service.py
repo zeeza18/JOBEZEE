@@ -500,11 +500,13 @@ def analyze_linkedin_profile(
         try:
             response = client.messages.create(
                 model=LINKEDIN_MODEL,
-                max_tokens=2000,
+                max_tokens=4000,
                 system=_SYSTEM,
                 messages=[{"role": "user", "content": prompt}],
             )
             raw  = next((b.text for b in response.content if hasattr(b, "text")), "{}")
+            if "Usage limit reached" in raw or "quota" in raw.lower():
+                raise RuntimeError("AI quota exceeded. Please try again in a few minutes.")
             data = _parse(raw)
             if data:
                 break
