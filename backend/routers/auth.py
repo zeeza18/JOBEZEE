@@ -76,7 +76,8 @@ async def register(
     try:
         log.debug("REGISTER start — email=%s", body.email)
 
-        existing = await db.execute(select(User).where(User.email == body.email))
+        email    = body.email.lower().strip()
+        existing = await db.execute(select(User).where(User.email == email))
         if existing.scalar_one_or_none():
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email already registered")
         log.debug("REGISTER duplicate-check OK")
@@ -86,7 +87,7 @@ async def register(
 
         user = User(
             id              = str(uuid.uuid4()),
-            email           = body.email,
+            email           = email,
             hashed_password = hashed,
             full_name       = body.full_name,
         )
@@ -113,7 +114,7 @@ async def login(
     response : Response,
     db       : AsyncSession = Depends(get_db),
 ) -> User:
-    result = await db.execute(select(User).where(User.email == body.email))
+    result = await db.execute(select(User).where(User.email == body.email.lower().strip()))
     user   = result.scalar_one_or_none()
 
     if not user or not verify_password(body.password, user.hashed_password):
@@ -188,7 +189,7 @@ async def forgot_password(
     from ..config import get_settings
     from ..services.email_service import send_password_reset_email
 
-    result = await db.execute(select(User).where(User.email == body.email))
+    result = await db.execute(select(User).where(User.email == body.email.lower().strip()))
     user   = result.scalar_one_or_none()
 
     if user:
