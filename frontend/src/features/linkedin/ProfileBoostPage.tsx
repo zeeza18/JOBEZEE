@@ -478,28 +478,49 @@ export default function ProfileBoostPage() {
     }, POLL_INTERVAL)
   }, [pdfFile, profileImage, coverImage, jdText, targetRole])
 
-  // ── Optimize ─────────────────────────────────────────────────────────────
+  // ── Optimize → background job + polling ──────────────────────────────────
 
   const handleOptimize = useCallback(async () => {
     if (!result?.pdf_text) return
     setPhase('optimizing')
     setError(null)
+
+    let jobId: string
     try {
       const res = await fetch('/api/linkedin-boost/optimize', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pdf_text: result.pdf_text, score_result: result, target_role: targetRole }),
       })
-      const txt  = await res.text()
+      const txt = await res.text()
       let data: Record<string, unknown>
-      try { data = JSON.parse(txt) } catch { throw new Error('Invalid response from server') }
-      if (!res.ok) throw new Error((data.detail as string) || 'Optimization failed')
-      setOptimizeResult(data as OptimizeResult)
-      setPhase('optimized')
+      try { data = JSON.parse(txt) } catch { throw new Error(txt.slice(0, 200) || 'Server error') }
+      if (!res.ok) throw new Error((data.detail as string) || 'Failed to start optimization')
+      jobId = data.job_id as string
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
       setPhase('analyzed')
+      return
     }
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/linkedin-boost/optimize-status/${jobId}`, { credentials: 'include' })
+        const txt = await res.text()
+        let data: Record<string, unknown>
+        try { data = JSON.parse(txt) } catch { throw new Error('Invalid server response') }
+        if (!res.ok) throw new Error((data.detail as string) || 'Optimization failed')
+        if (data.status === 'done') {
+          stopPolling()
+          setOptimizeResult(data.result as OptimizeResult)
+          setPhase('optimized')
+        }
+      } catch (e: unknown) {
+        stopPolling()
+        setError(e instanceof Error ? e.message : String(e))
+        setPhase('analyzed')
+      }
+    }, POLL_INTERVAL)
   }, [result, targetRole])
 
   const handleReanalyze = () => { stopPolling(); setPhase('input'); setResult(null); setOptimizeResult(null); setError(null) }

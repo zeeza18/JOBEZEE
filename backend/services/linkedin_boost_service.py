@@ -448,7 +448,7 @@ Return ONLY this JSON shape:
 
 LINKEDIN PROFILE TEXT:
 ---
-{pdf_text[:7000]}
+{pdf_text[:10000]}
 ---
 """
 
