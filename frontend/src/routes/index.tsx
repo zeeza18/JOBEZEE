@@ -12,7 +12,8 @@ const DashboardPage     = lazy(() => import('../pages/DashboardPage'))
 const CombinedJobsPage  = lazy(() => import('../features/jobs/PulledJobsPage'))
 const TailorPage        = lazy(() => import('../features/tailor/TailorPage'))
 const AutoApplyPage     = lazy(() => import('../features/apply/AutoApplyPage'))
-const LinkedInPage     = lazy(() => import('../features/linkedin/LinkedInPage'))
+const LinkedInPage      = lazy(() => import('../features/linkedin/LinkedInPage'))
+const ProfileBoostPage = lazy(() => import('../features/linkedin/ProfileBoostPage'))
 const InterviewPage     = lazy(() => import('../features/interview/InterviewPage'))
 const ApplicationsPage  = lazy(() => import('../features/applications/ApplicationsPage'))
 const PortfolioPage     = lazy(() => import('../features/portfolio/PortfolioPage'))
@@ -66,7 +67,7 @@ const AppRoutes = () => (
         <Route path="/app/apply"          element={<AutoApplyPage />} />
         <Route path="/app/linkedin">
           <Route index              element={<LinkedInPage />} />
-          <Route path="boost"        element={<LinkedInPage />} />
+          <Route path="boost"        element={<ProfileBoostPage />} />
           <Route path="contacts"     element={<LinkedInPage />} />
         </Route>
         <Route path="/app/interview"      element={<InterviewPage />} />

@@ -600,3 +600,57 @@ export const linkedinApi = {
       '/api/apply/bot-screenshot'
     ),
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Resume Analysis (Profile Boost)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ResumeSection {
+  id          : string
+  label       : string
+  content     : string
+  score       : number
+  suggestions : string[]
+}
+
+export interface ResumeAnalysisResult {
+  overall_score   : number
+  overall_verdict: string
+  jd_fit_score   : number
+  sections       : ResumeSection[]
+}
+
+export interface ImageAnalysisResult {
+  score           : number
+  verdict         : string
+  lighting        : string
+  background      : string
+  framing         : string
+  face_visibility : string
+  improvements    : string[]
+}
+
+export const resumeAnalysisApi = {
+  analyze: (payload: { resume_text: string; job_description?: string }) =>
+    post<ResumeAnalysisResult>('/api/resume-analysis/analyze', payload),
+
+  extractPdf: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return fetch(`${BASE}/api/resume-analysis/extract-pdf`, {
+      method : 'POST',
+      credentials: 'include',
+      body   : fd,
+    }).then(r => r.json())
+  },
+
+  analyzeImage: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return fetch(`${BASE}/api/resume-analysis/analyze-image`, {
+      method : 'POST',
+      credentials: 'include',
+      body   : fd,
+    }).then(r => r.json())
+  },
+}

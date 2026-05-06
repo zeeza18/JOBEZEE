@@ -29,6 +29,7 @@ from .routers import auth, jobs, portfolio, profile, search, tailor
 from .routers import apply_auto, applied_jobs, dashboard, auth_linkedin
 from .routers import analytics, logs, internal
 from .routers import billing
+from .routers import resume_analysis
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -575,6 +576,7 @@ app.include_router(analytics.router,    prefix="/api/analytics",    tags=["analy
 app.include_router(logs.router,         prefix="/api/logs",         tags=["logs"])
 app.include_router(internal.router,     prefix="/api/internal",     tags=["internal"])
 app.include_router(billing.router,      tags=["billing"])
+app.include_router(resume_analysis.router, tags=["resume-analysis"])
 
 # ── Static files (uploaded resumes) ──────────────────────────────────────────
 
