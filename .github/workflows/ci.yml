@@ -133,7 +133,7 @@ jobs:
     steps:
       - name: Deploy to Hetzner
         run: |
-          curl -f -X POST http://5.161.60.37:8000/api/internal/deploy \
+          curl -f -X POST http://5.161.60.37:9000 \
             -H "Authorization: Bearer ${{ secrets.WORKER_SECRET }}" \
             --max-time 660 \
             | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('output','')[-1000:])"
