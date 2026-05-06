@@ -16,6 +16,17 @@ from .resume_analysis_service import (
     analyze_cover_picture,
     analyze_profile_picture,
 )
+from ..config import get_settings
+
+
+def _resolve_fallback_key() -> str:
+    """Return a non-OpusMax key (ANTHROPIC_API_KEY / CLAUDE_API_KEY) for quota fallback."""
+    import os
+    cfg = get_settings()
+    return (
+        (cfg.ANTHROPIC_API_KEY or "").strip()
+        or os.getenv("CLAUDE_API_KEY", "").strip()
+    )
 
 LINKEDIN_MODEL = os.getenv("CLAUDE_OPUS_MODEL", os.getenv("CLAUDE_MODEL", "claude-opus-4-7"))
 
@@ -493,26 +504,35 @@ def analyze_linkedin_profile(
     prompt = _build_prompt(pdf_text, job_description, target_role, profile_img, cover_img)
     client = _make_anthropic_client(key)
 
-    # Single attempt — retrying on bad JSON only, not on slow/empty responses
+    # Retry on bad JSON; on quota exhaustion fall back to standard Anthropic key
     data: dict[str, Any] = {}
-    result: dict[str, Any] = {}
-    for attempt in range(2):
-        try:
-            response = client.messages.create(
-                model=LINKEDIN_MODEL,
-                max_tokens=4000,
-                system=_SYSTEM,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw  = next((b.text for b in response.content if hasattr(b, "text")), "{}")
-            if "Usage limit reached" in raw or "quota" in raw.lower():
-                raise RuntimeError("AI quota exceeded. Please try again in a few minutes.")
-            data = _parse(raw)
-            if data:
-                break
-        except Exception:
-            if attempt == 1:
-                raise
+    clients_to_try = [client]
+    fallback_key = _resolve_fallback_key()
+    if fallback_key and not fallback_key.startswith("sk-ant-opm"):
+        clients_to_try.append(_make_anthropic_client(fallback_key))
+
+    for cl in clients_to_try:
+        for attempt in range(2):
+            try:
+                response = cl.messages.create(
+                    model=LINKEDIN_MODEL,
+                    max_tokens=4000,
+                    system=_SYSTEM,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = next((b.text for b in response.content if hasattr(b, "text")), "{}")
+                if "Usage limit reached" in raw or "usage limit" in raw.lower():
+                    break  # quota hit on this client → try next client
+                data = _parse(raw)
+                if data:
+                    break
+            except Exception:
+                if attempt == 1:
+                    break  # exhausted retries on this client → try next
+        if data:
+            break
+    if not data:
+        raise RuntimeError("AI quota exceeded. Please try again in a few minutes.")
 
     result = _normalize(data, profile_img, cover_img, visual_evaluated)
     _step("done")
@@ -542,20 +562,29 @@ def optimize_linkedin_profile(
     prompt = _build_optimize_prompt(pdf_text, score_result, target_role)
 
     data: dict[str, Any] = {}
-    for attempt in range(3):
-        response = client.messages.create(
-            model=LINKEDIN_MODEL,
-            max_tokens=4000,
-            system=_OPTIMIZE_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw  = next((b.text for b in response.content if hasattr(b, "text")), "{}")
-        data = _parse(raw)
-        # Retry if we got an empty or malformed response
-        has_content = bool(
-            data.get("headline") or data.get("about") or data.get("experience") or data.get("skills")
-        )
-        if has_content or attempt == 2:
+    clients_to_try = [client]
+    fallback_key = _resolve_fallback_key()
+    if fallback_key and not fallback_key.startswith("sk-ant-opm"):
+        clients_to_try.append(_make_anthropic_client(fallback_key))
+
+    for cl in clients_to_try:
+        for attempt in range(3):
+            response = cl.messages.create(
+                model=LINKEDIN_MODEL,
+                max_tokens=4000,
+                system=_OPTIMIZE_SYSTEM,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = next((b.text for b in response.content if hasattr(b, "text")), "{}")
+            if "Usage limit reached" in raw or "usage limit" in raw.lower():
+                break  # quota hit → try fallback client
+            data = _parse(raw)
+            has_content = bool(
+                data.get("headline") or data.get("about") or data.get("experience") or data.get("skills")
+            )
+            if has_content or attempt == 2:
+                break
+        if data:
             break
 
     # Normalise output
