@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   Camera, CheckCircle2, Eye, EyeOff, KeyRound, Linkedin,
   Loader2, ShieldCheck, Trash2, Users, XCircle, Zap,
@@ -21,9 +22,19 @@ const LI_ERROR_KEY  = 'jobezee_li_error'
 
 const LinkedInPage = () => {
   const { autoApply } = useSettingsStore()
+  const { '*': sub }   = useParams()
+  const navigate       = useNavigate()
 
-  // ── Active tab ───────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<Tab>('easy-apply')
+  // Derive tab from URL, allow override via state
+  const urlTab = sub === 'boost' ? 'profile-boost' : sub === 'contacts' ? 'contacts' : 'easy-apply'
+  const [activeTab, setActiveTab] = useState<Tab>(urlTab)
+
+  // Sync tab changes back to URL
+  useEffect(() => { setActiveTab(urlTab) }, [urlTab])
+  const switchTab = (t: Tab) => {
+    setActiveTab(t)
+    navigate(t === 'easy-apply' ? '/app/linkedin' : `/app/linkedin/${t}`)
+  }
 
   // ── LinkedIn bot state ───────────────────────────────────────────────────
   const _initLiJobId  = localStorage.getItem(LI_JOB_KEY)
@@ -481,7 +492,7 @@ const LinkedInPage = () => {
         ] as { id: Tab; label: string }[]).map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => switchTab(tab.id)}
             className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all
               ${activeTab === tab.id
                 ? 'bg-white text-[#0077B5] shadow-sm'

@@ -2,14 +2,21 @@ import { NavLink } from 'react-router-dom'
 import { Globe, Home, Wand2, Sparkles, Linkedin } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
+// ── LinkedIn sub-items (shown when LinkedIn is active) ──────────────────────
+const LI_DOCK = [
+  { to: '/app/linkedin',          label: 'Easy Apply'    },
+  { to: '/app/linkedin/boost',    label: 'Profile Boost' },
+  { to: '/app/linkedin/contacts',  label: 'Contacts'     },
+]
+
 const leftDock = [
-  { to: '/app/pulled-jobs', label: 'Jobs',     icon: Sparkles,  end: false },
-  { to: '/app/tailor',      label: 'Resume',   icon: Wand2,     end: false },
+  { to: '/app/pulled-jobs', label: 'Jobs',   icon: Sparkles, end: false },
+  { to: '/app/tailor',      label: 'Resume',  icon: Wand2,    end: false },
 ]
 
 const rightDock = [
   { to: '/app/apply',     label: 'Apply',    icon: Globe,    end: false },
-  { to: '/app/linkedin',  label: 'LinkedIn', icon: Linkedin, end: false },
+  { to: '/app/portfolio', label: 'Portfolio',icon: Globe,   end: false },
 ]
 
 const DockItem = ({ to, label, icon: Icon, end }: { to: string; label: string; icon: React.ElementType; end: boolean }) => (

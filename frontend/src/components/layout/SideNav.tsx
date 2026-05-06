@@ -9,8 +9,21 @@ const mainNav = [
   { to: '/app/pulled-jobs',  label: 'Jobs',      icon: Sparkles },
   { to: '/app/tailor',       label: 'Resume',    icon: Wand2 },
   { to: '/app/apply',        label: 'Apply',     icon: Send },
-  { to: '/app/linkedin',     label: 'LinkedIn',  icon: Linkedin },
-  { to: '/app/connectors',   label: 'Connectors',icon: Plug },
+]
+
+const linkedinNav = [
+  { to: '/app/linkedin',     label: 'Easy Apply',   icon: Linkedin },
+  { to: '/app/linkedin/boost',  label: 'Profile Boost', icon: Linkedin },
+  { to: '/app/linkedin/contacts',label: 'Contacts',   icon: Linkedin },
+]
+
+const connectorsNav = [
+  { to: '/app/connectors',   label: 'Connectors',   icon: Plug },
+  { to: '/app/connectors/whatsapp', label: 'WhatsApp',  icon: Plug },
+  { to: '/app/connectors/telegram', label: 'Telegram', icon: Plug },
+]
+
+const portfolioNav = [
   { to: '/app/portfolio',    label: 'Portfolio', icon: Globe },
 ]
 
@@ -108,29 +121,42 @@ const SideNav = ({ open, onToggle }: SideNavProps) => {
 
       {/* Nav scroll area */}
       <div className={cn('flex-1 overflow-y-auto py-4 space-y-4', open ? 'px-2' : 'px-1')}>
-        {/* Main */}
+
         <div>
-          {open && (
-            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Main</p>
-          )}
+          {open && <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Main</p>}
           <div className="space-y-0.5">
-            {mainNav.map((item) => (
-              <NavItem key={item.to} {...item} collapsed={!open} />
-            ))}
+            {mainNav.map((item) => <NavItem key={item.to} {...item} collapsed={!open} />)}
           </div>
         </div>
 
-        {/* Account */}
         <div>
-          {open && (
-            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Account</p>
-          )}
+          {open && <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">LinkedIn</p>}
           <div className="space-y-0.5">
-            {accountNav.map((item) => (
-              <NavItem key={item.to} {...item} collapsed={!open} />
-            ))}
+            {linkedinNav.map((item) => <NavItem key={item.to} {...item} collapsed={!open} />)}
           </div>
         </div>
+
+        <div>
+          {open && <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Connectors</p>}
+          <div className="space-y-0.5">
+            {connectorsNav.map((item) => <NavItem key={item.to} {...item} collapsed={!open} />)}
+          </div>
+        </div>
+
+        <div>
+          {open && <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Portfolio</p>}
+          <div className="space-y-0.5">
+            {portfolioNav.map((item) => <NavItem key={item.to} {...item} collapsed={!open} />)}
+          </div>
+        </div>
+
+        <div>
+          {open && <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Account</p>}
+          <div className="space-y-0.5">
+            {accountNav.map((item) => <NavItem key={item.to} {...item} collapsed={!open} />)}
+          </div>
+        </div>
+
       </div>
 
       {/* Footer — user + logout */}

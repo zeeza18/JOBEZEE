@@ -64,7 +64,11 @@ const AppRoutes = () => (
         <Route path="/app/pulled-jobs"    element={<CombinedJobsPage />} />
         <Route path="/app/tailor"         element={<TailorPage />} />
         <Route path="/app/apply"          element={<AutoApplyPage />} />
-        <Route path="/app/linkedin"       element={<LinkedInPage />} />
+        <Route path="/app/linkedin">
+          <Route index              element={<LinkedInPage />} />
+          <Route path="boost"        element={<LinkedInPage />} />
+          <Route path="contacts"     element={<LinkedInPage />} />
+        </Route>
         <Route path="/app/interview"      element={<InterviewPage />} />
         <Route path="/app/portfolio"      element={<PortfolioPage />} />
         <Route path="/app/connectors"     element={<ConnectorsPage />} />
