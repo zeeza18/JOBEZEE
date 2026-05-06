@@ -1,5 +1,6 @@
 """
 LinkedIn Profile Boost router — POST /api/linkedin-boost/analyze
+                               POST /api/linkedin-boost/optimize
 """
 from __future__ import annotations
 
@@ -9,7 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 from fastapi.params import File as FFile
 
-from ..services.linkedin_boost_service import analyze_linkedin_profile
+from ..services.linkedin_boost_service import analyze_linkedin_profile, optimize_linkedin_profile
 from ..services.resume_analysis_service import _extract_pdf_text
 
 router = APIRouter(prefix="/api/linkedin-boost", tags=["linkedin-boost"])
@@ -65,6 +66,28 @@ async def analyze(
             cover_image_bytes   = cover_image_bytes,
             cover_image_type    = cover_image_type,
         )
+        return result
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+
+@router.post("/optimize")
+async def optimize(body: dict) -> dict:
+    """
+    Body: { pdf_text: str, score_result: dict, target_role: str }
+    Returns optimized sections.
+    """
+    pdf_text    = (body.get("pdf_text")    or "").strip()
+    score_result = body.get("score_result") or {}
+    target_role  = (body.get("target_role") or "").strip()
+
+    if not pdf_text:
+        raise HTTPException(400, "pdf_text is required")
+    if not score_result:
+        raise HTTPException(400, "score_result is required")
+
+    try:
+        result = optimize_linkedin_profile(pdf_text, score_result, target_role)
         return result
     except Exception as exc:
         raise HTTPException(500, str(exc))

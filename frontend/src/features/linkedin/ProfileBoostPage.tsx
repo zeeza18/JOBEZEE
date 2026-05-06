@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import {
-  AlertCircle, ArrowRight, Camera, CheckCircle2, ChevronDown, ChevronUp,
-  FileText, Lightbulb, Loader2, Pencil, Sparkles, Target, Upload, Zap,
+  AlertCircle, ArrowLeft, ArrowRight, Camera, CheckCircle2, ChevronDown,
+  ChevronUp, ClipboardCheck, Copy, FileText, Lightbulb, Loader2, Pencil,
+  Sparkles, Target, Upload, Zap,
 } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -9,13 +10,15 @@ import { Button } from '../../components/ui/Button'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface BucketScore {
-  id:        string
-  label:     string
-  score:     number
-  max:       number
-  pct:       number
-  strengths: string[]
-  gaps:      string[]
+  id:         string
+  label:      string
+  score:      number
+  max:        number
+  pct:        number
+  strengths:  string[]
+  gaps:       string[]
+  evaluated?: boolean
+  note?:      string
 }
 
 interface PriorityFix {
@@ -37,6 +40,14 @@ interface ImageResult {
   observations: Record<string, boolean | null>
 }
 
+interface ParsedSections {
+  headline?:   string
+  about?:      string
+  experience?: string[]
+  skills?:     string[]
+  education?:  string[]
+}
+
 interface BoostResult {
   overall_score:    number
   grade:            string
@@ -51,7 +62,28 @@ interface BoostResult {
   visual_notes:     string[]
   profile_image?:   ImageResult
   cover_image?:     ImageResult
+  parsed_sections?: ParsedSections
+  pdf_text?:        string
 }
+
+interface OptimizeResult {
+  headline?:   { current: string; optimized: string; reason: string }
+  about?:      { current: string; optimized: string; key_changes: string[] }
+  experience?: Array<{
+    company:           string
+    title:             string
+    current_text:      string
+    optimized_bullets: string[]
+    key_changes:       string[]
+  }>
+  skills?: {
+    current:     string[]
+    reordered:   string[]
+    add_if_true: Array<{ skill: string; reason: string }>
+  }
+}
+
+type Phase = 'input' | 'analyzed' | 'optimizing' | 'optimized'
 
 // ─── Score bar ────────────────────────────────────────────────────────────────
 
@@ -140,8 +172,11 @@ function OverallBadge({ score, grade, verdict }: { score: number; grade: string;
 
 function BucketCard({ bucket }: { bucket: BucketScore }) {
   const [open, setOpen] = useState(false)
-  const borderColor = bucket.pct >= 80 ? 'border-emerald-200' : bucket.pct >= 60 ? 'border-amber-200' : 'border-red-200'
-  const textColor   = bucket.pct >= 80 ? 'text-emerald-600'   : bucket.pct >= 60 ? 'text-amber-600'   : 'text-red-600'
+  const evaluated = bucket.evaluated !== false
+  const borderColor = !evaluated ? 'border-slate-200' :
+    bucket.pct >= 80 ? 'border-emerald-200' : bucket.pct >= 60 ? 'border-amber-200' : 'border-red-200'
+  const textColor = !evaluated ? 'text-slate-400' :
+    bucket.pct >= 80 ? 'text-emerald-600' : bucket.pct >= 60 ? 'text-amber-600' : 'text-red-600'
 
   return (
     <div className={`rounded-xl border ${borderColor} bg-white p-3.5 space-y-2`}>
@@ -149,9 +184,15 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-sm font-semibold text-slate-800">{bucket.label}</span>
-            <span className={`text-sm font-bold shrink-0 ${textColor}`}>{bucket.score}/{bucket.max}</span>
+            {evaluated
+              ? <span className={`text-sm font-bold shrink-0 ${textColor}`}>{bucket.score}/{bucket.max}</span>
+              : <span className="text-xs text-slate-400 italic shrink-0">Not evaluated</span>
+            }
           </div>
-          <ScoreBar pct={bucket.pct} />
+          {evaluated
+            ? <ScoreBar pct={bucket.pct} />
+            : <p className="text-xs text-slate-400">{bucket.note || 'Upload photos to evaluate'}</p>
+          }
         </div>
         <button className="text-slate-400 hover:text-slate-700 shrink-0 transition">
           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -165,7 +206,7 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
               <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Strengths</p>
               {bucket.strengths.map((s, i) => (
                 <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                  <span className="text-emerald-500 shrink-0">✓</span>{s}
+                  <span className="text-emerald-500 shrink-0">&#10003;</span>{s}
                 </p>
               ))}
             </div>
@@ -175,7 +216,7 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
               <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Gaps</p>
               {bucket.gaps.map((g, i) => (
                 <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                  <span className="text-red-400 shrink-0">✗</span>{g}
+                  <span className="text-red-400 shrink-0">&#10007;</span>{g}
                 </p>
               ))}
             </div>
@@ -233,24 +274,134 @@ function ImagePanel({ label, result }: { label: string; result: ImageResult }) {
   )
 }
 
+// ─── Section text card ────────────────────────────────────────────────────────
+
+function SectionTextCard({
+  label, text, score, max,
+}: {
+  label: string
+  text:  string | string[] | undefined
+  score?: number
+  max?:   number
+}) {
+  const [open, setOpen] = useState(false)
+  if (!text || (Array.isArray(text) && text.length === 0)) return null
+
+  const displayText = Array.isArray(text) ? text.join('\n') : text
+  const pct = (score !== undefined && max) ? Math.round(score / max * 100) : undefined
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition"
+        onClick={() => setOpen(o => !o)}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-semibold text-slate-700">{label}</span>
+          {score !== undefined && max !== undefined && (
+            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${
+              pct! >= 80 ? 'bg-emerald-100 text-emerald-700' :
+              pct! >= 60 ? 'bg-amber-100 text-amber-700' :
+                           'bg-red-100 text-red-700'
+            }`}>{score}/{max}</span>
+          )}
+        </div>
+        {open ? <ChevronUp className="h-4 w-4 text-slate-400 shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 border-t border-slate-100">
+          {pct !== undefined && (
+            <div className="pt-3 pb-2">
+              <ScoreBar pct={pct} />
+            </div>
+          )}
+          <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap mt-2">{displayText}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Copy button ──────────────────────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1 text-xs text-slate-400 hover:text-cyan-600 transition px-2 py-1 rounded-lg hover:bg-cyan-50"
+    >
+      {copied
+        ? <><ClipboardCheck className="h-3.5 w-3.5 text-emerald-500" /><span className="text-emerald-600">Copied!</span></>
+        : <><Copy className="h-3.5 w-3.5" /><span>Copy</span></>
+      }
+    </button>
+  )
+}
+
+// ─── Optimized card ───────────────────────────────────────────────────────────
+
+function OptimizedCard({
+  label, children, copyText,
+}: {
+  label:     string
+  children:  React.ReactNode
+  copyText?: string
+}) {
+  return (
+    <div className="rounded-xl border-2 border-cyan-200 bg-white overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-cyan-50 border-b border-cyan-200">
+        <span className="text-xs font-bold text-cyan-700 uppercase tracking-wider">{label}</span>
+        {copyText && <CopyButton text={copyText} />}
+      </div>
+      <div className="px-4 py-3">{children}</div>
+    </div>
+  )
+}
+
+// ─── Current (read-only) card ─────────────────────────────────────────────────
+
+function CurrentCard({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden opacity-70">
+      <div className="px-4 py-2 bg-slate-100 border-b border-slate-200">
+        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</span>
+      </div>
+      <div className="px-4 py-3">{children}</div>
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ProfileBoostPage() {
-  const [pdfFile,      setPdfFile]      = useState<File | null>(null)
-  const [profileImage, setProfileImage] = useState<File | null>(null)
-  const [coverImage,   setCoverImage]   = useState<File | null>(null)
-  const [targetRole,   setTargetRole]   = useState('')
-  const [jdText,       setJdText]       = useState('')
+  const [phase,          setPhase]          = useState<Phase>('input')
+  const [pdfFile,        setPdfFile]        = useState<File | null>(null)
+  const [profileImage,   setProfileImage]   = useState<File | null>(null)
+  const [coverImage,     setCoverImage]     = useState<File | null>(null)
+  const [targetRole,     setTargetRole]     = useState('')
+  const [jdText,         setJdText]         = useState('')
+  const [analyzing,      setAnalyzing]      = useState(false)
+  const [result,         setResult]         = useState<BoostResult | null>(null)
+  const [optimizeResult, setOptimizeResult] = useState<OptimizeResult | null>(null)
+  const [error,          setError]          = useState<string | null>(null)
 
-  const [analyzing, setAnalyzing] = useState(false)
-  const [result,    setResult]    = useState<BoostResult | null>(null)
-  const [error,     setError]     = useState<string | null>(null)
-
+  // ── Analyze ──────────────────────────────────────────────────────────────────
   const handleAnalyze = useCallback(async () => {
     if (!pdfFile) return
     setAnalyzing(true)
     setError(null)
     setResult(null)
+    setOptimizeResult(null)
+    setPhase('input')
 
     const fd = new FormData()
     fd.append('profile_pdf', pdfFile)
@@ -266,12 +417,458 @@ export default function ProfileBoostPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Analysis failed')
       setResult(data as BoostResult)
+      setPhase('analyzed')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setAnalyzing(false)
     }
   }, [pdfFile, profileImage, coverImage, jdText, targetRole])
+
+  // ── Optimize ─────────────────────────────────────────────────────────────────
+  const handleOptimize = useCallback(async () => {
+    if (!result?.pdf_text) return
+    setPhase('optimizing')
+    setError(null)
+
+    try {
+      const res = await fetch('/api/linkedin-boost/optimize', {
+        method:  'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          pdf_text:     result.pdf_text,
+          score_result: result,
+          target_role:  targetRole,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Optimization failed')
+      setOptimizeResult(data as OptimizeResult)
+      setPhase('optimized')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
+      setPhase('analyzed')
+    }
+  }, [result, targetRole])
+
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+
+  const getBucketScore = (bucketId: string) =>
+    result?.buckets.find(b => b.id === bucketId)
+
+  // ── Input phase left panel ────────────────────────────────────────────────────
+  const InputLeftPanel = (
+    <div className="space-y-4">
+      <Card className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-cyan-600" />
+          <p className="text-sm font-semibold text-slate-800">LinkedIn Profile PDF</p>
+          <span className="ml-auto text-xs text-red-500 font-medium">required</span>
+        </div>
+        <DropZone
+          accept=".pdf,.txt"
+          label="Upload your LinkedIn PDF export"
+          hint='LinkedIn → "Save to PDF" on your profile page'
+          icon={Upload}
+          file={pdfFile}
+          onFile={setPdfFile}
+        />
+      </Card>
+
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Camera className="h-4 w-4 text-cyan-600" />
+          <p className="text-sm font-semibold text-slate-800">
+            Photos <span className="text-slate-400 font-normal text-xs">(optional)</span>
+          </p>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <p className="text-xs font-medium text-slate-500 mb-1">Profile Photo</p>
+            <DropZone
+              accept="image/jpeg,image/png,image/webp"
+              label="Upload profile photo"
+              hint="JPG, PNG, or WebP"
+              icon={Camera}
+              file={profileImage}
+              onFile={setProfileImage}
+            />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-slate-500 mb-1">Cover / Banner</p>
+            <DropZone
+              accept="image/jpeg,image/png,image/webp"
+              label="Upload cover / banner image"
+              hint="JPG, PNG, or WebP"
+              icon={Upload}
+              file={coverImage}
+              onFile={setCoverImage}
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Target className="h-4 w-4 text-cyan-600" />
+          <p className="text-sm font-semibold text-slate-800">
+            Target Role <span className="text-slate-400 font-normal text-xs">(optional)</span>
+          </p>
+        </div>
+        <input
+          type="text"
+          placeholder="e.g. Senior Data Engineer, Product Manager"
+          value={targetRole}
+          onChange={e => setTargetRole(e.target.value)}
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
+        />
+      </Card>
+
+      <Card className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-cyan-600" />
+          <p className="text-sm font-semibold text-slate-800">
+            Job Description <span className="text-slate-400 font-normal text-xs">(optional)</span>
+          </p>
+        </div>
+        <textarea
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
+          placeholder="Paste a job description for a JD fit score…"
+          value={jdText}
+          onChange={e => setJdText(e.target.value)}
+          rows={5}
+        />
+      </Card>
+
+      <Button
+        onClick={handleAnalyze}
+        disabled={!pdfFile || analyzing}
+        className="w-full py-3 text-sm flex items-center justify-center gap-2"
+      >
+        {analyzing
+          ? <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing…</>
+          : <><Zap className="h-4 w-4" /> Analyze Profile</>
+        }
+      </Button>
+
+      {error && (
+        <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+    </div>
+  )
+
+  // ── Analyzed phase left panel ─────────────────────────────────────────────────
+  const sections = result?.parsed_sections
+
+  const AnalyzedLeftPanel = result && (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Profile Sections</p>
+
+      <SectionTextCard
+        label="Headline"
+        text={sections?.headline}
+        score={getBucketScore('headline')?.score}
+        max={getBucketScore('headline')?.max}
+      />
+      <SectionTextCard
+        label="About"
+        text={sections?.about}
+        score={getBucketScore('about')?.score}
+        max={getBucketScore('about')?.max}
+      />
+      <SectionTextCard
+        label="Experience"
+        text={sections?.experience}
+        score={getBucketScore('experience')?.score}
+        max={getBucketScore('experience')?.max}
+      />
+      <SectionTextCard
+        label="Skills"
+        text={sections?.skills}
+        score={getBucketScore('skills')?.score}
+        max={getBucketScore('skills')?.max}
+      />
+      <SectionTextCard
+        label="Education"
+        text={sections?.education}
+        score={getBucketScore('completeness')?.score}
+        max={getBucketScore('completeness')?.max}
+      />
+
+      {/* Sticky optimize button */}
+      <div className="pt-2">
+        <Button
+          onClick={handleOptimize}
+          disabled={phase === 'optimizing'}
+          className="w-full py-3 text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500"
+        >
+          {phase === 'optimizing'
+            ? <><Loader2 className="h-4 w-4 animate-spin" /> Optimizing…</>
+            : <><Sparkles className="h-4 w-4" /> Optimize Profile &#10022;</>
+          }
+        </Button>
+        {error && (
+          <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2 mt-2">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  // ── Analyzed phase right panel ────────────────────────────────────────────────
+  const AnalyzedRightPanel = result && (
+    <div className="space-y-4">
+
+      {/* JD fit */}
+      {result.jd_fit_score > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">JD Fit Score</span>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className={`text-lg font-black ${
+              result.jd_fit_score >= 80 ? 'text-emerald-600' :
+              result.jd_fit_score >= 60 ? 'text-amber-600'   : 'text-red-600'
+            }`}>{result.jd_fit_score}</span>
+            <div className="w-24"><ScoreBar pct={result.jd_fit_score} /></div>
+          </div>
+        </div>
+      )}
+
+      {/* Priority Fixes */}
+      {result.priority_fixes.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Priority Fixes</p>
+          <div className="space-y-2">
+            {result.priority_fixes.map((fix, i) => (
+              <FixCard key={i} fix={fix} idx={i} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Bucket Scores */}
+      {result.buckets.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Bucket Scores</p>
+          <div className="space-y-2">
+            {result.buckets.map(b => <BucketCard key={b.id} bucket={b} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Headline Rewrite */}
+      {result.headline_rewrite && (
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-cyan-600" />
+            <p className="text-sm font-semibold text-slate-800">Headline Rewrite Suggestion</p>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
+              <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-0.5">Current</p>
+              <p className="text-slate-700">{result.headline_rewrite.current}</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
+              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-0.5">Improved</p>
+              <p className="text-slate-800 font-medium">{result.headline_rewrite.improved}</p>
+            </div>
+            <p className="text-xs text-slate-400 italic">{result.headline_rewrite.reason}</p>
+          </div>
+        </Card>
+      )}
+
+      {/* About Tips */}
+      {result.about_tips.length > 0 && (
+        <Card className="p-4 space-y-2">
+          <p className="text-sm font-semibold text-slate-800">About Section Tips</p>
+          {result.about_tips.map((tip, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+              <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
+              <span>{tip}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* Visual Analysis */}
+      {(result.profile_image || result.cover_image || result.visual_notes.length > 0) && (
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Camera className="h-4 w-4 text-cyan-600" />
+            <p className="text-sm font-semibold text-slate-800">Visual Analysis</p>
+          </div>
+          {result.profile_image && <ImagePanel label="Profile Photo"  result={result.profile_image} />}
+          {result.cover_image   && <ImagePanel label="Cover / Banner" result={result.cover_image}   />}
+          {result.visual_notes.map((n, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+              <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
+              <span>{n}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* Strengths & Gaps */}
+      {(result.top_strengths.length > 0 || result.top_gaps.length > 0) && (
+        <div className="grid grid-cols-2 gap-3">
+          {result.top_strengths.length > 0 && (
+            <Card className="p-3 space-y-2">
+              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Top Strengths</p>
+              {result.top_strengths.map((s, i) => (
+                <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
+                  <span className="text-emerald-500 shrink-0">&#10003;</span>{s}
+                </p>
+              ))}
+            </Card>
+          )}
+          {result.top_gaps.length > 0 && (
+            <Card className="p-3 space-y-2">
+              <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Top Gaps</p>
+              {result.top_gaps.map((g, i) => (
+                <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
+                  <span className="text-red-400 shrink-0">&#10007;</span>{g}
+                </p>
+              ))}
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
+  // ── Optimized phase ───────────────────────────────────────────────────────────
+  const OptimizedLayout = optimizeResult && result && (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      {/* LEFT: Current (read-only) */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Current</p>
+          <button
+            onClick={() => setPhase('analyzed')}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 transition"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to Analysis
+          </button>
+        </div>
+
+        {optimizeResult.headline?.current && (
+          <CurrentCard label="Headline">
+            <p className="text-sm text-slate-600">{optimizeResult.headline.current}</p>
+          </CurrentCard>
+        )}
+
+        {optimizeResult.about?.current && (
+          <CurrentCard label="About">
+            <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{optimizeResult.about.current}</p>
+          </CurrentCard>
+        )}
+
+        {optimizeResult.experience?.map((exp, i) => (
+          <CurrentCard key={i} label={`${exp.title} @ ${exp.company}`}>
+            <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{exp.current_text}</p>
+          </CurrentCard>
+        ))}
+
+        {optimizeResult.skills?.current && optimizeResult.skills.current.length > 0 && (
+          <CurrentCard label="Skills">
+            <div className="flex flex-wrap gap-1.5">
+              {optimizeResult.skills.current.map((s, i) => (
+                <span key={i} className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">{s}</span>
+              ))}
+            </div>
+          </CurrentCard>
+        )}
+      </div>
+
+      {/* RIGHT: Optimized */}
+      <div className="space-y-4">
+        <p className="text-xs font-bold text-cyan-600 uppercase tracking-widest">Optimized</p>
+
+        {optimizeResult.headline && (
+          <OptimizedCard label="Headline" copyText={optimizeResult.headline.optimized}>
+            <p className="text-sm font-semibold text-slate-800 mb-2">{optimizeResult.headline.optimized}</p>
+            <p className="text-xs text-slate-400 italic">{optimizeResult.headline.reason}</p>
+          </OptimizedCard>
+        )}
+
+        {optimizeResult.about && (
+          <OptimizedCard label="About" copyText={optimizeResult.about.optimized}>
+            <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap mb-3">{optimizeResult.about.optimized}</p>
+            {optimizeResult.about.key_changes.length > 0 && (
+              <div className="space-y-1 border-t border-cyan-100 pt-2">
+                <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider">Key Changes</p>
+                {optimizeResult.about.key_changes.map((c, i) => (
+                  <p key={i} className="text-xs text-slate-500 flex gap-1.5">
+                    <span className="text-cyan-500 shrink-0">&#43;</span>{c}
+                  </p>
+                ))}
+              </div>
+            )}
+          </OptimizedCard>
+        )}
+
+        {optimizeResult.experience?.map((exp, i) => (
+          <OptimizedCard
+            key={i}
+            label={`${exp.title} @ ${exp.company}`}
+            copyText={exp.optimized_bullets.map(b => `• ${b}`).join('\n')}
+          >
+            <ul className="space-y-1.5 mb-3">
+              {exp.optimized_bullets.map((bullet, j) => (
+                <li key={j} className="text-xs text-slate-700 flex gap-2 leading-relaxed">
+                  <span className="text-cyan-500 shrink-0 mt-0.5">&#8226;</span>
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+            {exp.key_changes.length > 0 && (
+              <div className="space-y-1 border-t border-cyan-100 pt-2">
+                <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider">Key Changes</p>
+                {exp.key_changes.map((c, j) => (
+                  <p key={j} className="text-xs text-slate-500 flex gap-1.5">
+                    <span className="text-cyan-500 shrink-0">&#43;</span>{c}
+                  </p>
+                ))}
+              </div>
+            )}
+          </OptimizedCard>
+        ))}
+
+        {optimizeResult.skills && (
+          <OptimizedCard label="Skills" copyText={optimizeResult.skills.reordered.join(', ')}>
+            <div className="mb-3">
+              <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider mb-2">Reordered for Impact</p>
+              <div className="flex flex-wrap gap-1.5">
+                {optimizeResult.skills.reordered.map((s, i) => (
+                  <span key={i} className="text-xs bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded-full">{s}</span>
+                ))}
+              </div>
+            </div>
+            {optimizeResult.skills.add_if_true.length > 0 && (
+              <div className="border-t border-cyan-100 pt-2 space-y-1.5">
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Consider Adding</p>
+                {optimizeResult.skills.add_if_true.map((item, i) => (
+                  <div key={i} className="flex items-start gap-1.5">
+                    <span className="text-xs font-semibold text-slate-700 shrink-0">{item.skill}:</span>
+                    <span className="text-xs text-slate-500">{item.reason}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </OptimizedCard>
+        )}
+      </div>
+    </div>
+  )
+
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-5">
@@ -284,271 +881,67 @@ export default function ProfileBoostPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[45%_55%] gap-6">
+      {/* ── INPUT PHASE ──────────────────────────────────────────────────────── */}
+      {(phase === 'input') && (
+        <div className="grid grid-cols-1 lg:grid-cols-[45%_55%] gap-6">
+          {InputLeftPanel}
 
-        {/* ── LEFT: Inputs ──────────────────────────────────────────── */}
-        <div className="space-y-4">
-
-          {/* LinkedIn PDF */}
-          <Card className="p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-cyan-600" />
-              <p className="text-sm font-semibold text-slate-800">LinkedIn Profile PDF</p>
-              <span className="ml-auto text-xs text-red-500 font-medium">required</span>
-            </div>
-            <DropZone
-              accept=".pdf,.txt"
-              label="Upload your LinkedIn PDF export"
-              hint='LinkedIn → "Save to PDF" on your profile page'
-              icon={Upload}
-              file={pdfFile}
-              onFile={setPdfFile}
-            />
-          </Card>
-
-          {/* Photos */}
-          <Card className="p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Camera className="h-4 w-4 text-cyan-600" />
-              <p className="text-sm font-semibold text-slate-800">
-                Photos <span className="text-slate-400 font-normal text-xs">(optional)</span>
-              </p>
-            </div>
-            <div className="space-y-2">
-              <div>
-                <p className="text-xs font-medium text-slate-500 mb-1">Profile Photo</p>
-                <DropZone
-                  accept="image/jpeg,image/png,image/webp"
-                  label="Upload profile photo"
-                  hint="JPG, PNG, or WebP"
-                  icon={Camera}
-                  file={profileImage}
-                  onFile={setProfileImage}
-                />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 mb-1">Cover / Banner</p>
-                <DropZone
-                  accept="image/jpeg,image/png,image/webp"
-                  label="Upload cover / banner image"
-                  hint="JPG, PNG, or WebP"
-                  icon={Upload}
-                  file={coverImage}
-                  onFile={setCoverImage}
-                />
-              </div>
-            </div>
-          </Card>
-
-          {/* Target Role */}
-          <Card className="p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-cyan-600" />
-              <p className="text-sm font-semibold text-slate-800">
-                Target Role <span className="text-slate-400 font-normal text-xs">(optional)</span>
-              </p>
-            </div>
-            <input
-              type="text"
-              placeholder="e.g. Senior Data Engineer, Product Manager"
-              value={targetRole}
-              onChange={e => setTargetRole(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
-            />
-          </Card>
-
-          {/* Job Description */}
-          <Card className="p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-cyan-600" />
-              <p className="text-sm font-semibold text-slate-800">
-                Job Description <span className="text-slate-400 font-normal text-xs">(optional)</span>
-              </p>
-            </div>
-            <textarea
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
-              placeholder="Paste a job description for a JD fit score…"
-              value={jdText}
-              onChange={e => setJdText(e.target.value)}
-              rows={5}
-            />
-          </Card>
-
-          {/* Analyze button */}
-          <Button
-            onClick={handleAnalyze}
-            disabled={!pdfFile || analyzing}
-            className="w-full py-3 text-sm flex items-center justify-center gap-2"
-          >
-            {analyzing
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing…</>
-              : <><Zap className="h-4 w-4" /> Analyze Profile</>
-            }
-          </Button>
-
-          {error && (
-            <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-        </div>
-
-        {/* ── RIGHT: Results ────────────────────────────────────────── */}
-        <div className="space-y-4">
-
-          {/* Empty state */}
-          {!result && !analyzing && (
-            <Card className="flex flex-col items-center justify-center gap-4 py-16 text-center border-2 border-dashed border-slate-200">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
-                <Sparkles className="h-7 w-7 text-slate-400" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-600">No analysis yet</p>
-                <p className="text-xs text-slate-400 mt-1">Upload your LinkedIn PDF and click Analyze Profile</p>
-              </div>
-            </Card>
-          )}
-
-          {/* Loading */}
-          {analyzing && (
-            <Card className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
-              <div>
-                <p className="text-sm font-semibold text-slate-600">Scoring your LinkedIn profile…</p>
-                <p className="text-xs text-slate-400 mt-1">Claude Opus Max is analyzing 8 scoring buckets</p>
-              </div>
-            </Card>
-          )}
-
-          {/* Results */}
-          {result && (
-            <div className="space-y-4">
-
-              {/* Overall score */}
-              <OverallBadge
-                score={result.overall_score}
-                grade={result.grade}
-                verdict={result.overall_verdict}
-              />
-
-              {/* JD fit */}
-              {result.jd_fit_score > 0 && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">JD Fit Score</span>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className={`text-lg font-black ${
-                      result.jd_fit_score >= 80 ? 'text-emerald-600' :
-                      result.jd_fit_score >= 60 ? 'text-amber-600'   : 'text-red-600'
-                    }`}>{result.jd_fit_score}</span>
-                    <div className="w-24"><ScoreBar pct={result.jd_fit_score} /></div>
-                  </div>
+          {/* Right: empty state or loading */}
+          <div className="space-y-4">
+            {!analyzing && (
+              <Card className="flex flex-col items-center justify-center gap-4 py-16 text-center border-2 border-dashed border-slate-200">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+                  <Sparkles className="h-7 w-7 text-slate-400" />
                 </div>
-              )}
-
-              {/* Priority Fixes */}
-              {result.priority_fixes.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Priority Fixes</p>
-                  <div className="space-y-2">
-                    {result.priority_fixes.map((fix, i) => (
-                      <FixCard key={i} fix={fix} idx={i} />
-                    ))}
-                  </div>
+                  <p className="text-sm font-bold text-slate-600">No analysis yet</p>
+                  <p className="text-xs text-slate-400 mt-1">Upload your LinkedIn PDF and click Analyze Profile</p>
                 </div>
-              )}
-
-              {/* 8 Bucket Scores */}
-              {result.buckets.length > 0 && (
+              </Card>
+            )}
+            {analyzing && (
+              <Card className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Bucket Scores</p>
-                  <div className="space-y-2">
-                    {result.buckets.map(b => <BucketCard key={b.id} bucket={b} />)}
-                  </div>
+                  <p className="text-sm font-semibold text-slate-600">Scoring your LinkedIn profile…</p>
+                  <p className="text-xs text-slate-400 mt-1">Claude Opus Max is analyzing 8 scoring buckets</p>
                 </div>
-              )}
-
-              {/* Headline Rewrite */}
-              {result.headline_rewrite && (
-                <Card className="p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Pencil className="h-4 w-4 text-cyan-600" />
-                    <p className="text-sm font-semibold text-slate-800">Headline Rewrite</p>
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
-                      <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-0.5">Current</p>
-                      <p className="text-slate-700">{result.headline_rewrite.current}</p>
-                    </div>
-                    <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
-                      <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-0.5">Improved</p>
-                      <p className="text-slate-800 font-medium">{result.headline_rewrite.improved}</p>
-                    </div>
-                    <p className="text-xs text-slate-400 italic">{result.headline_rewrite.reason}</p>
-                  </div>
-                </Card>
-              )}
-
-              {/* About Tips */}
-              {result.about_tips.length > 0 && (
-                <Card className="p-4 space-y-2">
-                  <p className="text-sm font-semibold text-slate-800">About Section Tips</p>
-                  {result.about_tips.map((tip, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                      <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
-                      <span>{tip}</span>
-                    </div>
-                  ))}
-                </Card>
-              )}
-
-              {/* Visual Analysis */}
-              {(result.profile_image || result.cover_image || result.visual_notes.length > 0) && (
-                <Card className="p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Camera className="h-4 w-4 text-cyan-600" />
-                    <p className="text-sm font-semibold text-slate-800">Visual Analysis</p>
-                  </div>
-                  {result.profile_image && <ImagePanel label="Profile Photo"   result={result.profile_image} />}
-                  {result.cover_image   && <ImagePanel label="Cover / Banner"  result={result.cover_image}   />}
-                  {result.visual_notes.map((n, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                      <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
-                      <span>{n}</span>
-                    </div>
-                  ))}
-                </Card>
-              )}
-
-              {/* Strengths & Gaps */}
-              {(result.top_strengths.length > 0 || result.top_gaps.length > 0) && (
-                <div className="grid grid-cols-2 gap-3">
-                  {result.top_strengths.length > 0 && (
-                    <Card className="p-3 space-y-2">
-                      <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Top Strengths</p>
-                      {result.top_strengths.map((s, i) => (
-                        <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                          <span className="text-emerald-500 shrink-0">✓</span>{s}
-                        </p>
-                      ))}
-                    </Card>
-                  )}
-                  {result.top_gaps.length > 0 && (
-                    <Card className="p-3 space-y-2">
-                      <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Top Gaps</p>
-                      {result.top_gaps.map((g, i) => (
-                        <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                          <span className="text-red-400 shrink-0">✗</span>{g}
-                        </p>
-                      ))}
-                    </Card>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+              </Card>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── ANALYZED PHASE ───────────────────────────────────────────────────── */}
+      {(phase === 'analyzed' || phase === 'optimizing') && result && (
+        <div className="space-y-4">
+          {/* Full-width overall score banner */}
+          <OverallBadge
+            score={result.overall_score}
+            grade={result.grade}
+            verdict={result.overall_verdict}
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-[45%_55%] gap-6">
+            {AnalyzedLeftPanel}
+            {AnalyzedRightPanel}
+          </div>
+        </div>
+      )}
+
+      {/* ── OPTIMIZED PHASE ──────────────────────────────────────────────────── */}
+      {phase === 'optimized' && OptimizedLayout}
+
+      {/* Optimizing overlay */}
+      {phase === 'optimizing' && (
+        <div className="fixed inset-0 bg-white/70 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <Loader2 className="h-10 w-10 animate-spin text-cyan-500" />
+            <p className="text-sm font-semibold text-slate-700">Optimizing your profile…</p>
+            <p className="text-xs text-slate-400">Claude is rewriting your sections for maximum recruiter impact</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
