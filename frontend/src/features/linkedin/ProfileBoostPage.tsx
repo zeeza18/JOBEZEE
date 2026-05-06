@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertCircle, ArrowLeft, Camera, CheckCircle2, ChevronDown,
   ChevronUp, ClipboardCheck, Copy, FileText, Lightbulb, Loader2, Pencil,
@@ -34,7 +34,66 @@ interface OptimizeResult {
   experience?: Array<{ company: string; title: string; current_text: string; optimized_bullets: string[]; key_changes: string[] }>
   skills?:     { current: string[]; reordered: string[]; add_if_true: Array<{ skill: string; reason: string }> }
 }
-type Phase = 'input' | 'analyzed' | 'optimizing' | 'optimized'
+type Phase = 'input' | 'analyzing' | 'analyzed' | 'optimizing' | 'optimized'
+
+// ─── Step definitions ─────────────────────────────────────────────────────────
+
+const ANALYZE_STEPS: Array<{ id: string; label: string }> = [
+  { id: 'extract',      label: 'Reading your profile'            },
+  { id: 'photo_profile',label: 'Scoring your profile picture'    },
+  { id: 'photo_cover',  label: 'Scoring your cover image'        },
+  { id: 'scoring',      label: 'Scoring your sections'           },
+  { id: 'done',         label: 'Finalising results'              },
+]
+
+type StepStatus = 'waiting' | 'active' | 'done'
+
+function stepStatus(currentStep: string, stepId: string): StepStatus {
+  const order = ANALYZE_STEPS.map(s => s.id)
+  const cur = order.indexOf(currentStep)
+  const idx = order.indexOf(stepId)
+  if (idx < cur)  return 'done'
+  if (idx === cur) return 'active'
+  return 'waiting'
+}
+
+// ─── Step progress UI ─────────────────────────────────────────────────────────
+
+function StepList({ currentStep }: { currentStep: string }) {
+  const visible = currentStep === 'extract'
+    ? ANALYZE_STEPS.filter(s => !s.id.startsWith('photo'))
+    : ANALYZE_STEPS
+
+  return (
+    <div className="space-y-3">
+      {visible.map(step => {
+        const s = stepStatus(currentStep, step.id)
+        return (
+          <div key={step.id} className={`flex items-center gap-3 transition-all ${
+            s === 'waiting' ? 'opacity-30' : ''
+          }`}>
+            <div className="shrink-0 h-7 w-7 flex items-center justify-center rounded-full border-2 transition-all
+              ${s === 'done'   ? 'border-emerald-400 bg-emerald-50' :
+                s === 'active' ? 'border-cyan-500 bg-cyan-50' :
+                                 'border-slate-200 bg-white'}">
+              {s === 'done'
+                ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                : s === 'active'
+                  ? <Loader2 className="h-4 w-4 text-cyan-500 animate-spin" />
+                  : <span className="h-2 w-2 rounded-full bg-slate-200" />
+              }
+            </div>
+            <span className={`text-sm font-medium ${
+              s === 'done'   ? 'text-emerald-600' :
+              s === 'active' ? 'text-cyan-700 font-semibold' :
+                               'text-slate-400'
+            }`}>{step.label}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // ─── Score bar ────────────────────────────────────────────────────────────────
 
@@ -47,25 +106,19 @@ function ScoreBar({ pct }: { pct: number }) {
   )
 }
 
-// ─── Word diff highlight ──────────────────────────────────────────────────────
-// New/changed words (>3 chars not in original) are highlighted cyan
+// ─── Word diff ────────────────────────────────────────────────────────────────
 
 function WordDiff({ current, optimized }: { current: string; optimized: string }) {
   const currentSet = new Set(
     current.toLowerCase().split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''))
   )
-  const words = optimized.split(/(\s+)/)
   return (
     <span>
-      {words.map((chunk, i) => {
+      {optimized.split(/(\s+)/).map((chunk, i) => {
         if (/^\s+$/.test(chunk)) return <span key={i}>{chunk}</span>
         const clean = chunk.toLowerCase().replace(/[^a-z0-9]/g, '')
         const isNew = clean.length > 3 && !currentSet.has(clean)
-        return (
-          <span key={i} className={isNew ? 'bg-cyan-100 text-cyan-900 rounded px-0.5' : ''}>
-            {chunk}
-          </span>
-        )
+        return <span key={i} className={isNew ? 'bg-cyan-100 text-cyan-900 rounded px-0.5' : ''}>{chunk}</span>
       })}
     </span>
   )
@@ -73,43 +126,39 @@ function WordDiff({ current, optimized }: { current: string; optimized: string }
 
 // ─── Drop zone ────────────────────────────────────────────────────────────────
 
-function DropZone({ accept, label, hint, icon: Icon, file, onFile }: {
+function DropZone({ accept, label, hint, icon: Icon, file, onFile, disabled }: {
   accept: string; label: string; hint: string; icon: React.ElementType
-  file: File | null; onFile: (f: File) => void
+  file: File | null; onFile: (f: File) => void; disabled?: boolean
 }) {
   const [dragOver, setDragOver] = useState(false)
   const ref = useRef<HTMLInputElement>(null)
   return (
     <div
-      className={`rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+      className={`rounded-xl border-2 border-dashed transition-all ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${
         dragOver ? 'border-cyan-400 bg-cyan-50' :
         file     ? 'border-emerald-300 bg-emerald-50' :
                    'border-slate-200 hover:border-cyan-300 hover:bg-slate-50'
       }`}
-      onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+      onDragOver={e => { if (disabled) return; e.preventDefault(); setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) onFile(f) }}
-      onClick={() => ref.current?.click()}
+      onDrop={e => { if (disabled) return; e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) onFile(f) }}
+      onClick={() => { if (!disabled) ref.current?.click() }}
     >
-      <input ref={ref} type="file" accept={accept} className="hidden"
+      <input ref={ref} type="file" accept={accept} className="hidden" disabled={disabled}
         onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f) }} />
       <div className="flex items-center gap-3 px-4 py-3">
         {file ? (
-          <>
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+          <><CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-700 truncate">{file.name}</p>
               <p className="text-xs text-slate-400">Click to replace</p>
-            </div>
-          </>
+            </div></>
         ) : (
-          <>
-            <Icon className="h-5 w-5 shrink-0 text-slate-400" />
+          <><Icon className="h-5 w-5 shrink-0 text-slate-400" />
             <div>
               <p className="text-sm font-medium text-slate-600">{label}</p>
               <p className="text-xs text-slate-400">{hint}</p>
-            </div>
-          </>
+            </div></>
         )}
       </div>
     </div>
@@ -155,11 +204,9 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
               ? <span className={`text-sm font-bold shrink-0 ${textColor}`}>{bucket.score}/{bucket.max}</span>
               : <span className="text-xs text-slate-400 italic shrink-0">Not evaluated</span>}
           </div>
-          {evaluated
-            ? <ScoreBar pct={bucket.pct} />
-            : <p className="text-xs text-slate-400">{bucket.note || 'Upload photos to evaluate'}</p>}
+          {evaluated ? <ScoreBar pct={bucket.pct} /> : <p className="text-xs text-slate-400">{bucket.note || 'Upload photos to evaluate'}</p>}
         </div>
-        <button className="text-slate-400 hover:text-slate-700 shrink-0 transition">
+        <button className="text-slate-400 hover:text-slate-700 shrink-0">
           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </div>
@@ -169,9 +216,7 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
             <div className="space-y-1">
               <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Strengths</p>
               {bucket.strengths.map((s, i) => (
-                <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                  <span className="text-emerald-500 shrink-0">✓</span>{s}
-                </p>
+                <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed"><span className="text-emerald-500 shrink-0">✓</span>{s}</p>
               ))}
             </div>
           )}
@@ -179,9 +224,7 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
             <div className="space-y-1">
               <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Gaps</p>
               {bucket.gaps.map((g, i) => (
-                <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                  <span className="text-red-400 shrink-0">✗</span>{g}
-                </p>
+                <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed"><span className="text-red-400 shrink-0">✗</span>{g}</p>
               ))}
             </div>
           )}
@@ -191,24 +234,20 @@ function BucketCard({ bucket }: { bucket: BucketScore }) {
   )
 }
 
-// ─── Priority fix card ────────────────────────────────────────────────────────
+// ─── Priority fix ─────────────────────────────────────────────────────────────
 
 function FixCard({ fix, idx }: { fix: PriorityFix; idx: number }) {
-  const impactClass =
-    fix.impact === 'High'   ? 'bg-red-100 text-red-700'    :
-    fix.impact === 'Medium' ? 'bg-amber-100 text-amber-700' :
-                              'bg-blue-100 text-blue-700'
+  const c = fix.impact === 'High' ? 'bg-red-100 text-red-700' : fix.impact === 'Medium' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-1.5">
       <div className="flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-white text-xs font-bold shrink-0">{idx + 1}</span>
         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{fix.section}</span>
-        <span className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0 ${impactClass}`}>{fix.impact}</span>
+        <span className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0 ${c}`}>{fix.impact}</span>
       </div>
       <p className="text-sm font-semibold text-slate-800">{fix.issue}</p>
       <div className="flex items-start gap-1.5 text-xs text-slate-600">
-        <span className="text-cyan-500 shrink-0 mt-0.5">→</span>
-        <span>{fix.fix}</span>
+        <span className="text-cyan-500 shrink-0 mt-0.5">→</span><span>{fix.fix}</span>
       </div>
     </div>
   )
@@ -226,15 +265,14 @@ function ImagePanel({ label, result }: { label: string; result: ImageResult }) {
       </div>
       {result.suggestions.map((s, i) => (
         <div key={i} className="flex items-start gap-1.5 text-xs text-slate-600">
-          <Lightbulb className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" />
-          <span>{s}</span>
+          <Lightbulb className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" /><span>{s}</span>
         </div>
       ))}
     </div>
   )
 }
 
-// ─── Section block (left panel — current profile) ─────────────────────────────
+// ─── Section block ────────────────────────────────────────────────────────────
 
 function SectionBlock({ label, text, score, max }: {
   label: string; text: string | string[] | undefined; score?: number; max?: number
@@ -242,19 +280,15 @@ function SectionBlock({ label, text, score, max }: {
   const [open, setOpen] = useState(false)
   if (!text || (Array.isArray(text) && text.length === 0)) return null
   const displayText = Array.isArray(text) ? text.join('\n\n') : text
-  const pct = (score !== undefined && max) ? Math.round(score / max * 100) : undefined
+  const pct = score !== undefined && max ? Math.round(score / max * 100) : undefined
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition text-left"
-        onClick={() => setOpen(o => !o)}
-      >
+      <button className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition text-left" onClick={() => setOpen(o => !o)}>
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-semibold text-slate-700">{label}</span>
           {score !== undefined && max !== undefined && (
             <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md shrink-0 ${
-              pct! >= 80 ? 'bg-emerald-100 text-emerald-700' :
-              pct! >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+              pct! >= 80 ? 'bg-emerald-100 text-emerald-700' : pct! >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
             }`}>{score}/{max}</span>
           )}
         </div>
@@ -270,17 +304,13 @@ function SectionBlock({ label, text, score, max }: {
   )
 }
 
-// ─── Raw text fallback (when section parser couldn't find headers) ─────────────
+// ─── Raw text fallback ────────────────────────────────────────────────────────
 
 function RawTextFallback({ pdfText }: { pdfText: string }) {
   const [open, setOpen] = useState(false)
-  const preview = pdfText.slice(0, 300)
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-100 transition text-left"
-        onClick={() => setOpen(o => !o)}
-      >
+      <button className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-100 transition text-left" onClick={() => setOpen(o => !o)}>
         <div className="flex items-center gap-2">
           <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
           <span className="text-sm font-semibold text-amber-800">Could not detect section headers</span>
@@ -289,10 +319,10 @@ function RawTextFallback({ pdfText }: { pdfText: string }) {
       </button>
       <div className="px-4 pb-3 border-t border-amber-200">
         <p className="text-xs text-amber-700 mt-2 mb-2 leading-relaxed">
-          Your PDF may use non-standard headers. The AI still scored your full text — check the feedback panel.
+          Your PDF may use non-standard headers. The AI still scored your full text.
         </p>
         <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap font-mono bg-white rounded-lg p-3 border border-amber-100">
-          {open ? pdfText.slice(0, 2000) : preview}
+          {open ? pdfText.slice(0, 2000) : pdfText.slice(0, 300)}
           {!open && pdfText.length > 300 && <span className="text-slate-400"> …</span>}
         </p>
       </div>
@@ -305,18 +335,14 @@ function RawTextFallback({ pdfText }: { pdfText: string }) {
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <button
-      onClick={() => navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })}
-      className="flex items-center gap-1 text-xs text-slate-400 hover:text-cyan-600 transition px-2 py-1 rounded-lg hover:bg-cyan-50"
-    >
+    <button onClick={() => navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })}
+      className="flex items-center gap-1 text-xs text-slate-400 hover:text-cyan-600 transition px-2 py-1 rounded-lg hover:bg-cyan-50">
       {copied
         ? <><ClipboardCheck className="h-3.5 w-3.5 text-emerald-500" /><span className="text-emerald-600">Copied!</span></>
         : <><Copy className="h-3.5 w-3.5" /><span>Copy</span></>}
     </button>
   )
 }
-
-// ─── Optimized card (right side, optimized phase) ─────────────────────────────
 
 function OptimizedCard({ label, children, copyText }: { label: string; children: React.ReactNode; copyText?: string }) {
   return (
@@ -330,8 +356,6 @@ function OptimizedCard({ label, children, copyText }: { label: string; children:
   )
 }
 
-// ─── Current card (left side, optimized phase) ────────────────────────────────
-
 function CurrentCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden opacity-60">
@@ -343,7 +367,38 @@ function CurrentCard({ label, children }: { label: string; children: React.React
   )
 }
 
+// ─── Page header ──────────────────────────────────────────────────────────────
+
+function PageHeader({ onReanalyze, onReset }: { onReanalyze?: () => void; onReset?: () => void }) {
+  return (
+    <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div>
+        <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900">LinkedIn Profile Scorer</h1>
+      </div>
+      {(onReanalyze || onReset) && (
+        <div className="flex gap-2 flex-wrap">
+          {onReanalyze && (
+            <button onClick={onReanalyze}
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
+              <RefreshCw className="h-3.5 w-3.5" />Re-analyze
+            </button>
+          )}
+          {onReset && (
+            <button onClick={onReset}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 border border-slate-100 hover:border-slate-300 rounded-xl px-3 py-2 transition">
+              New Analysis
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
+
+const POLL_INTERVAL = 2500
 
 export default function ProfileBoostPage() {
   const [phase,          setPhase]          = useState<Phase>('input')
@@ -352,18 +407,27 @@ export default function ProfileBoostPage() {
   const [coverImage,     setCoverImage]     = useState<File | null>(null)
   const [targetRole,     setTargetRole]     = useState('')
   const [jdText,         setJdText]         = useState('')
-  const [analyzing,      setAnalyzing]      = useState(false)
+  const [currentStep,    setCurrentStep]    = useState('extract')
   const [result,         setResult]         = useState<BoostResult | null>(null)
   const [optimizeResult, setOptimizeResult] = useState<OptimizeResult | null>(null)
   const [error,          setError]          = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // ── Analyze ──────────────────────────────────────────────────────────────────
+  const stopPolling = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+  }
+
+  useEffect(() => () => stopPolling(), [])
+
+  // ── Submit → background job ───────────────────────────────────────────────
+
   const handleAnalyze = useCallback(async () => {
     if (!pdfFile) return
-    setAnalyzing(true)
     setError(null)
     setResult(null)
     setOptimizeResult(null)
+    setCurrentStep('extract')
+    setPhase('analyzing')
 
     const fd = new FormData()
     fd.append('profile_pdf', pdfFile)
@@ -372,20 +436,50 @@ export default function ProfileBoostPage() {
     if (jdText.trim())     fd.append('job_description', jdText.trim())
     if (targetRole.trim()) fd.append('target_role',     targetRole.trim())
 
+    let jobId: string
     try {
-      const res  = await fetch('/api/linkedin-boost/analyze', { method: 'POST', credentials: 'include', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Analysis failed')
-      setResult(data as BoostResult)
-      setPhase('analyzed')
+      const res = await fetch('/api/linkedin-boost/analyze', { method: 'POST', credentials: 'include', body: fd })
+      const txt = await res.text()
+      let data: Record<string, unknown>
+      try { data = JSON.parse(txt) } catch { throw new Error(txt.slice(0, 200) || 'Server error') }
+      if (!res.ok) throw new Error((data.detail as string) || 'Failed to start analysis')
+      jobId = data.job_id as string
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setAnalyzing(false)
+      setPhase('input')
+      return
     }
+
+    // Poll for progress
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/linkedin-boost/status/${jobId}`, { credentials: 'include' })
+        const txt = await res.text()
+        let data: Record<string, unknown>
+        try { data = JSON.parse(txt) } catch { throw new Error('Invalid server response') }
+
+        if (!res.ok) throw new Error((data.detail as string) || 'Analysis failed')
+
+        const status = data.status as string
+        const step   = data.step   as string | undefined
+
+        if (step) setCurrentStep(step)
+
+        if (status === 'done') {
+          stopPolling()
+          setResult(data.result as BoostResult)
+          setPhase('analyzed')
+        }
+      } catch (e: unknown) {
+        stopPolling()
+        setError(e instanceof Error ? e.message : String(e))
+        setPhase('input')
+      }
+    }, POLL_INTERVAL)
   }, [pdfFile, profileImage, coverImage, jdText, targetRole])
 
-  // ── Optimize ─────────────────────────────────────────────────────────────────
+  // ── Optimize ─────────────────────────────────────────────────────────────
+
   const handleOptimize = useCallback(async () => {
     if (!result?.pdf_text) return
     setPhase('optimizing')
@@ -396,8 +490,10 @@ export default function ProfileBoostPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pdf_text: result.pdf_text, score_result: result, target_role: targetRole }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Optimization failed')
+      const txt  = await res.text()
+      let data: Record<string, unknown>
+      try { data = JSON.parse(txt) } catch { throw new Error('Invalid response from server') }
+      if (!res.ok) throw new Error((data.detail as string) || 'Optimization failed')
       setOptimizeResult(data as OptimizeResult)
       setPhase('optimized')
     } catch (e: unknown) {
@@ -406,35 +502,14 @@ export default function ProfileBoostPage() {
     }
   }, [result, targetRole])
 
-  // ── Re-analyze (keep file, go back to input) ──────────────────────────────────
-  const handleReanalyze = () => {
-    setPhase('input')
-    setResult(null)
-    setOptimizeResult(null)
-    setError(null)
-    // keep pdfFile, profileImage, coverImage, targetRole, jdText
-  }
-
-  // ── Full reset ────────────────────────────────────────────────────────────────
-  const handleReset = () => {
-    setPhase('input')
-    setResult(null)
-    setOptimizeResult(null)
-    setError(null)
-    setPdfFile(null)
-    setProfileImage(null)
-    setCoverImage(null)
-    setTargetRole('')
-    setJdText('')
-  }
-
+  const handleReanalyze = () => { stopPolling(); setPhase('input'); setResult(null); setOptimizeResult(null); setError(null) }
+  const handleReset     = () => { stopPolling(); setPhase('input'); setResult(null); setOptimizeResult(null); setError(null); setPdfFile(null); setProfileImage(null); setCoverImage(null); setTargetRole(''); setJdText('') }
   const getBucket = (id: string) => result?.buckets.find(b => b.id === id)
-  const sectionsParsed = (ps?: ParsedSections) =>
-    ps && (ps.headline || ps.about || (ps.experience?.length ?? 0) > 0 || (ps.skills?.length ?? 0) > 0)
+  const hasSections = (ps?: ParsedSections) => ps && (ps.headline || ps.about || (ps.experience?.length ?? 0) > 0 || (ps.skills?.length ?? 0) > 0)
 
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
   // PHASE: INPUT
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
   if (phase === 'input') {
     return (
       <div className="space-y-5">
@@ -445,9 +520,8 @@ export default function ProfileBoostPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[45%_55%] gap-6">
-
-          {/* LEFT — form (dims while loading) */}
-          <div className={`space-y-4 transition-all duration-500 ${analyzing ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+          {/* LEFT — form */}
+          <div className="space-y-4">
             <Card className="p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-cyan-600" />
@@ -466,17 +540,15 @@ export default function ProfileBoostPage() {
                   Photos <span className="text-slate-400 font-normal text-xs">(optional)</span>
                 </p>
               </div>
-              <div className="space-y-2">
-                <div>
-                  <p className="text-xs font-medium text-slate-500 mb-1">Profile Photo</p>
-                  <DropZone accept="image/jpeg,image/png,image/webp" label="Upload profile photo"
-                    hint="JPG, PNG, or WebP" icon={Camera} file={profileImage} onFile={setProfileImage} />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 mb-1">Cover / Banner</p>
-                  <DropZone accept="image/jpeg,image/png,image/webp" label="Upload cover / banner"
-                    hint="JPG, PNG, or WebP" icon={Upload} file={coverImage} onFile={setCoverImage} />
-                </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 mb-1">Profile Photo</p>
+                <DropZone accept="image/jpeg,image/png,image/webp" label="Upload profile photo"
+                  hint="JPG, PNG, or WebP" icon={Camera} file={profileImage} onFile={setProfileImage} />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500 mb-1">Cover / Banner</p>
+                <DropZone accept="image/jpeg,image/png,image/webp" label="Upload cover / banner"
+                  hint="JPG, PNG, or WebP" icon={Upload} file={coverImage} onFile={setCoverImage} />
               </div>
             </Card>
 
@@ -504,11 +576,9 @@ export default function ProfileBoostPage() {
                 value={jdText} onChange={e => setJdText(e.target.value)} rows={4} />
             </Card>
 
-            <Button onClick={handleAnalyze} disabled={!pdfFile || analyzing}
+            <Button onClick={handleAnalyze} disabled={!pdfFile}
               className="w-full py-3 text-sm flex items-center justify-center gap-2">
-              {analyzing
-                ? <><Loader2 className="h-4 w-4 animate-spin" />Analyzing…</>
-                : <><Zap className="h-4 w-4" />Analyze Profile</>}
+              <Zap className="h-4 w-4" />Analyze Profile
             </Button>
 
             {error && (
@@ -518,103 +588,97 @@ export default function ProfileBoostPage() {
             )}
           </div>
 
-          {/* RIGHT — loading / empty */}
-          <div>
-            {analyzing ? (
-              <Card className="h-full flex flex-col items-center justify-center gap-5 py-20 text-center min-h-[320px]">
-                <div className="relative">
-                  <div className="h-16 w-16 rounded-full border-4 border-cyan-100 border-t-cyan-500 animate-spin" />
-                  <Sparkles className="h-6 w-6 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                </div>
-                <div>
-                  <p className="text-base font-bold text-slate-700">Scoring your profile…</p>
-                  <p className="text-xs text-slate-400 mt-1.5">AI is analyzing 8 scoring buckets</p>
-                  <p className="text-xs text-slate-300 mt-1">This may take up to 2 minutes</p>
-                </div>
-              </Card>
-            ) : (
-              <Card className="h-full flex flex-col items-center justify-center gap-4 py-16 text-center border-2 border-dashed border-slate-200 min-h-[280px]">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
-                  <Sparkles className="h-7 w-7 text-slate-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-600">No analysis yet</p>
-                  <p className="text-xs text-slate-400 mt-1 max-w-[200px] mx-auto leading-relaxed">
-                    Upload your LinkedIn PDF and click Analyze Profile
-                  </p>
-                </div>
-              </Card>
-            )}
-          </div>
+          {/* RIGHT — empty state */}
+          <Card className="h-full flex flex-col items-center justify-center gap-4 py-16 text-center border-2 border-dashed border-slate-200 min-h-[280px]">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+              <Sparkles className="h-7 w-7 text-slate-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-600">No analysis yet</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-[200px] mx-auto leading-relaxed">
+                Upload your LinkedIn PDF and click Analyze Profile
+              </p>
+            </div>
+          </Card>
         </div>
       </div>
     )
   }
 
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // PHASE: ANALYZING — step-by-step progress
+  // ══════════════════════════════════════════════════════════════════════════
+  if (phase === 'analyzing') {
+    return (
+      <div className="space-y-5">
+        <div>
+          <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Analyzing your profile…</h1>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[45%_55%] gap-6">
+          {/* LEFT — steps */}
+          <Card className="p-6">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">Progress</p>
+            <StepList currentStep={currentStep} />
+          </Card>
+
+          {/* RIGHT — illustration */}
+          <Card className="flex flex-col items-center justify-center gap-5 py-12 text-center min-h-[320px]">
+            <div className="relative">
+              <div className="h-20 w-20 rounded-full border-4 border-cyan-100 border-t-cyan-500 animate-spin" />
+              <Sparkles className="h-8 w-8 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            </div>
+            <div>
+              <p className="text-base font-bold text-slate-700">
+                {ANALYZE_STEPS.find(s => s.id === currentStep)?.label ?? 'Processing…'}
+              </p>
+              <p className="text-xs text-slate-400 mt-2 max-w-[220px] mx-auto leading-relaxed">
+                Each section is scored individually against recruiter criteria
+              </p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // PHASE: ANALYZED / OPTIMIZING
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
   if ((phase === 'analyzed' || phase === 'optimizing') && result) {
     const ps = result.parsed_sections
-    const hasSections = sectionsParsed(ps)
 
     return (
       <div className="space-y-5">
-
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
-            <h1 className="text-xl md:text-2xl font-bold text-slate-900">LinkedIn Profile Scorer</h1>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {/* Re-analyze keeps file loaded */}
-            <button onClick={handleReanalyze}
-              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
-              <RefreshCw className="h-3.5 w-3.5" />Re-analyze
-            </button>
-            {/* New analysis clears everything */}
-            <button onClick={handleReset}
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 border border-slate-100 hover:border-slate-300 rounded-xl px-3 py-2 transition">
-              New Analysis
-            </button>
-          </div>
-        </div>
-
-        {/* Overall score */}
+        <PageHeader onReanalyze={handleReanalyze} onReset={handleReset} />
         <OverallBadge score={result.overall_score} grade={result.grade} verdict={result.overall_verdict} />
 
-        {/* JD fit */}
         {result.jd_fit_score > 0 && (
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">JD Fit Score</span>
             <div className="flex items-center gap-3 shrink-0">
-              <span className={`text-lg font-black ${
-                result.jd_fit_score >= 80 ? 'text-emerald-600' : result.jd_fit_score >= 60 ? 'text-amber-600' : 'text-red-600'
-              }`}>{result.jd_fit_score}</span>
+              <span className={`text-lg font-black ${result.jd_fit_score >= 80 ? 'text-emerald-600' : result.jd_fit_score >= 60 ? 'text-amber-600' : 'text-red-600'}`}>{result.jd_fit_score}</span>
               <div className="w-24"><ScoreBar pct={result.jd_fit_score} /></div>
             </div>
           </div>
         )}
 
-        {/* Left / Right */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* LEFT — current profile sections */}
+          {/* LEFT — current sections */}
           <div className="space-y-3">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Current Profile</p>
-
-            {hasSections ? (
+            {hasSections(ps) ? (
               <>
-                <SectionBlock label="Headline"       text={ps?.headline}   score={getBucket('headline')?.score}   max={getBucket('headline')?.max} />
-                <SectionBlock label="About / Summary" text={ps?.about}      score={getBucket('about')?.score}     max={getBucket('about')?.max} />
-                <SectionBlock label="Experience"     text={ps?.experience} score={getBucket('experience')?.score} max={getBucket('experience')?.max} />
-                <SectionBlock label="Skills"         text={ps?.skills}     score={getBucket('skills')?.score}    max={getBucket('skills')?.max} />
-                <SectionBlock label="Education"      text={ps?.education}  score={getBucket('completeness')?.score} max={getBucket('completeness')?.max} />
+                <SectionBlock label="Headline"        text={ps?.headline}   score={getBucket('headline')?.score}    max={getBucket('headline')?.max} />
+                <SectionBlock label="About / Summary" text={ps?.about}      score={getBucket('about')?.score}      max={getBucket('about')?.max} />
+                <SectionBlock label="Experience"      text={ps?.experience} score={getBucket('experience')?.score}  max={getBucket('experience')?.max} />
+                <SectionBlock label="Skills"          text={ps?.skills}     score={getBucket('skills')?.score}     max={getBucket('skills')?.max} />
+                <SectionBlock label="Education"       text={ps?.education}  score={getBucket('completeness')?.score} max={getBucket('completeness')?.max} />
                 {ps?.has_recommendations && (
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <p className="text-xs font-semibold text-emerald-700">Recommendations section detected — good for proof score</p>
+                    <p className="text-xs font-semibold text-emerald-700">Recommendations section detected</p>
                   </div>
                 )}
               </>
@@ -623,7 +687,7 @@ export default function ProfileBoostPage() {
             )}
           </div>
 
-          {/* RIGHT — AI feedback */}
+          {/* RIGHT — feedback */}
           <div className="space-y-4">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">AI Feedback</p>
 
@@ -634,12 +698,10 @@ export default function ProfileBoostPage() {
               </div>
             )}
 
-            {result.buckets.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Bucket Scores</p>
-                {result.buckets.map(b => <BucketCard key={b.id} bucket={b} />)}
-              </div>
-            )}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Bucket Scores</p>
+              {result.buckets.map(b => <BucketCard key={b.id} bucket={b} />)}
+            </div>
 
             {result.headline_rewrite && (
               <Card className="p-4 space-y-3">
@@ -647,14 +709,14 @@ export default function ProfileBoostPage() {
                   <Pencil className="h-4 w-4 text-cyan-600" />
                   <p className="text-sm font-semibold text-slate-800">Headline Rewrite</p>
                 </div>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2">
                   <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
                     <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-0.5">Current</p>
-                    <p className="text-slate-700 text-xs">{result.headline_rewrite.current}</p>
+                    <p className="text-xs text-slate-700">{result.headline_rewrite.current}</p>
                   </div>
                   <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
                     <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-0.5">Improved</p>
-                    <p className="text-slate-800 font-medium text-xs">{result.headline_rewrite.improved}</p>
+                    <p className="text-xs text-slate-800 font-medium">{result.headline_rewrite.improved}</p>
                   </div>
                   <p className="text-xs text-slate-400 italic">{result.headline_rewrite.reason}</p>
                 </div>
@@ -679,7 +741,7 @@ export default function ProfileBoostPage() {
                   <p className="text-sm font-semibold text-slate-800">Visual Analysis</p>
                 </div>
                 {result.profile_image && <ImagePanel label="Profile Photo"  result={result.profile_image} />}
-                {result.cover_image   && <ImagePanel label="Cover / Banner" result={result.cover_image}   />}
+                {result.cover_image   && <ImagePanel label="Cover / Banner" result={result.cover_image} />}
                 {result.visual_notes.map((n, i) => (
                   <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
                     <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" /><span>{n}</span>
@@ -694,9 +756,7 @@ export default function ProfileBoostPage() {
                   <Card className="p-3 space-y-2">
                     <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Top Strengths</p>
                     {result.top_strengths.map((s, i) => (
-                      <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                        <span className="text-emerald-500 shrink-0">✓</span>{s}
-                      </p>
+                      <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed"><span className="text-emerald-500 shrink-0">✓</span>{s}</p>
                     ))}
                   </Card>
                 )}
@@ -704,16 +764,13 @@ export default function ProfileBoostPage() {
                   <Card className="p-3 space-y-2">
                     <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Top Gaps</p>
                     {result.top_gaps.map((g, i) => (
-                      <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-                        <span className="text-red-400 shrink-0">✗</span>{g}
-                      </p>
+                      <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed"><span className="text-red-400 shrink-0">✗</span>{g}</p>
                     ))}
                   </Card>
                 )}
               </div>
             )}
 
-            {/* Optimize CTA */}
             <div className="pt-2 border-t border-slate-100">
               <Button onClick={handleOptimize} disabled={phase === 'optimizing'}
                 className="w-full py-3 text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500">
@@ -721,9 +778,7 @@ export default function ProfileBoostPage() {
                   ? <><Loader2 className="h-4 w-4 animate-spin" />Optimizing…</>
                   : <><Sparkles className="h-4 w-4" />Optimize Profile</>}
               </Button>
-              <p className="text-xs text-slate-400 text-center mt-2">
-                Rewrites headline, about, experience bullets and skills
-              </p>
+              <p className="text-xs text-slate-400 text-center mt-2">Rewrites headline, about, experience and skills</p>
               {error && (
                 <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2 mt-2">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>{error}</span>
@@ -733,7 +788,6 @@ export default function ProfileBoostPage() {
           </div>
         </div>
 
-        {/* Optimizing overlay */}
         {phase === 'optimizing' && (
           <div className="fixed inset-0 bg-white/70 backdrop-blur-sm z-50 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4 text-center bg-white rounded-2xl shadow-xl border border-slate-200 px-10 py-10">
@@ -741,8 +795,8 @@ export default function ProfileBoostPage() {
                 <div className="h-14 w-14 rounded-full border-4 border-cyan-100 border-t-cyan-500 animate-spin" />
                 <Sparkles className="h-5 w-5 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
-              <p className="text-sm font-semibold text-slate-700">Optimizing your profile…</p>
-              <p className="text-xs text-slate-400">Rewriting your sections for maximum recruiter impact</p>
+              <p className="text-sm font-semibold text-slate-700">Rewriting your sections…</p>
+              <p className="text-xs text-slate-400">Optimizing for maximum recruiter impact</p>
             </div>
           </div>
         )}
@@ -750,28 +804,24 @@ export default function ProfileBoostPage() {
     )
   }
 
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
   // PHASE: OPTIMIZED
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
   if (phase === 'optimized' && optimizeResult && result) {
     return (
       <div className="space-y-5">
-
-        {/* Header */}
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
             <h1 className="text-xl md:text-2xl font-bold text-slate-900">Optimized Profile</h1>
-            <p className="text-sm text-slate-400 mt-0.5">
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-sm bg-cyan-200 inline-block" />highlighted words are new
-              </span>
+            <p className="text-sm text-slate-400 mt-0.5 flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-sm bg-cyan-200" />highlighted words are new
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <button onClick={() => setPhase('analyzed')}
               className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-2 transition">
-              <ArrowLeft className="h-3.5 w-3.5" />Back to Analysis
+              <ArrowLeft className="h-3.5 w-3.5" />Back
             </button>
             <button onClick={handleReanalyze}
               className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
@@ -787,11 +837,9 @@ export default function ProfileBoostPage() {
         <OverallBadge score={result.overall_score} grade={result.grade} verdict={result.overall_verdict} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* LEFT — current (dimmed) */}
+          {/* LEFT — current */}
           <div className="space-y-4">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Current</p>
-
             {optimizeResult.headline?.current && (
               <CurrentCard label="Headline">
                 <p className="text-sm text-slate-600">{optimizeResult.headline.current}</p>
@@ -818,7 +866,7 @@ export default function ProfileBoostPage() {
             )}
           </div>
 
-          {/* RIGHT — optimized with word diff */}
+          {/* RIGHT — optimized */}
           <div className="space-y-4">
             <p className="text-xs font-bold text-cyan-600 uppercase tracking-widest">AI Optimized</p>
 
@@ -840,9 +888,7 @@ export default function ProfileBoostPage() {
                   <div className="space-y-1 border-t border-cyan-100 pt-2">
                     <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider">Key Changes</p>
                     {optimizeResult.about.key_changes.map((c, i) => (
-                      <p key={i} className="text-xs text-slate-500 flex gap-1.5">
-                        <span className="text-cyan-500 shrink-0">+</span>{c}
-                      </p>
+                      <p key={i} className="text-xs text-slate-500 flex gap-1.5"><span className="text-cyan-500 shrink-0">+</span>{c}</p>
                     ))}
                   </div>
                 )}
@@ -856,7 +902,7 @@ export default function ProfileBoostPage() {
                   {exp.optimized_bullets.map((bullet, j) => (
                     <li key={j} className="text-xs text-slate-700 flex gap-2 leading-relaxed">
                       <span className="text-cyan-500 shrink-0 mt-0.5">•</span>
-                      <span><WordDiff current={exp.current_text} optimized={bullet} /></span>
+                      <WordDiff current={exp.current_text} optimized={bullet} />
                     </li>
                   ))}
                 </ul>
@@ -864,9 +910,7 @@ export default function ProfileBoostPage() {
                   <div className="space-y-1 border-t border-cyan-100 pt-2">
                     <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider">Key Changes</p>
                     {exp.key_changes.map((c, j) => (
-                      <p key={j} className="text-xs text-slate-500 flex gap-1.5">
-                        <span className="text-cyan-500 shrink-0">+</span>{c}
-                      </p>
+                      <p key={j} className="text-xs text-slate-500 flex gap-1.5"><span className="text-cyan-500 shrink-0">+</span>{c}</p>
                     ))}
                   </div>
                 )}
@@ -880,11 +924,7 @@ export default function ProfileBoostPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {optimizeResult.skills.reordered.map((s, i) => {
                       const isNew = !optimizeResult.skills!.current.includes(s)
-                      return (
-                        <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${
-                          isNew ? 'bg-cyan-200 text-cyan-900 font-semibold' : 'bg-cyan-100 text-cyan-800'
-                        }`}>{s}</span>
-                      )
+                      return <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${isNew ? 'bg-cyan-200 text-cyan-900 font-semibold' : 'bg-cyan-100 text-cyan-800'}`}>{s}</span>
                     })}
                   </div>
                 </div>

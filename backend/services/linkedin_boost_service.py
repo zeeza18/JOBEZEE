@@ -187,7 +187,7 @@ Return ONLY this JSON shape:
 
 LINKEDIN PROFILE TEXT:
 ---
-{pdf_text[:8000]}
+{pdf_text[:5000]}
 ---
 """
 
@@ -448,7 +448,7 @@ Return ONLY this JSON shape:
 
 LINKEDIN PROFILE TEXT:
 ---
-{pdf_text[:10000]}
+{pdf_text[:7000]}
 ---
 """
 
@@ -463,8 +463,16 @@ def analyze_linkedin_profile(
     profile_image_type: str | None = None,
     cover_image_bytes: bytes | None = None,
     cover_image_type: str | None = None,
+    on_step=None,          # optional callback(step_name: str)
 ) -> dict[str, Any]:
-    """Score a LinkedIn profile across 8 buckets via Claude Opus Max."""
+    """Score a LinkedIn profile across 8 buckets."""
+    def _step(name: str) -> None:
+        if on_step:
+            try:
+                on_step(name)
+            except Exception:
+                pass
+
     key = _resolve_opusmax_key()
     if not key:
         raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
@@ -473,36 +481,40 @@ def analyze_linkedin_profile(
     cover_img:   dict | None = None
 
     if profile_image_bytes and profile_image_type:
+        _step("photo_profile")
         profile_img = analyze_profile_picture(profile_image_bytes, profile_image_type)
     if cover_image_bytes and cover_image_type:
+        _step("photo_cover")
         cover_img = analyze_cover_picture(cover_image_bytes, cover_image_type)
 
     visual_evaluated = bool(profile_img or cover_img)
 
+    _step("scoring")
     prompt = _build_prompt(pdf_text, job_description, target_role, profile_img, cover_img)
     client = _make_anthropic_client(key)
 
-    # Retry up to 3 times on all-zero or bad JSON response
+    # Single attempt — retrying on bad JSON only, not on slow/empty responses
     data: dict[str, Any] = {}
     result: dict[str, Any] = {}
-    for attempt in range(3):
-        response = client.messages.create(
-            model=LINKEDIN_MODEL,
-            max_tokens=3000,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw  = next((b.text for b in response.content if hasattr(b, "text")), "{}")
-        data = _parse(raw)
-        result = _normalize(data, profile_img, cover_img, visual_evaluated)
-        total_bucket_pts = sum(
-            b["score"] for b in result.get("buckets", [])
-            if b.get("evaluated", True)
-        )
-        if total_bucket_pts > 0 or attempt == 2:
-            break
+    for attempt in range(2):
+        try:
+            response = client.messages.create(
+                model=LINKEDIN_MODEL,
+                max_tokens=2000,
+                system=_SYSTEM,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw  = next((b.text for b in response.content if hasattr(b, "text")), "{}")
+            data = _parse(raw)
+            if data:
+                break
+        except Exception:
+            if attempt == 1:
+                raise
 
-    # Attach parsed sections and raw pdf_text for the optimize phase
+    result = _normalize(data, profile_img, cover_img, visual_evaluated)
+    _step("done")
+
     result["parsed_sections"] = _parse_sections(pdf_text)
     result["pdf_text"] = pdf_text
 
