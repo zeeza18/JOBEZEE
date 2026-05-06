@@ -41,33 +41,34 @@ def _make_anthropic_client(api_key: str):
 
 # ─── OpusMax understand_image ──────────────────────────────────────────────────
 
-def _call_opusmax_understand_image(media_bytes: bytes, media_type: str, prompt: str) -> str:
-    api_key = _resolve_opusmax_key()
-    if not api_key:
-        raise RuntimeError("OPUSMAX_API_KEY not configured")
+def _call_vision_analysis(media_bytes: bytes, media_type: str, prompt: str) -> str:
+    """Analyze an image via Anthropic messages API (vision). Works with OpusMax and direct Anthropic."""
+    key = _resolve_opusmax_key()
+    if not key:
+        raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
 
-    data_url = f"data:{media_type};base64,{base64.b64encode(media_bytes).decode('utf-8')}"
-    payload = json.dumps({"prompt": prompt, "image_url": data_url}).encode("utf-8")
-    request = Request(
-        OPUSMAX_UNDERSTAND_IMAGE_URL,
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-            "x-api-key": api_key,
-        },
-        method="POST",
+    client  = _make_anthropic_client(key)
+    encoded = base64.b64encode(media_bytes).decode("utf-8")
+
+    response = client.messages.create(
+        model=DEFAULT_MODEL,
+        max_tokens=600,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type":       "base64",
+                        "media_type": media_type,
+                        "data":       encoded,
+                    },
+                },
+                {"type": "text", "text": prompt},
+            ],
+        }],
     )
-    try:
-        with urlopen(request, timeout=CLAUDE_TIMEOUT_SECONDS) as resp:
-            raw = resp.read().decode("utf-8")
-    except HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"OpusMax understand_image HTTP {exc.code}: {detail[:500]}") from exc
-    except URLError as exc:
-        raise RuntimeError(f"OpusMax understand_image network error: {exc}") from exc
-
-    return _extract_text_from_opusmax_response(raw)
+    return next((b.text for b in response.content if hasattr(b, "text")), "{}")
 
 
 def _extract_text_from_opusmax_response(raw_body: str) -> str:
@@ -204,8 +205,8 @@ Return this exact shape:
 # ─── Image analysis ────────────────────────────────────────────────────────────
 
 def analyze_profile_picture(media_bytes: bytes, media_type: str) -> dict[str, Any]:
-    """Analyze profile picture via OpusMax /tools/understand_image."""
-    raw = _call_opusmax_understand_image(media_bytes, media_type, PROFILE_PROMPT)
+    """Analyze profile picture via Anthropic messages API with vision."""
+    raw = _call_vision_analysis(media_bytes, media_type, PROFILE_PROMPT)
     data = _safe_json_parse_profile(raw)
     obs  = data.get("observations", {})
     return {
@@ -227,8 +228,8 @@ def analyze_profile_picture(media_bytes: bytes, media_type: str) -> dict[str, An
 
 
 def analyze_cover_picture(media_bytes: bytes, media_type: str) -> dict[str, Any]:
-    """Analyze cover/banner picture via OpusMax /tools/understand_image."""
-    raw = _call_opusmax_understand_image(media_bytes, media_type, COVER_PROMPT)
+    """Analyze cover/banner picture via Anthropic messages API with vision."""
+    raw = _call_vision_analysis(media_bytes, media_type, COVER_PROMPT)
     data = _safe_json_parse_cover(raw)
     obs  = data.get("observations", {})
     return {
