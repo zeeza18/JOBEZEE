@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
 
     # ── LLM Keys (Phase 1 / SmartExtract) ───────────────────────────────────
+    OPUSMAX_API_KEY:   str = ""   # OpusMax — always first priority for Claude calls
     OPENAI_API_KEY:    str = ""
     ANTHROPIC_API_KEY: str = ""   # Claude API key fallback
     GOOGLE_API_KEY:    str = ""   # alias — same as GEMINI_API_KEY

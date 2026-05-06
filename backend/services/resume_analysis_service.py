@@ -24,10 +24,9 @@ _OPUSMAX_PREFIX                  = "sk-ant-opm"
 
 def _resolve_opusmax_key() -> str:
     cfg = get_settings()
-    # ANTHROPIC_API_KEY holds the OpusMax key; OPENAI_API_KEY is the real OpenAI key
     return (
-        (cfg.ANTHROPIC_API_KEY or "").strip()
-        or os.getenv("OPUSMAX_API_KEY", "").strip()
+        (cfg.OPUSMAX_API_KEY  or "").strip()
+        or (cfg.ANTHROPIC_API_KEY or "").strip()
         or os.getenv("CLAUDE_API_KEY", "").strip()
         or (cfg.OPENAI_API_KEY or "").strip()
     )
