@@ -618,7 +618,11 @@ export default function ProfilePage() {
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-slate-800">{form.resume_filename}</p>
                     {form.resume_url && (
-              <a href={`${BASE}${form.resume_url}`} target="_blank" rel="noreferrer" className="text-xs text-brand hover:underline">
+              <a
+                      href={`${BASE}/api/profile/resume/download`}
+                      download={form.resume_filename || 'resume.pdf'}
+                      className="text-xs text-brand hover:underline"
+                    >
                         View / Download →
                       </a>
                     )}
