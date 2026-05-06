@@ -528,7 +528,7 @@ export default function ProfileBoostPage() {
                 </div>
                 <div>
                   <p className="text-base font-bold text-slate-700">Scoring your profile…</p>
-                  <p className="text-xs text-slate-400 mt-1.5">Claude Opus Max is analyzing 8 buckets</p>
+                  <p className="text-xs text-slate-400 mt-1.5">AI is analyzing 8 scoring buckets</p>
                   <p className="text-xs text-slate-300 mt-1">This may take up to 2 minutes</p>
                 </div>
               </Card>
@@ -742,7 +742,7 @@ export default function ProfileBoostPage() {
                 <Sparkles className="h-5 w-5 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
               <p className="text-sm font-semibold text-slate-700">Optimizing your profile…</p>
-              <p className="text-xs text-slate-400">Claude is rewriting sections for maximum recruiter impact</p>
+              <p className="text-xs text-slate-400">Rewriting your sections for maximum recruiter impact</p>
             </div>
           </div>
         )}
