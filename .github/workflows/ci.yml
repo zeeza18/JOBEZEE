@@ -132,15 +132,21 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Deploy to Hetzner
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.HETZNER_HOST }}
-          username: root
-          key: ${{ secrets.HETZNER_SSH_KEY }}
-          script: |
-            set -e
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$HETZNER_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=15 \
+            root@$HETZNER_HOST \
+            "set -e
             cd /opt/jobezee
             git pull origin main
-            docker compose up -d --build postgres
-            docker compose up -d --build backend
-            docker compose ps
+            POSTGRES_PASSWORD=$POSTGRES_PASSWORD docker compose up -d postgres
+            POSTGRES_PASSWORD=$POSTGRES_PASSWORD docker compose up -d --build backend
+            docker compose ps"
