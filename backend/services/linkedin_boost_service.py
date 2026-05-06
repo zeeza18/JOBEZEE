@@ -254,6 +254,6 @@ def analyze_linkedin_profile(
         system=_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
-    raw  = response.content[0].text if response.content else "{}"
+    raw  = next((b.text for b in response.content if hasattr(b, "text")), "{}")
     data = _parse(raw)
     return _normalize(data, profile_img, cover_img)
