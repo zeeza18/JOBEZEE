@@ -125,3 +125,22 @@ jobs:
         run: |
           find backend discovery tailor apply/applypilot worker scripts tests -name '*.py' \
             | xargs python -m py_compile && echo "All .py files syntax OK"
+
+  deploy:
+    needs: lint-and-verify
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Deploy to Hetzner
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: root
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/jobezee
+            git pull origin main
+            docker compose up -d --build postgres
+            docker compose up -d --build backend
+            docker compose ps
