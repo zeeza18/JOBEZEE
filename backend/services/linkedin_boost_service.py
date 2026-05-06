@@ -25,8 +25,8 @@ BUCKET_MAX: dict[str, int] = {
     "about":         15,
     "experience":    22,
     "skills":        10,
-    "proof":          6,
-    "completeness":   5,
+    "proof":          8,
+    "completeness":   3,
     "visual":         5,
 }
 
@@ -95,15 +95,55 @@ def _build_prompt(
 
     return f"""Score this LinkedIn profile.{role_line}
 
-SCORING BUCKETS (max points):
-- searchability (25): role keywords in headline/about/skills/experience, keyword repetition across sections.
-- headline (12): clear role, skills/tools, domain, value proposition, not generic.
-- about (15): professional identity, relevant skills, domain context, measurable impact, career direction, story flow.
-- experience (22): strong action verbs, quantified results, tools/methods, business impact, role relevance, not task-only.
-- skills (10): 5+ relevant skills, role core skills, tools/platforms, not only soft skills, skills across profile.
-- proof (6): projects/featured work, certifications/courses, publications/portfolio, proof matches direction.
-- completeness (5): headline(1), about(1), experience(1), education(1), skills(1).
-- visual (5): profile photo quality (2.5pt), cover/banner quality (2.5pt).{visual_note}
+SCORING BUCKETS — award points only for evidence you can see in the profile text:
+
+searchability (25 pts):
+  Count how many times the primary target role keyword (or close variants) appears across
+  headline, about, experience, and skills sections. Score:
+    0-1 appearances → 0-8 pts | 2-3 → 9-15 pts | 4-6 → 16-20 pts | 7+ → 21-25 pts
+  Also check: industry/domain keywords present, tools/tech stack named in multiple sections.
+
+headline (12 pts):
+  Deduct points for each missing element:
+  - Role title clearly stated (-3 if missing)
+  - 2+ specific skills/tools named (-3 if missing)
+  - Domain or industry context (-3 if missing)
+  - Value proposition or differentiator (-3 if generic/missing)
+
+about (15 pts):
+  - Professional identity + specialisation clearly stated (3 pts)
+  - At least 1 quantified achievement or metric (3 pts)
+  - Target domain/industry context (2 pts)
+  - Career direction or motivation (2 pts)
+  - Relevant tools/skills reinforced (2 pts)
+  - Strong opening hook, not "I am a..." (2 pts)
+  - Clear CTA or invitation to connect (1 pt)
+
+experience (22 pts):
+  - Strong action verbs (not "responsible for", "helped with") (4 pts)
+  - Quantified results: numbers, %, $, time saved (6 pts)
+  - Tools and methods named per role (4 pts)
+  - Business impact beyond task completion (4 pts)
+  - Role relevance to target direction (4 pts)
+
+skills (10 pts):
+  - 5+ skills listed (2 pts)
+  - Core role-specific hard skills present (3 pts)
+  - Tools and platforms listed (3 pts)
+  - Skills reinforced across profile (not only in skills section) (2 pts)
+
+proof (8 pts):
+  - LinkedIn recommendations present (look for "Recommendations" section) (3 pts)
+  - Certifications or courses listed (2 pts)
+  - Projects, portfolio, GitHub, or featured work present (2 pts)
+  - Publications, articles, or external links (1 pt)
+
+completeness (3 pts):
+  - Has headline + about + experience (1 pt)
+  - Has education section (1 pt)
+  - Has skills section (1 pt)
+
+visual (5 pts): profile photo quality (2.5pt), cover/banner quality (2.5pt).{visual_note}
 
 GRADES: Elite(90-100), Excellent(80-89), Strong(65-79), Average(50-64), Needs Work(35-49), Weak(<35)
 
@@ -265,12 +305,13 @@ def _parse_sections(pdf_text: str) -> dict[str, Any]:
 
     # Section header keywords (case-insensitive)
     SECTION_HEADERS = {
-        "about":      re.compile(r"^(about|summary|professional summary|profile)$", re.IGNORECASE),
-        "experience": re.compile(r"^(experience|work experience|professional experience|employment|employment history)$", re.IGNORECASE),
-        "education":  re.compile(r"^(education|academic background|qualifications)$", re.IGNORECASE),
-        "skills":     re.compile(r"^(skills|top skills|technical skills|core competencies|competencies)$", re.IGNORECASE),
-        "projects":   re.compile(r"^(projects|featured|portfolio)$", re.IGNORECASE),
-        "certifications": re.compile(r"^(certifications?|licenses?|credentials?)$", re.IGNORECASE),
+        "about":           re.compile(r"^(about|summary|professional summary|profile)$", re.IGNORECASE),
+        "experience":      re.compile(r"^(experience|work experience|professional experience|employment|employment history)$", re.IGNORECASE),
+        "education":       re.compile(r"^(education|academic background|qualifications)$", re.IGNORECASE),
+        "skills":          re.compile(r"^(skills|top skills|technical skills|core competencies|competencies)$", re.IGNORECASE),
+        "projects":        re.compile(r"^(projects|featured|portfolio)$", re.IGNORECASE),
+        "certifications":  re.compile(r"^(certifications?|licenses?|credentials?)$", re.IGNORECASE),
+        "recommendations": re.compile(r"^(recommendations?|endorsements?)$", re.IGNORECASE),
     }
 
     # Headline heuristic: first non-empty line after the name (line 0) is usually the headline
@@ -279,10 +320,11 @@ def _parse_sections(pdf_text: str) -> dict[str, Any]:
 
     # Bucket sections
     sections: dict[str, list[str]] = {
-        "about":      [],
-        "experience": [],
-        "education":  [],
-        "skills":     [],
+        "about":           [],
+        "experience":      [],
+        "education":       [],
+        "skills":          [],
+        "recommendations": [],
     }
     current_section: str | None = None
 
@@ -290,7 +332,6 @@ def _parse_sections(pdf_text: str) -> dict[str, Any]:
         matched = False
         for sec_key, pattern in SECTION_HEADERS.items():
             if pattern.match(line):
-                # Map projects / certifications into experience for display
                 current_section = sec_key if sec_key in sections else None
                 matched = True
                 break
@@ -303,7 +344,6 @@ def _parse_sections(pdf_text: str) -> dict[str, Any]:
         result["about"] = " ".join(sections["about"])
 
     if sections["experience"]:
-        # Split experience into entries by blank/date patterns
         entries: list[str] = []
         entry_lines: list[str] = []
         date_re = re.compile(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)\b.*\d{4}", re.IGNORECASE)
@@ -317,13 +357,28 @@ def _parse_sections(pdf_text: str) -> dict[str, Any]:
                 entry_lines.append(line)
         if entry_lines:
             entries.append(" | ".join(entry_lines))
-        result["experience"] = entries[:10]  # cap at 10 entries
+        result["experience"] = entries[:10]
 
     if sections["skills"]:
         result["skills"] = sections["skills"][:20]
 
     if sections["education"]:
         result["education"] = sections["education"][:6]
+
+    if sections["recommendations"]:
+        result["recommendations"] = sections["recommendations"][:6]
+
+    # Detect recommendations anywhere in text (PDF export often has them inline)
+    rec_count_re = re.compile(
+        r"(\d+)\s+(?:people?\s+)?(?:have?\s+)?recommended|recommended\s+by\s+(\d+)|recommendations?\s*\((\d+)\)",
+        re.IGNORECASE,
+    )
+    rec_section_re = re.compile(r"\bRecommendations?\b", re.IGNORECASE)
+    result["has_recommendations"] = bool(
+        sections["recommendations"]
+        or rec_count_re.search(pdf_text)
+        or (rec_section_re.search(pdf_text) and len(sections["recommendations"]) > 0)
+    )
 
     return result
 
