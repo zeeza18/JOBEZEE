@@ -126,20 +126,5 @@ jobs:
           find backend discovery tailor apply/applypilot worker scripts tests -name '*.py' \
             | xargs python -m py_compile && echo "All .py files syntax OK"
 
-  deploy:
-    needs: lint-and-verify
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - name: Deploy to Hetzner
-        run: |
-          RESP=$(curl -s -X POST http://5.161.60.37:9000 \
-            -H "Authorization: Bearer ${{ secrets.WORKER_SECRET }}" \
-            --max-time 660)
-          echo "$RESP"
-          echo "$RESP" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print(d.get('output','')[-2000:])
-sys.exit(0 if d.get('ok') else 1)
-"
+  # Deploy: Hetzner polls GitHub every 2 min via cron (auto_deploy.sh)
+  # No outbound connection needed from CI — avoids Hetzner firewall issues.
