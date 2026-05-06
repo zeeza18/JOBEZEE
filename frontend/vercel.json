@@ -2,12 +2,12 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "https://jobezee-api.onrender.com/api/$1",
+      "dest": "http://5.161.60.37:8000/api/$1",
       "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
     },
     {
       "src": "/uploads/(.*)",
-      "dest": "https://jobezee-api.onrender.com/uploads/$1"
+      "dest": "http://5.161.60.37:8000/uploads/$1"
     },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
