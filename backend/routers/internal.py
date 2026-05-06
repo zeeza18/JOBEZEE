@@ -64,3 +64,30 @@ async def send_digest(
         app_url     = f"{cfg.FRONTEND_URL}/app/pulled-jobs",
     )
     return {"ok": True, "sent_to": req.to_email, "job_count": req.total_count}
+
+
+@router.post("/deploy")
+async def deploy(
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """
+    Called by GitHub Actions CI to deploy the latest code.
+    Runs git pull + docker compose up --build on the host.
+    """
+    _check_secret(authorization)
+
+    import asyncio, os
+    env = {**os.environ, "POSTGRES_PASSWORD": os.getenv("POSTGRES_PASSWORD", "")}
+    proc = await asyncio.create_subprocess_shell(
+        "cd /opt/jobezee && git pull origin main && "
+        "docker compose up -d postgres && "
+        "docker compose up -d --build backend",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        env=env,
+    )
+    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=600)
+    output = stdout.decode("utf-8", "replace").strip()
+    if proc.returncode != 0:
+        raise HTTPException(500, f"Deploy failed:\n{output[-2000:]}")
+    return {"ok": True, "output": output[-2000:]}

@@ -132,19 +132,8 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Deploy to Hetzner
-        env:
-          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
-          HETZNER_PASSWORD: ${{ secrets.HETZNER_PASSWORD }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
-          sudo apt-get install -y -qq sshpass
-          sshpass -p "$HETZNER_PASSWORD" ssh \
-            -o StrictHostKeyChecking=no \
-            -o ConnectTimeout=15 \
-            root@$HETZNER_HOST \
-            "set -e
-            cd /opt/jobezee
-            git pull origin main
-            POSTGRES_PASSWORD=$POSTGRES_PASSWORD docker compose up -d postgres
-            POSTGRES_PASSWORD=$POSTGRES_PASSWORD docker compose up -d --build backend
-            docker compose ps"
+          curl -f -X POST http://5.161.60.37:8000/api/internal/deploy \
+            -H "Authorization: Bearer ${{ secrets.WORKER_SECRET }}" \
+            --max-time 660 \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('output','')[-1000:])"
