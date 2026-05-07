@@ -10,7 +10,6 @@ from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Form, HTTPException, UploadFile
-from fastapi.params import File as FFile
 
 router = APIRouter(prefix="/api/linkedin-boost", tags=["linkedin-boost"])
 
@@ -36,13 +35,41 @@ async def _proxy_get(path: str) -> dict:
     return r.json()
 
 
+# ── Image analysis ────────────────────────────────────────────────────────────
+
+@router.post("/analyze-photo")
+async def analyze_photo(profile_image: UploadFile) -> dict:
+    files = [("profile_image", (profile_image.filename, await profile_image.read(), profile_image.content_type or "image/jpeg"))]
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+        r = await client.post(_hetzner_url("/api/linkedin-boost/analyze-photo"), headers=_HEADERS, files=files)
+    if not r.is_success:
+        try:
+            detail = r.json().get("detail", r.text[:200])
+        except Exception:
+            detail = r.text[:200]
+        raise HTTPException(r.status_code, detail)
+    return r.json()
+
+
+@router.post("/analyze-cover")
+async def analyze_cover(cover_image: UploadFile) -> dict:
+    files = [("cover_image", (cover_image.filename, await cover_image.read(), cover_image.content_type or "image/jpeg"))]
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+        r = await client.post(_hetzner_url("/api/linkedin-boost/analyze-cover"), headers=_HEADERS, files=files)
+    if not r.is_success:
+        try:
+            detail = r.json().get("detail", r.text[:200])
+        except Exception:
+            detail = r.text[:200]
+        raise HTTPException(r.status_code, detail)
+    return r.json()
+
+
 # ── Analyze ───────────────────────────────────────────────────────────────────
 
 @router.post("/analyze")
 async def analyze(
     profile_pdf    : UploadFile,
-    profile_image  : UploadFile | None = FFile(default=None),
-    cover_image    : UploadFile | None = FFile(default=None),
     job_description: str = Form(default=""),
     target_role    : str = Form(default=""),
 ) -> dict:
@@ -52,10 +79,6 @@ async def analyze(
         raise HTTPException(400, "Upload a LinkedIn profile PDF.")
 
     files: list = [("profile_pdf", (profile_pdf.filename, await profile_pdf.read(), profile_pdf.content_type or "application/pdf"))]
-    if profile_image and profile_image.filename:
-        files.append(("profile_image", (profile_image.filename, await profile_image.read(), profile_image.content_type or "image/jpeg")))
-    if cover_image and cover_image.filename:
-        files.append(("cover_image", (cover_image.filename, await cover_image.read(), cover_image.content_type or "image/jpeg")))
 
     data = {}
     if job_description.strip(): data["job_description"] = job_description.strip()
