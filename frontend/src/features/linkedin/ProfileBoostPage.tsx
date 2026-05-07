@@ -1184,7 +1184,6 @@ export default function ProfileBoostPage() {
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-cyan-600" />
                   <p className="text-sm font-semibold text-slate-800">LinkedIn Profile PDF</p>
-                  <span className="ml-auto text-xs text-red-500 font-medium">required</span>
                 </div>
                 <DropZone accept=".pdf,.txt" label="Upload your LinkedIn PDF export"
                   hint='LinkedIn → "Save to PDF" on your profile page'
