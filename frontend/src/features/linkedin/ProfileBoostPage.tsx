@@ -17,7 +17,7 @@ interface HeadlineRewrite { current: string; improved: string; reason: string }
 interface ImageResult { score: number; suggestions: string[]; observations: Record<string, boolean | null> }
 interface ParsedSections {
   headline?: string; about?: string; experience?: string[]
-  skills?: string[]; education?: string[]; has_recommendations?: boolean
+  skills?: string[]; inferred_skills?: string[]; education?: string[]; has_recommendations?: boolean
 }
 interface BoostResult {
   overall_score: number; grade: string; overall_verdict: string; jd_fit_score: number
@@ -1480,11 +1480,20 @@ export default function ProfileBoostPage() {
                       content={<ExperienceContent entries={ps.experience} />}
                       bucket={getBucket('experience')} copyText={ps.experience.join('\n\n')} />
                   )}
-                  {ps?.skills && ps.skills.length > 0 && (
+                  {(ps?.inferred_skills?.length || ps?.skills?.length) ? (
                     <SectionFeedbackRow label="Skills"
-                      content={<SkillsContent entries={ps.skills} />}
-                      bucket={getBucket('skills')} copyText={buildSkillsList(ps.skills).join(', ')} />
-                  )}
+                      content={
+                        ps.inferred_skills?.length
+                          ? <div className="flex flex-wrap gap-1.5">
+                              {ps.inferred_skills.map((s, i) => (
+                                <span key={i} className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full border border-slate-200 leading-none">{s}</span>
+                              ))}
+                            </div>
+                          : <SkillsContent entries={ps.skills!} />
+                      }
+                      bucket={getBucket('skills')}
+                      copyText={ps.inferred_skills?.length ? ps.inferred_skills.join(', ') : buildSkillsList(ps.skills!).join(', ')} />
+                  ) : null}
                   {ps?.education && ps.education.length > 0 && (
                     <SectionFeedbackRow label="Education"
                       content={<EducationContent entries={ps.education} />}
