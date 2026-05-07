@@ -22,7 +22,7 @@ def _resolve_fallback_key() -> str:
             return k
     return ""
 
-LINKEDIN_MODEL = os.getenv("CLAUDE_OPUS_MODEL", os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"))
+LINKEDIN_MODEL = os.getenv("LINKEDIN_MODEL", "claude-sonnet-4-6")
 
 BUCKET_MAX: dict[str, int] = {
     "searchability": 25,
