@@ -156,7 +156,7 @@ FEEDBACK RULES:
 - Never state that recommendations, GitHub, or projects exist unless you see them explicitly in the text.
 - Do NOT include any visual or photo-related fixes — images are scored separately.
 
-Return ONLY this JSON shape:
+Return ONLY compact JSON (no extra whitespace, no newlines between fields) matching this shape:
 {{
   "overall_score": <int 0-100>,
   "grade": "<Elite|Excellent|Strong|Average|Needs Work|Weak>",
@@ -514,7 +514,7 @@ def analyze_linkedin_profile(
             try:
                 response = cl.messages.create(
                     model=LINKEDIN_MODEL,
-                    max_tokens=3500,
+                    max_tokens=5000,
                     temperature=0,
                     system=_SYSTEM,
                     messages=[{"role": "user", "content": prompt}],
