@@ -295,10 +295,12 @@ SECTION 8 — COMPLETENESS
 - has_skills: true if any Skills section or Top Skills sidebar is present
 - has_education: true if Education section is present
 
+MISSING SECTION RULE: If a section is not present in the profile text, set ALL its observation fields to false/0, and in the feedback for that bucket set strengths=[] and gaps=["Section not present in profile"]. Do not fabricate content for missing sections.
+
 FEEDBACK (be specific, quote actual profile text, max 20 words per string):
 - overall_verdict: 1 sentence — what's strong + the #1 thing to fix
 - jd_fit_score: 0-100, or 0 if no JD provided
-- per-bucket strengths: 2 specific strengths quoting actual text (or 1 if nothing to say)
+- per-bucket strengths: 2 specific strengths quoting actual text (or 1 if nothing to say). Empty array [] if section is absent.
 - per-bucket gaps: up to 2 specific gaps with exact reference to missing text
 - top_strengths: 2 overall profile strengths
 - top_gaps: 2 overall critical gaps
@@ -346,22 +348,42 @@ def _build_result(data: dict) -> dict[str, Any]:
         if bid:
             fb_buckets[bid] = b
 
+    # Which sections are actually present (from completeness observations)
+    comp_obs = obs_root.get("completeness", {})
+    _PRESENT: dict[str, bool] = {
+        "searchability": True,  # always evaluated
+        "headline":      bool(comp_obs.get("has_headline",  False)),
+        "about":         bool(comp_obs.get("has_about",     False)),
+        "experience":    bool(comp_obs.get("has_experience",False)),
+        "skills":        bool(comp_obs.get("has_skills",    False)),
+        "education":     bool(comp_obs.get("has_education", False)),
+        "proof":         True,  # always evaluated (just may score 0)
+        "completeness":  True,
+    }
+
     buckets = []
     for bid in BUCKET_MAX:
-        obs    = obs_root.get(bid, {})
-        scorer = _SCORERS[bid]
-        earned = scorer(obs)
-        mx     = BUCKET_MAX[bid]
-        bfb    = fb_buckets.get(bid, {})
+        obs     = obs_root.get(bid, {})
+        present = _PRESENT.get(bid, True)
+        scorer  = _SCORERS[bid]
+        earned  = scorer(obs) if present else 0
+        mx      = BUCKET_MAX[bid]
+        bfb     = fb_buckets.get(bid, {})
+        if present:
+            strengths = [str(s) for s in (bfb.get("strengths") or [])][:3]
+            gaps      = [str(g) for g in (bfb.get("gaps")      or [])][:3]
+        else:
+            strengths = []
+            gaps      = ["Section not present in profile"]
         buckets.append({
             "id":        bid,
             "label":     BUCKET_LABELS[bid],
             "score":     earned,
             "max":       mx,
             "pct":       round(earned / mx * 100) if mx else 0,
-            "strengths": [str(s) for s in (bfb.get("strengths") or [])][:3],
-            "gaps":      [str(g) for g in (bfb.get("gaps")      or [])][:3],
-            "evaluated": True,
+            "strengths": strengths,
+            "gaps":      gaps,
+            "evaluated": present,
         })
 
     computed_pts = sum(b["score"] for b in buckets)
@@ -545,14 +567,21 @@ def _parse_sections(pdf_text: str) -> dict[str, Any]:
 def _build_optimize_prompt(pdf_text: str, score_result: dict, target_role: str) -> str:
     role_line = f"\nTARGET ROLE: {target_role}" if target_role else ""
     buckets_summary = json.dumps(
-        [{"id": b["id"], "score": b["score"], "max": b["max"], "gaps": b.get("gaps", [])}
+        [{"id": b["id"], "score": b["score"], "max": b["max"], "gaps": b.get("gaps", []), "evaluated": b.get("evaluated", True)}
          for b in score_result.get("buckets", [])],
         indent=2,
     )
     priority_fixes = json.dumps(score_result.get("priority_fixes", [])[:5], indent=2)
     observations   = json.dumps(score_result.get("observations", {}), indent=2)
+    # Which sections are present
+    present = {b["id"]: b.get("evaluated", True) for b in score_result.get("buckets", [])}
+    absent_sections = [bid for bid, p in present.items() if not p]
+    absent_note = (
+        f"\nABSENT SECTIONS (do NOT optimize, return null for these): {', '.join(absent_sections)}"
+        if absent_sections else ""
+    )
 
-    return f"""Optimize this LinkedIn profile across all 8 scoring dimensions.{role_line}
+    return f"""Optimize this LinkedIn profile across all 8 scoring dimensions.{role_line}{absent_note}
 
 CURRENT SCORE: {score_result.get("overall_score", 0)}/100 — {score_result.get("grade", "")}
 
@@ -760,11 +789,14 @@ def optimize_linkedin_profile(
         if data:
             break
 
-    # Normalise output
+    # Which sections were actually present in the profile (from score_result buckets)
+    _present = {b["id"]: b.get("evaluated", True) for b in score_result.get("buckets", [])}
+
+    # Normalise output — skip absent sections entirely
     result: dict[str, Any] = {}
 
     headline = data.get("headline")
-    if isinstance(headline, dict):
+    if isinstance(headline, dict) and _present.get("headline", True):
         result["headline"] = {
             "current":   str(headline.get("current",   "")),
             "optimized": str(headline.get("optimized", "")),
@@ -772,7 +804,7 @@ def optimize_linkedin_profile(
         }
 
     about = data.get("about")
-    if isinstance(about, dict):
+    if isinstance(about, dict) and _present.get("about", True):
         result["about"] = {
             "current":     str(about.get("current",   "")),
             "optimized":   str(about.get("optimized", "")),
@@ -780,7 +812,7 @@ def optimize_linkedin_profile(
         }
 
     experience = data.get("experience")
-    if isinstance(experience, list):
+    if isinstance(experience, list) and _present.get("experience", True):
         exp_list = []
         for e in experience[:10]:
             if not isinstance(e, dict):
@@ -795,7 +827,7 @@ def optimize_linkedin_profile(
         result["experience"] = exp_list
 
     skills = data.get("skills")
-    if isinstance(skills, dict):
+    if isinstance(skills, dict) and _present.get("skills", True):
         result["skills"] = {
             "current":      [str(s) for s in (skills.get("current")   or [])][:30],
             "reordered":    [str(s) for s in (skills.get("reordered") or [])][:30],
@@ -807,7 +839,7 @@ def optimize_linkedin_profile(
         }
 
     education = data.get("education")
-    if isinstance(education, dict):
+    if isinstance(education, dict) and _present.get("education", True):
         result["education"] = {
             "current":        str(education.get("current", "")),
             "suggestions":    [str(s) for s in (education.get("suggestions")    or [])][:5],
