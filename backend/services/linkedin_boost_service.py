@@ -624,8 +624,8 @@ def analyze_linkedin_profile(
     prompt = _build_prompt(pdf_text, job_description, target_role, profile_img, cover_img)
     client = _make_anthropic_client(key)
 
-    # Retry on bad JSON; on quota exhaustion fall back to standard Anthropic key
     data: dict[str, Any] = {}
+    last_error: str = ""
     clients_to_try = [client]
     fallback_key = _resolve_fallback_key()
     if fallback_key and not fallback_key.startswith("sk-ant-opm"):
@@ -643,17 +643,18 @@ def analyze_linkedin_profile(
                 )
                 raw = next((b.text for b in response.content if hasattr(b, "text")), "{}")
                 if "Usage limit reached" in raw or "usage limit" in raw.lower():
-                    break  # quota hit on this client → try next client
+                    last_error = f"OpusMax quota exceeded (model={LINKEDIN_MODEL})"
+                    break  # try next client
                 data = _parse(raw)
                 if data:
                     break
-            except Exception:
-                if attempt == 1:
-                    break  # exhausted retries on this client → try next
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                break  # don't retry API errors — try next client immediately
         if data:
             break
     if not data:
-        raise RuntimeError("AI quota exceeded. Please try again in a few minutes.")
+        raise RuntimeError(f"AI API failed: {last_error or 'empty response from all clients'}")
 
     result = _normalize(data, profile_img, cover_img, visual_evaluated)
     _step("done")
@@ -688,23 +689,28 @@ def optimize_linkedin_profile(
     if fallback_key and not fallback_key.startswith("sk-ant-opm"):
         clients_to_try.append(_make_anthropic_client(fallback_key))
 
+    last_error: str = ""
     for cl in clients_to_try:
-        for attempt in range(3):
-            response = cl.messages.create(
-                model=LINKEDIN_MODEL,
-                max_tokens=4000,
-                system=_OPTIMIZE_SYSTEM,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = next((b.text for b in response.content if hasattr(b, "text")), "{}")
-            if "Usage limit reached" in raw or "usage limit" in raw.lower():
-                break  # quota hit → try fallback client
-            data = _parse(raw)
-            has_content = bool(
-                data.get("headline") or data.get("about") or data.get("experience") or data.get("skills")
-            )
-            if has_content or attempt == 2:
-                break
+        try:
+            for attempt in range(2):
+                response = cl.messages.create(
+                    model=LINKEDIN_MODEL,
+                    max_tokens=4000,
+                    system=_OPTIMIZE_SYSTEM,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = next((b.text for b in response.content if hasattr(b, "text")), "{}")
+                if "Usage limit reached" in raw or "usage limit" in raw.lower():
+                    last_error = f"OpusMax quota exceeded (model={LINKEDIN_MODEL})"
+                    break
+                data = _parse(raw)
+                has_content = bool(
+                    data.get("headline") or data.get("about") or data.get("experience") or data.get("skills")
+                )
+                if has_content or attempt == 1:
+                    break
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
         if data:
             break
 
