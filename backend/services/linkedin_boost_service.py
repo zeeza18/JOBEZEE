@@ -514,7 +514,7 @@ def analyze_linkedin_profile(
             try:
                 response = cl.messages.create(
                     model=LINKEDIN_MODEL,
-                    max_tokens=2000,
+                    max_tokens=3500,
                     temperature=0,
                     system=_SYSTEM,
                     messages=[{"role": "user", "content": prompt}],
@@ -526,6 +526,7 @@ def analyze_linkedin_profile(
                 data = _parse(raw)
                 if data:
                     break
+                last_error = f"parse_failed: {raw[:300]}"
             except Exception as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
                 break  # don't retry API errors — try next client immediately
