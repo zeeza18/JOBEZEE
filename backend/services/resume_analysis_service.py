@@ -135,34 +135,60 @@ _COVER_TOOL = {
 
 
 def _call_vision_tool(media_bytes: bytes, media_type: str, system_prompt: str, tool: dict) -> dict:
-    """Call Claude vision using tool_use to force structured output — zero hallucination."""
+    """Call Claude vision. Tries tool_use first; falls back to text JSON if not supported."""
     key = _resolve_opusmax_key()
     if not key:
         raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
 
     client  = _make_anthropic_client(key)
     encoded = base64.b64encode(media_bytes).decode("utf-8")
+    image_block = {
+        "type": "image",
+        "source": {"type": "base64", "media_type": media_type, "data": encoded},
+    }
 
-    response = client.messages.create(
+    # ── Attempt 1: tool_use (structured, zero hallucination) ──────────────────
+    try:
+        response = client.messages.create(
+            model=DEFAULT_MODEL,
+            max_tokens=800,
+            tools=[tool],
+            tool_choice={"type": "tool", "name": tool["name"]},
+            messages=[{"role": "user", "content": [image_block, {"type": "text", "text": system_prompt}]}],
+        )
+        for block in response.content:
+            if hasattr(block, "type") and block.type == "tool_use":
+                return block.input
+    except Exception:
+        pass  # OpusMax or older deployments don't support tool_use — fall through
+
+    # ── Attempt 2: plain JSON text ─────────────────────────────────────────────
+    fields = tool["input_schema"]["properties"]
+    field_lines = "\n".join(
+        f'  "{k}": <{v["type"]}> — {v["description"]}'
+        for k, v in fields.items()
+    )
+    text_prompt = (
+        f"{system_prompt}\n\n"
+        f"Return ONLY valid JSON with exactly these fields (no markdown, no extra text):\n"
+        f"{{\n{field_lines}\n}}"
+    )
+    response2 = client.messages.create(
         model=DEFAULT_MODEL,
         max_tokens=800,
-        tools=[tool],
-        tool_choice={"type": "tool", "name": tool["name"]},
-        messages=[{
-            "role": "user",
-            "content": [
-                {
-                    "type": "image",
-                    "source": {"type": "base64", "media_type": media_type, "data": encoded},
-                },
-                {"type": "text", "text": system_prompt},
-            ],
-        }],
+        messages=[{"role": "user", "content": [image_block, {"type": "text", "text": text_prompt}]}],
     )
-    for block in response.content:
-        if hasattr(block, "type") and block.type == "tool_use":
-            return block.input
-    raise RuntimeError("No tool_use block returned from vision model")
+    raw = next((b.text for b in response2.content if hasattr(b, "text")), "{}")
+    # Strip markdown fences if present
+    raw = re.sub(r"^```(?:json)?\s*", "", raw.strip())
+    raw = re.sub(r"\s*```$", "", raw)
+    try:
+        return json.loads(raw.strip())
+    except json.JSONDecodeError:
+        s, e = raw.find("{"), raw.rfind("}")
+        if s != -1 and e > s:
+            return json.loads(raw[s:e + 1])
+        raise RuntimeError(f"Vision model returned unparseable JSON: {raw[:200]}")
 
 
 def _extract_text_from_opusmax_response(raw_body: str) -> str:
