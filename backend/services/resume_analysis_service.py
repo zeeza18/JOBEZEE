@@ -163,6 +163,7 @@ Evaluate each boolean field based on what you can directly observe. Default to t
 attributes (lighting, background, framing) unless you can clearly see a problem. Only use null
 if the image is corrupt, fully dark, or the attribute cannot be seen at all.
 Do not wrap the response in markdown fences.
+Each item in the evidence array MUST start with a hyphen and space: "- your observation here".
 Return this exact shape (all boolean values must be true or false, not null, unless image is unreadable):
 {
   "uploaded": true,
@@ -175,7 +176,7 @@ Return this exact shape (all boolean values must be true or false, not null, unl
     "framing_professional": true,
     "image_quality_issue_visible": false
   },
-  "evidence": []
+  "evidence": ["- observation 1", "- observation 2"]
 }
 """.strip()
 
@@ -185,6 +186,7 @@ Use only visible evidence from the image and the provided target role context if
 Do not invent brand messaging, text, or alignment that is not visible.
 Do not wrap the response in markdown fences.
 If uncertain, use null for the observation.
+Each item in the evidence array MUST start with a hyphen and space: "- your observation here".
 Return this exact shape:
 {
   "uploaded": true,
@@ -197,7 +199,7 @@ Return this exact shape:
     "email_on_banner_visible": false,
     "clutter_or_distraction_visible": false
   },
-  "evidence": []
+  "evidence": ["- observation 1", "- observation 2"]
 }
 """.strip()
 
