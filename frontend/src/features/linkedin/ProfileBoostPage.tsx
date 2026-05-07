@@ -1208,7 +1208,7 @@ export default function ProfileBoostPage() {
                   Let AI rewrite your headline, about, experience and skills for maximum recruiter impact.
                 </p>
                 <Button onClick={handleOptimize}
-                  className="px-8 py-3 text-sm flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500">
+                  className="px-8 py-3 text-sm flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white">
                   <Sparkles className="h-4 w-4" />Optimize My Profile
                 </Button>
               </div>
