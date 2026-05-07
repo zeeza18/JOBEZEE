@@ -1685,6 +1685,29 @@ def _lb_poll(job_id: str) -> dict:
     return {"status": "processing", "step": job.get("step", "working")}
 
 
+_EXAMPLE_BY_SECTION = {
+    "skills":       "Add to Skills: Python · PyTorch · LangChain · LangGraph · SageMaker · MLflow · FastAPI · Docker · Kubernetes · Terraform",
+    "proof":        "Ask a JPMorgan colleague: 'Mohammed led our RAG pipeline redesign that cut retrieval errors by 28% — one of the strongest AI engineers I've worked with.'",
+    "visual":       "Banner: your name + 'AI/ML Engineer @ JPMorgan' + 2-3 skill icons on a branded background. Profile: clean, well-lit headshot, neutral background, professional attire.",
+    "headline":     "Before: AI/ML Engineer @ JPMorgan | Production GenAI → After: AI Engineer @ JPMorgan | RAG · LLM Orchestration · MLOps | Production GenAI on AWS · GCP · Azure",
+    "about":        "Lead with: 'In 4 years of production AI, I've shipped RAG pipelines (+28% retrieval precision), multi-agent workflows at JPMorgan Chase, and inference endpoints at enterprise scale.'",
+    "experience":   "Before: Responsible for AI systems → After: Architected 3 RAG pipelines (LlamaIndex + FAISS + Pinecone) improving retrieval precision 28% vs. baseline, measured via automated eval.",
+    "education":    "Change end date from 2026 to 2025 if completed, or add: 'Expected December 2026' to clarify in-progress status.",
+    "completeness": "Ensure these LinkedIn sections are all filled: About, Skills (10+ items), Experience (3 roles), Education (degree title + year), Featured or Projects.",
+}
+
+
+def _inject_examples(result: dict) -> dict:
+    """Post-process: add example text to any priority fix that has an empty example field.
+    Runs in worker.py so it always uses the latest code regardless of module cache.
+    """
+    for fix in result.get("priority_fixes", []):
+        if not fix.get("example", "").strip():
+            section = fix.get("section", "")
+            fix["example"] = _EXAMPLE_BY_SECTION.get(section, fix.get("fix", "")[:120])
+    return result
+
+
 def _lb_run_analyze(job_id: str, **kwargs) -> None:
     repo_root = str(_JOBEZEE_ROOT)
     if repo_root not in sys.path:
@@ -1696,7 +1719,7 @@ def _lb_run_analyze(job_id: str, **kwargs) -> None:
             _lb_jobs[job_id]["step"] = step
     try:
         result = analyze_linkedin_profile(**kwargs, on_step=on_step)
-        _lb_jobs[job_id].update(status="done", result=result)
+        _lb_jobs[job_id].update(status="done", result=_inject_examples(result))
     except Exception as exc:
         _lb_jobs[job_id].update(status="error", error=str(exc))
 
