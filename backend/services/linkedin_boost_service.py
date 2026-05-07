@@ -149,48 +149,16 @@ COMPLETENESS (3 pts):
 GRADES: Elite(90-100), Excellent(80-89), Strong(65-79), Average(50-64), Needs Work(35-49), Weak(<35)
 
 FEEDBACK RULES:
-- Gaps MUST quote or paraphrase specific text from the profile. Never write "add more X" without citing what's missing.
-- Fixes must give exact instructions — the actual text/skills to add.
-- Every priority_fix must have an "example" field showing before→after or exact text to add/change.
+- Keep ALL strings under 20 words. Be specific but brief.
+- Gaps MUST name specific missing text/skill from the profile.
+- Fixes must give exact instruction (what to add/change).
+- priority_fix "example" field: show before→after or exact text to add (under 20 words).
 - Education: if About says "completed in [year]", do NOT flag education as in-progress.
-- Never state that recommendations, GitHub, or projects exist unless you see them explicitly in the text.
-- Do NOT include any visual or photo-related fixes — images are scored separately.
+- Never state recommendations/GitHub/projects exist unless explicitly in the text.
+- Do NOT include any visual or photo-related fixes.
 
-Return ONLY compact JSON (no extra whitespace, no newlines between fields) matching this shape:
-{{
-  "overall_score": <int 0-100>,
-  "grade": "<Elite|Excellent|Strong|Average|Needs Work|Weak>",
-  "overall_verdict": "<2 sentences: what they've done well + the #1 thing to fix>",
-  "jd_fit_score": <int 0-100, or 0 if no JD>,
-  "buckets": [
-    {{
-      "id": "<searchability|headline|about|experience|skills|proof|completeness>",
-      "label": "<human readable>",
-      "score": <int earned>,
-      "max": <int max>,
-      "pct": <int 0-100>,
-      "strengths": ["<specific strength quoting actual profile text>"],
-      "gaps": ["<specific gap referencing actual profile text>"]
-    }}
-  ],
-  "top_strengths": ["<specific strength>", "<specific strength>", "<specific strength>"],
-  "top_gaps": ["<specific gap>", "<specific gap>", "<specific gap>"],
-  "priority_fixes": [
-    {{
-      "section": "<bucket id>",
-      "issue": "<specific problem — reference actual profile text>",
-      "fix": "<exact action: what to add, remove, or rewrite>",
-      "example": "<REQUIRED: before→after or exact text to add>",
-      "impact": "<High|Medium|Low>"
-    }}
-  ],
-  "headline_rewrite": {{
-    "current": "<their actual headline from the profile>",
-    "improved": "<your rewritten version>",
-    "reason": "<why this is better>"
-  }},
-  "about_tips": ["<tip 1>", "<tip 2>", "<tip 3>"]
-}}{jd_block}
+Return ONLY minified JSON (no whitespace between fields) matching this shape exactly:
+{{"overall_score":<int>,"grade":"<Elite|Excellent|Strong|Average|Needs Work|Weak>","overall_verdict":"<1 sentence>","jd_fit_score":<int>,"buckets":[{{"id":"<searchability|headline|about|experience|skills|proof|completeness>","label":"<label>","score":<int>,"max":<int>,"pct":<int>,"strengths":["<strength under 15 words>"],"gaps":["<gap under 15 words>"]}}],"top_strengths":["<s1>","<s2>"],"top_gaps":["<g1>","<g2>"],"priority_fixes":[{{"section":"<id>","issue":"<under 15 words>","fix":"<under 15 words>","example":"<under 20 words>","impact":"<High|Medium|Low>"}}],"headline_rewrite":{{"current":"<actual headline>","improved":"<rewritten>","reason":"<under 15 words>"}},"about_tips":["<tip1 under 15 words>","<tip2 under 15 words>"]}}{jd_block}
 
 LINKEDIN PROFILE TEXT:
 ---
