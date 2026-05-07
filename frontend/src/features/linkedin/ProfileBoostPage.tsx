@@ -31,6 +31,12 @@ interface OptimizeResult {
   about?:      { current: string; optimized: string; key_changes: string[] }
   experience?: Array<{ company: string; title: string; current_text: string; optimized_bullets: string[]; key_changes: string[] }>
   skills?:     { current: string[]; reordered: string[]; add_if_true: Array<{ skill: string; reason: string }> }
+  education?:  { current: string; suggestions: string[]; missing_fields: string[] }
+  proof?:      {
+    recommendations: { action: string; who_to_ask: string[] }
+    certifications:  { current: string[]; recommended: Array<{ name: string; issuer: string; reason: string }> }
+    portfolio: string
+  }
 }
 
 const stripBullet = (s: string) => s.replace(/^[-•*]\s+/, '').replace(/\s*[—–]\s*/g, '. ')
@@ -859,6 +865,91 @@ function InlineOptimizeResults({ or }: { or: OptimizeResult }) {
               </div>
             )}
           </OptimizedCard>
+        </div>
+      )}
+
+      {or.education && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CurrentCard label="Current Education">
+            <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{or.education.current || 'Not detected'}</p>
+          </CurrentCard>
+          <OptimizedCard label="Education Improvements">
+            {or.education.missing_fields.length > 0 && (
+              <div className="mb-3">
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5">Missing Fields</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {or.education.missing_fields.map((f, i) => (
+                    <span key={i} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">{f.replace(/_/g, ' ')}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {or.education.suggestions.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider">Suggestions</p>
+                {or.education.suggestions.map((s, i) => (
+                  <p key={i} className="text-xs text-slate-600 flex gap-1.5"><span className="text-cyan-500 shrink-0">→</span>{s}</p>
+                ))}
+              </div>
+            )}
+          </OptimizedCard>
+        </div>
+      )}
+
+      {or.proof && (
+        <div className="space-y-4">
+          {/* Recommendations */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <CurrentCard label="Recommendations">
+              <p className="text-xs text-slate-400 italic">No recommendations detected in profile</p>
+            </CurrentCard>
+            <OptimizedCard label="How to Get Recommendations">
+              {or.proof.recommendations.who_to_ask.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider mb-1.5">Who to Ask</p>
+                  <div className="space-y-1">
+                    {or.proof.recommendations.who_to_ask.map((w, i) => (
+                      <p key={i} className="text-xs text-slate-700 flex gap-1.5"><span className="text-cyan-500 shrink-0">•</span>{w}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {or.proof.recommendations.action && (
+                <p className="text-xs text-slate-500 border-t border-cyan-100 pt-2">{or.proof.recommendations.action}</p>
+              )}
+            </OptimizedCard>
+          </div>
+
+          {/* Certifications */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <CurrentCard label="Current Certifications">
+              {or.proof.certifications.current.length > 0
+                ? <div className="space-y-1">{or.proof.certifications.current.map((c, i) => (
+                    <p key={i} className="text-xs text-slate-600 flex gap-1.5"><span className="text-emerald-500 shrink-0">✓</span>{c}</p>
+                  ))}</div>
+                : <p className="text-xs text-slate-400 italic">None detected</p>
+              }
+            </CurrentCard>
+            <OptimizedCard label="Recommended Certifications">
+              <div className="space-y-3">
+                {or.proof.certifications.recommended.map((c, i) => (
+                  <div key={i} className="border-b border-cyan-100 last:border-0 pb-2 last:pb-0">
+                    <p className="text-xs font-semibold text-slate-800">{c.name}</p>
+                    <p className="text-[10px] text-cyan-700 mb-0.5">{c.issuer}</p>
+                    <p className="text-[10px] text-slate-500">{c.reason}</p>
+                  </div>
+                ))}
+              </div>
+            </OptimizedCard>
+          </div>
+
+          {/* Portfolio */}
+          {or.proof.portfolio && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Portfolio / GitHub</p>
+              <p className="text-xs text-slate-700">{or.proof.portfolio}</p>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -550,78 +550,96 @@ def _build_optimize_prompt(pdf_text: str, score_result: dict, target_role: str) 
         indent=2,
     )
     priority_fixes = json.dumps(score_result.get("priority_fixes", [])[:5], indent=2)
+    observations   = json.dumps(score_result.get("observations", {}), indent=2)
 
-    return f"""Optimize this LinkedIn profile for maximum recruiter impact and LinkedIn search ranking.{role_line}
+    return f"""Optimize this LinkedIn profile across all 8 scoring dimensions.{role_line}
 
-CURRENT SCORE SUMMARY:
-Overall: {score_result.get("overall_score", 0)}/100 — {score_result.get("grade", "")}
+CURRENT SCORE: {score_result.get("overall_score", 0)}/100 — {score_result.get("grade", "")}
 
-BUCKET GAPS (what to fix):
+BUCKET GAPS:
 {buckets_summary}
 
-PRIORITY FIXES (address these):
+SCORING OBSERVATIONS (what the scorer detected):
+{observations}
+
+PRIORITY FIXES:
 {priority_fixes}
 
-LINKEDIN OPTIMIZATION INSTRUCTIONS:
-1. HEADLINE: Lead with role title + company if applicable. Add top 2-3 technical specializations using
-   pipe separators. Include a seniority/scale signal. Keep under 220 characters. No "I" pronoun.
-   Example structure: "AI Engineer @ [Company] | RAG · LLM Orchestration · MLOps | Production GenAI on AWS"
+STRICT CONSTRAINTS (no hallucination):
+- ONLY use companies, titles, dates, metrics, tools that ACTUALLY APPEAR in the profile text below.
+- Never fabricate achievements, certifications, employers, or degrees not in the text.
+- For certifications you recommend: only suggest real, publicly available certifications relevant to the role.
+- For recommendations: only name roles/companies that appear in the profile text.
+- You may rephrase, keyword-optimize, and restructure existing content.
 
-2. ABOUT SECTION:
-   - First sentence: bold impact claim (not "I am a..." — instead lead with a metric or result)
-   - Weave in 6+ target role keywords naturally (LLM, RAG, GenAI, MLOps, Python, etc.)
-   - Include at least 3 quantified achievements (use exact numbers from the profile — never fabricate)
-   - End with a clear CTA (email or invitation to connect)
-   - Target 400-600 words for optimal LinkedIn algorithm weighting
+OPTIMIZATION INSTRUCTIONS:
 
-3. EXPERIENCE BULLETS:
-   - Every bullet: strong past-tense action verb + specific outcome or metric
-   - Name the tools/tech in each bullet (not just in general)
-   - Add business impact context ("reducing operational cost", "enabling real-time inference at scale")
-   - If a bullet has no metric, add context like scale (users served, system load, data volume)
+HEADLINE: Keep under 220 chars. Lead with role + employer (if present). Add top tech skills with pipes.
+  Good structure: "[Role] at [Company] | [Skill1], [Skill2] | [Domain] | [Platform]"
 
-4. SKILLS:
-   - Reorder: core technical skills first, then tools/platforms, then frameworks, then soft skills
-   - Identify skills clearly evidenced in the experience bullets but missing from skills section
+ABOUT: First sentence = impact claim with a metric (not "I am a..."). Add 3+ quantified achievements from the profile. Weave in 6+ role keywords. End with email CTA. Target 300-500 words.
 
-CRITICAL CONSTRAINTS:
-- ONLY use companies, job titles, dates, and metrics that ACTUALLY appear in the profile text.
-- Never fabricate new achievements, certifications, or tools not in the text.
-- You may rephrase, restructure, strengthen, and keyword-optimize existing content.
+EXPERIENCE: Every bullet = strong past-tense verb + tool + metric. If no metric, add scale context.
 
-Return ONLY this JSON shape:
+SKILLS: Reorder for search impact: core tech skills first, then platforms, then frameworks. Pull skills visible in experience bullets that are missing from the Skills section.
+
+EDUCATION: Suggest exactly what's missing from the current education entry (degree type, field of study, GPA if applicable). Do NOT invent a new institution. If education is complete, say so.
+
+PROOF:
+- Recommendations: name specific roles/companies from profile the candidate should ask. Suggest what to highlight.
+- Certifications: list 2-3 real certifications most relevant to the target role (e.g. AWS ML Specialty, Google Professional ML Engineer, DeepLearning.AI). Explain briefly why each matters.
+- Portfolio: if no GitHub/portfolio link is detected, give exact instruction on what to add and where.
+
+Return ONLY this JSON:
 {{
   "headline": {{
-    "current": "<exact current headline from profile>",
-    "optimized": "<rewritten headline>",
-    "reason": "<why this is better>"
+    "current": "<exact headline from profile>",
+    "optimized": "<rewritten — max 220 chars>",
+    "reason": "<what improved>"
   }},
   "about": {{
-    "current": "<exact current about section text>",
-    "optimized": "<rewritten about section>",
-    "key_changes": ["<change 1>", "<change 2>"]
+    "current": "<exact about text>",
+    "optimized": "<full rewritten about section>",
+    "key_changes": ["<change 1>", "<change 2>", "<change 3>"]
   }},
   "experience": [
     {{
-      "company": "<company name>",
-      "title": "<job title>",
-      "current_text": "<original bullet points or text>",
-      "optimized_bullets": ["<bullet 1>", "<bullet 2>", "<bullet 3>"],
-      "key_changes": ["<change description>"]
+      "company": "<company>",
+      "title": "<title>",
+      "current_text": "<original bullets>",
+      "optimized_bullets": ["<bullet>", "<bullet>", "<bullet>"],
+      "key_changes": ["<change>"]
     }}
   ],
   "skills": {{
     "current": ["<skill>"],
-    "reordered": ["<skill in priority order>"],
-    "add_if_true": [
-      {{"skill": "<skill name>", "reason": "<why relevant, only if you saw evidence in the text>"}}
-    ]
+    "reordered": ["<skill in search-priority order>"],
+    "add_if_true": [{{"skill": "<name>", "reason": "<evidence from text>"}}]
+  }},
+  "education": {{
+    "current": "<exact education text from profile>",
+    "suggestions": ["<specific suggestion based on what is missing>"],
+    "missing_fields": ["<degree_type|field_of_study|gpa|honors — only list what is actually absent>"]
+  }},
+  "proof": {{
+    "recommendations": {{
+      "action": "<exact instruction: who to message and what to ask them to highlight>",
+      "who_to_ask": ["<Role at Company from profile>", "<Role at Company from profile>"]
+    }},
+    "certifications": {{
+      "current": ["<cert visible in profile>"],
+      "recommended": [
+        {{"name": "<cert name>", "issuer": "<issuer>", "reason": "<why valuable for target role>"}},
+        {{"name": "<cert name>", "issuer": "<issuer>", "reason": "<why valuable for target role>"}}
+      ]
+    }},
+    "portfolio": "<exact instruction: add GitHub profile link / portfolio URL in the Featured section or Contact section>"
   }}
 }}
 
 LINKEDIN PROFILE TEXT:
 ---
-{pdf_text[:10000]}
+{pdf_text[:8000]}
 ---
 """
 
@@ -722,7 +740,7 @@ def optimize_linkedin_profile(
             for attempt in range(2):
                 response = cl.messages.create(
                     model=LINKEDIN_MODEL,
-                    max_tokens=3000,
+                    max_tokens=5000,
                     temperature=0,
                     system=_OPTIMIZE_SYSTEM,
                     messages=[{"role": "user", "content": prompt}],
@@ -786,6 +804,34 @@ def optimize_linkedin_profile(
                 for x in (skills.get("add_if_true") or [])
                 if isinstance(x, dict)
             ][:10],
+        }
+
+    education = data.get("education")
+    if isinstance(education, dict):
+        result["education"] = {
+            "current":        str(education.get("current", "")),
+            "suggestions":    [str(s) for s in (education.get("suggestions")    or [])][:5],
+            "missing_fields": [str(f) for f in (education.get("missing_fields") or [])][:5],
+        }
+
+    proof = data.get("proof")
+    if isinstance(proof, dict):
+        recs  = proof.get("recommendations") or {}
+        certs = proof.get("certifications")  or {}
+        result["proof"] = {
+            "recommendations": {
+                "action":    str(recs.get("action", "")),
+                "who_to_ask": [str(w) for w in (recs.get("who_to_ask") or [])][:4],
+            },
+            "certifications": {
+                "current": [str(c) for c in (certs.get("current") or [])][:6],
+                "recommended": [
+                    {"name": str(x.get("name", "")), "issuer": str(x.get("issuer", "")), "reason": str(x.get("reason", ""))}
+                    for x in (certs.get("recommended") or [])
+                    if isinstance(x, dict)
+                ][:4],
+            },
+            "portfolio": str(proof.get("portfolio", "")),
         }
 
     return result
