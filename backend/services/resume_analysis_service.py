@@ -13,6 +13,9 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import instructor
+from pydantic import BaseModel, Field
+
 from ..config import get_settings
 
 OPUSMAX_BASE_URL                  = "https://api.opusmax.pro"
@@ -37,6 +40,30 @@ def _make_anthropic_client(api_key: str):
     if api_key.startswith(_OPUSMAX_PREFIX):
         return Anthropic(api_key=api_key, base_url=OPUSMAX_BASE_URL)
     return Anthropic(api_key=api_key)
+
+
+# ─── Pydantic models for structured vision output ─────────────────────────────
+
+class ProfileObservations(BaseModel):
+    face_visible: bool = Field(description="True if a human face is present and facing the camera. False ONLY if no face is detectable at all.")
+    professional_attire: bool = Field(description="True if person wears blazer, dress shirt, suit, or business-casual top. False ONLY if clearly casual (plain t-shirt, hoodie, shirtless). Default true if unsure.")
+    watermark_or_ai_icon_visible: bool = Field(description="True if any overlay badge, sparkle, star, logo, or watermark is placed ON the image. False if image is clean.")
+    lighting_adequate: bool = Field(description="True if face is clearly lit and features are distinguishable. False ONLY if face is silhouetted, severely underlit, or blown out. Default true.")
+    background_clean: bool = Field(description="True if background is plain, blurred, solid color, or minimal. False ONLY if visibly cluttered with competing elements. Default true for any uniform or blurred background.")
+    framing_professional: bool = Field(description="True if subject fills the frame as a head/shoulder or chest-up portrait. False ONLY if person is tiny in frame or severely cropped. Default true for standard portrait composition.")
+    image_quality_issue_visible: bool = Field(description="True if image is visibly pixelated, blurry, or heavily compressed. False if clear and sharp. Default false.")
+    evidence: list[str] = Field(default_factory=list, description="1-3 short factual observations about what you see. Empty list if nothing notable.")
+
+
+class CoverObservations(BaseModel):
+    role_aligned_visual: bool = Field(description="True if banner has imagery suggesting a professional context (tech, design, finance, abstract). False if completely generic stock photo of nature/city with zero professional connection, OR LinkedIn default.")
+    professional_branding_present: bool = Field(description="True if banner has ANY deliberate personalization: name, title, logo, custom color scheme, or branded layout. False ONLY if plain stock photo with zero custom elements.")
+    text_readability_issue: bool = Field(description="True if text has poor contrast, is too small to read, or overlaps badly. False if text is readable OR no text present. Default false.")
+    banner_has_small_text: bool = Field(description="True if text is so small it would be unreadable on mobile. False if text is large enough or no text present. Default false.")
+    broken_url_or_typo_visible: bool = Field(description="True if you can read a malformed email (e.g. @com instead of @gmail.com, missing TLD), broken URL, or obvious spelling mistake. Default false — only true if clearly visible.")
+    email_on_banner_visible: bool = Field(description="True if any email address (even broken format) is visibly printed on the banner. Default false.")
+    clutter_or_distraction_visible: bool = Field(description="True if banner is visually overwhelming with too many competing elements or clashing colors. False if organized. Default false.")
+    evidence: list[str] = Field(default_factory=list, description="1-3 factual observations. If email visible, quote the exact text. If URL broken, quote it.")
 
 
 # ─── OpusMax understand_image ──────────────────────────────────────────────────
@@ -134,61 +161,28 @@ _COVER_TOOL = {
 }
 
 
-def _call_vision_tool(media_bytes: bytes, media_type: str, system_prompt: str, tool: dict) -> dict:
-    """Call Claude vision. Tries tool_use first; falls back to text JSON if not supported."""
+def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, response_model):
+    """Use instructor to get structured output from a vision call — retries until schema matches."""
     key = _resolve_opusmax_key()
     if not key:
         raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
 
-    client  = _make_anthropic_client(key)
+    base_client = _make_anthropic_client(key)
     encoded = base64.b64encode(media_bytes).decode("utf-8")
     image_block = {
         "type": "image",
         "source": {"type": "base64", "media_type": media_type, "data": encoded},
     }
 
-    # ── Attempt 1: tool_use (structured, zero hallucination) ──────────────────
-    try:
-        response = client.messages.create(
-            model=DEFAULT_MODEL,
-            max_tokens=800,
-            tools=[tool],
-            tool_choice={"type": "tool", "name": tool["name"]},
-            messages=[{"role": "user", "content": [image_block, {"type": "text", "text": system_prompt}]}],
-        )
-        for block in response.content:
-            if hasattr(block, "type") and block.type == "tool_use":
-                return block.input
-    except Exception:
-        pass  # OpusMax or older deployments don't support tool_use — fall through
-
-    # ── Attempt 2: plain JSON text ─────────────────────────────────────────────
-    fields = tool["input_schema"]["properties"]
-    field_lines = "\n".join(
-        f'  "{k}": <{v["type"]}> — {v["description"]}'
-        for k, v in fields.items()
-    )
-    text_prompt = (
-        f"{system_prompt}\n\n"
-        f"Return ONLY valid JSON with exactly these fields (no markdown, no extra text):\n"
-        f"{{\n{field_lines}\n}}"
-    )
-    response2 = client.messages.create(
+    # instructor patches the client to enforce the Pydantic schema via JSON mode
+    client = instructor.from_anthropic(base_client, mode=instructor.Mode.ANTHROPIC_JSON)
+    result = client.messages.create(
         model=DEFAULT_MODEL,
         max_tokens=800,
-        messages=[{"role": "user", "content": [image_block, {"type": "text", "text": text_prompt}]}],
+        response_model=response_model,
+        messages=[{"role": "user", "content": [image_block, {"type": "text", "text": prompt}]}],
     )
-    raw = next((b.text for b in response2.content if hasattr(b, "text")), "{}")
-    # Strip markdown fences if present
-    raw = re.sub(r"^```(?:json)?\s*", "", raw.strip())
-    raw = re.sub(r"\s*```$", "", raw)
-    try:
-        return json.loads(raw.strip())
-    except json.JSONDecodeError:
-        s, e = raw.find("{"), raw.rfind("}")
-        if s != -1 and e > s:
-            return json.loads(raw[s:e + 1])
-        raise RuntimeError(f"Vision model returned unparseable JSON: {raw[:200]}")
+    return result.model_dump()
 
 
 def _extract_text_from_opusmax_response(raw_body: str) -> str:
@@ -393,40 +387,24 @@ Return ONLY this JSON (no markdown fences):
 # ─── Image analysis ────────────────────────────────────────────────────────────
 
 def analyze_profile_picture(media_bytes: bytes, media_type: str) -> dict[str, Any]:
-    obs = _call_vision_tool(media_bytes, media_type, PROFILE_PROMPT, _PROFILE_TOOL)
+    obs = _call_vision_structured(media_bytes, media_type, PROFILE_PROMPT, ProfileObservations)
     return {
         "uploaded": True,
         "warnings": [],
         "score": _calc_profile_score(obs),
-        "observations": {
-            "face_visible":                 bool(obs.get("face_visible")),
-            "professional_attire":          bool(obs.get("professional_attire")),
-            "watermark_or_ai_icon_visible": bool(obs.get("watermark_or_ai_icon_visible")),
-            "lighting_adequate":            bool(obs.get("lighting_adequate")),
-            "background_clean":             bool(obs.get("background_clean")),
-            "framing_professional":         bool(obs.get("framing_professional")),
-            "image_quality_issue_visible":  bool(obs.get("image_quality_issue_visible")),
-        },
+        "observations": {k: v for k, v in obs.items() if k != "evidence"},
         "evidence": _safe_str_array(obs.get("evidence", [])),
         "suggestions": _build_profile_suggestions(obs),
     }
 
 
 def analyze_cover_picture(media_bytes: bytes, media_type: str) -> dict[str, Any]:
-    obs = _call_vision_tool(media_bytes, media_type, COVER_PROMPT, _COVER_TOOL)
+    obs = _call_vision_structured(media_bytes, media_type, COVER_PROMPT, CoverObservations)
     return {
         "uploaded": True,
         "warnings": [],
         "score": _calc_cover_score(obs),
-        "observations": {
-            "role_aligned_visual":           bool(obs.get("role_aligned_visual")),
-            "professional_branding_present": bool(obs.get("professional_branding_present")),
-            "text_readability_issue":        bool(obs.get("text_readability_issue")),
-            "banner_has_small_text":         bool(obs.get("banner_has_small_text")),
-            "broken_url_or_typo_visible":    bool(obs.get("broken_url_or_typo_visible")),
-            "email_on_banner_visible":       bool(obs.get("email_on_banner_visible")),
-            "clutter_or_distraction_visible": bool(obs.get("clutter_or_distraction_visible")),
-        },
+        "observations": {k: v for k, v in obs.items() if k != "evidence"},
         "evidence": _safe_str_array(obs.get("evidence", [])),
         "suggestions": _build_cover_suggestions(obs),
     }
