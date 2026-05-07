@@ -569,11 +569,13 @@ def _calc_profile_score(obs: dict) -> float:
         elif v is None:
             pts += null_weight
     watermark = _safe_bool(obs.get("watermark_or_ai_icon_visible"))
-    if watermark is True:
-        pts = min(pts, 2.0)
     ai_gen = _safe_bool(obs.get("ai_generated_appearance"))
-    if ai_gen is True:
-        pts = min(pts, 1.5)   # AI-generated photo = hard cap at 60/100
+    if watermark is True and ai_gen is True:
+        pts = min(pts, 2.0)   # same issue — only cap once at 80/100
+    elif watermark is True:
+        pts = min(pts, 2.0)   # watermark only — cap at 80/100
+    elif ai_gen is True:
+        pts = min(pts, 1.75)  # AI appearance without watermark — cap at 70/100
     quality = _safe_bool(obs.get("image_quality_issue_visible"))
     if quality is True:
         pts = min(pts, 2.0)
@@ -629,7 +631,7 @@ def _build_profile_suggestions(obs: dict) -> list[str]:
     if _safe_bool(obs.get("watermark_or_ai_icon_visible")) is True:
         tips.append("Remove any AI-generated badge or watermark from your profile photo.")
     if _safe_bool(obs.get("ai_generated_appearance")) is True:
-        tips.append("Your photo appears AI-generated. Use a real professional photograph — recruiters can tell the difference and authenticity matters.")
+        tips.append("Your photo appears AI-generated. Use a real professional photograph. Recruiters can tell the difference and authenticity matters.")
     if _safe_bool(obs.get("image_quality_issue_visible")) is True:
         tips.append("Improve image quality. Avoid pixelated or blurry photos.")
     return tips[:4]

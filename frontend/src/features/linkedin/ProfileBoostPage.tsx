@@ -33,7 +33,7 @@ interface OptimizeResult {
   skills?:     { current: string[]; reordered: string[]; add_if_true: Array<{ skill: string; reason: string }> }
 }
 
-const stripBullet = (s: string) => s.replace(/^[-•*]\s+/, '')
+const stripBullet = (s: string) => s.replace(/^[-•*]\s+/, '').replace(/\s*[—–]\s*/g, '. ')
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
