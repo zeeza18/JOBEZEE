@@ -85,7 +85,7 @@ def _build_prompt(
     role_line = f"\nTARGET ROLE: {target_role}" if target_role else ""
     jd_block  = f"\n\nJOB DESCRIPTION:\n{job_description}" if job_description else ""
 
-    visual_note = " No images provided — score visual bucket at 0."
+    visual_note = " No images provided — score visual bucket at 0. Do NOT generate visual priority fixes."
     visual_block = ""
     if profile_img or cover_img:
         lines = ["\n\nPRE-COMPUTED IMAGE ANALYSIS:"]
@@ -102,7 +102,11 @@ def _build_prompt(
         visual_block = "\n".join(lines)
         scores = [x.get("score", 0) for x in [profile_img, cover_img] if x]
         avg    = sum(scores) / len(scores) if scores else 0
-        visual_note = f" Use pre-computed image data above. Combined avg: {avg:.0f}/100."
+        visual_note = (
+            f" Use pre-computed image data above. Combined avg: {avg:.0f}/100. "
+            "IMPORTANT: Both images ARE uploaded — do NOT say 'no photo uploaded' in priority fixes. "
+            "Frame visual fixes as quality improvements based on the actual scores and observations."
+        )
 
     return f"""Score this LinkedIn profile.{role_line}
 
@@ -265,12 +269,27 @@ def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, vis
         }
 
     fixes = []
-    for f in (data.get("priority_fixes") or [])[:5]:
+    for f in (data.get("priority_fixes") or []):
+        if len(fixes) >= 5:
+            break
+        fix_section = str(f.get("section", ""))
+        # When visual was not evaluated (no images), skip AI-generated visual fixes entirely
+        if fix_section == "visual" and not visual_evaluated:
+            continue
         fixes.append({
-            "section": str(f.get("section", "")),
+            "section": fix_section,
             "issue":   str(f.get("issue",   "")),
             "fix":     str(f.get("fix",     "")),
             "impact":  str(f.get("impact",  "Medium")),
+        })
+
+    # When images not uploaded, append a single authoritative visual fix instead of AI guesses
+    if not visual_evaluated:
+        fixes.append({
+            "section": "visual",
+            "issue":   "Profile photo and cover banner not analyzed — images not uploaded to this tool",
+            "fix":     "Upload your profile photo and cover banner using the fields above to receive visual quality scores and specific improvement suggestions.",
+            "impact":  "High",
         })
 
     result: dict[str, Any] = {
