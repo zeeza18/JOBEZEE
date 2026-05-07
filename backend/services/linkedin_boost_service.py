@@ -59,18 +59,32 @@ def _grade(score: int) -> str:
 
 
 _SYSTEM = (
-    "You are a LinkedIn profile scoring expert. "
+    "You are a senior LinkedIn profile coach and recruiter with 10+ years of experience. "
     "Return ONLY valid JSON. No markdown fences, no commentary. "
-    "Base every score strictly on evidence in the profile text. "
-    "For each bucket, strengths and gaps must reference specific phrases or facts from the profile text. "
-    "Do not invent information."
+    "SCORING RULE: Base every score ONLY on evidence visible in the profile text. Never assume, infer, or invent. "
+    "EDUCATION RULE: If the About/Summary section explicitly says 'completed in YYYY', 'graduated in YYYY', or 'degree from X, completed YYYY' — "
+    "treat that education entry as COMPLETE. Do NOT flag as in-progress just because the PDF end year is in the future. "
+    "RECOMMENDATIONS RULE: Only award recommendation points if a Recommendations section with actual text/names is visible. "
+    "Never assume recommendations exist from vague text. "
+    "SKILLS RULE: If the PDF shows only a 'Top Skills' sidebar with 3 items, that is NOT the full skills section — "
+    "flag this explicitly as a critical gap in the skills bucket. "
+    "FEEDBACK QUALITY: Write like a senior recruiter coaching a strong candidate. "
+    "Every gap must quote or reference actual text from the profile. "
+    "Every fix must give an exact actionable instruction — not 'add more skills' but "
+    "'Add Python, PyTorch, LangGraph, SageMaker to your Skills section — they appear in your bullets but not your Skills section.' "
+    "Every priority_fix must include an 'example' field with a before→after or specific text to add."
 )
 
 _OPTIMIZE_SYSTEM = (
-    "You are a LinkedIn profile optimizer. "
-    "Rewrite sections for maximum recruiter impact. "
-    "CRITICAL: Only use facts, companies, titles, and metrics that exist in the original profile text. "
-    "Never invent new claims. You may rephrase, restructure, and strengthen language. "
+    "You are a senior LinkedIn profile optimizer who understands how LinkedIn's search algorithm works. "
+    "Rewrite sections for maximum recruiter impact and search visibility. "
+    "CRITICAL RULES: "
+    "1. Only use companies, job titles, dates, and metrics that ACTUALLY APPEAR in the original profile text. Never invent. "
+    "2. Keyword-optimize every rewrite: the headline and About section must contain the role's top search keywords. "
+    "3. LinkedIn headline: no first-person pronouns, pipe-separated structure, lead with role title + company + top 2-3 skills. "
+    "4. About section: open with a bold impact statement (not 'I am a...'), weave in 5+ technical keywords naturally, end with CTA. "
+    "5. Experience bullets: every bullet should start with a strong past-tense action verb and contain at least one metric or outcome. "
+    "6. Skills: reorder with highest-search-value skills first (core technical skills before soft skills). "
     "Return ONLY valid JSON. No markdown fences, no commentary."
 )
 
@@ -110,65 +124,86 @@ def _build_prompt(
 
     return f"""Score this LinkedIn profile.{role_line}
 
-SCORING BUCKETS — award points only for evidence you can see in the profile text:
+SCORING BUCKETS — award points ONLY for evidence you can see in the profile text. Never assume or invent.
 
-searchability (25 pts):
-  Count how many times the primary target role keyword (or close variants) appears across
-  headline, about, experience, and skills sections. Score:
-    0-1 appearances → 0-8 pts | 2-3 → 9-15 pts | 4-6 → 16-20 pts | 7+ → 21-25 pts
-  Also check: industry/domain keywords present, tools/tech stack named in multiple sections.
+SEARCHABILITY (25 pts) — LinkedIn algorithm search ranking:
+  Step 1: Identify the primary role keyword from headline or target role (e.g. "AI Engineer", "ML Engineer").
+  Step 2: Count total appearances of that keyword (and close variants) across ALL sections combined.
+  Step 3: Keyword density score:
+    0 appearances → 0 pts | 1-2 → 5 pts | 3-5 → 11 pts | 6-9 → 17 pts | 10+ → 21 pts
+  Step 4: Domain/tech keyword bonus — count secondary keywords (LLM, RAG, GenAI, MLOps, AI, ML, NLP, etc.):
+    0-2 keywords → +0 | 3-5 → +2 pts | 6+ → +4 pts
+  PENALTY: If skills section has fewer than 5 skills → subtract 4 pts (skills is LinkedIn's
+    highest-weight search field; thin skills severely hurt discoverability).
+  Cap at 25.
 
-headline (12 pts):
-  Deduct points for each missing element:
-  - Role title clearly stated (-3 if missing)
-  - 2+ specific skills/tools named (-3 if missing)
-  - Domain or industry context (-3 if missing)
-  - Value proposition or differentiator (-3 if generic/missing)
+HEADLINE (12 pts):
+  +3: Primary role/title clearly stated (e.g. "AI Engineer", "Machine Learning Engineer")
+  +2: 2+ specific technical skills or tool names in the headline itself
+  +2: Employer name, company, or clear industry context
+  +2: Value proposition, specialization, or scale indicator beyond just the role title
+  +2: Seniority signal ("Senior", "Lead", "Enterprise", "Production-scale") or years/scope
+  +1: Well-structured with clear separators (pipe | or dash —, not run-on text)
+  Max: 12. Do not deduct — only award for what is present.
 
-about (15 pts):
-  - Professional identity + specialisation clearly stated (3 pts)
-  - At least 1 quantified achievement or metric (3 pts)
-  - Target domain/industry context (2 pts)
-  - Career direction or motivation (2 pts)
-  - Relevant tools/skills reinforced (2 pts)
-  - Strong opening hook, not "I am a..." (2 pts)
-  - Clear CTA or invitation to connect (1 pt)
+ABOUT (15 pts):
+  +2: Opens with a strong hook that does NOT start with "I am a…" or "I have…" — leads with impact or bold claim
+  +2: Professional identity and specialisation clearly stated within first 2 sentences
+  +3: At least 2 specific quantified achievements with numbers (%, ratios, time saved, scale metrics)
+  +2: Industry or domain context present (enterprise, fintech, healthcare, FAANG, etc.)
+  +2: 3+ specific tools or technologies named in the About section itself
+  +1: Career direction, mission, or what they are building toward
+  +1: Clear CTA — email, "reach out", or invitation to connect
+  +2: Appropriate length (200–2600 characters) — award 1 if present at all, +1 if 400+ chars
 
-experience (22 pts):
-  - Strong action verbs (not "responsible for", "helped with") (4 pts)
-  - Quantified results: numbers, %, $, time saved (6 pts)
-  - Tools and methods named per role (4 pts)
-  - Business impact beyond task completion (4 pts)
-  - Role relevance to target direction (4 pts)
+EXPERIENCE (22 pts):
+  +4: 90%+ of bullets begin with strong past-tense action verbs — NOT "Responsible for", "Helped", "Worked on", "Assisted with"
+  +6: At least 3 quantified results across all roles combined (numbers, %, $, time, user count, scale)
+  +4: Specific tools, methods, and frameworks named per role entry (not just once globally)
+  +4: Business impact articulated — what changed, who benefited, what was enabled or prevented
+  +4: Most recent role experience is relevant to the stated target direction
+  PENALTY: −3 pts if the most recent (current) role has zero quantified metrics.
 
-skills (10 pts):
-  - 5+ skills listed (2 pts)
-  - Core role-specific hard skills present (3 pts)
-  - Tools and platforms listed (3 pts)
-  - Skills reinforced across profile (not only in skills section) (2 pts)
+SKILLS (10 pts) — LinkedIn's #1 search-weighted section:
+  IMPORTANT: If the PDF shows only a "Top Skills" sidebar with 2-3 items, that is NOT the full
+  skills section. This is a critical gap — flag it explicitly and score accordingly.
+  +3: 10+ skills listed (0 pts for this criterion if fewer than 5 visible)
+  +3: Core role-specific hard skills present (Python, PyTorch, TensorFlow, etc. for AI; SQL, dbt for data)
+  +2: Tools and platforms listed (AWS, GCP, Docker, Kubernetes, MLflow, etc.)
+  +2: Skills appear in experience bullets too (cross-profile keyword reinforcement)
 
-proof (8 pts):
-  - LinkedIn recommendations present (look for "Recommendations" section) (3 pts)
-  - Certifications or courses listed (2 pts)
-  - Projects, portfolio, GitHub, or featured work present (2 pts)
-  - Publications, articles, or external links (1 pt)
+PROOF (8 pts) — Social credibility signals:
+  +3: Recommendations section EXPLICITLY present with actual content/names — score 0 if not visible
+  +2: Certifications or credentials listed with institution names
+  +2: Projects, GitHub links, portfolio, or featured section present
+  +1: Publications, articles, patents, or awards listed
+  CRITICAL RULE: Never award recommendation points if no recommendations section is visible.
 
-completeness (3 pts):
-  - Has headline + about + experience (1 pt)
-  - Has education section (1 pt)
-  - Has skills section (1 pt)
+COMPLETENESS (3 pts):
+  +1: Has headline + about + experience sections
+  +1: Has education section with institution name
+  +1: Has skills section (even if thin)
 
-visual (5 pts): profile photo quality (2.5pt), cover/banner quality (2.5pt).{visual_note}
+VISUAL (5 pts) — First impression quality:{visual_note}
+  Profile photo (2.5 pts max): face visible & centered (+0.5), professional attire (+0.75),
+    clean/neutral background (+0.5), good lighting & sharp resolution (+0.75).
+  Cover banner (2.5 pts max): professional design not generic stock photo (+0.75),
+    shows name/role/brand or value prop (+0.75), readable text if present (+0.5), visual coherence (+0.5).
 
 GRADES: Elite(90-100), Excellent(80-89), Strong(65-79), Average(50-64), Needs Work(35-49), Weak(<35)
 
-For each bucket, strengths and gaps MUST reference specific phrases or facts from the profile text. Do not invent evidence.
+FEEDBACK RULES (apply to all gaps, fixes, tips):
+- Gaps MUST quote or paraphrase specific text from the profile. Never write "add more X" without citing what's missing.
+- Fixes must give exact instructions — not "improve your skills section" but the actual text/skills to add.
+- Every priority_fix must have an "example" field showing before→after or exact text to add/change.
+- Education: if About says "completed in [year]", do NOT flag education as in-progress.
+- Never state that recommendations, GitHub, or projects exist unless you see them explicitly in the text.
 
 Return ONLY this JSON shape:
 {{
   "overall_score": <int 0-100>,
   "grade": "<Elite|Excellent|Strong|Average|Needs Work|Weak>",
-  "overall_verdict": "<one sentence>",
+  "overall_verdict": "<2 sentences: what they've done well + the #1 thing to fix>",
   "jd_fit_score": <int 0-100, or 0 if no JD>,
   "buckets": [
     {{
@@ -177,27 +212,32 @@ Return ONLY this JSON shape:
       "score": <int earned>,
       "max": <int max>,
       "pct": <int 0-100>,
-      "strengths": ["<what is done well>"],
-      "gaps": ["<what is missing or weak>"]
+      "strengths": ["<specific strength quoting actual profile text>"],
+      "gaps": ["<specific gap referencing actual profile text>"]
     }}
   ],
-  "top_strengths": ["<strength>", "<strength>", "<strength>"],
-  "top_gaps": ["<gap>", "<gap>", "<gap>"],
+  "top_strengths": ["<specific strength>", "<specific strength>", "<specific strength>"],
+  "top_gaps": ["<specific gap>", "<specific gap>", "<specific gap>"],
   "priority_fixes": [
     {{
       "section": "<bucket id>",
-      "issue": "<specific problem>",
-      "fix": "<exact recommended action>",
+      "issue": "<specific problem — reference actual profile text>",
+      "fix": "<exact action: what to add, remove, or rewrite>",
+      "example": "<Before: [original text] → After: [improved version], or: Add these exact items: [list]>",
       "impact": "<High|Medium|Low>"
     }}
   ],
   "headline_rewrite": {{
     "current": "<their actual headline from the profile>",
     "improved": "<your rewritten version>",
-    "reason": "<why this is better>"
+    "reason": "<why this is better — what changed and why it works>"
   }},
-  "about_tips": ["<tip>", "<tip>", "<tip>"],
-  "visual_notes": ["<visual recommendation>"]
+  "about_tips": [
+    "<specific actionable tip referencing actual text — e.g. 'Your opening line starts with I build — strong hook. Consider moving your 28% retrieval metric into the first sentence to lead with proof.'>",
+    "<tip 2>",
+    "<tip 3>"
+  ],
+  "visual_notes": ["<specific visual recommendation based on image analysis>"]
 }}{jd_block}{visual_block}
 
 LINKEDIN PROFILE TEXT:
@@ -280,6 +320,7 @@ def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, vis
             "section": fix_section,
             "issue":   str(f.get("issue",   "")),
             "fix":     str(f.get("fix",     "")),
+            "example": str(f.get("example", "")),
             "impact":  str(f.get("impact",  "Medium")),
         })
 
@@ -289,6 +330,7 @@ def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, vis
             "section": "visual",
             "issue":   "Profile photo and cover banner not analyzed — images not uploaded to this tool",
             "fix":     "Upload your profile photo and cover banner using the fields above to receive visual quality scores and specific improvement suggestions.",
+            "example": "Upload a headshot with neutral background and professional attire for the profile photo; use a branded banner with your name, role, and top 2 skills or a value statement.",
             "impact":  "High",
         })
 
@@ -437,27 +479,43 @@ def _build_optimize_prompt(pdf_text: str, score_result: dict, target_role: str) 
     )
     priority_fixes = json.dumps(score_result.get("priority_fixes", [])[:5], indent=2)
 
-    return f"""Optimize the LinkedIn profile below for maximum recruiter impact.{role_line}
+    return f"""Optimize this LinkedIn profile for maximum recruiter impact and LinkedIn search ranking.{role_line}
 
 CURRENT SCORE SUMMARY:
 Overall: {score_result.get("overall_score", 0)}/100 — {score_result.get("grade", "")}
 
-BUCKET GAPS:
+BUCKET GAPS (what to fix):
 {buckets_summary}
 
-PRIORITY FIXES:
+PRIORITY FIXES (address these):
 {priority_fixes}
 
-INSTRUCTIONS:
-1. Rewrite the headline to be specific, keyword-rich, and role-aligned.
-2. Rewrite the about/summary section to be compelling and outcome-focused.
-3. For each experience entry found, rewrite bullet points using strong action verbs and quantified impact.
-4. Reorder and recommend skills for better searchability.
+LINKEDIN OPTIMIZATION INSTRUCTIONS:
+1. HEADLINE: Lead with role title + company if applicable. Add top 2-3 technical specializations using
+   pipe separators. Include a seniority/scale signal. Keep under 220 characters. No "I" pronoun.
+   Example structure: "AI Engineer @ [Company] | RAG · LLM Orchestration · MLOps | Production GenAI on AWS"
+
+2. ABOUT SECTION:
+   - First sentence: bold impact claim (not "I am a..." — instead lead with a metric or result)
+   - Weave in 6+ target role keywords naturally (LLM, RAG, GenAI, MLOps, Python, etc.)
+   - Include at least 3 quantified achievements (use exact numbers from the profile — never fabricate)
+   - End with a clear CTA (email or invitation to connect)
+   - Target 400-600 words for optimal LinkedIn algorithm weighting
+
+3. EXPERIENCE BULLETS:
+   - Every bullet: strong past-tense action verb + specific outcome or metric
+   - Name the tools/tech in each bullet (not just in general)
+   - Add business impact context ("reducing operational cost", "enabling real-time inference at scale")
+   - If a bullet has no metric, add context like scale (users served, system load, data volume)
+
+4. SKILLS:
+   - Reorder: core technical skills first, then tools/platforms, then frameworks, then soft skills
+   - Identify skills clearly evidenced in the experience bullets but missing from skills section
 
 CRITICAL CONSTRAINTS:
-- Only use companies, titles, dates, and metrics that actually appear in the profile text.
-- Never fabricate new job titles, companies, skills, or achievements.
-- You may rephrase, restructure, and strengthen language.
+- ONLY use companies, job titles, dates, and metrics that ACTUALLY appear in the profile text.
+- Never fabricate new achievements, certifications, or tools not in the text.
+- You may rephrase, restructure, strengthen, and keyword-optimize existing content.
 
 Return ONLY this JSON shape:
 {{

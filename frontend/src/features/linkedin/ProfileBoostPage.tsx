@@ -12,7 +12,7 @@ interface BucketScore {
   id: string; label: string; score: number; max: number; pct: number
   strengths: string[]; gaps: string[]; evaluated?: boolean; note?: string
 }
-interface PriorityFix { section: string; issue: string; fix: string; impact: 'High' | 'Medium' | 'Low' }
+interface PriorityFix { section: string; issue: string; fix: string; example?: string; impact: 'High' | 'Medium' | 'Low' }
 interface HeadlineRewrite { current: string; improved: string; reason: string }
 interface ImageResult { score: number; suggestions: string[]; observations: Record<string, boolean | null> }
 interface ParsedSections {
@@ -688,6 +688,11 @@ function FixCard({ fix, idx }: { fix: PriorityFix; idx: number }) {
       <div className="flex items-start gap-1.5 text-xs text-slate-600 leading-relaxed">
         <span className="text-cyan-500 shrink-0 mt-0.5">→</span><span>{fix.fix}</span>
       </div>
+      {fix.example && (
+        <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-500 leading-relaxed font-mono">
+          {fix.example}
+        </div>
+      )}
     </div>
   )
 }
