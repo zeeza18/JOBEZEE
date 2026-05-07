@@ -8,12 +8,14 @@ import base64
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import instructor
+import threading
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
@@ -23,6 +25,29 @@ OPUSMAX_UNDERSTAND_IMAGE_URL      = f"{OPUSMAX_BASE_URL}/tools/understand_image"
 DEFAULT_MODEL                    = os.getenv("CLAUDE_MODEL", "claude-opus-4-7")
 CLAUDE_TIMEOUT_SECONDS            = float(os.getenv("CLAUDE_TIMEOUT_SECONDS", "45"))
 _OPUSMAX_PREFIX                  = "sk-ant-opm"
+
+
+# ─── Token bucket — OpusMax hard limit is 1 req/sec ──────────────────────────
+_vision_lock     = threading.Lock()
+_vision_last_t   = 0.0
+_VISION_MIN_GAP  = 1.05   # seconds between vision API calls (slight buffer over 1.0)
+_VISION_MAX_WAIT = 120    # give up after 2 min of queuing
+
+def _vision_acquire() -> None:
+    """Block until we can safely make a vision API call within rate limit."""
+    global _vision_last_t
+    deadline = time.time() + _VISION_MAX_WAIT
+    while True:
+        with _vision_lock:
+            now = time.time()
+            gap = now - _vision_last_t
+            if gap >= _VISION_MIN_GAP:
+                _vision_last_t = now
+                return
+            wait = _VISION_MIN_GAP - gap
+        if time.time() + wait > deadline:
+            raise RuntimeError("Vision API queue full — too many concurrent requests. Please retry in a moment.")
+        time.sleep(wait)
 
 
 def _resolve_opusmax_key() -> str:
@@ -162,27 +187,41 @@ _COVER_TOOL = {
 
 
 def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, response_model):
-    """Use instructor to get structured output from a vision call — retries until schema matches."""
+    """Use instructor to get structured output from a vision call.
+    Token-bucket ensures ≤1 req/sec to OpusMax. Retries up to 3× on rate-limit errors.
+    """
     key = _resolve_opusmax_key()
     if not key:
         raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
 
-    base_client = _make_anthropic_client(key)
     encoded = base64.b64encode(media_bytes).decode("utf-8")
     image_block = {
         "type": "image",
         "source": {"type": "base64", "media_type": media_type, "data": encoded},
     }
 
-    # instructor patches the client to enforce the Pydantic schema via JSON mode
-    client = instructor.from_anthropic(base_client, mode=instructor.Mode.ANTHROPIC_JSON)
-    result = client.messages.create(
-        model=DEFAULT_MODEL,
-        max_tokens=800,
-        response_model=response_model,
-        messages=[{"role": "user", "content": [image_block, {"type": "text", "text": prompt}]}],
-    )
-    return result.model_dump()
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        _vision_acquire()  # wait for rate-limit slot
+        try:
+            base_client = _make_anthropic_client(key)
+            client = instructor.from_anthropic(base_client, mode=instructor.Mode.ANTHROPIC_JSON)
+            result = client.messages.create(
+                model=DEFAULT_MODEL,
+                max_tokens=800,
+                response_model=response_model,
+                messages=[{"role": "user", "content": [image_block, {"type": "text", "text": prompt}]}],
+            )
+            return result.model_dump()
+        except Exception as exc:
+            last_exc = exc
+            err = str(exc).lower()
+            if "429" in err or "rate" in err or "limit" in err:
+                backoff = 2 ** attempt
+                time.sleep(backoff)
+                continue
+            raise  # non-rate-limit errors bubble up immediately
+    raise RuntimeError(f"Vision API rate limited after 3 attempts: {last_exc}")
 
 
 def _extract_text_from_opusmax_response(raw_body: str) -> str:
