@@ -295,10 +295,11 @@ def _parse_sections(pdf_text: str) -> dict[str, Any]:
         r'|^[A-Za-z ,]+,\s+[A-Z]{2}\s+\d{5}',
         re.IGNORECASE,
     )
+    _EMAIL_PREFIX_RE = re.compile(r'^[\w.+\-]+@[\w.\-]+\s+', re.IGNORECASE)
     headline = lines[1] if len(lines) > 1 else ""
     for _i in range(1, min(5, len(lines))):
         if not _ADDRESS_RE.search(lines[_i].strip()):
-            headline = lines[_i]
+            headline = _EMAIL_PREFIX_RE.sub('', lines[_i]).strip()
             break
 
     # Bucket sections
