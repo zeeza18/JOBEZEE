@@ -373,45 +373,54 @@ Return ONLY this JSON (no markdown fences):
 """.strip()
 
 COVER_PROMPT = """
-You are scoring a LinkedIn cover/banner image. Look carefully and answer each field honestly.
+You are a strict LinkedIn banner reviewer. Evaluate EXACTLY what you see. Do not be generous. Do not default to positive scores.
 
-FIELD-BY-FIELD RULES — only mark something true if you can clearly see it:
+STEP 1 — READ ALL TEXT IN THE IMAGE CAREFULLY.
+Look for any text overlays, labels, or captions. Note every word you can read.
+
+STEP 2 — ANSWER EACH FIELD:
 
 role_aligned_visual:
-  true  = banner contains imagery, colors, or visual elements that suggest a professional context
-           (technology, design, finance, code, abstract professional visuals, etc.)
-  false = banner is a completely generic default, personal holiday photo, or totally unrelated image
-  Default true for any non-default banner with professional appearance.
+  Ask: does the background image directly relate to the person's profession or industry?
+  true  = banner shows tech equipment, code, finance charts, design work, office, branded industry imagery
+  false = background is a city skyline, landscape, nature, travel photo, generic stock image, or has NOTHING to do with a profession
+  IMPORTANT: A city skyline + contact info text = false. Contact info alone does NOT make a banner role-aligned.
 
 professional_branding_present:
-  true  = banner has deliberate design: custom color scheme, logo, name, title, or branded layout
-  false = banner is a stock photo or generic gradient with zero personalization
-  Default true if there is any custom text or design element visible.
+  Ask: is there deliberate personal branding beyond just a stock photo?
+  true  = custom designed layout, personal logo, name/title displayed prominently, branded color scheme
+  false = just a stock photo with text pasted on top, or LinkedIn default
+  Note: pasting an email and GitHub link on a stock city photo = marginal — mark false if the background is clearly a stock photo.
 
 text_readability_issue:
-  true  = text on the banner is visibly hard to read (low contrast, too small to read, overlaps badly)
-  false = text (if any) is clearly readable, OR there is no text at all
-  Default false.
+  Ask: is any text on the banner hard to read?
+  true  = text blends into background, very low contrast, too small to read easily
+  false = text is clearly readable OR no text present
 
 banner_has_small_text:
-  true  = banner contains text that is extremely small (would be unreadable on mobile)
-  false = text is large enough to read, OR no text present
-  Default false.
+  Ask: would the text be readable on a phone screen?
+  true  = text is small relative to the banner width (contact info, URLs in small font = true)
+  false = text is large and prominent
+  IMPORTANT: email addresses and GitHub URLs in small print = true.
 
 broken_url_or_typo_visible:
-  true  = you can clearly read a broken URL or obvious spelling mistake in the banner text
-  false = no visible typos or broken links (default — do NOT guess)
-  Default false.
+  CAREFULLY READ any email addresses or URLs you can see.
+  true  = email missing proper domain (e.g. "user@com" instead of "user@gmail.com"), URL missing https or domain, obvious typo
+  false = all emails and URLs look correctly formatted, or no URLs/emails present
+  CRITICAL: "@com" without a domain name (e.g. "name@com") is a broken email — mark true.
+  CRITICAL: Read character by character. Do not assume an email is valid without checking the domain.
 
 email_on_banner_visible:
-  true  = an email address is visibly printed on the banner
-  false = no email visible (default)
-  Default false.
+  Ask: can you see an email address anywhere in the image?
+  true  = any text containing "@" symbol is visible, even if malformed
+  false = no email address visible
+  IMPORTANT: if you marked broken_url_or_typo_visible=true for an email, this must also be true.
 
 clutter_or_distraction_visible:
-  true  = banner is visually overwhelming: too many elements, clashing colors, chaotic layout
-  false = banner looks organized and clean
-  Default false unless clearly cluttered.
+  Ask: does the background distract from the professional message?
+  true  = busy city skyline, landscape with many elements, random stock photo, plane flying through, multiple unrelated visual elements
+  false = clean minimal background, solid color, professional abstract design
+  IMPORTANT: A dense city skyline photo with a plane IS cluttered and distracting for a LinkedIn banner — mark true.
 
 Return ONLY this JSON (no markdown fences):
 {
