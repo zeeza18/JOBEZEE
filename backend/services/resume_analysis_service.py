@@ -14,7 +14,6 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-import instructor
 import threading
 from pydantic import BaseModel, Field
 
@@ -204,6 +203,7 @@ def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, re
     for attempt in range(3):
         _vision_acquire()  # wait for rate-limit slot
         try:
+            import instructor  # lazy — only installed on worker, not in backend Docker image
             base_client = _make_anthropic_client(key)
             client = instructor.from_anthropic(base_client, mode=instructor.Mode.ANTHROPIC_JSON)
             result = client.messages.create(
