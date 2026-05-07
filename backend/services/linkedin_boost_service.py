@@ -325,9 +325,21 @@ def _parse_sections(pdf_text: str) -> dict[str, Any]:
         "recommendations": re.compile(r"^(recommendations?|endorsements?)$", re.IGNORECASE),
     }
 
-    # Headline heuristic: first non-empty line after the name (line 0) is usually the headline
-    # LinkedIn PDFs typically: line 0 = full name, line 1 = headline, line 2 = location
+    # Headline heuristic: scan lines 1-4, skip address/location lines
+    # LinkedIn PDFs vary: sometimes line 1 is city/address, sometimes it's the headline
+    _ADDRESS_RE = re.compile(
+        r'^\d+\s+\w+\s+(St\.?|Ave\.?|Blvd\.?|Dr\.?|Ln\.?|Rd\.?|Ct\.?|Pl\.?|Way|Pkwy|Cir|Court|Street|Avenue|Drive|Lane|Road|Boulevard)\b'
+        r'|^[A-Za-z\s]+,\s+(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b'
+        r'|^[A-Za-z\s,]+,\s+United States'
+        r'|^[A-Za-z\s,]+,\s+India$'
+        r'|^[A-Za-z ,]+,\s+[A-Z]{2}\s+\d{5}',
+        re.IGNORECASE,
+    )
     headline = lines[1] if len(lines) > 1 else ""
+    for _i in range(1, min(5, len(lines))):
+        if not _ADDRESS_RE.search(lines[_i].strip()):
+            headline = lines[_i]
+            break
 
     # Bucket sections
     sections: dict[str, list[str]] = {
