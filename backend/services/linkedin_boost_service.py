@@ -148,7 +148,6 @@ COMPLETENESS (3 pts):
 GRADES: Elite(90-100), Excellent(80-89), Strong(65-79), Average(50-64), Needs Work(35-49), Weak(<35)
 
 FEEDBACK RULES:
-- Every string in strengths[], gaps[], top_strengths[], top_gaps[], about_tips[], and evidence[] MUST start with a hyphen and space: "- your text here".
 - Gaps MUST quote or paraphrase specific text from the profile. Never write "add more X" without citing what's missing.
 - Fixes must give exact instructions — the actual text/skills to add.
 - Every priority_fix must have an "example" field showing before→after or exact text to add/change.
