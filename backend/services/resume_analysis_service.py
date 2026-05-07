@@ -210,6 +210,7 @@ def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, re
             response = client.messages.create(
                 model=VISION_MODEL,
                 max_tokens=800,
+                temperature=0,
                 messages=[{"role": "user", "content": [image_block, {"type": "text", "text": prompt}]}],
             )
             raw = next((b.text for b in response.content if hasattr(b, "text")), "{}")
@@ -379,8 +380,11 @@ You are a strict LinkedIn banner scorer. Your job is to evaluate the image hones
 Never assume a field is positive. Only mark true when you can directly observe evidence for it.
 
 ━━━ STEP 1: READ ALL TEXT ━━━
-Before answering any field, scan the entire image for text overlays or captions.
-Write down every word or character you can read. This is critical for email and URL detection.
+Before answering any field, scan ALL four quadrants of the image for text overlays, boxes, or captions.
+Pay special attention to white boxes, colored overlays, or semi-transparent panels — these commonly
+contain contact info. Read character-by-character. List every word, symbol, email, URL you can see.
+The evidence array MUST contain every piece of text found, quoted exactly as it appears.
+This step is mandatory — do not skip it.
 
 ━━━ STEP 2: SCORE EACH FIELD ━━━
 
