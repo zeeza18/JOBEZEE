@@ -1338,8 +1338,12 @@ export default function ProfileBoostPage() {
           {photoPhase === 'done' && photoResult && profileImageUrl ? (
             <>
               <ImageFeedbackRow imageUrl={profileImageUrl} result={photoResult} label="Profile Photo" />
-              <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); savePhotoCache(null) }}
-                className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace photo →</button>
+              <div className="flex items-center gap-4">
+                <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); setProfileImage(null); setProfileImageUrl(null); savePhotoCache(null) }}
+                  className="text-xs text-slate-400 hover:text-red-500 transition">Clear</button>
+                <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); savePhotoCache(null) }}
+                  className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace photo →</button>
+              </div>
             </>
           ) : (
             <div className="space-y-3">
@@ -1374,8 +1378,12 @@ export default function ProfileBoostPage() {
           {coverPhase === 'done' && coverResult && coverImageUrl ? (
             <>
               <ImageFeedbackRow imageUrl={coverImageUrl} result={coverResult} label="Cover Banner" isBanner />
-              <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); saveCoverCache(null) }}
-                className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace banner →</button>
+              <div className="flex items-center gap-4">
+                <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); setCoverImage(null); setCoverImageUrl(null); saveCoverCache(null) }}
+                  className="text-xs text-slate-400 hover:text-red-500 transition">Clear</button>
+                <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); saveCoverCache(null) }}
+                  className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace banner →</button>
+              </div>
             </>
           ) : (
             <div className="space-y-3">
