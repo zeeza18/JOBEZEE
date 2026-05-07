@@ -41,8 +41,101 @@ def _make_anthropic_client(api_key: str):
 
 # ─── OpusMax understand_image ──────────────────────────────────────────────────
 
-def _call_vision_analysis(media_bytes: bytes, media_type: str, prompt: str) -> str:
-    """Analyze an image via Anthropic messages API (vision). Works with OpusMax and direct Anthropic."""
+_PROFILE_TOOL = {
+    "name": "score_profile_photo",
+    "description": "Score a LinkedIn profile photo by directly observing the image.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "face_visible": {
+                "type": "boolean",
+                "description": "true if a human face is present and facing the camera (even partially). false ONLY if no face is detectable at all."
+            },
+            "professional_attire": {
+                "type": "boolean",
+                "description": "true if person wears a blazer, dress shirt, suit, or formal/business-casual top. false ONLY if clearly casual (plain t-shirt, hoodie, shirtless). Default true if clothing is visible but ambiguous."
+            },
+            "watermark_or_ai_icon_visible": {
+                "type": "boolean",
+                "description": "true if you see any overlay badge, sparkle, star, logo, or watermark placed ON the image. false if image is clean."
+            },
+            "lighting_adequate": {
+                "type": "boolean",
+                "description": "true if the face is clearly lit and features are distinguishable. false ONLY if the face is silhouetted, severely underlit, or blown out so features are lost. Default true."
+            },
+            "background_clean": {
+                "type": "boolean",
+                "description": "true if background is plain, blurred, solid color, or minimal. false ONLY if background is visibly cluttered with competing elements. Default true for any uniform or blurred background."
+            },
+            "framing_professional": {
+                "type": "boolean",
+                "description": "true if subject fills the frame as a head/shoulder or chest-up portrait. false ONLY if person is tiny in frame, severely cropped at the face, or awkwardly angled. Default true for standard portrait composition."
+            },
+            "image_quality_issue_visible": {
+                "type": "boolean",
+                "description": "true if image is visibly pixelated, heavily compressed, blurry, or distorted. false if image appears clear. Default false."
+            },
+            "evidence": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "1-3 short factual observations about what you see. Empty array if nothing notable."
+            }
+        },
+        "required": ["face_visible", "professional_attire", "watermark_or_ai_icon_visible",
+                     "lighting_adequate", "background_clean", "framing_professional",
+                     "image_quality_issue_visible", "evidence"]
+    }
+}
+
+_COVER_TOOL = {
+    "name": "score_cover_banner",
+    "description": "Score a LinkedIn cover/banner image by directly observing the image.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "role_aligned_visual": {
+                "type": "boolean",
+                "description": "true if banner has imagery, colors, or visuals suggesting a professional context (tech, design, finance, abstract professional). false if it is a completely generic stock photo of nature/city with zero professional context, OR the LinkedIn default blue gradient."
+            },
+            "professional_branding_present": {
+                "type": "boolean",
+                "description": "true if banner has ANY deliberate personalization: custom color scheme, name, title, logo, or branded layout. false ONLY if it is a plain stock photo or default with zero custom elements."
+            },
+            "text_readability_issue": {
+                "type": "boolean",
+                "description": "true if text on the banner has poor contrast, is too small to comfortably read, or overlaps badly with the background. false if text is readable OR no text present. Default false."
+            },
+            "banner_has_small_text": {
+                "type": "boolean",
+                "description": "true if banner contains text so small it would be unreadable on a mobile screen. false if text is large enough to read or no text present. Default false."
+            },
+            "broken_url_or_typo_visible": {
+                "type": "boolean",
+                "description": "true if you can read a broken/malformed URL (missing http, incomplete domain), a malformed email (e.g. @com instead of @gmail.com, missing TLD), or an obvious spelling mistake. false if URLs and email addresses look correctly formatted or no text present. Default false — only mark true if you can clearly read a problem."
+            },
+            "email_on_banner_visible": {
+                "type": "boolean",
+                "description": "true if an email address (any format, even broken) is visibly printed anywhere on the banner. false if no email is present. Default false."
+            },
+            "clutter_or_distraction_visible": {
+                "type": "boolean",
+                "description": "true if banner is visually overwhelming with too many competing elements, clashing colors, or chaotic layout. false if banner looks organized. Default false."
+            },
+            "evidence": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "1-3 short factual observations about what you see. If email is visible, write the exact email text. If URL is broken, quote it."
+            }
+        },
+        "required": ["role_aligned_visual", "professional_branding_present", "text_readability_issue",
+                     "banner_has_small_text", "broken_url_or_typo_visible", "email_on_banner_visible",
+                     "clutter_or_distraction_visible", "evidence"]
+    }
+}
+
+
+def _call_vision_tool(media_bytes: bytes, media_type: str, system_prompt: str, tool: dict) -> dict:
+    """Call Claude vision using tool_use to force structured output — zero hallucination."""
     key = _resolve_opusmax_key()
     if not key:
         raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
@@ -52,23 +145,24 @@ def _call_vision_analysis(media_bytes: bytes, media_type: str, prompt: str) -> s
 
     response = client.messages.create(
         model=DEFAULT_MODEL,
-        max_tokens=600,
+        max_tokens=800,
+        tools=[tool],
+        tool_choice={"type": "tool", "name": tool["name"]},
         messages=[{
             "role": "user",
             "content": [
                 {
                     "type": "image",
-                    "source": {
-                        "type":       "base64",
-                        "media_type": media_type,
-                        "data":       encoded,
-                    },
+                    "source": {"type": "base64", "media_type": media_type, "data": encoded},
                 },
-                {"type": "text", "text": prompt},
+                {"type": "text", "text": system_prompt},
             ],
         }],
     )
-    return next((b.text for b in response.content if hasattr(b, "text")), "{}")
+    for block in response.content:
+        if hasattr(block, "type") and block.type == "tool_use":
+            return block.input
+    raise RuntimeError("No tool_use block returned from vision model")
 
 
 def _extract_text_from_opusmax_response(raw_body: str) -> str:
@@ -273,47 +367,41 @@ Return ONLY this JSON (no markdown fences):
 # ─── Image analysis ────────────────────────────────────────────────────────────
 
 def analyze_profile_picture(media_bytes: bytes, media_type: str) -> dict[str, Any]:
-    """Analyze profile picture via Anthropic messages API with vision."""
-    raw = _call_vision_analysis(media_bytes, media_type, PROFILE_PROMPT)
-    data = _safe_json_parse_profile(raw)
-    obs  = data.get("observations", {})
+    obs = _call_vision_tool(media_bytes, media_type, PROFILE_PROMPT, _PROFILE_TOOL)
     return {
-        "uploaded":    data.get("uploaded", True),
-        "warnings":   data.get("warnings", []),
-        "score":      _calc_profile_score(obs),
+        "uploaded": True,
+        "warnings": [],
+        "score": _calc_profile_score(obs),
         "observations": {
-            "face_visible":                _safe_bool(obs.get("face_visible")),
-            "professional_attire":        _safe_bool(obs.get("professional_attire")),
-            "watermark_or_ai_icon_visible": _safe_bool(obs.get("watermark_or_ai_icon_visible")),
-            "lighting_adequate":          _safe_bool(obs.get("lighting_adequate")),
-            "background_clean":            _safe_bool(obs.get("background_clean")),
-            "framing_professional":        _safe_bool(obs.get("framing_professional")),
-            "image_quality_issue_visible": _safe_bool(obs.get("image_quality_issue_visible")),
+            "face_visible":                 bool(obs.get("face_visible")),
+            "professional_attire":          bool(obs.get("professional_attire")),
+            "watermark_or_ai_icon_visible": bool(obs.get("watermark_or_ai_icon_visible")),
+            "lighting_adequate":            bool(obs.get("lighting_adequate")),
+            "background_clean":             bool(obs.get("background_clean")),
+            "framing_professional":         bool(obs.get("framing_professional")),
+            "image_quality_issue_visible":  bool(obs.get("image_quality_issue_visible")),
         },
-        "evidence": _safe_str_array(data.get("evidence", [])),
+        "evidence": _safe_str_array(obs.get("evidence", [])),
         "suggestions": _build_profile_suggestions(obs),
     }
 
 
 def analyze_cover_picture(media_bytes: bytes, media_type: str) -> dict[str, Any]:
-    """Analyze cover/banner picture via Anthropic messages API with vision."""
-    raw = _call_vision_analysis(media_bytes, media_type, COVER_PROMPT)
-    data = _safe_json_parse_cover(raw)
-    obs  = data.get("observations", {})
+    obs = _call_vision_tool(media_bytes, media_type, COVER_PROMPT, _COVER_TOOL)
     return {
-        "uploaded":    data.get("uploaded", True),
-        "warnings":   data.get("warnings", []),
-        "score":      _calc_cover_score(obs),
+        "uploaded": True,
+        "warnings": [],
+        "score": _calc_cover_score(obs),
         "observations": {
-            "role_aligned_visual":           _safe_bool(obs.get("role_aligned_visual")),
-            "professional_branding_present": _safe_bool(obs.get("professional_branding_present")),
-            "text_readability_issue":        _safe_bool(obs.get("text_readability_issue")),
-            "banner_has_small_text":          _safe_bool(obs.get("banner_has_small_text")),
-            "broken_url_or_typo_visible":    _safe_bool(obs.get("broken_url_or_typo_visible")),
-            "email_on_banner_visible":       _safe_bool(obs.get("email_on_banner_visible")),
-            "clutter_or_distraction_visible": _safe_bool(obs.get("clutter_or_distraction_visible")),
+            "role_aligned_visual":           bool(obs.get("role_aligned_visual")),
+            "professional_branding_present": bool(obs.get("professional_branding_present")),
+            "text_readability_issue":        bool(obs.get("text_readability_issue")),
+            "banner_has_small_text":         bool(obs.get("banner_has_small_text")),
+            "broken_url_or_typo_visible":    bool(obs.get("broken_url_or_typo_visible")),
+            "email_on_banner_visible":       bool(obs.get("email_on_banner_visible")),
+            "clutter_or_distraction_visible": bool(obs.get("clutter_or_distraction_visible")),
         },
-        "evidence": _safe_str_array(data.get("evidence", [])),
+        "evidence": _safe_str_array(obs.get("evidence", [])),
         "suggestions": _build_cover_suggestions(obs),
     }
 
@@ -419,8 +507,12 @@ def _calc_cover_score(obs: dict) -> float:
             pts += weight
     # Cap if issues present
     for field in ("broken_url_or_typo_visible", "text_readability_issue", "banner_has_small_text"):
-        if _safe_bool(obs.get(field)) is True:
+        if obs.get(field) is True:
             pts = min(pts, caps["typo_cap"])
+    if obs.get("email_on_banner_visible") is True:
+        pts = min(pts, 1.5)  # email exposure = hard cap at 60
+    if obs.get("broken_url_or_typo_visible") is True and obs.get("email_on_banner_visible") is True:
+        pts = min(pts, 0.75)  # broken email on banner = hard cap at 30
     return round(min(pts / 2.5 * 100, 100), 1)
 
 
