@@ -514,7 +514,8 @@ def analyze_linkedin_profile(
             try:
                 response = cl.messages.create(
                     model=LINKEDIN_MODEL,
-                    max_tokens=4000,
+                    max_tokens=2000,
+                    temperature=0,
                     system=_SYSTEM,
                     messages=[{"role": "user", "content": prompt}],
                 )
@@ -572,7 +573,8 @@ def optimize_linkedin_profile(
             for attempt in range(2):
                 response = cl.messages.create(
                     model=LINKEDIN_MODEL,
-                    max_tokens=4000,
+                    max_tokens=3000,
+                    temperature=0,
                     system=_OPTIMIZE_SYSTEM,
                     messages=[{"role": "user", "content": prompt}],
                 )
