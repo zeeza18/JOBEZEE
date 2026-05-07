@@ -1750,7 +1750,10 @@ async def lb_analyze_photo(
         sys.path.insert(0, repo_root)
     from backend.services.resume_analysis_service import analyze_profile_picture
     import asyncio
-    return await asyncio.to_thread(analyze_profile_picture, img_bytes, img_type)
+    try:
+        return await asyncio.to_thread(analyze_profile_picture, img_bytes, img_type)
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
 
 
 @app.post("/api/linkedin-boost/analyze-cover")
@@ -1767,7 +1770,10 @@ async def lb_analyze_cover(
         sys.path.insert(0, repo_root)
     from backend.services.resume_analysis_service import analyze_cover_picture
     import asyncio
-    return await asyncio.to_thread(analyze_cover_picture, img_bytes, img_type)
+    try:
+        return await asyncio.to_thread(analyze_cover_picture, img_bytes, img_type)
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
 
 
 @app.post("/api/linkedin-boost/analyze")
