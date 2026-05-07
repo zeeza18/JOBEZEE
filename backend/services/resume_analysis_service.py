@@ -158,21 +158,12 @@ def _extract_str_array(raw: str, field: str) -> list[str]:
 # ─── Image prompts (from linkedin_scorer_step1) ───────────────────────────────
 
 PROFILE_PROMPT = """
-You are reviewing a LinkedIn profile picture for professional quality. Return JSON only.
-Assess each attribute based on what is clearly visible. Be decisive — use null ONLY if the
-attribute literally cannot be determined (e.g. image is fully black or corrupted).
-
-Definitions for each field:
-- face_visible: true if the person's face is clearly visible and not obscured
-- professional_attire: true if the person wears business/smart-casual clothing (suit, dress shirt, blouse, blazer)
-- watermark_or_ai_icon_visible: true ONLY if you see an obvious watermark, logo overlay, or AI-generation artifact icon
-- lighting_adequate: true if the face is evenly lit with no harsh shadows across features; false only if clearly underlit or has stark shadows; if the image looks well-exposed, set true
-- background_clean: true if the background is a single color, simple gradient, or simple setting without clutter; false only if visibly messy or distracting
-- framing_professional: true if the face and shoulders are centered in the frame; false only if the subject is significantly off-center or too distant/close
-- image_quality_issue_visible: true ONLY if there is obvious blurriness, heavy compression artifacts, or very low resolution
-
+You are reviewing a LinkedIn profile picture. Return JSON only.
+Evaluate each boolean field based on what you can directly observe. Default to true for quality
+attributes (lighting, background, framing) unless you can clearly see a problem. Only use null
+if the image is corrupt, fully dark, or the attribute cannot be seen at all.
 Do not wrap the response in markdown fences.
-Return this exact shape:
+Return this exact shape (all boolean values must be true or false, not null, unless image is unreadable):
 {
   "uploaded": true,
   "observations": {
@@ -184,7 +175,7 @@ Return this exact shape:
     "framing_professional": true,
     "image_quality_issue_visible": false
   },
-  "evidence": ["<one brief phrase per key observation, e.g. 'clean blue background', 'navy blazer visible'>"]
+  "evidence": []
 }
 """.strip()
 
