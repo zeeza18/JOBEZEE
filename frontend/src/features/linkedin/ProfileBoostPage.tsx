@@ -894,6 +894,52 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'cover',   label: 'Cover'   },
 ]
 
+interface ExpEntry  { company: string; title: string; dates: string; bullets: string }
+interface EduEntry  { school: string; degree: string; dates: string }
+interface ManualForm {
+  headline: string; about: string
+  experience: ExpEntry[]; education: EduEntry[]
+  skills: string; certifications: string; projects: string
+  recommendations: string; awards: string
+}
+const emptyExp  = (): ExpEntry  => ({ company: '', title: '', dates: '', bullets: '' })
+const emptyEdu  = (): EduEntry  => ({ school: '', degree: '', dates: '' })
+const emptyForm = (): ManualForm => ({
+  headline: '', about: '', experience: [emptyExp()], education: [emptyEdu()],
+  skills: '', certifications: '', projects: '', recommendations: '', awards: '',
+})
+
+function buildManualText(f: ManualForm): string {
+  const lines: string[] = []
+  if (f.headline) lines.push(f.headline, '')
+  if (f.about) { lines.push('Summary', f.about, '') }
+  const exps = f.experience.filter(e => e.company || e.title || e.bullets)
+  if (exps.length) {
+    lines.push('Experience')
+    exps.forEach(e => {
+      if (e.company || e.title) lines.push([e.company, e.title].filter(Boolean).join(' | '))
+      if (e.dates) lines.push(e.dates)
+      if (e.bullets) e.bullets.split('\n').forEach(b => lines.push(b.trim() ? `• ${b.trim().replace(/^[•\-*]\s*/, '')}` : ''))
+      lines.push('')
+    })
+  }
+  const edus = f.education.filter(e => e.school)
+  if (edus.length) {
+    lines.push('Education')
+    edus.forEach(e => {
+      lines.push(e.school)
+      if (e.degree || e.dates) lines.push([e.degree, e.dates].filter(Boolean).join(' · '))
+      lines.push('')
+    })
+  }
+  if (f.skills) { lines.push('Skills', f.skills, '') }
+  if (f.certifications) { lines.push('Certifications', f.certifications, '') }
+  if (f.projects) { lines.push('Projects', f.projects, '') }
+  if (f.recommendations) { lines.push('Recommendations', f.recommendations, '') }
+  if (f.awards) { lines.push('Awards', f.awards, '') }
+  return lines.join('\n')
+}
+
 export default function ProfileBoostPage() {
   const persisted = loadPersistedState()
 
@@ -902,6 +948,8 @@ export default function ProfileBoostPage() {
 
   // ── Profile (PDF) state ──────────────────────────────────────────────────
   const [profilePhase,   setProfilePhase]   = useState<ProfilePhase>(persisted ? 'analyzed' : 'input')
+  const [inputMode,      setInputMode]      = useState<'pdf' | 'manual'>('pdf')
+  const [manualForm,     setManualForm]     = useState<ManualForm>(emptyForm())
   const [pdfFile,        setPdfFile]        = useState<File | null>(null)
   const [targetRole,     setTargetRole]     = useState(persisted?.targetRole ?? '')
   const [jdText,         setJdText]         = useState('')
@@ -1074,6 +1122,46 @@ export default function ProfileBoostPage() {
     }, POLL_INTERVAL)
   }, [pdfFile, jdText, targetRole])
 
+  // ── Manual analyze ────────────────────────────────────────────────────────
+
+  const handleManualAnalyze = useCallback(async () => {
+    const text = buildManualText(manualForm).trim()
+    if (!text) return
+    const file = new File([text], 'profile.txt', { type: 'text/plain' })
+    setPdfFile(file)
+    setProfileError(null); setResult(null); setOptimizeResult(null)
+    setCurrentStep('extract'); setProfilePhase('analyzing'); clearState()
+
+    const fd = new FormData()
+    fd.append('profile_pdf', file)
+    if (jdText.trim())     fd.append('job_description', jdText.trim())
+    if (targetRole.trim()) fd.append('target_role',     targetRole.trim())
+
+    let jobId: string
+    try {
+      const res = await fetch('/api/linkedin-boost/analyze', { method: 'POST', credentials: 'include', body: fd })
+      const data = await safeJson(res)
+      if (!res.ok) throw new Error((data.detail as string) || 'Failed to start analysis')
+      jobId = data.job_id as string
+    } catch (e: unknown) { setProfileError(e instanceof Error ? e.message : String(e)); setProfilePhase('input'); return }
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/linkedin-boost/status/${jobId}`, { credentials: 'include' })
+        const data = await safeJson(res)
+        if (!res.ok) throw new Error((data.detail as string) || 'Analysis failed')
+        const step = data.step as string | undefined
+        if (step) setCurrentStep(step)
+        if (data.status === 'done') {
+          stopPolling()
+          const r = data.result as BoostResult
+          setResult(r); setProfilePhase('analyzed')
+          saveState({ result: r, optimizeResult: null, targetRole })
+        }
+      } catch (e: unknown) { stopPolling(); setProfileError(e instanceof Error ? e.message : String(e)); setProfilePhase('input') }
+    }, POLL_INTERVAL)
+  }, [manualForm, jdText, targetRole])
+
   // ── Optimize ──────────────────────────────────────────────────────────────
 
   const handleOptimize = useCallback(async () => {
@@ -1181,13 +1269,146 @@ export default function ProfileBoostPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-cyan-600" />
-                  <p className="text-sm font-semibold text-slate-800">LinkedIn Profile PDF</p>
+                {/* Mode switcher */}
+                <div className="flex rounded-xl border border-slate-200 p-1 bg-slate-50 gap-1">
+                  {(['pdf', 'manual'] as const).map(m => (
+                    <button key={m} onClick={() => setInputMode(m)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition ${inputMode === m ? 'bg-white shadow text-cyan-700 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>
+                      {m === 'pdf' ? <><Upload className="h-3.5 w-3.5" />Upload PDF</> : <><Pencil className="h-3.5 w-3.5" />Fill manually</>}
+                    </button>
+                  ))}
                 </div>
-                <DropZone accept=".pdf,.txt" label="Upload your LinkedIn PDF export"
-                  hint='LinkedIn → "Save to PDF" on your profile page'
-                  icon={Upload} file={pdfFile} onFile={setPdfFile} />
+
+                {inputMode === 'pdf' ? (
+                  <>
+                    <DropZone accept=".pdf,.txt" label="Upload your LinkedIn PDF export"
+                      hint='LinkedIn → "Save to PDF" on your profile page'
+                      icon={Upload} file={pdfFile} onFile={setPdfFile} />
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Headline */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">Headline</p>
+                      <input type="text" placeholder="e.g. AI Engineer | GenAI, LLMs & RAG | AWS"
+                        value={manualForm.headline}
+                        onChange={e => setManualForm(f => ({ ...f, headline: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
+                    </div>
+                    {/* About */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">About / Summary</p>
+                      <textarea rows={3} placeholder="Your professional summary…"
+                        value={manualForm.about}
+                        onChange={e => setManualForm(f => ({ ...f, about: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
+                    </div>
+                    {/* Experience */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">Experience</p>
+                      <div className="space-y-3">
+                        {manualForm.experience.map((exp, i) => (
+                          <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <input type="text" placeholder="Company" value={exp.company}
+                                onChange={e => setManualForm(f => { const ex = [...f.experience]; ex[i] = { ...ex[i], company: e.target.value }; return { ...f, experience: ex } })}
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition placeholder-slate-400" />
+                              <input type="text" placeholder="Title" value={exp.title}
+                                onChange={e => setManualForm(f => { const ex = [...f.experience]; ex[i] = { ...ex[i], title: e.target.value }; return { ...f, experience: ex } })}
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition placeholder-slate-400" />
+                            </div>
+                            <input type="text" placeholder="Dates (e.g. Jan 2023 – Present)" value={exp.dates}
+                              onChange={e => setManualForm(f => { const ex = [...f.experience]; ex[i] = { ...ex[i], dates: e.target.value }; return { ...f, experience: ex } })}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition placeholder-slate-400" />
+                            <textarea rows={3} placeholder="Bullet points (one per line)"
+                              value={exp.bullets}
+                              onChange={e => setManualForm(f => { const ex = [...f.experience]; ex[i] = { ...ex[i], bullets: e.target.value }; return { ...f, experience: ex } })}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 transition placeholder-slate-400" />
+                            {manualForm.experience.length > 1 && (
+                              <button onClick={() => setManualForm(f => ({ ...f, experience: f.experience.filter((_, j) => j !== i) }))}
+                                className="text-xs text-red-400 hover:text-red-600 transition">Remove</button>
+                            )}
+                          </div>
+                        ))}
+                        {manualForm.experience.length < 5 && (
+                          <button onClick={() => setManualForm(f => ({ ...f, experience: [...f.experience, emptyExp()] }))}
+                            className="text-xs text-cyan-600 hover:text-cyan-800 transition">+ Add experience</button>
+                        )}
+                      </div>
+                    </div>
+                    {/* Education */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">Education</p>
+                      <div className="space-y-2">
+                        {manualForm.education.map((edu, i) => (
+                          <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                            <input type="text" placeholder="School / University" value={edu.school}
+                              onChange={e => setManualForm(f => { const ed = [...f.education]; ed[i] = { ...ed[i], school: e.target.value }; return { ...f, education: ed } })}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition placeholder-slate-400" />
+                            <div className="grid grid-cols-2 gap-2">
+                              <input type="text" placeholder="Degree / Field" value={edu.degree}
+                                onChange={e => setManualForm(f => { const ed = [...f.education]; ed[i] = { ...ed[i], degree: e.target.value }; return { ...f, education: ed } })}
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition placeholder-slate-400" />
+                              <input type="text" placeholder="Dates (e.g. 2020–2024)" value={edu.dates}
+                                onChange={e => setManualForm(f => { const ed = [...f.education]; ed[i] = { ...ed[i], dates: e.target.value }; return { ...f, education: ed } })}
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition placeholder-slate-400" />
+                            </div>
+                            {manualForm.education.length > 1 && (
+                              <button onClick={() => setManualForm(f => ({ ...f, education: f.education.filter((_, j) => j !== i) }))}
+                                className="text-xs text-red-400 hover:text-red-600 transition">Remove</button>
+                            )}
+                          </div>
+                        ))}
+                        {manualForm.education.length < 3 && (
+                          <button onClick={() => setManualForm(f => ({ ...f, education: [...f.education, emptyEdu()] }))}
+                            className="text-xs text-cyan-600 hover:text-cyan-800 transition">+ Add education</button>
+                        )}
+                      </div>
+                    </div>
+                    {/* Skills */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">Skills <span className="text-slate-300">(comma-separated)</span></p>
+                      <input type="text" placeholder="Python, LangChain, AWS, Docker, PyTorch…"
+                        value={manualForm.skills}
+                        onChange={e => setManualForm(f => ({ ...f, skills: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
+                    </div>
+                    {/* Certifications */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">Certifications</p>
+                      <textarea rows={2} placeholder="One per line, e.g. AWS Solutions Architect – Amazon (2024)"
+                        value={manualForm.certifications}
+                        onChange={e => setManualForm(f => ({ ...f, certifications: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
+                    </div>
+                    {/* Projects */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">Projects</p>
+                      <textarea rows={2} placeholder="Project names and brief descriptions…"
+                        value={manualForm.projects}
+                        onChange={e => setManualForm(f => ({ ...f, projects: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
+                    </div>
+                    {/* Recommendations */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">Recommendations</p>
+                      <textarea rows={2} placeholder="Paste any recommendation text you have…"
+                        value={manualForm.recommendations}
+                        onChange={e => setManualForm(f => ({ ...f, recommendations: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
+                    </div>
+                    {/* Awards */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1">Awards / Honors</p>
+                      <textarea rows={2} placeholder="Any awards, honors, or publications…"
+                        value={manualForm.awards}
+                        onChange={e => setManualForm(f => ({ ...f, awards: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Target role + JD (shared) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <p className="text-xs font-medium text-slate-500 mb-1.5 flex items-center gap-1.5">
@@ -1206,7 +1427,10 @@ export default function ProfileBoostPage() {
                       value={jdText} onChange={e => setJdText(e.target.value)} rows={3} />
                   </div>
                 </div>
-                <AnalyzeBtn onClick={handleProfileAnalyze} disabled={!pdfFile} loading={false} label="Analyze Profile" />
+                {inputMode === 'pdf'
+                  ? <AnalyzeBtn onClick={handleProfileAnalyze} disabled={!pdfFile} loading={false} label="Analyze Profile" />
+                  : <AnalyzeBtn onClick={handleManualAnalyze} disabled={!buildManualText(manualForm).trim()} loading={false} label="Score My Profile" />
+                }
                 {profileError && (
                   <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>{profileError}</span>
