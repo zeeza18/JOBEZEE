@@ -33,6 +33,8 @@ interface OptimizeResult {
   skills?:     { current: string[]; reordered: string[]; add_if_true: Array<{ skill: string; reason: string }> }
 }
 
+const stripBullet = (s: string) => s.replace(/^[-•*]\s+/, '')
+
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
 const LS_KEY = 'jobezee_linkedin_boost'
@@ -273,7 +275,7 @@ function StrengthsGaps({ strengths, gaps }: { strengths: string[]; gaps: string[
           <p className="text-xs font-bold text-emerald-700 uppercase tracking-widest">Top Strengths</p>
           {strengths.map((s, i) => (
             <div key={i} className="flex gap-2 text-sm text-slate-700 leading-relaxed">
-              <span className="text-emerald-500 shrink-0 font-bold mt-0.5">✓</span><span>{s}</span>
+              <span className="text-emerald-500 shrink-0 font-bold mt-0.5">✓</span><span>{stripBullet(s)}</span>
             </div>
           ))}
         </div>
@@ -283,7 +285,7 @@ function StrengthsGaps({ strengths, gaps }: { strengths: string[]; gaps: string[
           <p className="text-xs font-bold text-red-600 uppercase tracking-widest">Top Gaps</p>
           {gaps.map((g, i) => (
             <div key={i} className="flex gap-2 text-sm text-slate-700 leading-relaxed">
-              <span className="text-red-400 shrink-0 font-bold mt-0.5">✗</span><span>{g}</span>
+              <span className="text-red-400 shrink-0 font-bold mt-0.5">✗</span><span>{stripBullet(g)}</span>
             </div>
           ))}
         </div>
@@ -325,7 +327,7 @@ function BucketFeedback({ bucket, extra }: { bucket?: BucketScore; extra?: React
           <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Strengths</p>
           {bucket.strengths.map((s, i) => (
             <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-              <span className="text-emerald-500 shrink-0">✓</span>{s}
+              <span className="text-emerald-500 shrink-0">✓</span>{stripBullet(s)}
             </p>
           ))}
         </div>
@@ -335,7 +337,7 @@ function BucketFeedback({ bucket, extra }: { bucket?: BucketScore; extra?: React
           <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Gaps</p>
           {bucket.gaps.map((g, i) => (
             <p key={i} className="text-xs text-slate-600 flex gap-1.5 leading-relaxed">
-              <span className="text-red-400 shrink-0">✗</span>{g}
+              <span className="text-red-400 shrink-0">✗</span>{stripBullet(g)}
             </p>
           ))}
         </div>
@@ -395,7 +397,7 @@ function ImageFeedbackRow({ imageUrl, result, label, isBanner }: {
         <div className="space-y-2">
           {result.suggestions.map((s, i) => (
             <div key={i} className="flex items-start gap-2 text-xs text-slate-600 leading-relaxed">
-              <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" /><span>{s}</span>
+              <Lightbulb className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" /><span>{stripBullet(s)}</span>
             </div>
           ))}
         </div>
@@ -1165,7 +1167,7 @@ export default function ProfileBoostPage() {
                           <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Tips</p>
                           {result.about_tips.map((tip, i) => (
                             <div key={i} className="flex items-start gap-1.5 text-xs text-slate-600 leading-relaxed">
-                              <Lightbulb className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" /><span>{tip}</span>
+                              <Lightbulb className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" /><span>{stripBullet(tip)}</span>
                             </div>
                           ))}
                         </div>
