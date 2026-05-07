@@ -80,13 +80,14 @@ class ProfileObservations(BaseModel):
 
 
 class CoverObservations(BaseModel):
-    role_aligned_visual: bool = Field(default=True, description="True if banner has professional context imagery. False if completely generic stock photo with zero professional connection.")
-    professional_branding_present: bool = Field(default=True, description="True if banner has ANY personalization: name, title, logo, or branded layout. False ONLY if plain stock photo.")
-    text_readability_issue: bool = Field(default=False, description="True if text has poor contrast or is unreadable. Default false.")
-    banner_has_small_text: bool = Field(default=False, description="True if text would be unreadable on mobile. Default false.")
-    broken_url_or_typo_visible: bool = Field(default=False, description="True if malformed email or broken URL is visible. Default false.")
-    email_on_banner_visible: bool = Field(default=False, description="True if any email address is visibly printed on the banner. Default false.")
-    clutter_or_distraction_visible: bool = Field(default=False, description="True if banner is visually overwhelming. Default false.")
+    role_aligned_visual: bool = Field(default=False, description="True ONLY if background imagery directly relates to a specific profession. City skylines, landscapes, generic stock = false.")
+    professional_branding_present: bool = Field(default=False, description="True if deliberately designed branding (name+title layout, logo, brand colors). Pasting contact info on a stock photo = false.")
+    text_readability_issue: bool = Field(default=False, description="True if text has poor contrast or overlaps busy imagery making it hard to read.")
+    banner_has_small_text: bool = Field(default=True, description="True if contact info, URLs, or small text would be unreadable on mobile. Default true when contact info present.")
+    broken_url_or_typo_visible: bool = Field(default=False, description="True if any email is malformed (e.g. @com instead of @gmail.com) or URL is broken.")
+    email_on_banner_visible: bool = Field(default=False, description="True if any text containing @ is visible on the banner.")
+    clutter_or_distraction_visible: bool = Field(default=False, description="True if background is a busy city skyline, landscape, or stock photo with many competing elements.")
+    watermark_or_ai_icon_visible: bool = Field(default=False, description="True if any sparkle, star, watermark, or overlay badge is visible on the image.")
     evidence: list[str] = Field(default_factory=list)
 
 
@@ -373,54 +374,65 @@ Return ONLY this JSON (no markdown fences):
 """.strip()
 
 COVER_PROMPT = """
-You are a strict LinkedIn banner reviewer. Evaluate EXACTLY what you see. Do not be generous. Do not default to positive scores.
+You are a strict LinkedIn banner scorer. Your job is to evaluate the image honestly — not generously.
+Never assume a field is positive. Only mark true when you can directly observe evidence for it.
 
-STEP 1 — READ ALL TEXT IN THE IMAGE CAREFULLY.
-Look for any text overlays, labels, or captions. Note every word you can read.
+━━━ STEP 1: READ ALL TEXT ━━━
+Before answering any field, scan the entire image for text overlays or captions.
+Write down every word or character you can read. This is critical for email and URL detection.
 
-STEP 2 — ANSWER EACH FIELD:
+━━━ STEP 2: SCORE EACH FIELD ━━━
 
-role_aligned_visual:
-  Ask: does the background image directly relate to the person's profession or industry?
-  true  = banner shows tech equipment, code, finance charts, design work, office, branded industry imagery
-  false = background is a city skyline, landscape, nature, travel photo, generic stock image, or has NOTHING to do with a profession
-  IMPORTANT: A city skyline + contact info text = false. Contact info alone does NOT make a banner role-aligned.
+role_aligned_visual — Does the VISUAL CONTENT relate to a specific profession or industry?
+  TRUE examples:  code/terminal on screen, engineering diagrams, medical equipment, finance charts,
+                  design mockups, law books, branded product imagery, office/workspace with professional context
+  FALSE examples: city skyline, mountains, ocean, random landscape, generic travel photo, abstract art
+                  with no professional connection, stock photo of any kind that could fit ANY person
+  RULE: Having contact info text on a stock photo does NOT make the visual role-aligned.
+        Ask "could this background work for any person in any job?" — if yes, mark false.
 
-professional_branding_present:
-  Ask: is there deliberate personal branding beyond just a stock photo?
-  true  = custom designed layout, personal logo, name/title displayed prominently, branded color scheme
-  false = just a stock photo with text pasted on top, or LinkedIn default
-  Note: pasting an email and GitHub link on a stock city photo = marginal — mark false if the background is clearly a stock photo.
+professional_branding_present — Is there DELIBERATE personal branding?
+  TRUE examples:  custom designed banner with name + title prominently displayed, company logo,
+                  personal brand color scheme, professionally laid out contact section
+  FALSE examples: stock photo with email/GitHub pasted on as an afterthought, LinkedIn default gradient,
+                  plain background with no personal identity elements
+  RULE: Pasting contact details onto a stock photo is NOT branding. Branding means designed identity.
 
-text_readability_issue:
-  Ask: is any text on the banner hard to read?
-  true  = text blends into background, very low contrast, too small to read easily
-  false = text is clearly readable OR no text present
+text_readability_issue — Is any text HARD TO READ due to contrast or overlap?
+  TRUE:  text color blends into background, text overlaps busy imagery making it hard to parse
+  FALSE: text sits in a box/overlay with clear contrast, or no text present
+  RULE: Small text is handled separately. This field is only about contrast and overlap quality.
 
-banner_has_small_text:
-  Ask: would the text be readable on a phone screen?
-  true  = text is small relative to the banner width (contact info, URLs in small font = true)
-  false = text is large and prominent
-  IMPORTANT: email addresses and GitHub URLs in small print = true.
+banner_has_small_text — Would the text be UNREADABLE on a mobile screen?
+  TRUE:  email addresses, URLs, GitHub links, phone numbers in small font (typical contact info size = true)
+  FALSE: name or title in large bold letters that clearly read on mobile
+  RULE: If the text requires zooming in to read on a phone, mark true. Contact info is almost always true.
 
-broken_url_or_typo_visible:
-  CAREFULLY READ any email addresses or URLs you can see.
-  true  = email missing proper domain (e.g. "user@com" instead of "user@gmail.com"), URL missing https or domain, obvious typo
-  false = all emails and URLs look correctly formatted, or no URLs/emails present
-  CRITICAL: "@com" without a domain name (e.g. "name@com") is a broken email — mark true.
-  CRITICAL: Read character by character. Do not assume an email is valid without checking the domain.
+broken_url_or_typo_visible — Is any EMAIL or URL MALFORMED or MISSPELLED?
+  CHECK EVERY EMAIL: a valid email is "name@domain.tld" e.g. user@gmail.com, john@company.org
+    BROKEN:  user@com (missing domain), user@gmial.com (typo), user@ (incomplete)
+    VALID:   user@gmail.com, john@company.co.uk, name@university.edu
+  CHECK EVERY URL: must have a real domain. github.com/user is valid. github.com alone is fine. "https//..." is broken.
+  TRUE:  any malformed email or URL you can read
+  FALSE: all text looks correctly formatted, or no emails/URLs present
+  RULE: Read the domain after "@" carefully. If it's just a TLD with no name (e.g. "@com", "@net") = broken = TRUE.
 
-email_on_banner_visible:
-  Ask: can you see an email address anywhere in the image?
-  true  = any text containing "@" symbol is visible, even if malformed
-  false = no email address visible
-  IMPORTANT: if you marked broken_url_or_typo_visible=true for an email, this must also be true.
+email_on_banner_visible — Is ANY email address printed on the banner?
+  TRUE:  you can see any text containing "@" — even if malformed (e.g. user@com still counts)
+  FALSE: no "@" character visible anywhere in the image
+  RULE: If broken_url_or_typo_visible=true because of an email, this MUST also be true.
 
-clutter_or_distraction_visible:
-  Ask: does the background distract from the professional message?
-  true  = busy city skyline, landscape with many elements, random stock photo, plane flying through, multiple unrelated visual elements
-  false = clean minimal background, solid color, professional abstract design
-  IMPORTANT: A dense city skyline photo with a plane IS cluttered and distracting for a LinkedIn banner — mark true.
+clutter_or_distraction_visible — Does the background DISTRACT from the professional message?
+  TRUE:  busy city skyline, crowded landscape, airplane or vehicle in shot, multiple unrelated objects,
+         stock photography with many visual elements competing for attention
+  FALSE: clean solid color, simple gradient, minimal abstract background, blurred professional setting
+  RULE: If you would not use this background in a professional presentation slide, mark true.
+
+watermark_or_ai_icon_visible — Is there any badge, sparkle, star, logo, or watermark OVERLAID on the image?
+  TRUE:  small star/sparkle icon in a corner (common AI image generator watermark), photographer watermark,
+         stock photo watermark, any overlay symbol not part of the original scene
+  FALSE: no overlay marks visible
+  RULE: A 4-pointed star or sparkle in any corner = AI-generated image watermark = TRUE.
 
 Return ONLY this JSON (no markdown fences):
 {
@@ -572,6 +584,8 @@ def _calc_cover_score(obs: dict) -> float:
         pts = min(pts, 1.5)  # email exposure = hard cap at 60
     if obs.get("broken_url_or_typo_visible") is True and obs.get("email_on_banner_visible") is True:
         pts = min(pts, 0.75)  # broken email on banner = hard cap at 30
+    if obs.get("watermark_or_ai_icon_visible") is True:
+        pts = min(pts, 1.5)  # AI watermark = hard cap at 60
     return round(min(pts / 2.5 * 100, 100), 1)
 
 
@@ -610,6 +624,8 @@ def _build_cover_suggestions(obs: dict) -> list[str]:
         tips.append("Remove personal email from the banner to avoid spam.")
     if _safe_bool(obs.get("clutter_or_distraction_visible")) is True:
         tips.append("Reduce clutter in your cover image. Keep it clean and focused.")
+    if _safe_bool(obs.get("watermark_or_ai_icon_visible")) is True:
+        tips.append("Remove the AI-generated watermark or sparkle icon from your banner.")
     return tips[:4]
 
 
