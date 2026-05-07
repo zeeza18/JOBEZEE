@@ -158,12 +158,45 @@ def _extract_str_array(raw: str, field: str) -> list[str]:
 # ─── Image prompts (from linkedin_scorer_step1) ───────────────────────────────
 
 PROFILE_PROMPT = """
-You are reviewing a LinkedIn profile picture. Return JSON only.
-Evaluate each boolean field based on what you can directly observe. Default to true for quality
-attributes (lighting, background, framing) unless you can clearly see a problem. Only use null
-if the image is corrupt, fully dark, or the attribute cannot be seen at all.
-Do not wrap the response in markdown fences.
-Return this exact shape (all boolean values must be true or false, not null, unless image is unreadable):
+You are scoring a LinkedIn profile picture. Look carefully at the image and answer each field.
+
+FIELD-BY-FIELD RULES — be precise, do not guess, do not default to false:
+
+face_visible:
+  true  = a human face is present and looking toward the camera (even partially)
+  false = NO face visible at all (e.g. back of head, silhouette, object only)
+
+professional_attire:
+  true  = person wears business casual or formal clothing (blazer, dress shirt, suit, blouse)
+  false = clearly casual only (plain t-shirt, hoodie, sportswear, shirtless)
+  Default true if clothing is visible but you are unsure.
+
+watermark_or_ai_icon_visible:
+  true  = you can see a logo, badge, sparkle, star, or watermark overlaid ON the image
+  false = no overlay marks visible
+  Note: a small decorative icon in the corner counts as true.
+
+lighting_adequate:
+  true  = face is clearly lit; no harsh shadows across face; features distinguishable
+  false = face is visibly underlit, silhouetted, or blown out so features are lost
+  Default true unless you clearly see a lighting problem.
+
+background_clean:
+  true  = background is plain, blurred, or simple (solid color, soft bokeh, minimal)
+  false = background is visibly cluttered, distracting, or has multiple competing elements
+  Default true if background is any uniform or blurred style.
+
+framing_professional:
+  true  = subject fills most of the frame; head and upper body are the focus; not too far away
+  false = person is tiny in frame, heavily cropped at face, or tilted awkwardly
+  Default true for standard portrait shots.
+
+image_quality_issue_visible:
+  true  = image is visibly pixelated, heavily compressed, blurry, or distorted
+  false = image is clear and sharp
+  Default false unless you can clearly see quality degradation.
+
+Return ONLY this JSON (no markdown fences):
 {
   "uploaded": true,
   "observations": {
@@ -180,12 +213,47 @@ Return this exact shape (all boolean values must be true or false, not null, unl
 """.strip()
 
 COVER_PROMPT = """
-You are reviewing a LinkedIn cover or banner image. Return JSON only.
-Use only visible evidence from the image and the provided target role context if any.
-Do not invent brand messaging, text, or alignment that is not visible.
-Do not wrap the response in markdown fences.
-If uncertain, use null for the observation.
-Return this exact shape:
+You are scoring a LinkedIn cover/banner image. Look carefully and answer each field honestly.
+
+FIELD-BY-FIELD RULES — only mark something true if you can clearly see it:
+
+role_aligned_visual:
+  true  = banner contains imagery, colors, or visual elements that suggest a professional context
+           (technology, design, finance, code, abstract professional visuals, etc.)
+  false = banner is a completely generic default, personal holiday photo, or totally unrelated image
+  Default true for any non-default banner with professional appearance.
+
+professional_branding_present:
+  true  = banner has deliberate design: custom color scheme, logo, name, title, or branded layout
+  false = banner is a stock photo or generic gradient with zero personalization
+  Default true if there is any custom text or design element visible.
+
+text_readability_issue:
+  true  = text on the banner is visibly hard to read (low contrast, too small to read, overlaps badly)
+  false = text (if any) is clearly readable, OR there is no text at all
+  Default false.
+
+banner_has_small_text:
+  true  = banner contains text that is extremely small (would be unreadable on mobile)
+  false = text is large enough to read, OR no text present
+  Default false.
+
+broken_url_or_typo_visible:
+  true  = you can clearly read a broken URL or obvious spelling mistake in the banner text
+  false = no visible typos or broken links (default — do NOT guess)
+  Default false.
+
+email_on_banner_visible:
+  true  = an email address is visibly printed on the banner
+  false = no email visible (default)
+  Default false.
+
+clutter_or_distraction_visible:
+  true  = banner is visually overwhelming: too many elements, clashing colors, chaotic layout
+  false = banner looks organized and clean
+  Default false unless clearly cluttered.
+
+Return ONLY this JSON (no markdown fences):
 {
   "uploaded": true,
   "observations": {
@@ -359,19 +427,19 @@ def _calc_cover_score(obs: dict) -> float:
 def _build_profile_suggestions(obs: dict) -> list[str]:
     tips = []
     if _safe_bool(obs.get("face_visible")) is not True:
-        tips.append("Ensure your face is clearly visible — a visible face increases profile engagement significantly.")
+        tips.append("Ensure your face is clearly visible. A visible face increases profile engagement significantly.")
     if _safe_bool(obs.get("professional_attire")) is not True:
         tips.append("Wear professional attire (business casual or formal) in your profile photo.")
     if _safe_bool(obs.get("lighting_adequate")) is not True:
-        tips.append("Improve lighting — natural light or soft studio lighting works best.")
+        tips.append("Improve lighting. Natural light or soft studio lighting works best.")
     if _safe_bool(obs.get("background_clean")) is not True:
         tips.append("Use a clean, simple background to keep focus on you.")
     if _safe_bool(obs.get("framing_professional")) is not True:
-        tips.append("Frame the shot from chest or shoulders up — avoid too-wide or too-tight crops.")
+        tips.append("Frame the shot from chest or shoulders up. Avoid too-wide or too-tight crops.")
     if _safe_bool(obs.get("watermark_or_ai_icon_visible")) is True:
         tips.append("Remove any AI-generated badge or watermark from your profile photo.")
     if _safe_bool(obs.get("image_quality_issue_visible")) is True:
-        tips.append("Improve image quality — avoid pixelated or blurry photos.")
+        tips.append("Improve image quality. Avoid pixelated or blurry photos.")
     return tips[:4]
 
 
@@ -382,7 +450,7 @@ def _build_cover_suggestions(obs: dict) -> list[str]:
     if _safe_bool(obs.get("professional_branding_present")) is not True:
         tips.append("Add professional branding elements (logo, color scheme) to your cover image.")
     if _safe_bool(obs.get("text_readability_issue")) is True:
-        tips.append("Fix text readability issues in your banner — avoid small or hard-to-read text.")
+        tips.append("Fix text readability issues in your banner. Avoid small or hard-to-read text.")
     if _safe_bool(obs.get("banner_has_small_text")) is True:
         tips.append("Remove small text from your banner image.")
     if _safe_bool(obs.get("broken_url_or_typo_visible")) is True:
@@ -390,7 +458,7 @@ def _build_cover_suggestions(obs: dict) -> list[str]:
     if _safe_bool(obs.get("email_on_banner_visible")) is True:
         tips.append("Remove personal email from the banner to avoid spam.")
     if _safe_bool(obs.get("clutter_or_distraction_visible")) is True:
-        tips.append("Reduce clutter in your cover image — keep it clean and focused.")
+        tips.append("Reduce clutter in your cover image. Keep it clean and focused.")
     return tips[:4]
 
 
