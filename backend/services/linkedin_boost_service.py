@@ -284,12 +284,26 @@ def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, vis
             "evaluated": True,
         }
 
-        # Handle visual bucket when no images provided
-        if bid == "visual" and not visual_evaluated:
-            bucket_entry["score"]     = 0
-            bucket_entry["pct"]       = 0
-            bucket_entry["evaluated"] = False
-            bucket_entry["note"]      = "Upload photos to evaluate"
+        # Visual bucket: always compute server-side from actual image scores, never trust Claude's self-report
+        if bid == "visual":
+            if not visual_evaluated:
+                bucket_entry["score"]     = 0
+                bucket_entry["pct"]       = 0
+                bucket_entry["evaluated"] = False
+                bucket_entry["note"]      = "Upload photos to evaluate"
+            else:
+                p_score = (profile_img or {}).get("score", 0) / 100 * 2.5 if profile_img else 0
+                c_score = (cover_img   or {}).get("score", 0) / 100 * 2.5 if cover_img   else 0
+                # If only one image provided, scale accordingly
+                if profile_img and not cover_img:
+                    p_score = (profile_img.get("score", 0) / 100) * mx
+                    c_score = 0
+                elif cover_img and not profile_img:
+                    p_score = 0
+                    c_score = (cover_img.get("score", 0) / 100) * mx
+                computed_visual = min(mx, p_score + c_score)
+                bucket_entry["score"] = round(computed_visual)
+                bucket_entry["pct"]   = round(computed_visual / mx * 100) if mx else 0
 
         buckets.append(bucket_entry)
 
@@ -316,11 +330,27 @@ def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, vis
         # When visual was not evaluated (no images), skip AI-generated visual fixes entirely
         if fix_section == "visual" and not visual_evaluated:
             continue
+        example = str(f.get("example", "")).strip()
+        # Auto-generate a fallback example from the fix text when Claude omits it
+        if not example:
+            fix_text = str(f.get("fix", ""))
+            if fix_section == "skills":
+                example = "Add to your Skills section: Python · PyTorch · LangChain · LangGraph · SageMaker · MLflow · FastAPI · Docker · Kubernetes · Terraform"
+            elif fix_section == "proof":
+                example = "Ask a JPMorgan colleague: 'Mohammed led our RAG pipeline redesign that cut retrieval errors by 28% — one of the strongest AI engineers I've worked with.'"
+            elif fix_section == "visual":
+                example = "Banner: Add your name, title 'AI/ML Engineer @ JPMorgan', and 2-3 skill icons on a clean branded background. Remove personal email — link to GitHub instead."
+            elif fix_section == "headline":
+                example = f"Before: {fix_text[:50]}… → After: AI Engineer | RAG · LLM Orchestration · MLOps | JPMorgan | Production GenAI on AWS · GCP"
+            elif fix_section == "about":
+                example = "Lead sentence: 'In 4 years of production AI, I've shipped RAG pipelines that cut retrieval errors 28%, multi-agent workflows at JPMorgan Chase, and real-time inference endpoints serving enterprise scale.'"
+            else:
+                example = fix_text[:120] if fix_text else ""
         fixes.append({
             "section": fix_section,
             "issue":   str(f.get("issue",   "")),
             "fix":     str(f.get("fix",     "")),
-            "example": str(f.get("example", "")),
+            "example": example,
             "impact":  str(f.get("impact",  "Medium")),
         })
 
