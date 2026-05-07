@@ -73,6 +73,7 @@ class ProfileObservations(BaseModel):
     face_visible: bool = Field(default=True, description="True if a human face is present and facing the camera. False ONLY if no face is detectable at all.")
     professional_attire: bool = Field(default=True, description="True if person wears blazer, dress shirt, suit, or business-casual top. False ONLY if clearly casual. Default true if unsure.")
     watermark_or_ai_icon_visible: bool = Field(default=False, description="True if any overlay badge, sparkle, star, logo, or watermark is placed ON the image.")
+    ai_generated_appearance: bool = Field(default=False, description="True if the photo shows signs of AI generation: unnaturally smooth or waxy skin texture, synthetic-looking background blur, uncanny valley facial features, over-perfect lighting with no natural shadows, or digital artifacts typical of AI image generators.")
     lighting_adequate: bool = Field(default=True, description="True if face is clearly lit. False ONLY if silhouetted, severely underlit, or blown out. Default true.")
     background_clean: bool = Field(default=True, description="True if background is plain, blurred, or minimal. False ONLY if visibly cluttered. Default true.")
     framing_professional: bool = Field(default=True, description="True if subject fills frame as head/shoulder portrait. False ONLY if person is tiny or severely cropped. Default true.")
@@ -340,6 +341,15 @@ watermark_or_ai_icon_visible:
           even a tiny icon in a corner counts. When in doubt, mark true.
   false = absolutely no overlay marks or icons anywhere on the image
 
+ai_generated_appearance:
+  true  = the photo shows clear signs of AI generation: unnaturally smooth or waxy skin with no pores,
+          synthetic-looking background blur (too perfect, no natural bokeh variation), uncanny valley
+          facial features (too symmetrical, slightly off proportions), over-perfect even lighting with
+          no natural shadows, digital softness/glow typical of AI generators (Midjourney, DALL-E, etc.)
+  false = photo looks like a genuine photograph taken by a camera
+  RULE: Real photos have subtle imperfections — natural skin texture, authentic shadows, genuine bokeh.
+        If the image looks "too perfect" or "plastic", mark true.
+
 lighting_adequate:
   true  = face is clearly lit; no harsh shadows across face; features distinguishable
   false = face is visibly underlit, silhouetted, or blown out so features are lost
@@ -367,6 +377,7 @@ Return ONLY this JSON (no markdown fences):
     "face_visible": true,
     "professional_attire": true,
     "watermark_or_ai_icon_visible": false,
+    "ai_generated_appearance": false,
     "lighting_adequate": true,
     "background_clean": true,
     "framing_professional": true,
@@ -511,6 +522,7 @@ def _safe_json_parse_profile(raw: str) -> dict[str, Any]:
             "face_visible":                _extract_bool(raw, "face_visible"),
             "professional_attire":         _extract_bool(raw, "professional_attire"),
             "watermark_or_ai_icon_visible": _extract_bool(raw, "watermark_or_ai_icon_visible"),
+            "ai_generated_appearance":     _extract_bool(raw, "ai_generated_appearance"),
             "lighting_adequate":          _extract_bool(raw, "lighting_adequate"),
             "background_clean":            _extract_bool(raw, "background_clean"),
             "framing_professional":        _extract_bool(raw, "framing_professional"),
@@ -559,6 +571,9 @@ def _calc_profile_score(obs: dict) -> float:
     watermark = _safe_bool(obs.get("watermark_or_ai_icon_visible"))
     if watermark is True:
         pts = min(pts, 2.0)
+    ai_gen = _safe_bool(obs.get("ai_generated_appearance"))
+    if ai_gen is True:
+        pts = min(pts, 1.5)   # AI-generated photo = hard cap at 60/100
     quality = _safe_bool(obs.get("image_quality_issue_visible"))
     if quality is True:
         pts = min(pts, 2.0)
@@ -613,6 +628,8 @@ def _build_profile_suggestions(obs: dict) -> list[str]:
         tips.append("Frame the shot from chest or shoulders up. Avoid too-wide or too-tight crops.")
     if _safe_bool(obs.get("watermark_or_ai_icon_visible")) is True:
         tips.append("Remove any AI-generated badge or watermark from your profile photo.")
+    if _safe_bool(obs.get("ai_generated_appearance")) is True:
+        tips.append("Your photo appears AI-generated. Use a real professional photograph — recruiters can tell the difference and authenticity matters.")
     if _safe_bool(obs.get("image_quality_issue_visible")) is True:
         tips.append("Improve image quality. Avoid pixelated or blurry photos.")
     return tips[:4]
