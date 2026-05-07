@@ -1191,7 +1191,7 @@ export default function ProfileBoostPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <p className="text-xs font-medium text-slate-500 mb-1.5 flex items-center gap-1.5">
-                      <Target className="h-3.5 w-3.5" />Target Role <span className="text-slate-400 font-normal">(optional)</span>
+                      <Target className="h-3.5 w-3.5" />Target Role
                     </p>
                     <input type="text" placeholder="e.g. AI Engineer, Product Manager"
                       value={targetRole} onChange={e => setTargetRole(e.target.value)}
@@ -1199,7 +1199,7 @@ export default function ProfileBoostPage() {
                   </div>
                   <div>
                     <p className="text-xs font-medium text-slate-500 mb-1.5 flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5" />Job Description <span className="text-slate-400 font-normal">(optional)</span>
+                      <FileText className="h-3.5 w-3.5" />Job Description
                     </p>
                     <textarea className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
                       placeholder="Paste a job description for a JD fit score…"
@@ -1326,7 +1326,6 @@ export default function ProfileBoostPage() {
           <div className="flex items-center gap-2">
             <Camera className="h-4 w-4 text-cyan-600" />
             <p className="text-sm font-semibold text-slate-800">Profile Photo</p>
-            <span className="text-xs text-slate-400">(optional)</span>
             {photoPhase === 'done' && photoResult && (
               <span className={`ml-auto text-base font-black ${photoResult.score >= 80 ? 'text-emerald-600' : photoResult.score >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
                 {photoResult.score}<span className="text-xs font-normal text-slate-400">/100</span>
@@ -1366,7 +1365,6 @@ export default function ProfileBoostPage() {
           <div className="flex items-center gap-2">
             <Upload className="h-4 w-4 text-cyan-600" />
             <p className="text-sm font-semibold text-slate-800">Cover Banner</p>
-            <span className="text-xs text-slate-400">(optional)</span>
             {coverPhase === 'done' && coverResult && (
               <span className={`ml-auto text-base font-black ${coverResult.score >= 80 ? 'text-emerald-600' : coverResult.score >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
                 {coverResult.score}<span className="text-xs font-normal text-slate-400">/100</span>
