@@ -37,14 +37,14 @@ const stripBullet = (s: string) => s.replace(/^[-•*]\s+/, '')
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
-const LS_KEY = 'jobezee_linkedin_boost'
+const LS_KEY         = 'jobezee_linkedin_boost'
+const LS_KEY_PHOTO   = 'jobezee_linkedin_photo'
+const LS_KEY_COVER   = 'jobezee_linkedin_cover'
 
 interface PersistedState {
   result: BoostResult
   optimizeResult: OptimizeResult | null
   targetRole: string
-  photoResult?: ImageResult | null
-  coverResult?: ImageResult | null
 }
 
 function loadPersistedState(): PersistedState | null {
@@ -56,6 +56,19 @@ function loadPersistedState(): PersistedState | null {
 
 function saveState(s: PersistedState) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(s)) } catch { /* quota */ }
+}
+
+function loadPhotoResult(): ImageResult | null {
+  try { const r = localStorage.getItem(LS_KEY_PHOTO); return r ? JSON.parse(r) : null } catch { return null }
+}
+function savePhotoResult(r: ImageResult | null) {
+  try { r ? localStorage.setItem(LS_KEY_PHOTO, JSON.stringify(r)) : localStorage.removeItem(LS_KEY_PHOTO) } catch { /* quota */ }
+}
+function loadCoverResult(): ImageResult | null {
+  try { const r = localStorage.getItem(LS_KEY_COVER); return r ? JSON.parse(r) : null } catch { return null }
+}
+function saveCoverResult(r: ImageResult | null) {
+  try { r ? localStorage.setItem(LS_KEY_COVER, JSON.stringify(r)) : localStorage.removeItem(LS_KEY_COVER) } catch { /* quota */ }
 }
 
 function clearState() {
@@ -883,15 +896,15 @@ export default function ProfileBoostPage() {
   // ── Photo state (fully independent) ─────────────────────────────────────
   const [profileImage,    setProfileImage]    = useState<File | null>(null)
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
-  const [photoPhase,      setPhotoPhase]      = useState<ImagePhase>(persisted?.photoResult ? 'done' : 'idle')
-  const [photoResult,     setPhotoResult]     = useState<ImageResult | null>(persisted?.photoResult ?? null)
+  const [photoPhase,      setPhotoPhase]      = useState<ImagePhase>(() => loadPhotoResult() ? 'done' : 'idle')
+  const [photoResult,     setPhotoResult]     = useState<ImageResult | null>(() => loadPhotoResult())
   const [photoError,      setPhotoError]      = useState<string | null>(null)
 
   // ── Cover state (fully independent) ─────────────────────────────────────
   const [coverImage,    setCoverImage]    = useState<File | null>(null)
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
-  const [coverPhase,    setCoverPhase]    = useState<ImagePhase>(persisted?.coverResult ? 'done' : 'idle')
-  const [coverResult,   setCoverResult]   = useState<ImageResult | null>(persisted?.coverResult ?? null)
+  const [coverPhase,    setCoverPhase]    = useState<ImagePhase>(() => loadCoverResult() ? 'done' : 'idle')
+  const [coverResult,   setCoverResult]   = useState<ImageResult | null>(() => loadCoverResult())
   const [coverError,    setCoverError]    = useState<string | null>(null)
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -924,7 +937,7 @@ export default function ProfileBoostPage() {
   const handlePhotoAnalyze = useCallback(async () => {
     if (!profileImage) return
     setPhotoPhase('analyzing'); setPhotoError(null); setPhotoResult(null)
-    const cur = loadPersistedState(); if (cur) saveState({ ...cur, photoResult: null })
+    savePhotoResult(null)
     const fd = new FormData()
     fd.append('profile_image', profileImage)
     try {
@@ -934,8 +947,7 @@ export default function ProfileBoostPage() {
       const pr = data as unknown as ImageResult
       setPhotoResult(pr)
       setPhotoPhase('done')
-      const cur = loadPersistedState()
-      if (cur) saveState({ ...cur, photoResult: pr })
+      savePhotoResult(pr)
     } catch (e: unknown) { setPhotoError(e instanceof Error ? e.message : String(e)); setPhotoPhase('error') }
   }, [profileImage])
 
@@ -944,7 +956,7 @@ export default function ProfileBoostPage() {
   const handleCoverAnalyze = useCallback(async () => {
     if (!coverImage) return
     setCoverPhase('analyzing'); setCoverError(null); setCoverResult(null)
-    const cur = loadPersistedState(); if (cur) saveState({ ...cur, coverResult: null })
+    saveCoverResult(null)
     const fd = new FormData()
     fd.append('cover_image', coverImage)
     try {
@@ -954,8 +966,7 @@ export default function ProfileBoostPage() {
       const cr = data as unknown as ImageResult
       setCoverResult(cr)
       setCoverPhase('done')
-      const cur = loadPersistedState()
-      if (cur) saveState({ ...cur, coverResult: cr })
+      saveCoverResult(cr)
     } catch (e: unknown) { setCoverError(e instanceof Error ? e.message : String(e)); setCoverPhase('error') }
   }, [coverImage])
 
