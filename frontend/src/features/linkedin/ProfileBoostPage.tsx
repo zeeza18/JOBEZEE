@@ -58,17 +58,27 @@ function saveState(s: PersistedState) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(s)) } catch { /* quota */ }
 }
 
-function loadPhotoResult(): ImageResult | null {
+interface ImageCache { result: ImageResult; dataUrl: string }
+
+function loadPhotoCache(): ImageCache | null {
   try { const r = localStorage.getItem(LS_KEY_PHOTO); return r ? JSON.parse(r) : null } catch { return null }
 }
-function savePhotoResult(r: ImageResult | null) {
-  try { r ? localStorage.setItem(LS_KEY_PHOTO, JSON.stringify(r)) : localStorage.removeItem(LS_KEY_PHOTO) } catch { /* quota */ }
+function savePhotoCache(cache: ImageCache | null) {
+  try { cache ? localStorage.setItem(LS_KEY_PHOTO, JSON.stringify(cache)) : localStorage.removeItem(LS_KEY_PHOTO) } catch { /* quota */ }
 }
-function loadCoverResult(): ImageResult | null {
+function loadCoverCache(): ImageCache | null {
   try { const r = localStorage.getItem(LS_KEY_COVER); return r ? JSON.parse(r) : null } catch { return null }
 }
-function saveCoverResult(r: ImageResult | null) {
-  try { r ? localStorage.setItem(LS_KEY_COVER, JSON.stringify(r)) : localStorage.removeItem(LS_KEY_COVER) } catch { /* quota */ }
+function saveCoverCache(cache: ImageCache | null) {
+  try { cache ? localStorage.setItem(LS_KEY_COVER, JSON.stringify(cache)) : localStorage.removeItem(LS_KEY_COVER) } catch { /* quota */ }
+}
+
+async function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => resolve(e.target!.result as string)
+    reader.readAsDataURL(file)
+  })
 }
 
 function clearState() {
@@ -895,16 +905,16 @@ export default function ProfileBoostPage() {
 
   // ── Photo state (fully independent) ─────────────────────────────────────
   const [profileImage,    setProfileImage]    = useState<File | null>(null)
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
-  const [photoPhase,      setPhotoPhase]      = useState<ImagePhase>(() => loadPhotoResult() ? 'done' : 'idle')
-  const [photoResult,     setPhotoResult]     = useState<ImageResult | null>(() => loadPhotoResult())
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(() => loadPhotoCache()?.dataUrl ?? null)
+  const [photoPhase,      setPhotoPhase]      = useState<ImagePhase>(() => loadPhotoCache() ? 'done' : 'idle')
+  const [photoResult,     setPhotoResult]     = useState<ImageResult | null>(() => loadPhotoCache()?.result ?? null)
   const [photoError,      setPhotoError]      = useState<string | null>(null)
 
   // ── Cover state (fully independent) ─────────────────────────────────────
   const [coverImage,    setCoverImage]    = useState<File | null>(null)
-  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
-  const [coverPhase,    setCoverPhase]    = useState<ImagePhase>(() => loadCoverResult() ? 'done' : 'idle')
-  const [coverResult,   setCoverResult]   = useState<ImageResult | null>(() => loadCoverResult())
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(() => loadCoverCache()?.dataUrl ?? null)
+  const [coverPhase,    setCoverPhase]    = useState<ImagePhase>(() => loadCoverCache() ? 'done' : 'idle')
+  const [coverResult,   setCoverResult]   = useState<ImageResult | null>(() => loadCoverCache()?.result ?? null)
   const [coverError,    setCoverError]    = useState<string | null>(null)
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -937,7 +947,9 @@ export default function ProfileBoostPage() {
   const handlePhotoAnalyze = useCallback(async () => {
     if (!profileImage) return
     setPhotoPhase('analyzing'); setPhotoError(null); setPhotoResult(null)
-    savePhotoResult(null)
+    savePhotoCache(null)
+    const dataUrl = await fileToDataUrl(profileImage)
+    setProfileImageUrl(dataUrl)
     const fd = new FormData()
     fd.append('profile_image', profileImage)
     try {
@@ -947,7 +959,7 @@ export default function ProfileBoostPage() {
       const pr = data as unknown as ImageResult
       setPhotoResult(pr)
       setPhotoPhase('done')
-      savePhotoResult(pr)
+      savePhotoCache({ result: pr, dataUrl })
     } catch (e: unknown) { setPhotoError(e instanceof Error ? e.message : String(e)); setPhotoPhase('error') }
   }, [profileImage])
 
@@ -956,7 +968,9 @@ export default function ProfileBoostPage() {
   const handleCoverAnalyze = useCallback(async () => {
     if (!coverImage) return
     setCoverPhase('analyzing'); setCoverError(null); setCoverResult(null)
-    saveCoverResult(null)
+    saveCoverCache(null)
+    const dataUrl = await fileToDataUrl(coverImage)
+    setCoverImageUrl(dataUrl)
     const fd = new FormData()
     fd.append('cover_image', coverImage)
     try {
@@ -966,7 +980,7 @@ export default function ProfileBoostPage() {
       const cr = data as unknown as ImageResult
       setCoverResult(cr)
       setCoverPhase('done')
-      saveCoverResult(cr)
+      saveCoverCache({ result: cr, dataUrl })
     } catch (e: unknown) { setCoverError(e instanceof Error ? e.message : String(e)); setCoverPhase('error') }
   }, [coverImage])
 
@@ -1271,7 +1285,7 @@ export default function ProfileBoostPage() {
           {photoPhase === 'done' && photoResult && profileImageUrl ? (
             <>
               <ImageFeedbackRow imageUrl={profileImageUrl} result={photoResult} label="Profile Photo" />
-              <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null) }}
+              <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); savePhotoCache(null) }}
                 className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace photo →</button>
             </>
           ) : (
