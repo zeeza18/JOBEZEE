@@ -4,6 +4,7 @@ Images (photo/cover) are scored separately via their own endpoints.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 from typing import Any
