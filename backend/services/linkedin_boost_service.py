@@ -1,21 +1,14 @@
 """
-LinkedIn Profile Boost Service — 8-bucket scoring via Claude Opus Max.
-Input: LinkedIn PDF text + optional images + optional JD.
-Output: bucket scores, grade, priority fixes, headline rewrite, visual feedback.
+LinkedIn Profile Boost Service — 7-bucket section scoring via Claude Sonnet.
+Images (photo/cover) are scored separately via their own endpoints.
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 from typing import Any
 
-from .resume_analysis_service import (
-    _make_anthropic_client,
-    _resolve_opusmax_key,
-    analyze_cover_picture,
-    analyze_profile_picture,
-)
+from .resume_analysis_service import _make_anthropic_client, _resolve_opusmax_key
 from ..config import get_settings
 
 
@@ -28,17 +21,16 @@ def _resolve_fallback_key() -> str:
             return k
     return ""
 
-LINKEDIN_MODEL = os.getenv("CLAUDE_OPUS_MODEL", os.getenv("CLAUDE_MODEL", "claude-opus-4-7"))
+LINKEDIN_MODEL = os.getenv("CLAUDE_OPUS_MODEL", os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"))
 
 BUCKET_MAX: dict[str, int] = {
     "searchability": 25,
     "headline":      12,
     "about":         15,
-    "experience":    22,
+    "experience":    25,
     "skills":        10,
-    "proof":          8,
+    "proof":         10,
     "completeness":   3,
-    "visual":         5,
 }
 
 GRADE_THRESHOLDS = [
@@ -89,38 +81,9 @@ _OPTIMIZE_SYSTEM = (
 )
 
 
-def _build_prompt(
-    pdf_text: str,
-    job_description: str,
-    target_role: str,
-    profile_img: dict | None,
-    cover_img: dict | None,
-) -> str:
+def _build_prompt(pdf_text: str, job_description: str, target_role: str) -> str:
     role_line = f"\nTARGET ROLE: {target_role}" if target_role else ""
     jd_block  = f"\n\nJOB DESCRIPTION:\n{job_description}" if job_description else ""
-
-    visual_note = " No images provided — score visual bucket at 0. Do NOT generate visual priority fixes."
-    visual_block = ""
-    if profile_img or cover_img:
-        lines = ["\n\nPRE-COMPUTED IMAGE ANALYSIS:"]
-        if profile_img:
-            lines.append(
-                f"  Profile Photo → score={profile_img.get('score', 0)}/100  "
-                f"obs={json.dumps(profile_img.get('observations', {}))}"
-            )
-        if cover_img:
-            lines.append(
-                f"  Cover Banner  → score={cover_img.get('score', 0)}/100  "
-                f"obs={json.dumps(cover_img.get('observations', {}))}"
-            )
-        visual_block = "\n".join(lines)
-        scores = [x.get("score", 0) for x in [profile_img, cover_img] if x]
-        avg    = sum(scores) / len(scores) if scores else 0
-        visual_note = (
-            f" Use pre-computed image data above. Combined avg: {avg:.0f}/100. "
-            "IMPORTANT: Both images ARE uploaded — do NOT say 'no photo uploaded' in priority fixes. "
-            "Frame visual fixes as quality improvements based on the actual scores and observations."
-        )
 
     return f"""Score this LinkedIn profile.{role_line}
 
@@ -133,49 +96,47 @@ SEARCHABILITY (25 pts) — LinkedIn algorithm search ranking:
     0 appearances → 0 pts | 1-2 → 5 pts | 3-5 → 11 pts | 6-9 → 17 pts | 10+ → 21 pts
   Step 4: Domain/tech keyword bonus — count secondary keywords (LLM, RAG, GenAI, MLOps, AI, ML, NLP, etc.):
     0-2 keywords → +0 | 3-5 → +2 pts | 6+ → +4 pts
-  PENALTY: If skills section has fewer than 5 skills → subtract 4 pts (skills is LinkedIn's
-    highest-weight search field; thin skills severely hurt discoverability).
+  PENALTY: If skills section has fewer than 5 skills → subtract 4 pts.
   Cap at 25.
 
 HEADLINE (12 pts):
-  +3: Primary role/title clearly stated (e.g. "AI Engineer", "Machine Learning Engineer")
+  +3: Primary role/title clearly stated
   +2: 2+ specific technical skills or tool names in the headline itself
   +2: Employer name, company, or clear industry context
-  +2: Value proposition, specialization, or scale indicator beyond just the role title
-  +2: Seniority signal ("Senior", "Lead", "Enterprise", "Production-scale") or years/scope
-  +1: Well-structured with clear separators (pipe | or dash —, not run-on text)
+  +2: Value proposition, specialization, or scale indicator
+  +2: Seniority signal or years/scope
+  +1: Well-structured with clear separators (pipe | or dash —)
   Max: 12. Do not deduct — only award for what is present.
 
 ABOUT (15 pts):
-  +2: Opens with a strong hook that does NOT start with "I am a…" or "I have…" — leads with impact or bold claim
+  +2: Opens with a strong hook — does NOT start with "I am a…" or "I have…"
   +2: Professional identity and specialisation clearly stated within first 2 sentences
-  +3: At least 2 specific quantified achievements with numbers (%, ratios, time saved, scale metrics)
-  +2: Industry or domain context present (enterprise, fintech, healthcare, FAANG, etc.)
+  +3: At least 2 specific quantified achievements with numbers (%, ratios, time saved, scale)
+  +2: Industry or domain context present
   +2: 3+ specific tools or technologies named in the About section itself
-  +1: Career direction, mission, or what they are building toward
+  +1: Career direction or what they are building toward
   +1: Clear CTA — email, "reach out", or invitation to connect
-  +2: Appropriate length (200–2600 characters) — award 1 if present at all, +1 if 400+ chars
+  +2: Appropriate length (200–2600 characters)
 
-EXPERIENCE (22 pts):
-  +4: 90%+ of bullets begin with strong past-tense action verbs — NOT "Responsible for", "Helped", "Worked on", "Assisted with"
-  +6: At least 3 quantified results across all roles combined (numbers, %, $, time, user count, scale)
-  +4: Specific tools, methods, and frameworks named per role entry (not just once globally)
-  +4: Business impact articulated — what changed, who benefited, what was enabled or prevented
-  +4: Most recent role experience is relevant to the stated target direction
+EXPERIENCE (25 pts):
+  +5: 90%+ of bullets begin with strong past-tense action verbs — NOT "Responsible for", "Helped", "Worked on"
+  +7: At least 3 quantified results across all roles (numbers, %, $, time, user count, scale)
+  +5: Specific tools, methods, and frameworks named per role entry
+  +5: Business impact articulated — what changed, who benefited, what was enabled
+  +3: Most recent role is relevant to the stated target direction
   PENALTY: −3 pts if the most recent (current) role has zero quantified metrics.
 
 SKILLS (10 pts) — LinkedIn's #1 search-weighted section:
-  IMPORTANT: If the PDF shows only a "Top Skills" sidebar with 2-3 items, that is NOT the full
-  skills section. This is a critical gap — flag it explicitly and score accordingly.
+  IMPORTANT: If the PDF shows only a "Top Skills" sidebar with 2-3 items, that is NOT the full skills section.
   +3: 10+ skills listed (0 pts for this criterion if fewer than 5 visible)
-  +3: Core role-specific hard skills present (Python, PyTorch, TensorFlow, etc. for AI; SQL, dbt for data)
+  +3: Core role-specific hard skills present
   +2: Tools and platforms listed (AWS, GCP, Docker, Kubernetes, MLflow, etc.)
   +2: Skills appear in experience bullets too (cross-profile keyword reinforcement)
 
-PROOF (8 pts) — Social credibility signals:
+PROOF (10 pts) — Social credibility signals:
   +3: Recommendations section EXPLICITLY present with actual content/names — score 0 if not visible
-  +2: Certifications or credentials listed with institution names
-  +2: Projects, GitHub links, portfolio, or featured section present
+  +3: Certifications or credentials listed with institution names
+  +3: Projects, GitHub links, portfolio, or featured section present
   +1: Publications, articles, patents, or awards listed
   CRITICAL RULE: Never award recommendation points if no recommendations section is visible.
 
@@ -184,20 +145,15 @@ COMPLETENESS (3 pts):
   +1: Has education section with institution name
   +1: Has skills section (even if thin)
 
-VISUAL (5 pts) — First impression quality:{visual_note}
-  Profile photo (2.5 pts max): face visible & centered (+0.5), professional attire (+0.75),
-    clean/neutral background (+0.5), good lighting & sharp resolution (+0.75).
-  Cover banner (2.5 pts max): professional design not generic stock photo (+0.75),
-    shows name/role/brand or value prop (+0.75), readable text if present (+0.5), visual coherence (+0.5).
-
 GRADES: Elite(90-100), Excellent(80-89), Strong(65-79), Average(50-64), Needs Work(35-49), Weak(<35)
 
-FEEDBACK RULES (apply to all gaps, fixes, tips):
+FEEDBACK RULES:
 - Gaps MUST quote or paraphrase specific text from the profile. Never write "add more X" without citing what's missing.
-- Fixes must give exact instructions — not "improve your skills section" but the actual text/skills to add.
+- Fixes must give exact instructions — the actual text/skills to add.
 - Every priority_fix must have an "example" field showing before→after or exact text to add/change.
 - Education: if About says "completed in [year]", do NOT flag education as in-progress.
 - Never state that recommendations, GitHub, or projects exist unless you see them explicitly in the text.
+- Do NOT include any visual or photo-related fixes — images are scored separately.
 
 Return ONLY this JSON shape:
 {{
@@ -207,7 +163,7 @@ Return ONLY this JSON shape:
   "jd_fit_score": <int 0-100, or 0 if no JD>,
   "buckets": [
     {{
-      "id": "<searchability|headline|about|experience|skills|proof|completeness|visual>",
+      "id": "<searchability|headline|about|experience|skills|proof|completeness>",
       "label": "<human readable>",
       "score": <int earned>,
       "max": <int max>,
@@ -223,22 +179,17 @@ Return ONLY this JSON shape:
       "section": "<bucket id>",
       "issue": "<specific problem — reference actual profile text>",
       "fix": "<exact action: what to add, remove, or rewrite>",
-      "example": "<REQUIRED non-empty: e.g. 'Add to Skills: Python, PyTorch, LangGraph, SageMaker, MLflow, FastAPI' or 'Before: Responsible for AI systems → After: Architected 3 production RAG pipelines serving 500+ daily users'>",
+      "example": "<REQUIRED: before→after or exact text to add>",
       "impact": "<High|Medium|Low>"
     }}
   ],
   "headline_rewrite": {{
     "current": "<their actual headline from the profile>",
     "improved": "<your rewritten version>",
-    "reason": "<why this is better — what changed and why it works>"
+    "reason": "<why this is better>"
   }},
-  "about_tips": [
-    "<specific actionable tip referencing actual text — e.g. 'Your opening line starts with I build — strong hook. Consider moving your 28% retrieval metric into the first sentence to lead with proof.'>",
-    "<tip 2>",
-    "<tip 3>"
-  ],
-  "visual_notes": ["<specific visual recommendation based on image analysis>"]
-}}{jd_block}{visual_block}
+  "about_tips": ["<tip 1>", "<tip 2>", "<tip 3>"]
+}}{jd_block}
 
 LINKEDIN PROFILE TEXT:
 ---
@@ -262,7 +213,7 @@ def _parse(raw: str) -> dict[str, Any]:
         return {}
 
 
-def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, visual_evaluated: bool = True) -> dict[str, Any]:
+def _normalize(data: dict) -> dict[str, Any]:
     buckets = []
     seen: set[str] = set()
     for b in data.get("buckets", []):
@@ -272,8 +223,7 @@ def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, vis
         seen.add(bid)
         mx     = BUCKET_MAX[bid]
         earned = max(0, min(mx, int(b.get("score", 0))))
-
-        bucket_entry: dict[str, Any] = {
+        buckets.append({
             "id":        bid,
             "label":     b.get("label", bid.title()),
             "score":     earned,
@@ -282,35 +232,10 @@ def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, vis
             "strengths": [str(s) for s in (b.get("strengths") or [])][:3],
             "gaps":      [str(g) for g in (b.get("gaps")      or [])][:3],
             "evaluated": True,
-        }
+        })
 
-        # Visual bucket: always compute server-side from actual image scores, never trust Claude's self-report
-        if bid == "visual":
-            if not visual_evaluated:
-                bucket_entry["score"]     = 0
-                bucket_entry["pct"]       = 0
-                bucket_entry["evaluated"] = False
-                bucket_entry["note"]      = "Upload photos to evaluate"
-            else:
-                p_score = (profile_img or {}).get("score", 0) / 100 * 2.5 if profile_img else 0
-                c_score = (cover_img   or {}).get("score", 0) / 100 * 2.5 if cover_img   else 0
-                # If only one image provided, scale accordingly
-                if profile_img and not cover_img:
-                    p_score = (profile_img.get("score", 0) / 100) * mx
-                    c_score = 0
-                elif cover_img and not profile_img:
-                    p_score = 0
-                    c_score = (cover_img.get("score", 0) / 100) * mx
-                computed_visual = min(mx, p_score + c_score)
-                bucket_entry["score"] = round(computed_visual)
-                bucket_entry["pct"]   = round(computed_visual / mx * 100) if mx else 0
-
-        buckets.append(bucket_entry)
-
-    # Compute overall score server-side from evaluated buckets (ignore Claude's self-reported value)
-    evaluated_buckets = [b for b in buckets if b.get("evaluated", True)]
-    computed_pts = sum(b["score"] for b in evaluated_buckets)
-    max_pts      = sum(b["max"]   for b in evaluated_buckets)
+    computed_pts = sum(b["score"] for b in buckets)
+    max_pts      = sum(b["max"]   for b in buckets)
     overall      = round(computed_pts / max_pts * 100) if max_pts else 0
 
     hr = data.get("headline_rewrite")
@@ -327,44 +252,30 @@ def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, vis
         if len(fixes) >= 5:
             break
         fix_section = str(f.get("section", ""))
-        # When visual was not evaluated (no images), skip AI-generated visual fixes entirely
-        if fix_section == "visual" and not visual_evaluated:
-            continue
+        if fix_section == "visual":
+            continue  # visual is scored separately now
         example = str(f.get("example", "")).strip()
-        # Auto-generate a fallback example from the fix text when Claude omits it
         if not example:
             fix_text = str(f.get("fix", ""))
             if fix_section == "skills":
-                example = "Add to your Skills section: Python · PyTorch · LangChain · LangGraph · SageMaker · MLflow · FastAPI · Docker · Kubernetes · Terraform"
+                example = "Add to Skills: Python · PyTorch · LangChain · LangGraph · SageMaker · MLflow · FastAPI · Docker · Kubernetes"
             elif fix_section == "proof":
-                example = "Ask a JPMorgan colleague: 'Mohammed led our RAG pipeline redesign that cut retrieval errors by 28% — one of the strongest AI engineers I've worked with.'"
-            elif fix_section == "visual":
-                example = "Banner: Add your name, title 'AI/ML Engineer @ JPMorgan', and 2-3 skill icons on a clean branded background. Remove personal email — link to GitHub instead."
+                example = "Request 2-3 LinkedIn recommendations from colleagues. Add certifications: AWS ML Specialty, Azure AI Engineer, or DeepLearning.AI."
             elif fix_section == "headline":
-                example = f"Before: {fix_text[:50]}… → After: AI Engineer | RAG · LLM Orchestration · MLOps | JPMorgan | Production GenAI on AWS · GCP"
+                example = "Before: AI Engineer → After: AI Engineer @ State Street | GenAI & LLM Systems | RAG · LangChain · SageMaker | 45% Risk Analysis Reduction"
             elif fix_section == "about":
-                example = "Lead sentence: 'In 4 years of production AI, I've shipped RAG pipelines that cut retrieval errors 28%, multi-agent workflows at JPMorgan Chase, and real-time inference endpoints serving enterprise scale.'"
+                example = "Lead with: 'I build GenAI systems that cut portfolio risk analysis effort by 45% and improve financial explanation accuracy by 38%...'"
             else:
                 example = fix_text[:120] if fix_text else ""
         fixes.append({
             "section": fix_section,
-            "issue":   str(f.get("issue",   "")),
-            "fix":     str(f.get("fix",     "")),
+            "issue":   str(f.get("issue",  "")),
+            "fix":     str(f.get("fix",    "")),
             "example": example,
-            "impact":  str(f.get("impact",  "Medium")),
+            "impact":  str(f.get("impact", "Medium")),
         })
 
-    # When images not uploaded, append a single authoritative visual fix instead of AI guesses
-    if not visual_evaluated:
-        fixes.append({
-            "section": "visual",
-            "issue":   "Profile photo and cover banner not analyzed — images not uploaded to this tool",
-            "fix":     "Upload your profile photo and cover banner using the fields above to receive visual quality scores and specific improvement suggestions.",
-            "example": "Upload a headshot with neutral background and professional attire for the profile photo; use a branded banner with your name, role, and top 2 skills or a value statement.",
-            "impact":  "High",
-        })
-
-    result: dict[str, Any] = {
+    return {
         "overall_score":    overall,
         "grade":            _grade(overall),
         "overall_verdict":  str(data.get("overall_verdict", "")),
@@ -375,23 +286,7 @@ def _normalize(data: dict, profile_img: dict | None, cover_img: dict | None, vis
         "priority_fixes":   fixes,
         "headline_rewrite": headline_rewrite,
         "about_tips":       [str(t) for t in (data.get("about_tips")    or [])][:4],
-        "visual_notes":     [str(n) for n in (data.get("visual_notes")  or [])][:4],
     }
-
-    if profile_img:
-        result["profile_image"] = {
-            "score":        profile_img.get("score", 0),
-            "suggestions":  profile_img.get("suggestions", []),
-            "observations": profile_img.get("observations", {}),
-        }
-    if cover_img:
-        result["cover_image"] = {
-            "score":        cover_img.get("score", 0),
-            "suggestions":  cover_img.get("suggestions", []),
-            "observations": cover_img.get("observations", {}),
-        }
-
-    return result
 
 
 # ─── Section parser ────────────────────────────────────────────────────────────
@@ -590,38 +485,20 @@ def analyze_linkedin_profile(
     pdf_text: str,
     job_description: str = "",
     target_role: str = "",
-    profile_image_bytes: bytes | None = None,
-    profile_image_type: str | None = None,
-    cover_image_bytes: bytes | None = None,
-    cover_image_type: str | None = None,
-    on_step=None,          # optional callback(step_name: str)
+    on_step=None,
 ) -> dict[str, Any]:
-    """Score a LinkedIn profile across 8 buckets."""
+    """Score a LinkedIn profile PDF across 7 buckets (images scored separately)."""
     def _step(name: str) -> None:
         if on_step:
-            try:
-                on_step(name)
-            except Exception:
-                pass
+            try: on_step(name)
+            except Exception: pass
 
     key = _resolve_opusmax_key()
     if not key:
         raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
 
-    profile_img: dict | None = None
-    cover_img:   dict | None = None
-
-    if profile_image_bytes and profile_image_type:
-        _step("photo_profile")
-        profile_img = analyze_profile_picture(profile_image_bytes, profile_image_type)
-    if cover_image_bytes and cover_image_type:
-        _step("photo_cover")
-        cover_img = analyze_cover_picture(cover_image_bytes, cover_image_type)
-
-    visual_evaluated = bool(profile_img or cover_img)
-
     _step("scoring")
-    prompt = _build_prompt(pdf_text, job_description, target_role, profile_img, cover_img)
+    prompt = _build_prompt(pdf_text, job_description, target_role)
     client = _make_anthropic_client(key)
 
     data: dict[str, Any] = {}
@@ -655,7 +532,7 @@ def analyze_linkedin_profile(
     if not data:
         raise RuntimeError(f"AI API failed: {last_error or 'empty response from all clients'}")
 
-    result = _normalize(data, profile_img, cover_img, visual_evaluated)
+    result = _normalize(data)
     _step("done")
 
     result["parsed_sections"] = _parse_sections(pdf_text)

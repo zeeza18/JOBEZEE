@@ -1687,10 +1687,9 @@ def _lb_poll(job_id: str) -> dict:
 
 _EXAMPLE_BY_SECTION = {
     "skills":       "Add to Skills: Python · PyTorch · LangChain · LangGraph · SageMaker · MLflow · FastAPI · Docker · Kubernetes · Terraform",
-    "proof":        "Ask a JPMorgan colleague: 'Mohammed led our RAG pipeline redesign that cut retrieval errors by 28% — one of the strongest AI engineers I've worked with.'",
-    "visual":       "Banner: your name + 'AI/ML Engineer @ JPMorgan' + 2-3 skill icons on a branded background. Profile: clean, well-lit headshot, neutral background, professional attire.",
-    "headline":     "Before: AI/ML Engineer @ JPMorgan | Production GenAI → After: AI Engineer @ JPMorgan | RAG · LLM Orchestration · MLOps | Production GenAI on AWS · GCP · Azure",
-    "about":        "Lead with: 'In 4 years of production AI, I've shipped RAG pipelines (+28% retrieval precision), multi-agent workflows at JPMorgan Chase, and inference endpoints at enterprise scale.'",
+    "proof":        "Request 2-3 LinkedIn recommendations from colleagues. Certifications to add: AWS ML Specialty, Azure AI Engineer, DeepLearning.AI LangChain course.",
+    "headline":     "Before: AI Engineer → After: AI Engineer @ State Street | GenAI & LLM Systems | RAG · LangChain · SageMaker | 45% Portfolio Risk Reduction",
+    "about":        "Lead with: 'I build GenAI systems that cut portfolio risk analysis effort by 45% and improve financial explanation accuracy by 38%. Over 3 years across State Street, TekAnthem, and Streebo...'",
     "experience":   "Before: Responsible for AI systems → After: Architected 3 RAG pipelines (LlamaIndex + FAISS + Pinecone) improving retrieval precision 28% vs. baseline, measured via automated eval.",
     "education":    "Change end date from 2026 to 2025 if completed, or add: 'Expected December 2026' to clarify in-progress status.",
     "completeness": "Ensure these LinkedIn sections are all filled: About, Skills (10+ items), Experience (3 roles), Education (degree title + year), Featured or Projects.",
@@ -1737,14 +1736,46 @@ def _lb_run_optimize(job_id: str, **kwargs) -> None:
         _lb_jobs[job_id].update(status="error", error=str(exc))
 
 
+@app.post("/api/linkedin-boost/analyze-photo")
+async def lb_analyze_photo(
+    authorization: str        = Header(...),
+    profile_image: UploadFile = ...,
+) -> dict:
+    """Analyze profile photo independently — returns score/feedback directly."""
+    _auth(authorization)
+    img_bytes = await profile_image.read()
+    img_type  = profile_image.content_type or "image/jpeg"
+    repo_root = str(_JOBEZEE_ROOT)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from backend.services.resume_analysis_service import analyze_profile_picture
+    import asyncio
+    return await asyncio.to_thread(analyze_profile_picture, img_bytes, img_type)
+
+
+@app.post("/api/linkedin-boost/analyze-cover")
+async def lb_analyze_cover(
+    authorization: str        = Header(...),
+    cover_image:   UploadFile = ...,
+) -> dict:
+    """Analyze cover banner independently — returns score/feedback directly."""
+    _auth(authorization)
+    img_bytes = await cover_image.read()
+    img_type  = cover_image.content_type or "image/jpeg"
+    repo_root = str(_JOBEZEE_ROOT)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from backend.services.resume_analysis_service import analyze_cover_picture
+    import asyncio
+    return await asyncio.to_thread(analyze_cover_picture, img_bytes, img_type)
+
+
 @app.post("/api/linkedin-boost/analyze")
 async def lb_analyze(
-    authorization:  str             = Header(...),
-    profile_pdf:    UploadFile      = ...,
-    profile_image:  UploadFile|None = FFile(default=None),
-    cover_image:    UploadFile|None = FFile(default=None),
-    job_description: str            = Form(default=""),
-    target_role:    str             = Form(default=""),
+    authorization:   str    = Header(...),
+    profile_pdf:     UploadFile = ...,
+    job_description: str    = Form(default=""),
+    target_role:     str    = Form(default=""),
 ) -> dict:
     _auth(authorization)
 
@@ -1771,30 +1802,14 @@ async def lb_analyze(
     if not pdf_text.strip():
         raise HTTPException(422, "Could not extract text from the PDF.")
 
-    profile_image_bytes: bytes | None = None
-    profile_image_type:  str   | None = None
-    if profile_image and profile_image.filename:
-        profile_image_bytes = await profile_image.read()
-        profile_image_type  = profile_image.content_type or "image/jpeg"
-
-    cover_image_bytes: bytes | None = None
-    cover_image_type:  str   | None = None
-    if cover_image and cover_image.filename:
-        cover_image_bytes = await cover_image.read()
-        cover_image_type  = cover_image.content_type or "image/jpeg"
-
     job_id = _lb_new_job("extract")
     threading.Thread(
         target=_lb_run_analyze,
         kwargs=dict(
-            job_id              = job_id,
-            pdf_text            = pdf_text,
-            job_description     = job_description.strip(),
-            target_role         = target_role.strip(),
-            profile_image_bytes = profile_image_bytes,
-            profile_image_type  = profile_image_type,
-            cover_image_bytes   = cover_image_bytes,
-            cover_image_type    = cover_image_type,
+            job_id          = job_id,
+            pdf_text        = pdf_text,
+            job_description = job_description.strip(),
+            target_role     = target_role.strip(),
         ),
         daemon=True,
     ).start()

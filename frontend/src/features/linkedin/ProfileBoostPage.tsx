@@ -23,8 +23,7 @@ interface BoostResult {
   overall_score: number; grade: string; overall_verdict: string; jd_fit_score: number
   buckets: BucketScore[]; top_strengths: string[]; top_gaps: string[]
   priority_fixes: PriorityFix[]; headline_rewrite: HeadlineRewrite | null
-  about_tips: string[]; visual_notes: string[]
-  profile_image?: ImageResult; cover_image?: ImageResult
+  about_tips: string[]
   parsed_sections?: ParsedSections; pdf_text?: string
 }
 interface OptimizeResult {
@@ -33,7 +32,6 @@ interface OptimizeResult {
   experience?: Array<{ company: string; title: string; current_text: string; optimized_bullets: string[]; key_changes: string[] }>
   skills?:     { current: string[]; reordered: string[]; add_if_true: Array<{ skill: string; reason: string }> }
 }
-type Phase = 'input' | 'analyzing' | 'analyzed' | 'optimizing'
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
@@ -63,11 +61,9 @@ function clearState() {
 // ─── Step definitions ─────────────────────────────────────────────────────────
 
 const ANALYZE_STEPS: Array<{ id: string; label: string }> = [
-  { id: 'extract',       label: 'Reading your profile'         },
-  { id: 'photo_profile', label: 'Scoring your profile picture' },
-  { id: 'photo_cover',   label: 'Scoring your cover image'     },
-  { id: 'scoring',       label: 'Scoring your sections'        },
-  { id: 'done',          label: 'Finalising results'           },
+  { id: 'extract', label: 'Reading your profile'  },
+  { id: 'scoring', label: 'Scoring your sections' },
+  { id: 'done',    label: 'Finalising results'    },
 ]
 
 type StepStatus = 'waiting' | 'active' | 'done'
@@ -82,12 +78,9 @@ function stepStatus(currentStep: string, stepId: string): StepStatus {
 }
 
 function StepList({ currentStep }: { currentStep: string }) {
-  const visible = currentStep === 'extract'
-    ? ANALYZE_STEPS.filter(s => !s.id.startsWith('photo'))
-    : ANALYZE_STEPS
   return (
     <div className="space-y-3">
-      {visible.map(step => {
+      {ANALYZE_STEPS.map(step => {
         const s = stepStatus(currentStep, step.id)
         return (
           <div key={step.id} className={`flex items-center gap-3 transition-all ${s === 'waiting' ? 'opacity-30' : ''}`}>
@@ -838,27 +831,105 @@ function InlineOptimizeResults({ or }: { or: OptimizeResult }) {
   )
 }
 
+// ─── Image analysis card ──────────────────────────────────────────────────────
+
+type ImagePhase = 'idle' | 'analyzing' | 'done' | 'error'
+
+function ImageAnalysisCard({ title, file, onFile, phase, result, error, onAnalyze, imageUrl, isBanner }: {
+  title: string; file: File | null; onFile: (f: File) => void
+  phase: ImagePhase; result: ImageResult | null; error: string | null
+  onAnalyze: () => void; imageUrl: string | null; isBanner?: boolean
+}) {
+  const scoreColor = result
+    ? result.score >= 80 ? 'text-emerald-600' : result.score >= 60 ? 'text-amber-600' : 'text-red-600'
+    : 'text-slate-400'
+
+  return (
+    <Card className="p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        {isBanner ? <Upload className="h-4 w-4 text-cyan-600" /> : <Camera className="h-4 w-4 text-cyan-600" />}
+        <p className="text-sm font-semibold text-slate-800">{title}</p>
+        <span className="text-xs text-slate-400 font-normal">(optional)</span>
+        {phase === 'done' && result && (
+          <span className={`ml-auto text-base font-black ${scoreColor}`}>{result.score}<span className="text-xs font-normal text-slate-400">/100</span></span>
+        )}
+      </div>
+
+      {phase === 'done' && result && imageUrl ? (
+        <>
+          <ImageFeedbackRow imageUrl={imageUrl} result={result} label={title} isBanner={isBanner} />
+          <button onClick={() => onFile(file!)}
+            className="text-xs text-slate-400 hover:text-cyan-600 transition">
+            Replace {isBanner ? 'banner' : 'photo'} →
+          </button>
+        </>
+      ) : (
+        <div className="space-y-2">
+          <DropZone
+            accept="image/jpeg,image/png,image/webp"
+            label={`Upload ${isBanner ? 'cover / banner' : 'profile photo'}`}
+            hint="JPG, PNG, or WebP"
+            icon={isBanner ? Upload : Camera}
+            file={file}
+            onFile={onFile}
+          />
+          <button
+            onClick={onAnalyze}
+            disabled={!file || phase === 'analyzing'}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition border ${
+              !file || phase === 'analyzing'
+                ? 'border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed'
+                : 'border-cyan-300 text-cyan-700 bg-cyan-50 hover:bg-cyan-100'
+            }`}
+          >
+            {phase === 'analyzing'
+              ? <><Loader2 className="h-4 w-4 animate-spin" />Analyzing…</>
+              : <><Zap className="h-4 w-4" />Analyze {isBanner ? 'Cover' : 'Photo'}</>}
+          </button>
+          {error && (
+            <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>{error}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+type ProfilePhase = 'input' | 'analyzing' | 'analyzed' | 'optimizing'
 const POLL_INTERVAL = 2500
 
 export default function ProfileBoostPage() {
   const persisted = loadPersistedState()
 
-  const [phase,           setPhase]           = useState<Phase>(persisted ? 'analyzed' : 'input')
-  const [pdfFile,         setPdfFile]         = useState<File | null>(null)
-  const [profileImage,    setProfileImage]    = useState<File | null>(null)
-  const [coverImage,      setCoverImage]      = useState<File | null>(null)
-  const [targetRole,      setTargetRole]      = useState(persisted?.targetRole ?? '')
-  const [jdText,          setJdText]          = useState('')
-  const [currentStep,     setCurrentStep]     = useState('extract')
-  const [result,          setResult]          = useState<BoostResult | null>(persisted?.result ?? null)
-  const [optimizeResult,  setOptimizeResult]  = useState<OptimizeResult | null>(persisted?.optimizeResult ?? null)
-  const [error,           setError]           = useState<string | null>(null)
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
-  const [coverImageUrl,   setCoverImageUrl]   = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Profile (PDF) state
+  const [profilePhase,   setProfilePhase]   = useState<ProfilePhase>(persisted ? 'analyzed' : 'input')
+  const [pdfFile,        setPdfFile]        = useState<File | null>(null)
+  const [targetRole,     setTargetRole]     = useState(persisted?.targetRole ?? '')
+  const [jdText,         setJdText]         = useState('')
+  const [currentStep,    setCurrentStep]    = useState('extract')
+  const [result,         setResult]         = useState<BoostResult | null>(persisted?.result ?? null)
+  const [optimizeResult, setOptimizeResult] = useState<OptimizeResult | null>(persisted?.optimizeResult ?? null)
+  const [profileError,   setProfileError]   = useState<string | null>(null)
 
+  // Photo state (fully independent)
+  const [profileImage,    setProfileImage]    = useState<File | null>(null)
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  const [photoPhase,      setPhotoPhase]      = useState<ImagePhase>('idle')
+  const [photoResult,     setPhotoResult]     = useState<ImageResult | null>(null)
+  const [photoError,      setPhotoError]      = useState<string | null>(null)
+
+  // Cover state (fully independent)
+  const [coverImage,    setCoverImage]    = useState<File | null>(null)
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
+  const [coverPhase,    setCoverPhase]    = useState<ImagePhase>('idle')
+  const [coverResult,   setCoverResult]   = useState<ImageResult | null>(null)
+  const [coverError,    setCoverError]    = useState<string | null>(null)
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const stopPolling = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null } }
   useEffect(() => () => stopPolling(), [])
 
@@ -876,17 +947,53 @@ export default function ProfileBoostPage() {
     return () => URL.revokeObjectURL(url)
   }, [coverImage])
 
-  // ── Analyze ───────────────────────────────────────────────────────────────
+  // ── Analyze Photo ─────────────────────────────────────────────────────────
+
+  const handlePhotoAnalyze = useCallback(async () => {
+    if (!profileImage) return
+    setPhotoPhase('analyzing'); setPhotoError(null); setPhotoResult(null)
+    const fd = new FormData()
+    fd.append('profile_image', profileImage)
+    try {
+      const res = await fetch('/api/linkedin-boost/analyze-photo', { method: 'POST', credentials: 'include', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error((data.detail as string) || 'Photo analysis failed')
+      setPhotoResult(data as ImageResult)
+      setPhotoPhase('done')
+    } catch (e: unknown) {
+      setPhotoError(e instanceof Error ? e.message : String(e))
+      setPhotoPhase('error')
+    }
+  }, [profileImage])
+
+  // ── Analyze Cover ─────────────────────────────────────────────────────────
+
+  const handleCoverAnalyze = useCallback(async () => {
+    if (!coverImage) return
+    setCoverPhase('analyzing'); setCoverError(null); setCoverResult(null)
+    const fd = new FormData()
+    fd.append('cover_image', coverImage)
+    try {
+      const res = await fetch('/api/linkedin-boost/analyze-cover', { method: 'POST', credentials: 'include', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error((data.detail as string) || 'Cover analysis failed')
+      setCoverResult(data as ImageResult)
+      setCoverPhase('done')
+    } catch (e: unknown) {
+      setCoverError(e instanceof Error ? e.message : String(e))
+      setCoverPhase('error')
+    }
+  }, [coverImage])
+
+  // ── Analyze Profile (PDF only) ────────────────────────────────────────────
 
   const handleAnalyze = useCallback(async () => {
     if (!pdfFile) return
-    setError(null); setResult(null); setOptimizeResult(null)
-    setCurrentStep('extract'); setPhase('analyzing'); clearState()
+    setProfileError(null); setResult(null); setOptimizeResult(null)
+    setCurrentStep('extract'); setProfilePhase('analyzing'); clearState()
 
     const fd = new FormData()
     fd.append('profile_pdf', pdfFile)
-    if (profileImage)      fd.append('profile_image',   profileImage)
-    if (coverImage)        fd.append('cover_image',     coverImage)
     if (jdText.trim())     fd.append('job_description', jdText.trim())
     if (targetRole.trim()) fd.append('target_role',     targetRole.trim())
 
@@ -898,7 +1005,7 @@ export default function ProfileBoostPage() {
       try { data = JSON.parse(txt) } catch { throw new Error(txt.slice(0, 200) || 'Server error') }
       if (!res.ok) throw new Error((data.detail as string) || 'Failed to start analysis')
       jobId = data.job_id as string
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); setPhase('input'); return }
+    } catch (e: unknown) { setProfileError(e instanceof Error ? e.message : String(e)); setProfilePhase('input'); return }
 
     pollRef.current = setInterval(async () => {
       try {
@@ -912,18 +1019,18 @@ export default function ProfileBoostPage() {
         if (data.status === 'done') {
           stopPolling()
           const r = data.result as BoostResult
-          setResult(r); setPhase('analyzed')
+          setResult(r); setProfilePhase('analyzed')
           saveState({ result: r, optimizeResult: null, targetRole })
         }
-      } catch (e: unknown) { stopPolling(); setError(e instanceof Error ? e.message : String(e)); setPhase('input') }
+      } catch (e: unknown) { stopPolling(); setProfileError(e instanceof Error ? e.message : String(e)); setProfilePhase('input') }
     }, POLL_INTERVAL)
-  }, [pdfFile, profileImage, coverImage, jdText, targetRole])
+  }, [pdfFile, jdText, targetRole])
 
   // ── Optimize ──────────────────────────────────────────────────────────────
 
   const handleOptimize = useCallback(async () => {
     if (!result?.pdf_text) return
-    setPhase('optimizing'); setError(null)
+    setProfilePhase('optimizing'); setProfileError(null)
 
     let jobId: string
     try {
@@ -937,7 +1044,7 @@ export default function ProfileBoostPage() {
       try { data = JSON.parse(txt) } catch { throw new Error(txt.slice(0, 200) || 'Server error') }
       if (!res.ok) throw new Error((data.detail as string) || 'Failed to start optimization')
       jobId = data.job_id as string
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); setPhase('analyzed'); return }
+    } catch (e: unknown) { setProfileError(e instanceof Error ? e.message : String(e)); setProfilePhase('analyzed'); return }
 
     pollRef.current = setInterval(async () => {
       try {
@@ -949,288 +1056,231 @@ export default function ProfileBoostPage() {
         if (data.status === 'done') {
           stopPolling()
           const or = data.result as OptimizeResult
-          setOptimizeResult(or); setPhase('analyzed')
+          setOptimizeResult(or); setProfilePhase('analyzed')
           if (result) saveState({ result, optimizeResult: or, targetRole })
         }
-      } catch (e: unknown) { stopPolling(); setError(e instanceof Error ? e.message : String(e)); setPhase('analyzed') }
+      } catch (e: unknown) { stopPolling(); setProfileError(e instanceof Error ? e.message : String(e)); setProfilePhase('analyzed') }
     }, POLL_INTERVAL)
   }, [result, targetRole])
 
-  const handleReanalyze = () => { stopPolling(); setPhase('input'); setResult(null); setOptimizeResult(null); setError(null); clearState() }
+  const handleReanalyze = () => {
+    stopPolling(); setProfilePhase('input'); setResult(null); setOptimizeResult(null); setProfileError(null); clearState()
+  }
   const getBucket = (id: string) => result?.buckets.find(b => b.id === id)
   const hasSections = (ps?: ParsedSections) => ps && (ps.headline || ps.about || (ps.experience?.length ?? 0) > 0 || (ps.skills?.length ?? 0) > 0)
 
   // ══════════════════════════════════════════════════════════════════════════
-  // INPUT
+  // RENDER — always shows all 3 cards
   // ══════════════════════════════════════════════════════════════════════════
-  if (phase === 'input') {
-    return (
-      <div className="space-y-5">
+  return (
+    <div className="space-y-5 pb-10">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
           <h1 className="text-xl md:text-2xl font-bold text-slate-900">LinkedIn Profile Scorer</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Upload your LinkedIn PDF — get an 8-bucket score + AI rewrites</p>
+          <p className="text-sm text-slate-400 mt-0.5">Score photo, cover, and profile sections independently</p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-[45%_55%] gap-6">
-          <div className="space-y-4">
-            <Card className="p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold text-slate-800">LinkedIn Profile PDF</p>
-                <span className="ml-auto text-xs text-red-500 font-medium">required</span>
-              </div>
-              <DropZone accept=".pdf,.txt" label="Upload your LinkedIn PDF export"
-                hint='LinkedIn → "Save to PDF" on your profile page'
-                icon={Upload} file={pdfFile} onFile={setPdfFile} />
-            </Card>
-            <Card className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Camera className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold text-slate-800">Photos <span className="text-slate-400 font-normal text-xs">(optional)</span></p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 mb-1">Profile Photo</p>
-                <DropZone accept="image/jpeg,image/png,image/webp" label="Upload profile photo"
-                  hint="JPG, PNG, or WebP" icon={Camera} file={profileImage} onFile={setProfileImage} />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 mb-1">Cover / Banner</p>
-                <DropZone accept="image/jpeg,image/png,image/webp" label="Upload cover / banner"
-                  hint="JPG, PNG, or WebP" icon={Upload} file={coverImage} onFile={setCoverImage} />
-              </div>
-            </Card>
-            <Card className="p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold text-slate-800">Target Role <span className="text-slate-400 font-normal text-xs">(optional)</span></p>
-              </div>
-              <input type="text" placeholder="e.g. Senior Data Engineer, Product Manager"
-                value={targetRole} onChange={e => setTargetRole(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
-            </Card>
-            <Card className="p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-cyan-600" />
-                <p className="text-sm font-semibold text-slate-800">Job Description <span className="text-slate-400 font-normal text-xs">(optional)</span></p>
-              </div>
-              <textarea className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
-                placeholder="Paste a job description for a JD fit score…"
-                value={jdText} onChange={e => setJdText(e.target.value)} rows={4} />
-            </Card>
-            <Button onClick={handleAnalyze} disabled={!pdfFile}
-              className="w-full py-3 text-sm flex items-center justify-center gap-2">
-              <Zap className="h-4 w-4" />Analyze Profile
-            </Button>
-            {error && (
-              <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>{error}</span>
-              </div>
-            )}
-          </div>
-          <Card className="h-full flex flex-col items-center justify-center gap-4 py-16 text-center border-2 border-dashed border-slate-200 min-h-[280px]">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
-              <Sparkles className="h-7 w-7 text-slate-400" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-600">No analysis yet</p>
-              <p className="text-xs text-slate-400 mt-1 max-w-[200px] mx-auto leading-relaxed">
-                Upload your LinkedIn PDF and click Analyze Profile
-              </p>
-            </div>
-          </Card>
-        </div>
+        {profilePhase !== 'input' && (
+          <button onClick={handleReanalyze}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
+            <RefreshCw className="h-3.5 w-3.5" />Re-analyze
+          </button>
+        )}
       </div>
-    )
-  }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ANALYZING
-  // ══════════════════════════════════════════════════════════════════════════
-  if (phase === 'analyzing') {
-    return (
-      <div className="space-y-5">
-        <div>
-          <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Analyzing your profile…</h1>
-        </div>
-        <div className="flex justify-center">
-          <Card className="p-8 w-full max-w-md">
-            <div className="flex flex-col items-center gap-6">
+      {/* ── Image cards row ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <ImageAnalysisCard
+          title="Profile Photo"
+          file={profileImage}
+          onFile={f => { setProfileImage(f); setPhotoPhase('idle'); setPhotoResult(null); setPhotoError(null) }}
+          phase={photoPhase}
+          result={photoResult}
+          error={photoError}
+          onAnalyze={handlePhotoAnalyze}
+          imageUrl={profileImageUrl}
+          isBanner={false}
+        />
+        <ImageAnalysisCard
+          title="Cover Banner"
+          file={coverImage}
+          onFile={f => { setCoverImage(f); setCoverPhase('idle'); setCoverResult(null); setCoverError(null) }}
+          phase={coverPhase}
+          result={coverResult}
+          error={coverError}
+          onAnalyze={handleCoverAnalyze}
+          imageUrl={coverImageUrl}
+          isBanner
+        />
+      </div>
+
+      {/* ── Profile (PDF) card ── */}
+      {(profilePhase === 'input' || profilePhase === 'analyzing') && (
+        <Card className="p-4 space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <FileText className="h-4 w-4 text-cyan-600" />
+            <p className="text-sm font-semibold text-slate-800">LinkedIn Profile PDF</p>
+            <span className="ml-auto text-xs text-red-500 font-medium">required</span>
+          </div>
+
+          {profilePhase === 'analyzing' ? (
+            <div className="flex flex-col items-center gap-6 py-6">
               <div className="relative">
-                <div className="h-14 w-14 rounded-full border-4 border-cyan-100 border-t-cyan-500 animate-spin" />
-                <Sparkles className="h-6 w-6 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                <div className="h-12 w-12 rounded-full border-4 border-cyan-100 border-t-cyan-500 animate-spin" />
+                <Sparkles className="h-5 w-5 text-cyan-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
-              <div className="w-full">
+              <div className="w-full max-w-xs">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 text-center">Progress</p>
                 <StepList currentStep={currentStep} />
               </div>
-              <p className="text-xs text-slate-400 text-center leading-relaxed">Each section is scored individually against recruiter criteria</p>
             </div>
-          </Card>
-        </div>
-      </div>
-    )
-  }
+          ) : (
+            <div className="space-y-3">
+              <DropZone accept=".pdf,.txt" label="Upload your LinkedIn PDF export"
+                hint='LinkedIn → "Save to PDF" on your profile page'
+                icon={Upload} file={pdfFile} onFile={setPdfFile} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs font-medium text-slate-500 mb-1 flex items-center gap-1.5"><Target className="h-3.5 w-3.5" />Target Role <span className="text-slate-400">(optional)</span></p>
+                  <input type="text" placeholder="e.g. AI Engineer, Product Manager"
+                    value={targetRole} onChange={e => setTargetRole(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500 mb-1 flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />Job Description <span className="text-slate-400">(optional)</span></p>
+                  <textarea className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:bg-white transition placeholder-slate-400"
+                    placeholder="Paste a job description for a JD fit score…"
+                    value={jdText} onChange={e => setJdText(e.target.value)} rows={3} />
+                </div>
+              </div>
+              <Button onClick={handleAnalyze} disabled={!pdfFile}
+                className="w-full py-3 text-sm flex items-center justify-center gap-2">
+                <Zap className="h-4 w-4" />Analyze Profile
+              </Button>
+              {profileError && (
+                <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>{profileError}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ANALYZED + OPTIMIZING (same view — optimized results shown inline)
-  // ══════════════════════════════════════════════════════════════════════════
-  if ((phase === 'analyzed' || phase === 'optimizing') && result) {
-    const ps = result.parsed_sections
-    const hasImages = (profileImageUrl && result.profile_image) || (coverImageUrl && result.cover_image)
+      {/* ── Profile results ── */}
+      {(profilePhase === 'analyzed' || profilePhase === 'optimizing') && result && (() => {
+        const ps = result.parsed_sections
+        return (
+          <div className="space-y-6">
+            <ScoreHero score={result.overall_score} grade={result.grade} verdict={result.overall_verdict} jdFitScore={result.jd_fit_score} />
 
-    return (
-      <div className="space-y-6 pb-10">
-        <PageHeader onReanalyze={handleReanalyze} />
-
-        <ScoreHero
-          score={result.overall_score}
-          grade={result.grade}
-          verdict={result.overall_verdict}
-          jdFitScore={result.jd_fit_score}
-        />
-
-        {(result.top_strengths.length > 0 || result.top_gaps.length > 0) && (
-          <StrengthsGaps strengths={result.top_strengths} gaps={result.top_gaps} />
-        )}
-
-        {/* Visual */}
-        {hasImages && (
-          <div className="space-y-4">
-            <SectionLabel>Visual Profile</SectionLabel>
-            {profileImageUrl && result.profile_image && (
-              <ImageFeedbackRow imageUrl={profileImageUrl} result={result.profile_image} label="Profile Photo" />
-            )}
-            {coverImageUrl && result.cover_image && (
-              <ImageFeedbackRow imageUrl={coverImageUrl} result={result.cover_image} label="Cover Banner" isBanner />
-            )}
-          </div>
-        )}
-
-        {/* Sections */}
-        {hasSections(ps) ? (
-          <div className="space-y-4">
-            <SectionLabel>Profile Sections</SectionLabel>
-
-            {ps?.headline && (
-              <SectionFeedbackRow
-                label="Headline"
-                content={<p className="text-sm text-slate-800 font-medium leading-relaxed">{ps.headline}</p>}
-                bucket={getBucket('headline')}
-                copyText={ps.headline}
-                feedbackExtra={result.headline_rewrite ? <HeadlineRewriteInline rewrite={result.headline_rewrite} /> : undefined}
-              />
+            {(result.top_strengths.length > 0 || result.top_gaps.length > 0) && (
+              <StrengthsGaps strengths={result.top_strengths} gaps={result.top_gaps} />
             )}
 
-            {ps?.about && (
-              <SectionFeedbackRow
-                label="About / Summary"
-                content={<p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{ps.about}</p>}
-                bucket={getBucket('about')}
-                copyText={ps.about}
-                feedbackExtra={result.about_tips.length > 0 ? (
-                  <div className="mt-3 border-t border-slate-100 pt-3 space-y-1.5">
-                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Tips</p>
-                    {result.about_tips.map((tip, i) => (
-                      <div key={i} className="flex items-start gap-1.5 text-xs text-slate-600 leading-relaxed">
-                        <Lightbulb className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" /><span>{tip}</span>
+            {hasSections(ps) ? (
+              <div className="space-y-4">
+                <SectionLabel>Profile Sections</SectionLabel>
+                {ps?.headline && (
+                  <SectionFeedbackRow label="Headline"
+                    content={<p className="text-sm text-slate-800 font-medium leading-relaxed">{ps.headline}</p>}
+                    bucket={getBucket('headline')} copyText={ps.headline}
+                    feedbackExtra={result.headline_rewrite ? <HeadlineRewriteInline rewrite={result.headline_rewrite} /> : undefined}
+                  />
+                )}
+                {ps?.about && (
+                  <SectionFeedbackRow label="About / Summary"
+                    content={<p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{ps.about}</p>}
+                    bucket={getBucket('about')} copyText={ps.about}
+                    feedbackExtra={result.about_tips.length > 0 ? (
+                      <div className="mt-3 border-t border-slate-100 pt-3 space-y-1.5">
+                        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Tips</p>
+                        {result.about_tips.map((tip, i) => (
+                          <div key={i} className="flex items-start gap-1.5 text-xs text-slate-600 leading-relaxed">
+                            <Lightbulb className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" /><span>{tip}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : undefined}
+                  />
+                )}
+                {ps?.experience && ps.experience.length > 0 && (
+                  <SectionFeedbackRow label="Experience"
+                    content={<ExperienceContent entries={ps.experience} />}
+                    bucket={getBucket('experience')} copyText={ps.experience.join('\n\n')}
+                  />
+                )}
+                {ps?.skills && ps.skills.length > 0 && (
+                  <SectionFeedbackRow label="Skills"
+                    content={<SkillsContent entries={ps.skills} />}
+                    bucket={getBucket('skills')} copyText={buildSkillsList(ps.skills).join(', ')}
+                  />
+                )}
+                {ps?.education && ps.education.length > 0 && (
+                  <SectionFeedbackRow label="Education"
+                    content={<EducationContent entries={ps.education} />}
+                    bucket={getBucket('completeness')} copyText={ps.education.join('\n')}
+                  />
+                )}
+                {ps?.has_recommendations && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <p className="text-xs font-semibold text-emerald-700">Recommendations section detected</p>
                   </div>
-                ) : undefined}
-              />
-            )}
-
-            {ps?.experience && ps.experience.length > 0 && (
-              <SectionFeedbackRow
-                label="Experience"
-                content={<ExperienceContent entries={ps.experience} />}
-                bucket={getBucket('experience')}
-                copyText={ps.experience.join('\n\n')}
-              />
-            )}
-
-            {ps?.skills && ps.skills.length > 0 && (
-              <SectionFeedbackRow
-                label="Skills"
-                content={<SkillsContent entries={ps.skills} />}
-                bucket={getBucket('skills')}
-                copyText={buildSkillsList(ps.skills).join(', ')}
-              />
-            )}
-
-            {ps?.education && ps.education.length > 0 && (
-              <SectionFeedbackRow
-                label="Education"
-                content={<EducationContent entries={ps.education} />}
-                bucket={getBucket('completeness')}
-                copyText={ps.education.join('\n')}
-              />
-            )}
-
-            {ps?.has_recommendations && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                <p className="text-xs font-semibold text-emerald-700">Recommendations section detected</p>
+                )}
               </div>
-            )}
-          </div>
-        ) : result.pdf_text ? (
-          <div className="space-y-4">
-            <SectionLabel>Extracted Text</SectionLabel>
-            <RawTextFallback pdfText={result.pdf_text} />
-          </div>
-        ) : null}
+            ) : result.pdf_text ? (
+              <div className="space-y-4">
+                <SectionLabel>Extracted Text</SectionLabel>
+                <RawTextFallback pdfText={result.pdf_text} />
+              </div>
+            ) : null}
 
-        {/* Priority Fixes */}
-        {result.priority_fixes.length > 0 && (
-          <div className="space-y-4">
-            <SectionLabel>AI Feedback</SectionLabel>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Priority Fixes</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {result.priority_fixes.map((fix, i) => <FixCard key={i} fix={fix} idx={i} />)}
-            </div>
-          </div>
-        )}
-
-        {/* Optimize section */}
-        {result.pdf_text && (
-          <div className="space-y-4">
-            <SectionLabel>Optimize Profile</SectionLabel>
-
-            {!optimizeResult && phase !== 'optimizing' && (
-              <div className="flex flex-col items-center gap-3 py-6 rounded-xl border border-slate-200 bg-slate-50">
-                <p className="text-sm text-slate-500 text-center max-w-sm">
-                  Let AI rewrite your headline, about, experience and skills for maximum recruiter impact.
-                </p>
-                <Button onClick={handleOptimize}
-                  className="px-8 py-3 text-sm flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white">
-                  <Sparkles className="h-4 w-4" />Optimize My Profile
-                </Button>
+            {result.priority_fixes.length > 0 && (
+              <div className="space-y-4">
+                <SectionLabel>AI Feedback</SectionLabel>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Priority Fixes</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {result.priority_fixes.map((fix, i) => <FixCard key={i} fix={fix} idx={i} />)}
+                </div>
               </div>
             )}
 
-            {phase === 'optimizing' && (
-              <div className="flex items-center justify-center gap-3 py-8 rounded-xl border border-cyan-200 bg-cyan-50">
-                <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
-                <span className="text-sm font-medium text-cyan-700">Rewriting your sections…</span>
+            {result.pdf_text && (
+              <div className="space-y-4">
+                <SectionLabel>Optimize Profile</SectionLabel>
+                {!optimizeResult && profilePhase !== 'optimizing' && (
+                  <div className="flex flex-col items-center gap-3 py-6 rounded-xl border border-slate-200 bg-slate-50">
+                    <p className="text-sm text-slate-500 text-center max-w-sm">
+                      Let AI rewrite your headline, about, experience and skills for maximum recruiter impact.
+                    </p>
+                    <Button onClick={handleOptimize}
+                      className="px-8 py-3 text-sm flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white">
+                      <Sparkles className="h-4 w-4" />Optimize My Profile
+                    </Button>
+                  </div>
+                )}
+                {profilePhase === 'optimizing' && (
+                  <div className="flex items-center justify-center gap-3 py-8 rounded-xl border border-cyan-200 bg-cyan-50">
+                    <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
+                    <span className="text-sm font-medium text-cyan-700">Rewriting your sections…</span>
+                  </div>
+                )}
+                {optimizeResult && profilePhase === 'analyzed' && (
+                  <InlineOptimizeResults or={optimizeResult} />
+                )}
               </div>
             )}
 
-            {optimizeResult && phase === 'analyzed' && (
-              <InlineOptimizeResults or={optimizeResult} />
+            {profileError && (
+              <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>{profileError}</span>
+              </div>
             )}
           </div>
-        )}
-
-        {error && (
-          <div className="flex items-start gap-2 text-xs text-red-500 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /><span>{error}</span>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  return null
+        )
+      })()}
+    </div>
+  )
 }
