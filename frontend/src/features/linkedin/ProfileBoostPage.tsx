@@ -1497,7 +1497,7 @@ export default function ProfileBoostPage() {
                   {ps?.education && ps.education.length > 0 && (
                     <SectionFeedbackRow label="Education"
                       content={<EducationContent entries={ps.education} />}
-                      bucket={getBucket('completeness')} copyText={ps.education.join('\n')} />
+                      bucket={getBucket('education')} copyText={ps.education.join('\n')} />
                   )}
                   {ps?.has_recommendations && (
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-2">

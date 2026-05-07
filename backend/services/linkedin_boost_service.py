@@ -24,14 +24,17 @@ def _resolve_fallback_key() -> str:
 
 LINKEDIN_MODEL = os.getenv("LINKEDIN_MODEL", "claude-sonnet-4-6")
 
+# ─── Bucket definitions ───────────────────────────────────────────────────────
+
 BUCKET_MAX: dict[str, int] = {
-    "searchability": 25,
-    "headline":      12,
+    "searchability": 20,
+    "headline":      10,
     "about":         15,
-    "experience":    25,
+    "experience":    30,
     "skills":        10,
-    "proof":         10,
-    "completeness":   3,
+    "education":      5,
+    "proof":          8,
+    "completeness":   2,
 }
 
 GRADE_THRESHOLDS = [
@@ -43,6 +46,17 @@ GRADE_THRESHOLDS = [
     (0,  "Weak"),
 ]
 
+BUCKET_LABELS: dict[str, str] = {
+    "searchability": "Searchability",
+    "headline":      "Headline",
+    "about":         "About / Summary",
+    "experience":    "Experience",
+    "skills":        "Skills",
+    "education":     "Education",
+    "proof":         "Proof",
+    "completeness":  "Completeness",
+}
+
 
 def _grade(score: int) -> str:
     for threshold, label in GRADE_THRESHOLDS:
@@ -51,21 +65,148 @@ def _grade(score: int) -> str:
     return "Weak"
 
 
+# ─── Deterministic scoring from observations ──────────────────────────────────
+
+def _score_searchability(obs: dict) -> int:
+    kc = int(obs.get("primary_keyword_count", 0))
+    if kc == 0:      pts = 0
+    elif kc <= 2:    pts = 4
+    elif kc <= 5:    pts = 9
+    elif kc <= 9:    pts = 14
+    else:            pts = 17
+    dc = int(obs.get("secondary_keyword_count", 0))
+    if dc >= 6:      pts += 3
+    elif dc >= 3:    pts += 1
+    if int(obs.get("skills_section_count", 0)) < 5:
+        pts -= 4
+    return max(0, min(20, pts))
+
+
+def _score_headline(obs: dict) -> int:
+    pts = 0
+    if obs.get("has_role_title"):       pts += 3
+    tc = int(obs.get("tech_skill_count", 0))
+    if tc >= 2:                          pts += 2
+    elif tc == 1:                        pts += 1
+    if obs.get("has_employer"):          pts += 2
+    if obs.get("has_specialization"):    pts += 2
+    if obs.get("has_seniority"):         pts += 1
+    if obs.get("has_separators"):        pts += 1
+    if int(obs.get("char_count", 0)) > 220:
+        pts -= 1
+    return max(0, min(10, pts))
+
+
+def _score_about(obs: dict) -> int:
+    pts = 0
+    if obs.get("opens_with_hook"):       pts += 2
+    if obs.get("has_professional_id"):   pts += 2
+    qc = int(obs.get("quantified_count", 0))
+    if qc >= 2:                          pts += 3
+    elif qc == 1:                        pts += 1
+    if obs.get("has_industry_context"):  pts += 2
+    tc = int(obs.get("tool_count", 0))
+    if tc >= 3:                          pts += 2
+    elif tc >= 1:                        pts += 1
+    if obs.get("has_career_direction"):  pts += 1
+    if obs.get("has_cta"):               pts += 2
+    cc = int(obs.get("char_count", 0))
+    if 200 <= cc <= 2600:               pts += 1
+    return max(0, min(15, pts))
+
+
+def _score_experience(obs: dict) -> int:
+    pts = 0
+    avp = int(obs.get("action_verb_pct", 0))
+    if avp >= 90:    pts += 5
+    elif avp >= 70:  pts += 3
+    elif avp >= 50:  pts += 1
+    qc = int(obs.get("quantified_count", 0))
+    if qc >= 8:      pts += 8
+    elif qc >= 5:    pts += 7
+    elif qc >= 3:    pts += 5
+    elif qc >= 1:    pts += 2
+    if obs.get("has_tools_per_role"):         pts += 5
+    if obs.get("has_business_impact"):        pts += 5
+    if obs.get("most_recent_relevant"):       pts += 4
+    if not obs.get("current_role_has_metrics", True):
+        pts -= 3
+    return max(0, min(30, pts))
+
+
+def _score_skills(obs: dict) -> int:
+    pts = 0
+    sc = int(obs.get("skills_section_count", 0))
+    if sc >= 15:     pts += 4
+    elif sc >= 10:   pts += 3
+    elif sc >= 5:    pts += 1
+    if obs.get("has_core_hard_skills"):   pts += 3
+    if obs.get("has_tools_platforms"):    pts += 2
+    if obs.get("in_experience_too"):      pts += 1
+    return max(0, min(10, pts))
+
+
+def _score_education(obs: dict) -> int:
+    pts = 0
+    if obs.get("has_institution"):        pts += 1
+    if obs.get("has_degree_type"):        pts += 1
+    if obs.get("has_field_of_study"):     pts += 1
+    if obs.get("has_dates"):              pts += 1
+    if obs.get("has_honors_or_gpa"):      pts += 1
+    return max(0, min(5, pts))
+
+
+def _score_proof(obs: dict) -> int:
+    pts = 0
+    rc = int(obs.get("recommendations_count", 0))
+    if rc >= 3:      pts += 3
+    elif rc >= 1:    pts += 2
+    if obs.get("has_certifications") and obs.get("cert_has_institution"):
+        pts += 2
+    elif obs.get("has_certifications"):
+        pts += 1
+    if obs.get("has_projects_or_portfolio"):  pts += 2
+    if obs.get("has_github_link"):            pts += 1
+    return max(0, min(8, pts))
+
+
+def _score_completeness(obs: dict) -> int:
+    pts = 0
+    if obs.get("has_headline") and obs.get("has_about") and obs.get("has_experience"):
+        pts += 1
+    if obs.get("has_skills"):  pts += 1
+    return max(0, min(2, pts))
+
+
+_SCORERS = {
+    "searchability": _score_searchability,
+    "headline":      _score_headline,
+    "about":         _score_about,
+    "experience":    _score_experience,
+    "skills":        _score_skills,
+    "education":     _score_education,
+    "proof":         _score_proof,
+    "completeness":  _score_completeness,
+}
+
+# ─── Prompts ──────────────────────────────────────────────────────────────────
+
 _SYSTEM = (
-    "You are a senior LinkedIn profile coach and recruiter with 10+ years of experience. "
-    "Return ONLY valid JSON. No markdown fences, no commentary. "
-    "SCORING RULE: Base every score ONLY on evidence visible in the profile text. Never assume, infer, or invent. "
-    "EDUCATION RULE: If the About/Summary section explicitly says 'completed in YYYY', 'graduated in YYYY', or 'degree from X, completed YYYY' — "
-    "treat that education entry as COMPLETE. Do NOT flag as in-progress just because the PDF end year is in the future. "
-    "RECOMMENDATIONS RULE: Only award recommendation points if a Recommendations section with actual text/names is visible. "
-    "Never assume recommendations exist from vague text. "
-    "SKILLS RULE: If the PDF shows only a 'Top Skills' sidebar with 3 items, that is NOT the full skills section — "
-    "flag this explicitly as a critical gap in the skills bucket. "
-    "FEEDBACK QUALITY: Write like a senior recruiter coaching a strong candidate. "
-    "Every gap must quote or reference actual text from the profile. "
-    "Every fix must give an exact actionable instruction — not 'add more skills' but "
-    "'Add Python, PyTorch, LangGraph, SageMaker to your Skills section — they appear in your bullets but not your Skills section.' "
-    "Every priority_fix must include an 'example' field with a before→after or specific text to add."
+    "You are a senior LinkedIn profile analyst. "
+    "Your ONLY job is to OBSERVE facts about the profile text — you do NOT assign scores. "
+    "Return ONLY valid JSON. No markdown, no commentary. "
+    "STRICT OBSERVATION RULES — no hallucination allowed: "
+    "• Only mark something True/present if it is EXPLICITLY written in the profile text. "
+    "• Count ONLY what you can directly read. Never infer or assume. "
+    "• skills_section_count: count ONLY items in an explicit Skills section. Items mentioned in bullets do NOT count. "
+    "• recommendations_count: count ONLY if a Recommendations section with real names or quotes is visible. "
+    "• about_quantified_count: count numbers/percentages written INSIDE the About/Summary section only — not experience. "
+    "• edu_has_degree_type: True ONLY if BS/MS/PhD/MBA/BEng/BCS or similar degree abbreviation is explicitly written. "
+    "• edu_has_field_of_study: True ONLY if a field (Computer Science, Data Science, etc.) is explicitly written. "
+    "• proof_has_github_link: True ONLY if a github.com URL is visible in the text. "
+    "FEEDBACK RULES: "
+    "Quote actual text from the profile. Be specific and brief (under 20 words per string). "
+    "Every priority_fix must have an 'example' with before→after or exact text to add/change."
 )
 
 _OPTIMIZE_SYSTEM = (
@@ -85,84 +226,88 @@ _OPTIMIZE_SYSTEM = (
 def _build_prompt(pdf_text: str, job_description: str, target_role: str, inferred_skills: list[str] | None = None) -> str:
     role_line = f"\nTARGET ROLE: {target_role}" if target_role else ""
     jd_block  = f"\n\nJOB DESCRIPTION:\n{job_description}" if job_description else ""
-    skills_note = (
-        f"\nNOTE: LinkedIn PDF only exports a 'Top Skills' sidebar. The following skills were detected from experience/about text and should be treated as the candidate's actual skill set for skills bucket scoring: {', '.join(inferred_skills)}"
+    inferred_note = (
+        f"\nNOTE: LinkedIn PDF only exports a 'Top Skills' sidebar — actual skills must be inferred from experience/about. Detected from text: {', '.join(inferred_skills[:30])}"
         if inferred_skills else ""
     )
 
-    return f"""Score this LinkedIn profile.{role_line}{skills_note}
+    return f"""Analyze this LinkedIn profile and return structured observations. Do NOT assign scores.{role_line}{inferred_note}
 
-SCORING BUCKETS — award points ONLY for evidence you can see in the profile text. Never assume or invent.
+OBSERVATION INSTRUCTIONS — answer ONLY from what is explicitly written in the profile text below.
 
-SEARCHABILITY (25 pts) — LinkedIn algorithm search ranking:
-  Step 1: Identify the primary role keyword from headline or target role (e.g. "AI Engineer", "ML Engineer").
-  Step 2: Count total appearances of that keyword (and close variants) across ALL sections combined.
-  Step 3: Keyword density score:
-    0 appearances → 0 pts | 1-2 → 5 pts | 3-5 → 11 pts | 6-9 → 17 pts | 10+ → 21 pts
-  Step 4: Domain/tech keyword bonus — count secondary keywords (LLM, RAG, GenAI, MLOps, AI, ML, NLP, etc.):
-    0-2 keywords → +0 | 3-5 → +2 pts | 6+ → +4 pts
-  PENALTY: If skills section has fewer than 5 skills → subtract 4 pts.
-  Cap at 25.
+SECTION 1 — SEARCHABILITY
+- primary_keyword: the main role keyword you identify (e.g. "AI Engineer")
+- primary_keyword_count: exact count of that keyword (and close variants) across ALL sections
+- secondary_keyword_count: count of domain/tech keywords (LLM, RAG, GenAI, MLOps, NLP, ML, AI, etc.) — count unique ones only
+- skills_section_count: count of items in the explicit Skills section ONLY. "Top Skills" sidebar items count. Experience bullets do NOT count.
 
-HEADLINE (12 pts):
-  +3: Primary role/title clearly stated
-  +2: 2+ specific technical skills or tool names in the headline itself
-  +2: Employer name, company, or clear industry context
-  +2: Value proposition, specialization, or scale indicator
-  +2: Seniority signal or years/scope
-  +1: Well-structured with clear separators (pipe | or dash —)
-  Max: 12. Do not deduct — only award for what is present.
+SECTION 2 — HEADLINE
+- has_role_title: true if a primary role/title is clearly stated
+- tech_skill_count: count of specific tech tool/skill names IN the headline text itself only
+- has_employer: true ONLY if a company or employer name appears in the headline
+- has_specialization: true if a domain specialty or value prop is stated
+- has_seniority: true ONLY if seniority level (Senior, Lead, Principal, years of experience) is IN the headline
+- has_separators: true if pipe | or dash — separators are used
+- char_count: approximate character count of headline
 
-ABOUT (15 pts):
-  +2: Opens with a strong hook — does NOT start with "I am a…" or "I have…"
-  +2: Professional identity and specialisation clearly stated within first 2 sentences
-  +3: At least 2 specific quantified achievements with numbers (%, ratios, time saved, scale)
-  +2: Industry or domain context present
-  +2: 3+ specific tools or technologies named in the About section itself
-  +1: Career direction or what they are building toward
-  +1: Clear CTA — email, "reach out", or invitation to connect
-  +2: Appropriate length (200–2600 characters)
+SECTION 3 — ABOUT / SUMMARY
+- opens_with_hook: true if About does NOT start with "I am a", "I have", "I'm a" — starting with role title/noun IS acceptable
+- has_professional_id: true if role identity and specialization are clear within first 2 sentences
+- quantified_count: count of specific numbers or percentages written INSIDE the About/Summary text ONLY (NOT experience bullets)
+- has_industry_context: true if industry/domain (financial services, healthcare, etc.) is mentioned
+- tool_count: count of specific named tools/technologies IN the About section text
+- has_career_direction: true if a future goal or career direction is stated
+- has_cta: true ONLY if an email address or explicit "reach out"/"connect" invitation is written
+- char_count: approximate character count of About section
 
-EXPERIENCE (25 pts):
-  +5: 90%+ of bullets begin with strong past-tense action verbs — NOT "Responsible for", "Helped", "Worked on"
-  +7: At least 3 quantified results across all roles (numbers, %, $, time, user count, scale)
-  +5: Specific tools, methods, and frameworks named per role entry
-  +5: Business impact articulated — what changed, who benefited, what was enabled
-  +3: Most recent role is relevant to the stated target direction
-  PENALTY: −3 pts if the most recent (current) role has zero quantified metrics.
+SECTION 4 — EXPERIENCE
+- action_verb_pct: estimated % of experience bullets starting with strong past-tense verbs (NOT "Responsible for", "Helped", "Worked on")
+- quantified_count: total count of quantified results (%, $, numbers, time saved, scale metrics) across ALL experience entries
+- has_tools_per_role: true if specific tools/frameworks are named within individual role entries
+- has_business_impact: true if business outcomes (what changed, who benefited) are articulated
+- most_recent_relevant: true if most recent role is relevant to target role
+- current_role_has_metrics: true if the most recent/current role has at least one quantified metric
 
-SKILLS (10 pts) — LinkedIn's #1 search-weighted section:
-  IMPORTANT: If the PDF shows only a "Top Skills" sidebar with 2-3 items, that is NOT the full skills section.
-  +3: 10+ skills listed (0 pts for this criterion if fewer than 5 visible)
-  +3: Core role-specific hard skills present
-  +2: Tools and platforms listed (AWS, GCP, Docker, Kubernetes, MLflow, etc.)
-  +2: Skills appear in experience bullets too (cross-profile keyword reinforcement)
+SECTION 5 — SKILLS
+- skills_section_count: count of items visible in explicit Skills section. "Generative AI & Large Language Models" = 1 item. Do NOT count experience bullets.
+- has_core_hard_skills: true if core technical skills for the role are in the Skills section
+- has_tools_platforms: true if specific tools/platforms appear in Skills section
+- in_experience_too: true if skills mentioned in Skills also appear in experience bullets
 
-PROOF (10 pts) — Social credibility signals:
-  +3: Recommendations section EXPLICITLY present with actual content/names — score 0 if not visible
-  +3: Certifications or credentials listed with institution names
-  +3: Projects, GitHub links, portfolio, or featured section present
-  +1: Publications, articles, patents, or awards listed
-  CRITICAL RULE: Never award recommendation points if no recommendations section is visible.
+SECTION 6 — EDUCATION
+- has_institution: true ONLY if a school/university name is explicitly written
+- has_degree_type: true ONLY if degree abbreviation (BS, MS, PhD, MBA, BEng, etc.) is explicitly written
+- has_field_of_study: true ONLY if a field of study is explicitly named
+- has_dates: true if graduation year or date range is written
+- has_honors_or_gpa: true ONLY if GPA, honors, dean's list, or academic award is explicitly mentioned
 
-COMPLETENESS (3 pts):
-  +1: Has headline + about + experience sections
-  +1: Has education section with institution name
-  +1: Has skills section (even if thin)
+SECTION 7 — PROOF
+- recommendations_count: count of visible recommendations with actual names/text. 0 if no Recommendations section visible.
+- has_certifications: true if any certification is listed
+- cert_has_institution: true if certification includes the issuing institution name
+- has_projects_or_portfolio: true if Projects, Publications, or Featured section with content is visible
+- has_github_link: true ONLY if a github.com URL is explicitly written in the text
 
-GRADES: Elite(90-100), Excellent(80-89), Strong(65-79), Average(50-64), Needs Work(35-49), Weak(<35)
+SECTION 8 — COMPLETENESS
+- has_headline: true if headline is present
+- has_about: true if About/Summary section is present with content
+- has_experience: true if Experience section is present with at least one role
+- has_skills: true if any Skills section or Top Skills sidebar is present
+- has_education: true if Education section is present
 
-FEEDBACK RULES:
-- Keep ALL strings under 20 words. Be specific but brief.
-- Gaps MUST name specific missing text/skill from the profile.
-- Fixes must give exact instruction (what to add/change).
-- priority_fix "example" field: show before→after or exact text to add (under 20 words).
-- Education: if About says "completed in [year]", do NOT flag education as in-progress.
-- Never state recommendations/GitHub/projects exist unless explicitly in the text.
-- Do NOT include any visual or photo-related fixes.
+FEEDBACK (be specific, quote actual profile text, max 20 words per string):
+- overall_verdict: 1 sentence — what's strong + the #1 thing to fix
+- jd_fit_score: 0-100, or 0 if no JD provided
+- per-bucket strengths: 2 specific strengths quoting actual text (or 1 if nothing to say)
+- per-bucket gaps: up to 2 specific gaps with exact reference to missing text
+- top_strengths: 2 overall profile strengths
+- top_gaps: 2 overall critical gaps
+- priority_fixes: up to 4 fixes, each with section/issue/fix/example/impact
+- headline_rewrite: current (exact text) + improved + reason
+- about_tips: 2 specific tips
 
-Return ONLY minified JSON (no whitespace between fields) matching this shape exactly:
-{{"overall_score":<int>,"grade":"<Elite|Excellent|Strong|Average|Needs Work|Weak>","overall_verdict":"<1 sentence>","jd_fit_score":<int>,"buckets":[{{"id":"<searchability|headline|about|experience|skills|proof|completeness>","label":"<label>","score":<int>,"max":<int>,"pct":<int>,"strengths":["<strength under 15 words>"],"gaps":["<gap under 15 words>"]}}],"top_strengths":["<s1>","<s2>"],"top_gaps":["<g1>","<g2>"],"priority_fixes":[{{"section":"<id>","issue":"<under 15 words>","fix":"<under 15 words>","example":"<under 20 words>","impact":"<High|Medium|Low>"}}],"headline_rewrite":{{"current":"<actual headline>","improved":"<rewritten>","reason":"<under 15 words>"}},"about_tips":["<tip1 under 15 words>","<tip2 under 15 words>"]}}{jd_block}
+Return ONLY this minified JSON:
+{{"observations":{{"searchability":{{"primary_keyword":"<str>","primary_keyword_count":<int>,"secondary_keyword_count":<int>,"skills_section_count":<int>}},"headline":{{"has_role_title":<bool>,"tech_skill_count":<int>,"has_employer":<bool>,"has_specialization":<bool>,"has_seniority":<bool>,"has_separators":<bool>,"char_count":<int>}},"about":{{"opens_with_hook":<bool>,"has_professional_id":<bool>,"quantified_count":<int>,"has_industry_context":<bool>,"tool_count":<int>,"has_career_direction":<bool>,"has_cta":<bool>,"char_count":<int>}},"experience":{{"action_verb_pct":<int>,"quantified_count":<int>,"has_tools_per_role":<bool>,"has_business_impact":<bool>,"most_recent_relevant":<bool>,"current_role_has_metrics":<bool>}},"skills":{{"skills_section_count":<int>,"has_core_hard_skills":<bool>,"has_tools_platforms":<bool>,"in_experience_too":<bool>}},"education":{{"has_institution":<bool>,"has_degree_type":<bool>,"has_field_of_study":<bool>,"has_dates":<bool>,"has_honors_or_gpa":<bool>}},"proof":{{"recommendations_count":<int>,"has_certifications":<bool>,"cert_has_institution":<bool>,"has_projects_or_portfolio":<bool>,"has_github_link":<bool>}},"completeness":{{"has_headline":<bool>,"has_about":<bool>,"has_experience":<bool>,"has_skills":<bool>,"has_education":<bool>}}}},"feedback":{{"overall_verdict":"<str>","jd_fit_score":<int>,"buckets":[{{"id":"<searchability|headline|about|experience|skills|education|proof|completeness>","strengths":["<str>"],"gaps":["<str>"]}}],"top_strengths":["<str>","<str>"],"top_gaps":["<str>","<str>"],"priority_fixes":[{{"section":"<id>","issue":"<str>","fix":"<str>","example":"<str>","impact":"<High|Medium|Low>"}}],"headline_rewrite":{{"current":"<str>","improved":"<str>","reason":"<str>"}},"about_tips":["<str>","<str>"]}}}}{jd_block}
 
 LINKEDIN PROFILE TEXT:
 ---
@@ -186,32 +331,44 @@ def _parse(raw: str) -> dict[str, Any]:
         return {}
 
 
-def _normalize(data: dict) -> dict[str, Any]:
-    buckets = []
-    seen: set[str] = set()
-    for b in data.get("buckets", []):
+def _build_result(data: dict) -> dict[str, Any]:
+    """
+    Compute scores deterministically from observations, then merge feedback.
+    Model never touches scores — it only provides observations + text feedback.
+    """
+    obs_root = data.get("observations", {})
+    fb       = data.get("feedback", {})
+
+    # Build feedback lookup by bucket id
+    fb_buckets: dict[str, dict] = {}
+    for b in (fb.get("buckets") or []):
         bid = b.get("id", "")
-        if bid not in BUCKET_MAX or bid in seen:
-            continue
-        seen.add(bid)
+        if bid:
+            fb_buckets[bid] = b
+
+    buckets = []
+    for bid in BUCKET_MAX:
+        obs    = obs_root.get(bid, {})
+        scorer = _SCORERS[bid]
+        earned = scorer(obs)
         mx     = BUCKET_MAX[bid]
-        earned = max(0, min(mx, int(b.get("score", 0))))
+        bfb    = fb_buckets.get(bid, {})
         buckets.append({
             "id":        bid,
-            "label":     b.get("label", bid.title()),
+            "label":     BUCKET_LABELS[bid],
             "score":     earned,
             "max":       mx,
             "pct":       round(earned / mx * 100) if mx else 0,
-            "strengths": [str(s) for s in (b.get("strengths") or [])][:3],
-            "gaps":      [str(g) for g in (b.get("gaps")      or [])][:3],
+            "strengths": [str(s) for s in (bfb.get("strengths") or [])][:3],
+            "gaps":      [str(g) for g in (bfb.get("gaps")      or [])][:3],
             "evaluated": True,
         })
 
     computed_pts = sum(b["score"] for b in buckets)
-    max_pts      = sum(b["max"]   for b in buckets)
+    max_pts      = sum(BUCKET_MAX.values())
     overall      = round(computed_pts / max_pts * 100) if max_pts else 0
 
-    hr = data.get("headline_rewrite")
+    hr = fb.get("headline_rewrite")
     headline_rewrite = None
     if isinstance(hr, dict):
         headline_rewrite = {
@@ -221,44 +378,32 @@ def _normalize(data: dict) -> dict[str, Any]:
         }
 
     fixes = []
-    for f in (data.get("priority_fixes") or []):
+    for f in (fb.get("priority_fixes") or []):
         if len(fixes) >= 5:
             break
         fix_section = str(f.get("section", ""))
         if fix_section == "visual":
-            continue  # visual is scored separately now
-        example = str(f.get("example", "")).strip()
-        if not example:
-            fix_text = str(f.get("fix", ""))
-            if fix_section == "skills":
-                example = "Add to Skills: Python · PyTorch · LangChain · LangGraph · SageMaker · MLflow · FastAPI · Docker · Kubernetes"
-            elif fix_section == "proof":
-                example = "Request 2-3 LinkedIn recommendations from colleagues. Add certifications: AWS ML Specialty, Azure AI Engineer, or DeepLearning.AI."
-            elif fix_section == "headline":
-                example = "Before: AI Engineer → After: AI Engineer @ State Street | GenAI & LLM Systems | RAG · LangChain · SageMaker | 45% Risk Analysis Reduction"
-            elif fix_section == "about":
-                example = "Lead with: 'I build GenAI systems that cut portfolio risk analysis effort by 45% and improve financial explanation accuracy by 38%...'"
-            else:
-                example = fix_text[:120] if fix_text else ""
+            continue
         fixes.append({
             "section": fix_section,
             "issue":   str(f.get("issue",  "")),
             "fix":     str(f.get("fix",    "")),
-            "example": example,
+            "example": str(f.get("example", "")),
             "impact":  str(f.get("impact", "Medium")),
         })
 
     return {
         "overall_score":    overall,
         "grade":            _grade(overall),
-        "overall_verdict":  str(data.get("overall_verdict", "")),
-        "jd_fit_score":     max(0, min(100, int(data.get("jd_fit_score", 0) or 0))),
+        "overall_verdict":  str(fb.get("overall_verdict", "")),
+        "jd_fit_score":     max(0, min(100, int(fb.get("jd_fit_score", 0) or 0))),
         "buckets":          buckets,
-        "top_strengths":    [str(s) for s in (data.get("top_strengths") or [])][:3],
-        "top_gaps":         [str(g) for g in (data.get("top_gaps")      or [])][:3],
+        "top_strengths":    [str(s) for s in (fb.get("top_strengths") or [])][:3],
+        "top_gaps":         [str(g) for g in (fb.get("top_gaps")      or [])][:3],
         "priority_fixes":   fixes,
         "headline_rewrite": headline_rewrite,
-        "about_tips":       [str(t) for t in (data.get("about_tips")    or [])][:4],
+        "about_tips":       [str(t) for t in (fb.get("about_tips")    or [])][:4],
+        "observations":     obs_root,
     }
 
 
@@ -538,7 +683,7 @@ def analyze_linkedin_profile(
     if not data:
         raise RuntimeError(f"AI API failed: {last_error or 'empty response from all clients'}")
 
-    result = _normalize(data)
+    result = _build_result(data)
     _step("done")
 
     result["parsed_sections"] = parsed
