@@ -87,10 +87,6 @@ async function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
-async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const res = await fetch(dataUrl)
-  return res.blob()
-}
 
 function clearState() {
   try { localStorage.removeItem(LS_KEY) } catch { /* ok */ }
@@ -1001,46 +997,6 @@ export default function ProfileBoostPage() {
     if (cc?.status === 'analyzing' && cc.jobId) pollCover(cc.jobId, cc.dataUrl)
   }, [pollPhoto, pollCover])
 
-  // ── Re-analyze Photo (same cached image) ─────────────────────────────────
-
-  const handlePhotoReanalyze = useCallback(async () => {
-    const cache = loadPhotoCache()
-    if (!cache?.dataUrl) return
-    setPhotoPhase('analyzing'); setPhotoError(null); setPhotoResult(null)
-    savePhotoCache({ status: 'analyzing', dataUrl: cache.dataUrl })
-    try {
-      const blob = await dataUrlToBlob(cache.dataUrl)
-      const fd = new FormData()
-      fd.append('profile_image', blob, 'photo.jpg')
-      const res = await fetch('/api/linkedin-boost/analyze-photo', { method: 'POST', credentials: 'include', body: fd })
-      const data = await safeJson(res)
-      if (!res.ok) throw new Error((data.detail as string) || 'Photo analysis failed')
-      const jobId = data.job_id as string
-      savePhotoCache({ status: 'analyzing', dataUrl: cache.dataUrl, jobId })
-      pollPhoto(jobId, cache.dataUrl)
-    } catch (e: unknown) { setPhotoError(e instanceof Error ? e.message : String(e)); setPhotoPhase('error') }
-  }, [pollPhoto])
-
-  // ── Re-analyze Cover (same cached image) ──────────────────────────────────
-
-  const handleCoverReanalyze = useCallback(async () => {
-    const cache = loadCoverCache()
-    if (!cache?.dataUrl) return
-    setCoverPhase('analyzing'); setCoverError(null); setCoverResult(null)
-    saveCoverCache({ status: 'analyzing', dataUrl: cache.dataUrl })
-    try {
-      const blob = await dataUrlToBlob(cache.dataUrl)
-      const fd = new FormData()
-      fd.append('cover_image', blob, 'cover.jpg')
-      const res = await fetch('/api/linkedin-boost/analyze-cover', { method: 'POST', credentials: 'include', body: fd })
-      const data = await safeJson(res)
-      if (!res.ok) throw new Error((data.detail as string) || 'Cover analysis failed')
-      const jobId = data.job_id as string
-      saveCoverCache({ status: 'analyzing', dataUrl: cache.dataUrl, jobId })
-      pollCover(jobId, cache.dataUrl)
-    } catch (e: unknown) { setCoverError(e instanceof Error ? e.message : String(e)); setCoverPhase('error') }
-  }, [pollCover])
-
   // ── Analyze Photo ─────────────────────────────────────────────────────────
 
   const handlePhotoAnalyze = useCallback(async () => {
@@ -1382,14 +1338,8 @@ export default function ProfileBoostPage() {
           {photoPhase === 'done' && photoResult && profileImageUrl ? (
             <>
               <ImageFeedbackRow imageUrl={profileImageUrl} result={photoResult} label="Profile Photo" />
-              <div className="flex items-center gap-4">
-                <button onClick={handlePhotoReanalyze}
-                  className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
-                  <RefreshCw className="h-3.5 w-3.5" />Re-analyze
-                </button>
-                <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); savePhotoCache(null) }}
-                  className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace photo →</button>
-              </div>
+              <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); savePhotoCache(null) }}
+                className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace photo →</button>
             </>
           ) : (
             <div className="space-y-3">
@@ -1424,14 +1374,8 @@ export default function ProfileBoostPage() {
           {coverPhase === 'done' && coverResult && coverImageUrl ? (
             <>
               <ImageFeedbackRow imageUrl={coverImageUrl} result={coverResult} label="Cover Banner" isBanner />
-              <div className="flex items-center gap-4">
-                <button onClick={handleCoverReanalyze}
-                  className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
-                  <RefreshCw className="h-3.5 w-3.5" />Re-analyze
-                </button>
-                <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); saveCoverCache(null) }}
-                  className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace banner →</button>
-              </div>
+              <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); saveCoverCache(null) }}
+                className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace banner →</button>
             </>
           ) : (
             <div className="space-y-3">
