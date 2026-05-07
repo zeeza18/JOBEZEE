@@ -82,11 +82,15 @@ _OPTIMIZE_SYSTEM = (
 )
 
 
-def _build_prompt(pdf_text: str, job_description: str, target_role: str) -> str:
+def _build_prompt(pdf_text: str, job_description: str, target_role: str, inferred_skills: list[str] | None = None) -> str:
     role_line = f"\nTARGET ROLE: {target_role}" if target_role else ""
     jd_block  = f"\n\nJOB DESCRIPTION:\n{job_description}" if job_description else ""
+    skills_note = (
+        f"\nNOTE: LinkedIn PDF only exports a 'Top Skills' sidebar. The following skills were detected from experience/about text and should be treated as the candidate's actual skill set for skills bucket scoring: {', '.join(inferred_skills)}"
+        if inferred_skills else ""
+    )
 
-    return f"""Score this LinkedIn profile.{role_line}
+    return f"""Score this LinkedIn profile.{role_line}{skills_note}
 
 SCORING BUCKETS — award points ONLY for evidence you can see in the profile text. Never assume or invent.
 
@@ -359,6 +363,34 @@ def _parse_sections(pdf_text: str) -> dict[str, Any]:
         or (rec_section_re.search(pdf_text) and len(sections["recommendations"]) > 0)
     )
 
+    # Infer skills from full PDF text (experience + about) since LinkedIn PDF only exports Top Skills sidebar
+    _TECH_KEYWORDS = [
+        "Python","SQL","Java","JavaScript","TypeScript","Go","Rust","C++","C#","R","Scala","Bash","Shell",
+        "Spark","Kafka","Airflow","Flink","dbt","Hive","Presto","Trino",
+        "AWS","GCP","Azure","S3","EC2","Lambda","SageMaker","Redshift","BigQuery","Snowflake",
+        "Docker","Kubernetes","Terraform","Ansible","Helm","CI/CD","GitHub Actions","Jenkins",
+        "MLflow","MLOps","Kubeflow","BentoML","Ray","Triton",
+        "PyTorch","TensorFlow","Scikit-Learn","XGBoost","LightGBM","CatBoost","Keras","JAX",
+        "LangChain","LangGraph","LlamaIndex","CrewAI","AutoGen","Haystack",
+        "OpenAI","Claude","Gemini","Anthropic","Hugging Face","Mistral","Llama",
+        "RAG","LLM","LLMs","GenAI","NLP","RLHF","SHAP","Explainable AI",
+        "Vector","Pinecone","Weaviate","Chroma","FAISS","Qdrant","pgvector",
+        "PostgreSQL","MySQL","MongoDB","Redis","Elasticsearch","DynamoDB","Cassandra",
+        "Tableau","Power BI","Looker","Grafana","Prometheus","Datadog",
+        "Playwright","Pytest","Selenium","FastAPI","Flask","Django","React","Next.js","Node.js",
+        "Pandas","NumPy","Polars","SciPy","Matplotlib","Plotly",
+        "Autoencoder","Transformer","BERT","GPT","Embedding","Fine-tuning",
+        "AML","KYC","OCR","SHAP","MLflow","Celery",
+    ]
+    found: list[str] = []
+    seen: set[str] = set()
+    for kw in _TECH_KEYWORDS:
+        pattern = rf"\b{re.escape(kw)}\b"
+        if re.search(pattern, pdf_text, re.IGNORECASE) and kw.lower() not in seen:
+            found.append(kw)
+            seen.add(kw.lower())
+    result["inferred_skills"] = found
+
     return result
 
 
@@ -467,7 +499,9 @@ def analyze_linkedin_profile(
         raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
 
     _step("scoring")
-    prompt = _build_prompt(pdf_text, job_description, target_role)
+    parsed = _parse_sections(pdf_text)
+    inferred = parsed.get("inferred_skills", [])
+    prompt = _build_prompt(pdf_text, job_description, target_role, inferred)
     client = _make_anthropic_client(key)
 
     data: dict[str, Any] = {}
@@ -506,7 +540,7 @@ def analyze_linkedin_profile(
     result = _normalize(data)
     _step("done")
 
-    result["parsed_sections"] = _parse_sections(pdf_text)
+    result["parsed_sections"] = parsed
     result["pdf_text"] = pdf_text
 
     return result
