@@ -335,9 +335,10 @@ professional_attire:
   Default true if clothing is visible but you are unsure.
 
 watermark_or_ai_icon_visible:
-  true  = you can see a logo, badge, sparkle, star, or watermark overlaid ON the image
-  false = no overlay marks visible
-  Note: a small decorative icon in the corner counts as true.
+  Check all four corners and edges before answering.
+  true  = any logo, badge, sparkle, 4-pointed star, diamond (◆), or watermark overlaid ON the image —
+          even a tiny icon in a corner counts. When in doubt, mark true.
+  false = absolutely no overlay marks or icons anywhere on the image
 
 lighting_adequate:
   true  = face is clearly lit; no harsh shadows across face; features distinguishable
@@ -433,11 +434,14 @@ clutter_or_distraction_visible — Does the background DISTRACT from the profess
   FALSE: clean solid color, simple gradient, minimal abstract background, blurred professional setting
   RULE: If you would not use this background in a professional presentation slide, mark true.
 
-watermark_or_ai_icon_visible — Is there any badge, sparkle, star, logo, or watermark OVERLAID on the image?
-  TRUE:  small star/sparkle icon in a corner (common AI image generator watermark), photographer watermark,
-         stock photo watermark, any overlay symbol not part of the original scene
-  FALSE: no overlay marks visible
-  RULE: A 4-pointed star or sparkle in any corner = AI-generated image watermark = TRUE.
+watermark_or_ai_icon_visible — Is there any badge, sparkle, star, diamond, logo, or watermark OVERLAID on the image?
+  BEFORE answering, check all four corners and edges of the image carefully.
+  TRUE:  a 4-pointed star, diamond shape, sparkle, or any small icon in any corner or edge of the image
+         (extremely common AI image generator watermark — bottom-right or bottom-left corners are typical locations),
+         photographer watermark, stock photo watermark, any symbol that was NOT part of the original photographed scene
+  FALSE: absolutely no overlay marks, icons, or symbols anywhere on the image
+  RULE: A small diamond (◆) or 4-pointed star (✦) in ANY corner = AI watermark = TRUE.
+  RULE: When in doubt about a corner symbol, mark TRUE.
 
 Return ONLY this JSON (no markdown fences):
 {
