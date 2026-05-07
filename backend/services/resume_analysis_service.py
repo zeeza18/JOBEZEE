@@ -69,25 +69,25 @@ def _make_anthropic_client(api_key: str):
 # ─── Pydantic models for structured vision output ─────────────────────────────
 
 class ProfileObservations(BaseModel):
-    face_visible: bool = Field(description="True if a human face is present and facing the camera. False ONLY if no face is detectable at all.")
-    professional_attire: bool = Field(description="True if person wears blazer, dress shirt, suit, or business-casual top. False ONLY if clearly casual (plain t-shirt, hoodie, shirtless). Default true if unsure.")
-    watermark_or_ai_icon_visible: bool = Field(description="True if any overlay badge, sparkle, star, logo, or watermark is placed ON the image. False if image is clean.")
-    lighting_adequate: bool = Field(description="True if face is clearly lit and features are distinguishable. False ONLY if face is silhouetted, severely underlit, or blown out. Default true.")
-    background_clean: bool = Field(description="True if background is plain, blurred, solid color, or minimal. False ONLY if visibly cluttered with competing elements. Default true for any uniform or blurred background.")
-    framing_professional: bool = Field(description="True if subject fills the frame as a head/shoulder or chest-up portrait. False ONLY if person is tiny in frame or severely cropped. Default true for standard portrait composition.")
-    image_quality_issue_visible: bool = Field(description="True if image is visibly pixelated, blurry, or heavily compressed. False if clear and sharp. Default false.")
-    evidence: list[str] = Field(default_factory=list, description="1-3 short factual observations about what you see. Empty list if nothing notable.")
+    face_visible: bool = Field(default=True, description="True if a human face is present and facing the camera. False ONLY if no face is detectable at all.")
+    professional_attire: bool = Field(default=True, description="True if person wears blazer, dress shirt, suit, or business-casual top. False ONLY if clearly casual. Default true if unsure.")
+    watermark_or_ai_icon_visible: bool = Field(default=False, description="True if any overlay badge, sparkle, star, logo, or watermark is placed ON the image.")
+    lighting_adequate: bool = Field(default=True, description="True if face is clearly lit. False ONLY if silhouetted, severely underlit, or blown out. Default true.")
+    background_clean: bool = Field(default=True, description="True if background is plain, blurred, or minimal. False ONLY if visibly cluttered. Default true.")
+    framing_professional: bool = Field(default=True, description="True if subject fills frame as head/shoulder portrait. False ONLY if person is tiny or severely cropped. Default true.")
+    image_quality_issue_visible: bool = Field(default=False, description="True if visibly pixelated, blurry, or distorted. Default false.")
+    evidence: list[str] = Field(default_factory=list)
 
 
 class CoverObservations(BaseModel):
-    role_aligned_visual: bool = Field(description="True if banner has imagery suggesting a professional context (tech, design, finance, abstract). False if completely generic stock photo of nature/city with zero professional connection, OR LinkedIn default.")
-    professional_branding_present: bool = Field(description="True if banner has ANY deliberate personalization: name, title, logo, custom color scheme, or branded layout. False ONLY if plain stock photo with zero custom elements.")
-    text_readability_issue: bool = Field(description="True if text has poor contrast, is too small to read, or overlaps badly. False if text is readable OR no text present. Default false.")
-    banner_has_small_text: bool = Field(description="True if text is so small it would be unreadable on mobile. False if text is large enough or no text present. Default false.")
-    broken_url_or_typo_visible: bool = Field(description="True if you can read a malformed email (e.g. @com instead of @gmail.com, missing TLD), broken URL, or obvious spelling mistake. Default false — only true if clearly visible.")
-    email_on_banner_visible: bool = Field(description="True if any email address (even broken format) is visibly printed on the banner. Default false.")
-    clutter_or_distraction_visible: bool = Field(description="True if banner is visually overwhelming with too many competing elements or clashing colors. False if organized. Default false.")
-    evidence: list[str] = Field(default_factory=list, description="1-3 factual observations. If email visible, quote the exact text. If URL broken, quote it.")
+    role_aligned_visual: bool = Field(default=True, description="True if banner has professional context imagery. False if completely generic stock photo with zero professional connection.")
+    professional_branding_present: bool = Field(default=True, description="True if banner has ANY personalization: name, title, logo, or branded layout. False ONLY if plain stock photo.")
+    text_readability_issue: bool = Field(default=False, description="True if text has poor contrast or is unreadable. Default false.")
+    banner_has_small_text: bool = Field(default=False, description="True if text would be unreadable on mobile. Default false.")
+    broken_url_or_typo_visible: bool = Field(default=False, description="True if malformed email or broken URL is visible. Default false.")
+    email_on_banner_visible: bool = Field(default=False, description="True if any email address is visibly printed on the banner. Default false.")
+    clutter_or_distraction_visible: bool = Field(default=False, description="True if banner is visually overwhelming. Default false.")
+    evidence: list[str] = Field(default_factory=list)
 
 
 # ─── OpusMax understand_image ──────────────────────────────────────────────────
@@ -218,8 +218,9 @@ def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, re
             except json.JSONDecodeError:
                 s, e = raw.find("{"), raw.rfind("}")
                 data = json.loads(raw[s:e + 1]) if s != -1 and e > s else {}
-            # Validate through Pydantic — fills in safe defaults for any missing fields
-            return response_model(**data).model_dump()
+            # Claude returns {"observations": {...}, "evidence": [...]} — flatten it
+            flat = {**data.get("observations", data), "evidence": data.get("evidence", [])}
+            return response_model(**flat).model_dump()
         except Exception as exc:
             last_exc = exc
             err = str(exc).lower()
