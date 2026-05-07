@@ -216,27 +216,19 @@ function CurrentCard({ label, children }: { label: string; children: React.React
 
 // ─── Page header ──────────────────────────────────────────────────────────────
 
-function PageHeader({ onReanalyze, onReset }: { onReanalyze?: () => void; onReset?: () => void }) {
+function PageHeader({ onReanalyze }: { onReanalyze?: () => void }) {
   return (
     <div className="flex items-start justify-between gap-3 flex-wrap">
       <div>
         <p className="text-xs font-semibold text-cyan-600 uppercase tracking-widest mb-1">Profile Boost</p>
         <h1 className="text-xl md:text-2xl font-bold text-slate-900">LinkedIn Profile Scorer</h1>
       </div>
-      {(onReanalyze || onReset) && (
+      {onReanalyze && (
         <div className="flex gap-2 flex-wrap">
-          {onReanalyze && (
-            <button onClick={onReanalyze}
-              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
-              <RefreshCw className="h-3.5 w-3.5" />Re-analyze
-            </button>
-          )}
-          {onReset && (
-            <button onClick={onReset}
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 border border-slate-100 hover:border-slate-300 rounded-xl px-3 py-2 transition">
-              New Analysis
-            </button>
-          )}
+          <button onClick={onReanalyze}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-cyan-600 border border-slate-200 hover:border-cyan-300 rounded-xl px-3 py-2 transition">
+            <RefreshCw className="h-3.5 w-3.5" />Re-analyze
+          </button>
         </div>
       )}
     </div>
@@ -965,7 +957,6 @@ export default function ProfileBoostPage() {
   }, [result, targetRole])
 
   const handleReanalyze = () => { stopPolling(); setPhase('input'); setResult(null); setOptimizeResult(null); setError(null); clearState() }
-  const handleReset     = () => { stopPolling(); setPhase('input'); setResult(null); setOptimizeResult(null); setError(null); setPdfFile(null); setProfileImage(null); setCoverImage(null); setTargetRole(''); setJdText(''); clearState() }
   const getBucket = (id: string) => result?.buckets.find(b => b.id === id)
   const hasSections = (ps?: ParsedSections) => ps && (ps.headline || ps.about || (ps.experience?.length ?? 0) > 0 || (ps.skills?.length ?? 0) > 0)
 
@@ -1090,7 +1081,7 @@ export default function ProfileBoostPage() {
 
     return (
       <div className="space-y-6 pb-10">
-        <PageHeader onReanalyze={handleReanalyze} onReset={handleReset} />
+        <PageHeader onReanalyze={handleReanalyze} />
 
         <ScoreHero
           score={result.overall_score}
