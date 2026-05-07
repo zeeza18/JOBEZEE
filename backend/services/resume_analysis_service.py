@@ -22,6 +22,7 @@ from ..config import get_settings
 OPUSMAX_BASE_URL                  = "https://api.opusmax.pro"
 OPUSMAX_UNDERSTAND_IMAGE_URL      = f"{OPUSMAX_BASE_URL}/tools/understand_image"
 DEFAULT_MODEL                    = os.getenv("CLAUDE_MODEL", "claude-opus-4-7")
+VISION_MODEL                     = os.getenv("VISION_MODEL", "claude-haiku-4-5-20251001")
 CLAUDE_TIMEOUT_SECONDS            = float(os.getenv("CLAUDE_TIMEOUT_SECONDS", "45"))
 _OPUSMAX_PREFIX                  = "sk-ant-opm"
 
@@ -59,11 +60,11 @@ def _resolve_opusmax_key() -> str:
     )
 
 
-def _make_anthropic_client(api_key: str):
+def _make_anthropic_client(api_key: str, timeout: float = CLAUDE_TIMEOUT_SECONDS):
     from anthropic import Anthropic
     if api_key.startswith(_OPUSMAX_PREFIX):
-        return Anthropic(api_key=api_key, base_url=OPUSMAX_BASE_URL)
-    return Anthropic(api_key=api_key)
+        return Anthropic(api_key=api_key, base_url=OPUSMAX_BASE_URL, timeout=timeout)
+    return Anthropic(api_key=api_key, timeout=timeout)
 
 
 # ─── Pydantic models for structured vision output ─────────────────────────────
@@ -207,7 +208,7 @@ def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, re
         _vision_acquire()  # wait for rate-limit slot
         try:
             response = client.messages.create(
-                model=DEFAULT_MODEL,
+                model=VISION_MODEL,
                 max_tokens=800,
                 messages=[{"role": "user", "content": [image_block, {"type": "text", "text": prompt}]}],
             )
@@ -444,7 +445,8 @@ Return ONLY this JSON (no markdown fences):
     "banner_has_small_text": false,
     "broken_url_or_typo_visible": false,
     "email_on_banner_visible": false,
-    "clutter_or_distraction_visible": false
+    "clutter_or_distraction_visible": false,
+    "watermark_or_ai_icon_visible": false
   },
   "evidence": []
 }
