@@ -40,29 +40,35 @@ async def _proxy_get(path: str) -> dict:
 @router.post("/analyze-photo")
 async def analyze_photo(profile_image: UploadFile) -> dict:
     files = [("profile_image", (profile_image.filename, await profile_image.read(), profile_image.content_type or "image/jpeg"))]
-    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
         r = await client.post(_hetzner_url("/api/linkedin-boost/analyze-photo"), headers=_HEADERS, files=files)
     if not r.is_success:
-        try:
-            detail = r.json().get("detail", r.text[:200])
-        except Exception:
-            detail = r.text[:200]
+        try: detail = r.json().get("detail", r.text[:200])
+        except Exception: detail = r.text[:200]
         raise HTTPException(r.status_code, detail)
     return r.json()
+
+
+@router.get("/photo-status/{job_id}")
+async def photo_status(job_id: str) -> dict:
+    return await _proxy_get(f"/api/linkedin-boost/photo-status/{job_id}")
 
 
 @router.post("/analyze-cover")
 async def analyze_cover(cover_image: UploadFile) -> dict:
     files = [("cover_image", (cover_image.filename, await cover_image.read(), cover_image.content_type or "image/jpeg"))]
-    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
         r = await client.post(_hetzner_url("/api/linkedin-boost/analyze-cover"), headers=_HEADERS, files=files)
     if not r.is_success:
-        try:
-            detail = r.json().get("detail", r.text[:200])
-        except Exception:
-            detail = r.text[:200]
+        try: detail = r.json().get("detail", r.text[:200])
+        except Exception: detail = r.text[:200]
         raise HTTPException(r.status_code, detail)
     return r.json()
+
+
+@router.get("/cover-status/{job_id}")
+async def cover_status(job_id: str) -> dict:
+    return await _proxy_get(f"/api/linkedin-boost/cover-status/{job_id}")
 
 
 # ── Analyze ───────────────────────────────────────────────────────────────────

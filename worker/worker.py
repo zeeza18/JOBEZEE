@@ -17,6 +17,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -1736,44 +1737,79 @@ def _lb_run_optimize(job_id: str, **kwargs) -> None:
         _lb_jobs[job_id].update(status="error", error=str(exc))
 
 
-@app.post("/api/linkedin-boost/analyze-photo")
-async def lb_analyze_photo(
-    authorization: str        = Header(...),
-    profile_image: UploadFile = ...,
-) -> dict:
-    """Analyze profile photo independently — returns score/feedback directly."""
-    _auth(authorization)
-    img_bytes = await profile_image.read()
-    img_type  = profile_image.content_type or "image/jpeg"
+# ── Image job store ───────────────────────────────────────────────────────────
+_img_jobs: dict[str, dict] = {}
+
+def _ensure_backend_path() -> None:
     repo_root = str(_JOBEZEE_ROOT)
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
-    from backend.services.resume_analysis_service import analyze_profile_picture
-    import asyncio
+
+def _run_photo_job(job_id: str, img_bytes: bytes, img_type: str) -> None:
     try:
-        return await asyncio.to_thread(analyze_profile_picture, img_bytes, img_type)
+        _ensure_backend_path()
+        from backend.services.resume_analysis_service import analyze_profile_picture
+        result = analyze_profile_picture(img_bytes, img_type)
+        _img_jobs[job_id] = {"status": "done", "result": result}
     except Exception as exc:
-        raise HTTPException(500, str(exc))
+        _img_jobs[job_id] = {"status": "error", "error": str(exc)}
+
+def _run_cover_job(job_id: str, img_bytes: bytes, img_type: str) -> None:
+    try:
+        _ensure_backend_path()
+        from backend.services.resume_analysis_service import analyze_cover_picture
+        result = analyze_cover_picture(img_bytes, img_type)
+        _img_jobs[job_id] = {"status": "done", "result": result}
+    except Exception as exc:
+        _img_jobs[job_id] = {"status": "error", "error": str(exc)}
+
+
+@app.post("/api/linkedin-boost/analyze-photo")
+async def lb_analyze_photo(
+    background_tasks: BackgroundTasks,
+    authorization: str        = Header(...),
+    profile_image: UploadFile = ...,
+) -> dict:
+    _auth(authorization)
+    job_id    = str(uuid.uuid4())
+    img_bytes = await profile_image.read()
+    img_type  = profile_image.content_type or "image/jpeg"
+    _img_jobs[job_id] = {"status": "pending"}
+    background_tasks.add_task(_run_photo_job, job_id, img_bytes, img_type)
+    return {"job_id": job_id}
+
+
+@app.get("/api/linkedin-boost/photo-status/{job_id}")
+async def lb_photo_status(job_id: str, authorization: str = Header(...)) -> dict:
+    _auth(authorization)
+    job = _img_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    return job
 
 
 @app.post("/api/linkedin-boost/analyze-cover")
 async def lb_analyze_cover(
+    background_tasks: BackgroundTasks,
     authorization: str        = Header(...),
     cover_image:   UploadFile = ...,
 ) -> dict:
-    """Analyze cover banner independently — returns score/feedback directly."""
     _auth(authorization)
+    job_id    = str(uuid.uuid4())
     img_bytes = await cover_image.read()
     img_type  = cover_image.content_type or "image/jpeg"
-    repo_root = str(_JOBEZEE_ROOT)
-    if repo_root not in sys.path:
-        sys.path.insert(0, repo_root)
-    from backend.services.resume_analysis_service import analyze_cover_picture
-    import asyncio
-    try:
-        return await asyncio.to_thread(analyze_cover_picture, img_bytes, img_type)
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    _img_jobs[job_id] = {"status": "pending"}
+    background_tasks.add_task(_run_cover_job, job_id, img_bytes, img_type)
+    return {"job_id": job_id}
+
+
+@app.get("/api/linkedin-boost/cover-status/{job_id}")
+async def lb_cover_status(job_id: str, authorization: str = Header(...)) -> dict:
+    _auth(authorization)
+    job = _img_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    return job
 
 
 @app.post("/api/linkedin-boost/analyze")

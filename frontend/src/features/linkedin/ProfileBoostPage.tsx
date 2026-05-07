@@ -58,7 +58,13 @@ function saveState(s: PersistedState) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(s)) } catch { /* quota */ }
 }
 
-interface ImageCache { result: ImageResult; dataUrl: string }
+interface ImageCache {
+  status: 'analyzing' | 'done' | 'error'
+  dataUrl: string
+  jobId?: string
+  result?: ImageResult
+  error?: string
+}
 
 function loadPhotoCache(): ImageCache | null {
   try { const r = localStorage.getItem(LS_KEY_PHOTO); return r ? JSON.parse(r) : null } catch { return null }
@@ -906,14 +912,14 @@ export default function ProfileBoostPage() {
   // ── Photo state (fully independent) ─────────────────────────────────────
   const [profileImage,    setProfileImage]    = useState<File | null>(null)
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(() => loadPhotoCache()?.dataUrl ?? null)
-  const [photoPhase,      setPhotoPhase]      = useState<ImagePhase>(() => loadPhotoCache() ? 'done' : 'idle')
+  const [photoPhase,      setPhotoPhase]      = useState<ImagePhase>(() => { const c = loadPhotoCache(); return c ? (c.status === 'done' ? 'done' : 'analyzing') : 'idle' })
   const [photoResult,     setPhotoResult]     = useState<ImageResult | null>(() => loadPhotoCache()?.result ?? null)
   const [photoError,      setPhotoError]      = useState<string | null>(null)
 
   // ── Cover state (fully independent) ─────────────────────────────────────
   const [coverImage,    setCoverImage]    = useState<File | null>(null)
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(() => loadCoverCache()?.dataUrl ?? null)
-  const [coverPhase,    setCoverPhase]    = useState<ImagePhase>(() => loadCoverCache() ? 'done' : 'idle')
+  const [coverPhase,    setCoverPhase]    = useState<ImagePhase>(() => { const c = loadCoverCache(); return c ? (c.status === 'done' ? 'done' : 'analyzing') : 'idle' })
   const [coverResult,   setCoverResult]   = useState<ImageResult | null>(() => loadCoverCache()?.result ?? null)
   const [coverError,    setCoverError]    = useState<string | null>(null)
 
@@ -942,47 +948,93 @@ export default function ProfileBoostPage() {
     try { return JSON.parse(txt) } catch { throw new Error(txt.slice(0, 200) || 'Server error') }
   }
 
+  // ── Image polling helpers ─────────────────────────────────────────────────
+
+  const pollPhoto = useCallback((jobId: string, dataUrl: string) => {
+    const iv = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/linkedin-boost/photo-status/${jobId}`, { credentials: 'include' })
+        const data = await safeJson(res)
+        if (data.status === 'done') {
+          clearInterval(iv)
+          const pr = data.result as unknown as ImageResult
+          setPhotoResult(pr); setPhotoPhase('done')
+          savePhotoCache({ status: 'done', dataUrl, result: pr })
+        } else if (data.status === 'error') {
+          clearInterval(iv)
+          setPhotoError(data.error as string); setPhotoPhase('error')
+          savePhotoCache(null)
+        }
+      } catch { /* network blip — keep polling */ }
+    }, 2500)
+  }, [])
+
+  const pollCover = useCallback((jobId: string, dataUrl: string) => {
+    const iv = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/linkedin-boost/cover-status/${jobId}`, { credentials: 'include' })
+        const data = await safeJson(res)
+        if (data.status === 'done') {
+          clearInterval(iv)
+          const cr = data.result as unknown as ImageResult
+          setCoverResult(cr); setCoverPhase('done')
+          saveCoverCache({ status: 'done', dataUrl, result: cr })
+        } else if (data.status === 'error') {
+          clearInterval(iv)
+          setCoverError(data.error as string); setCoverPhase('error')
+          saveCoverCache(null)
+        }
+      } catch { /* network blip — keep polling */ }
+    }, 2500)
+  }, [])
+
+  // Resume polling for any in-progress image jobs on mount
+  useEffect(() => {
+    const pc = loadPhotoCache()
+    if (pc?.status === 'analyzing' && pc.jobId) pollPhoto(pc.jobId, pc.dataUrl)
+    const cc = loadCoverCache()
+    if (cc?.status === 'analyzing' && cc.jobId) pollCover(cc.jobId, cc.dataUrl)
+  }, [pollPhoto, pollCover])
+
   // ── Analyze Photo ─────────────────────────────────────────────────────────
 
   const handlePhotoAnalyze = useCallback(async () => {
     if (!profileImage) return
     setPhotoPhase('analyzing'); setPhotoError(null); setPhotoResult(null)
-    savePhotoCache(null)
     const dataUrl = await fileToDataUrl(profileImage)
     setProfileImageUrl(dataUrl)
+    savePhotoCache({ status: 'analyzing', dataUrl })
     const fd = new FormData()
     fd.append('profile_image', profileImage)
     try {
       const res = await fetch('/api/linkedin-boost/analyze-photo', { method: 'POST', credentials: 'include', body: fd })
       const data = await safeJson(res)
       if (!res.ok) throw new Error((data.detail as string) || 'Photo analysis failed')
-      const pr = data as unknown as ImageResult
-      setPhotoResult(pr)
-      setPhotoPhase('done')
-      savePhotoCache({ result: pr, dataUrl })
+      const jobId = data.job_id as string
+      savePhotoCache({ status: 'analyzing', dataUrl, jobId })
+      pollPhoto(jobId, dataUrl)
     } catch (e: unknown) { setPhotoError(e instanceof Error ? e.message : String(e)); setPhotoPhase('error') }
-  }, [profileImage])
+  }, [profileImage, pollPhoto])
 
   // ── Analyze Cover ─────────────────────────────────────────────────────────
 
   const handleCoverAnalyze = useCallback(async () => {
     if (!coverImage) return
     setCoverPhase('analyzing'); setCoverError(null); setCoverResult(null)
-    saveCoverCache(null)
     const dataUrl = await fileToDataUrl(coverImage)
     setCoverImageUrl(dataUrl)
+    saveCoverCache({ status: 'analyzing', dataUrl })
     const fd = new FormData()
     fd.append('cover_image', coverImage)
     try {
       const res = await fetch('/api/linkedin-boost/analyze-cover', { method: 'POST', credentials: 'include', body: fd })
       const data = await safeJson(res)
       if (!res.ok) throw new Error((data.detail as string) || 'Cover analysis failed')
-      const cr = data as unknown as ImageResult
-      setCoverResult(cr)
-      setCoverPhase('done')
-      saveCoverCache({ result: cr, dataUrl })
+      const jobId = data.job_id as string
+      saveCoverCache({ status: 'analyzing', dataUrl, jobId })
+      pollCover(jobId, dataUrl)
     } catch (e: unknown) { setCoverError(e instanceof Error ? e.message : String(e)); setCoverPhase('error') }
-  }, [coverImage])
+  }, [coverImage, pollCover])
 
   // ── Analyze Profile ───────────────────────────────────────────────────────
 
