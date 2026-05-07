@@ -23,7 +23,8 @@ OPUSMAX_BASE_URL                  = "https://api.opusmax.pro"
 OPUSMAX_UNDERSTAND_IMAGE_URL      = f"{OPUSMAX_BASE_URL}/tools/understand_image"
 DEFAULT_MODEL                    = os.getenv("CLAUDE_MODEL", "claude-opus-4-7")
 VISION_MODEL                     = os.getenv("VISION_MODEL", "claude-sonnet-4-6")
-CLAUDE_TIMEOUT_SECONDS            = float(os.getenv("CLAUDE_TIMEOUT_SECONDS", "45"))
+CLAUDE_TIMEOUT_SECONDS            = float(os.getenv("CLAUDE_TIMEOUT_SECONDS", "120"))
+VISION_TIMEOUT_SECONDS            = float(os.getenv("VISION_TIMEOUT_SECONDS", "45"))
 _OPUSMAX_PREFIX                  = "sk-ant-opm"
 
 
@@ -59,6 +60,12 @@ def _resolve_opusmax_key() -> str:
         or (cfg.OPENAI_API_KEY or "").strip()
     )
 
+
+def _make_vision_client(api_key: str):
+    from anthropic import Anthropic
+    if api_key.startswith(_OPUSMAX_PREFIX):
+        return Anthropic(api_key=api_key, base_url=OPUSMAX_BASE_URL, timeout=VISION_TIMEOUT_SECONDS)
+    return Anthropic(api_key=api_key, timeout=VISION_TIMEOUT_SECONDS)
 
 def _make_anthropic_client(api_key: str, timeout: float = CLAUDE_TIMEOUT_SECONDS):
     from anthropic import Anthropic
@@ -197,7 +204,7 @@ def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, re
     if not key:
         raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
 
-    client  = _make_anthropic_client(key)
+    client  = _make_vision_client(key)
     encoded = base64.b64encode(media_bytes).decode("utf-8")
     image_block = {
         "type": "image",
