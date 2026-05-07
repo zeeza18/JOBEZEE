@@ -186,13 +186,15 @@ _COVER_TOOL = {
 
 
 def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, response_model):
-    """Use instructor to get structured output from a vision call.
+    """Call Claude vision, parse JSON, validate through Pydantic model for safe defaults.
     Token-bucket ensures ≤1 req/sec to OpusMax. Retries up to 3× on rate-limit errors.
+    No third-party dependencies beyond anthropic + pydantic.
     """
     key = _resolve_opusmax_key()
     if not key:
         raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
 
+    client  = _make_anthropic_client(key)
     encoded = base64.b64encode(media_bytes).decode("utf-8")
     image_block = {
         "type": "image",
@@ -203,24 +205,28 @@ def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, re
     for attempt in range(3):
         _vision_acquire()  # wait for rate-limit slot
         try:
-            import instructor  # lazy — only installed on worker, not in backend Docker image
-            base_client = _make_anthropic_client(key)
-            client = instructor.from_anthropic(base_client, mode=instructor.Mode.ANTHROPIC_JSON)
-            result = client.messages.create(
+            response = client.messages.create(
                 model=DEFAULT_MODEL,
                 max_tokens=800,
-                response_model=response_model,
                 messages=[{"role": "user", "content": [image_block, {"type": "text", "text": prompt}]}],
             )
-            return result.model_dump()
+            raw = next((b.text for b in response.content if hasattr(b, "text")), "{}")
+            raw = re.sub(r"^```(?:json)?\s*", "", raw.strip())
+            raw = re.sub(r"\s*```$", "", raw)
+            try:
+                data = json.loads(raw.strip())
+            except json.JSONDecodeError:
+                s, e = raw.find("{"), raw.rfind("}")
+                data = json.loads(raw[s:e + 1]) if s != -1 and e > s else {}
+            # Validate through Pydantic — fills in safe defaults for any missing fields
+            return response_model(**data).model_dump()
         except Exception as exc:
             last_exc = exc
             err = str(exc).lower()
             if "429" in err or "rate" in err or "limit" in err:
-                backoff = 2 ** attempt
-                time.sleep(backoff)
+                time.sleep(2 ** attempt)
                 continue
-            raise  # non-rate-limit errors bubble up immediately
+            raise
     raise RuntimeError(f"Vision API rate limited after 3 attempts: {last_exc}")
 
 
