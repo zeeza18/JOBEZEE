@@ -16,6 +16,7 @@ echo "[auto-deploy] $(date) — $LOCAL -> $REMOTE"
 git reset --hard origin/main
 git clean -fd 2>/dev/null || true
 chmod +x /opt/jobezee/auto_deploy.sh
+pip install -q -r /opt/jobezee/worker/requirements.txt 2>&1 | tail -5
 POSTGRES_PASSWORD=Jobezee_PG_2026! docker compose up -d postgres
 POSTGRES_PASSWORD=Jobezee_PG_2026! docker compose up -d --build backend
 systemctl restart jobezee-worker 2>/dev/null || true
