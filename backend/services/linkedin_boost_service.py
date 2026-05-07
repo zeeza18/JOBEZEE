@@ -223,7 +223,7 @@ Return ONLY this JSON shape:
       "section": "<bucket id>",
       "issue": "<specific problem — reference actual profile text>",
       "fix": "<exact action: what to add, remove, or rewrite>",
-      "example": "<Before: [original text] → After: [improved version], or: Add these exact items: [list]>",
+      "example": "<REQUIRED non-empty: e.g. 'Add to Skills: Python, PyTorch, LangGraph, SageMaker, MLflow, FastAPI' or 'Before: Responsible for AI systems → After: Architected 3 production RAG pipelines serving 500+ daily users'>",
       "impact": "<High|Medium|Low>"
     }}
   ],

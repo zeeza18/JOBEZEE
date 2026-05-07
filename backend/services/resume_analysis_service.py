@@ -158,11 +158,20 @@ def _extract_str_array(raw: str, field: str) -> list[str]:
 # ─── Image prompts (from linkedin_scorer_step1) ───────────────────────────────
 
 PROFILE_PROMPT = """
-You are reviewing a LinkedIn profile picture. Return JSON only.
-Use only visible evidence from the image. Do not infer unseen facts.
-If uncertain, use null for the observation.
+You are reviewing a LinkedIn profile picture for professional quality. Return JSON only.
+Assess each attribute based on what is clearly visible. Be decisive — use null ONLY if the
+attribute literally cannot be determined (e.g. image is fully black or corrupted).
+
+Definitions for each field:
+- face_visible: true if the person's face is clearly visible and not obscured
+- professional_attire: true if the person wears business/smart-casual clothing (suit, dress shirt, blouse, blazer)
+- watermark_or_ai_icon_visible: true ONLY if you see an obvious watermark, logo overlay, or AI-generation artifact icon
+- lighting_adequate: true if the face is evenly lit with no harsh shadows across features; false only if clearly underlit or has stark shadows; if the image looks well-exposed, set true
+- background_clean: true if the background is a single color, simple gradient, or simple setting without clutter; false only if visibly messy or distracting
+- framing_professional: true if the face and shoulders are centered in the frame; false only if the subject is significantly off-center or too distant/close
+- image_quality_issue_visible: true ONLY if there is obvious blurriness, heavy compression artifacts, or very low resolution
+
 Do not wrap the response in markdown fences.
-Return concise evidence only.
 Return this exact shape:
 {
   "uploaded": true,
@@ -175,7 +184,7 @@ Return this exact shape:
     "framing_professional": true,
     "image_quality_issue_visible": false
   },
-  "evidence": []
+  "evidence": ["<one brief phrase per key observation, e.g. 'clean blue background', 'navy blazer visible'>"]
 }
 """.strip()
 
@@ -301,22 +310,27 @@ def _safe_json_parse_cover(raw: str) -> dict[str, Any]:
 
 
 def _calc_profile_score(obs: dict) -> float:
-    """Score out of 100 for profile picture observations."""
+    """Score out of 100 for profile picture observations.
+    null = benefit of the doubt (0.8× weight) for quality attributes, 0 for required attributes.
+    """
     pts = 0.0
-    caps = {"ai_watermark_cap": 2.0}
-    for field, weight in [
-        ("face_visible",                0.5),
-        ("professional_attire",          0.5),
-        ("lighting_adequate",           0.5),
-        ("background_clean",            0.5),
-        ("framing_professional",        0.5),
+    # face_visible and professional_attire are required — null = 0
+    # lighting/background/framing are quality checks — null = soft positive (0.8×)
+    for field, weight, null_weight in [
+        ("face_visible",        0.5, 0.0),
+        ("professional_attire", 0.5, 0.0),
+        ("lighting_adequate",   0.5, 0.4),
+        ("background_clean",    0.5, 0.4),
+        ("framing_professional",0.5, 0.4),
     ]:
         v = _safe_bool(obs.get(field))
         if v is True:
             pts += weight
+        elif v is None:
+            pts += null_weight
     watermark = _safe_bool(obs.get("watermark_or_ai_icon_visible"))
     if watermark is True:
-        pts = min(pts, caps["ai_watermark_cap"])
+        pts = min(pts, 2.0)
     quality = _safe_bool(obs.get("image_quality_issue_visible"))
     if quality is True:
         pts = min(pts, 2.0)

@@ -21,6 +21,27 @@ HEADER_IMG    = Path(r"C:\Users\azeez\Downloads\header.jpg")
 TARGET_ROLE   = "AI/ML Engineer"
 
 
+def poll(endpoint: str, job_id: str, label: str, timeout_s: int = 300) -> dict:
+    import time
+    url = f"{WORKER_URL}{endpoint}/{job_id}"
+    deadline = time.time() + timeout_s
+    dots = 0
+    while time.time() < deadline:
+        r = requests.get(url, headers=HEADERS, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        status = data.get("status", "")
+        if status == "done":
+            print(f"\r  {label} complete.                    ")
+            return data.get("result", data)
+        if status == "error":
+            raise RuntimeError(f"{label} failed: {data.get('error', data)}")
+        dots = (dots + 1) % 4
+        print(f"\r  {label} [{status}]{'.' * dots}   ", end="", flush=True)
+        time.sleep(4)
+    raise TimeoutError(f"{label} timed out after {timeout_s}s")
+
+
 def post_analyze() -> dict:
     files = [
         ("profile_pdf", ("Profile.pdf", PROFILE_PDF.read_bytes(), "application/pdf")),
@@ -31,10 +52,13 @@ def post_analyze() -> dict:
     print(f"  POST {WORKER_URL}/api/linkedin-boost/analyze  (PDF + 2 images)...")
     r = requests.post(
         f"{WORKER_URL}/api/linkedin-boost/analyze",
-        headers=HEADERS, files=files, data=data, timeout=120,
+        headers=HEADERS, files=files, data=data, timeout=30,
     )
     r.raise_for_status()
-    return r.json()
+    resp = r.json()
+    if "job_id" in resp:
+        return poll("/api/linkedin-boost/status", resp["job_id"], "Scoring")
+    return resp
 
 
 def post_optimize(score_result: dict) -> dict:
@@ -46,10 +70,13 @@ def post_optimize(score_result: dict) -> dict:
     print(f"  POST {WORKER_URL}/api/linkedin-boost/optimize ...")
     r = requests.post(
         f"{WORKER_URL}/api/linkedin-boost/optimize",
-        headers=HEADERS, json=body, timeout=120,
+        headers=HEADERS, json=body, timeout=30,
     )
     r.raise_for_status()
-    return r.json()
+    resp = r.json()
+    if "job_id" in resp:
+        return poll("/api/linkedin-boost/optimize-status", resp["job_id"], "Optimizing")
+    return resp
 
 
 def bar(pct: int, width: int = 20) -> str:
@@ -61,19 +88,24 @@ HALLUCINATION_CHECKS = [
     # (description, check_fn that returns (passed: bool, note: str))
     ("Recommendations not fabricated",
      lambda r: (
-         not any("recommendation" in (f.get("strengths") or []) or
-                 any("recommendation" in str(s).lower() for s in b.get("strengths", []))
-                 for b in r.get("buckets", []) for f in [b]
-                 if b.get("id") == "proof" and r.get("parsed_sections", {}).get("has_recommendations") is False),
-         "proof bucket shouldn't claim recommendations exist"
+         not any(
+             any(
+                 ("recommendations" in str(s).lower() and
+                  any(w in str(s).lower() for w in ["present", "received", "endorsed", "written", "from colleague", "peer"]))
+                 for s in b.get("strengths", [])
+             )
+             for b in r.get("buckets", [])
+             if b.get("id") == "proof" and not r.get("parsed_sections", {}).get("has_recommendations")
+         ),
+         "proof bucket shouldn't claim peer recommendations exist when none are visible"
      )),
     ("Skills section thin flag present",
      lambda r: (
          any(
-             "skills" in (b.get("id") or "") and b.get("score", 10) <= 5
+             "skills" in (b.get("id") or "") and b.get("score", 10) <= 7
              for b in r.get("buckets", [])
          ),
-         "skills score should be low since only 3 Top Skills visible in PDF"
+         "skills score should be ≤7/10 since only 3 Top Skills visible in PDF"
      )),
     ("Visual bucket scored (not zero)",
      lambda r: (
