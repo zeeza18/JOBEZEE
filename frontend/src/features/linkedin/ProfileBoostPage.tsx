@@ -922,14 +922,14 @@ export default function ProfileBoostPage() {
   useEffect(() => () => stopPolling(), [])
 
   useEffect(() => {
-    if (!profileImage) { setProfileImageUrl(null); return }
+    if (!profileImage) return  // no file selected — keep cached dataUrl if present
     const url = URL.createObjectURL(profileImage)
     setProfileImageUrl(url)
     return () => URL.revokeObjectURL(url)
   }, [profileImage])
 
   useEffect(() => {
-    if (!coverImage) { setCoverImageUrl(null); return }
+    if (!coverImage) return  // no file selected — keep cached dataUrl if present
     const url = URL.createObjectURL(coverImage)
     setCoverImageUrl(url)
     return () => URL.revokeObjectURL(url)
