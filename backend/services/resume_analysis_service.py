@@ -329,9 +329,15 @@ def _extract_str_array(raw: str, field: str) -> list[str]:
 # ─── Image prompts (from linkedin_scorer_step1) ───────────────────────────────
 
 PROFILE_PROMPT = """
-You are scoring a LinkedIn profile picture. Look carefully at the image and answer each field.
+You are scoring a LinkedIn profile picture. Look carefully at the image and answer each field honestly.
 
-FIELD-BY-FIELD RULES — be precise, do not guess, do not default to false:
+━━━ MANDATORY STEP 1: SCAN ALL FOUR CORNERS ━━━
+Before answering ANYTHING, zoom into each corner of the image and describe exactly what you see.
+Look for: sparkle ✦, 4-pointed star, diamond ◆, any small icon, logo, or symbol.
+Common AI-generator watermarks appear as a small white 4-pointed star or sparkle in bottom-right or bottom-left corner.
+Write what you found in the "evidence" array. Only after checking all corners, answer the fields below.
+
+━━━ FIELD-BY-FIELD RULES ━━━
 
 face_visible:
   true  = a human face is present and looking toward the camera (even partially)
@@ -343,10 +349,15 @@ professional_attire:
   Default true if clothing is visible but you are unsure.
 
 watermark_or_ai_icon_visible:
-  Check all four corners and edges before answering.
-  true  = any logo, badge, sparkle, 4-pointed star, diamond (◆), or watermark overlaid ON the image —
-          even a tiny icon in a corner counts. When in doubt, mark true.
-  false = absolutely no overlay marks or icons anywhere on the image
+  CRITICAL — check all four corners and all edges before answering.
+  true  = ANY of the following overlaid ON the image:
+          • 4-pointed star or sparkle (✦ ✧ ⋆) — even very small, even white on light background
+          • diamond shape (◆ ◇)
+          • any logo, badge, icon, or watermark text
+          • any symbol that was not part of the original photographed scene
+  RULE: A small white 4-pointed star/sparkle in ANY corner = TRUE. No exceptions.
+  RULE: When in doubt, mark TRUE.
+  false = absolutely confirmed no overlay marks or icons anywhere on the image
 
 ai_generated_appearance:
   true  = the photo shows clear signs of AI generation: unnaturally smooth or waxy skin with no pores,
@@ -390,7 +401,7 @@ Return ONLY this JSON (no markdown fences):
     "framing_professional": true,
     "image_quality_issue_visible": false
   },
-  "evidence": []
+  "evidence": ["bottom-right corner: <describe exactly what you see>", "bottom-left corner: <describe>", "top-right corner: <describe>", "top-left corner: <describe>"]
 }
 """.strip()
 
@@ -578,9 +589,9 @@ def _calc_profile_score(obs: dict) -> float:
     watermark = _safe_bool(obs.get("watermark_or_ai_icon_visible"))
     ai_gen = _safe_bool(obs.get("ai_generated_appearance"))
     if watermark is True and ai_gen is True:
-        pts = min(pts, 2.0)   # same issue — only cap once at 80/100
+        pts = min(pts, 1.25)  # watermark + AI generated — hard cap at 50/100
     elif watermark is True:
-        pts = min(pts, 2.0)   # watermark only — cap at 80/100
+        pts = min(pts, 1.875) # watermark only — cap at 75/100
     elif ai_gen is True:
         pts = min(pts, 1.75)  # AI appearance without watermark — cap at 70/100
     quality = _safe_bool(obs.get("image_quality_issue_visible"))
