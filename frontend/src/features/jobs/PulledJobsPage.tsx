@@ -637,31 +637,75 @@ function JobDetailDrawer({
   )
 }
 
-// ─── Job Card ─────────────────────────────────────────────────────────────────
-
-// ─── Match Score Gauge ────────────────────────────────────────────────────────
-
-function matchLabel(pct: number): { text: string; cls: string } {
-  if (pct >= 0.70) return { text: 'GOOD MATCH',  cls: 'text-emerald-600' }
-  if (pct >= 0.50) return { text: 'FAIR MATCH',  cls: 'text-amber-500'   }
-  if (pct >= 0.30) return { text: 'WEAK MATCH',  cls: 'text-orange-500'  }
-  return                  { text: 'LOW MATCH',   cls: 'text-rose-400'    }
-}
+// ─── Match Score helpers ──────────────────────────────────────────────────────
 
 function matchRingColor(pct: number): string {
-  if (pct >= 0.70) return '#10b981'   // emerald-500
-  if (pct >= 0.50) return '#f59e0b'   // amber-400
-  if (pct >= 0.30) return '#f97316'   // orange-500
-  return                  '#f43f5e'   // rose-500
+  if (pct >= 0.70) return '#10b981'
+  if (pct >= 0.50) return '#f59e0b'
+  if (pct >= 0.30) return '#f97316'
+  return '#f43f5e'
 }
 
+function matchLabelText(pct: number): string {
+  if (pct >= 0.70) return 'GOOD MATCH'
+  if (pct >= 0.50) return 'FAIR MATCH'
+  if (pct >= 0.30) return 'WEAK MATCH'
+  return 'LOW MATCH'
+}
+
+function matchLabelColor(pct: number): string {
+  if (pct >= 0.70) return '#10b981'
+  if (pct >= 0.50) return '#f59e0b'
+  if (pct >= 0.30) return '#f97316'
+  return '#f43f5e'
+}
+
+function detectH1B(desc: string): boolean {
+  return /h[\s-]?1[\s-]?b|visa\s+sponsor|sponsor.*visa|will\s+sponsor|sponsorship\s+available/i.test(desc || '')
+}
+
+// Large gauge for the card right panel
+function ScorePanel({ score, description }: { score: number; description: string }) {
+  const R     = 22
+  const circ  = 2 * Math.PI * R
+  const dash  = circ * score
+  const color = matchRingColor(score)
+  const pct   = Math.round(score * 100)
+  const label = matchLabelText(score)
+  const lblColor = matchLabelColor(score)
+  const h1b   = detectH1B(description)
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 px-3 py-4 w-[108px] shrink-0 bg-slate-900 rounded-r-xl">
+      <div className="relative w-[56px] h-[56px]">
+        <svg viewBox="0 0 56 56" className="w-full h-full -rotate-90">
+          <circle cx="28" cy="28" r={R} fill="none" stroke="#334155" strokeWidth="5" />
+          <circle cx="28" cy="28" r={R} fill="none" stroke={color} strokeWidth="5"
+            strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+            style={{ transition: 'stroke-dasharray 0.6s ease' }} />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold text-white leading-none">
+          {pct}%
+        </span>
+      </div>
+      <span className="text-[10px] font-extrabold tracking-widest leading-none text-center"
+        style={{ color: lblColor }}>{label}</span>
+      {h1b && (
+        <span className="text-[9px] font-semibold text-emerald-400 leading-none text-center">
+          ✓ H1B Sponsor
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Small inline gauge for the drawer header
 function MatchScoreGauge({ score }: { score: number }) {
-  const R   = 16
+  const R    = 16
   const circ = 2 * Math.PI * R
   const dash = circ * score
   const color = matchRingColor(score)
-  const pct   = Math.round(score * 100)
-  const { text, cls } = matchLabel(score)
+  const pct  = Math.round(score * 100)
   return (
     <div className="flex flex-col items-center shrink-0 gap-0.5">
       <div className="relative w-11 h-11">
@@ -675,10 +719,13 @@ function MatchScoreGauge({ score }: { score: number }) {
           {pct}%
         </span>
       </div>
-      <span className={`text-[8px] font-bold tracking-wide leading-none ${cls}`}>{text}</span>
+      <span className="text-[9px] font-bold tracking-wide leading-none"
+        style={{ color: matchLabelColor(score) }}>{matchLabelText(score)}</span>
     </div>
   )
 }
+
+// ─── Job Card ─────────────────────────────────────────────────────────────────
 
 function JobCard({
   job, tailorState, applyState, onStatusChange, onOpenDrawer, onTailor, onAutoApply,
@@ -722,62 +769,58 @@ function JobCard({
 
   return (
     <div
-      className="group rounded-xl border border-slate-100 bg-white shadow-sm hover:shadow-md hover:border-slate-200 transition-all cursor-pointer w-full min-w-0"
+      className="group flex rounded-xl border border-slate-100 bg-white shadow-sm hover:shadow-md hover:border-slate-200 transition-all cursor-pointer w-full min-w-0 overflow-hidden"
       onClick={() => onOpenDrawer(job)}
     >
-      {/* Main content */}
-      <div className="p-3 md:p-5 pb-2 md:pb-4">
-        {/* Row 1: company + source badge + quick-open */}
-        <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="text-xs md:text-sm font-semibold text-slate-500 truncate min-w-0">{job.company}</span>
-            {source && (
-              <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] md:text-xs font-medium capitalize ${srcColor(source)}`}>
-                {source}
-              </span>
-            )}
+      {/* ── Left: main content ─────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <div className="p-3 md:p-5 pb-2 md:pb-4 flex-1">
+          {/* Row 1: company + source badge + quick-open */}
+          <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-xs md:text-sm font-semibold text-slate-500 truncate min-w-0">{job.company}</span>
+              {source && (
+                <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] md:text-xs font-medium capitalize ${srcColor(source)}`}>
+                  {source}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-0.5 shrink-0">
+              {job.url && (
+                <a href={job.url} target="_blank" rel="noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 transition"
+                  title="Open job posting">
+                  <ArrowUpRight className="h-4 w-4" />
+                </a>
+              )}
+              <button onClick={e => { e.stopPropagation(); onOpenDrawer(job) }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 transition">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-0.5 shrink-0">
-            {job.url && (
-              <a href={job.url} target="_blank" rel="noreferrer"
-                onClick={e => e.stopPropagation()}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 transition"
-                title="Open job posting">
-                <ArrowUpRight className="h-4 w-4" />
-              </a>
-            )}
-            <button onClick={e => { e.stopPropagation(); onOpenDrawer(job) }}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 transition">
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
 
-        {/* Row 2: title + match score gauge */}
-        <div className="flex items-start gap-2 mb-2">
-          <h3 className="flex-1 font-semibold text-slate-900 text-sm md:text-base leading-snug line-clamp-2 break-words min-w-0">
+          {/* Row 2: title */}
+          <h3 className="font-semibold text-slate-900 text-sm md:text-base leading-snug mb-2 line-clamp-2 break-words">
             {job.title}
           </h3>
-          {job.match_score != null && (
-            <MatchScoreGauge score={job.match_score} />
+
+          {/* Row 3: location */}
+          {job.location && (
+            <p className="text-xs md:text-sm text-slate-500 truncate mb-0.5">{job.location}</p>
           )}
-        </div>
 
-        {/* Row 3: location */}
-        {job.location && (
-          <p className="text-xs md:text-sm text-slate-500 truncate mb-0.5">{job.location}</p>
-        )}
-
-        {/* Row 4: salary · hourly · hrs/wk · type · exp · posted */}
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-sm text-slate-400">
-          {salary     && <span className="font-medium text-slate-600">{salary}</span>}
-          {hourlyRate && <span className="font-medium text-slate-600">{hourlyRate}</span>}
-          {hoursPerWk && <>{(salary || hourlyRate) && <span>·</span>}<span className="text-slate-500">{hoursPerWk}</span></>}
-          {typeLabel  && <><span>·</span><span>{typeLabel}</span></>}
-          {exp        && <><span>·</span><span>{exp}</span></>}
-          {posted     && <><span>·</span><span>{posted}</span></>}
+          {/* Row 4: salary · hourly · hrs/wk · type · exp · posted */}
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-sm text-slate-400">
+            {salary     && <span className="font-medium text-slate-600">{salary}</span>}
+            {hourlyRate && <span className="font-medium text-slate-600">{hourlyRate}</span>}
+            {hoursPerWk && <>{(salary || hourlyRate) && <span>·</span>}<span className="text-slate-500">{hoursPerWk}</span></>}
+            {typeLabel  && <><span>·</span><span>{typeLabel}</span></>}
+            {exp        && <><span>·</span><span>{exp}</span></>}
+            {posted     && <><span>·</span><span>{posted}</span></>}
+          </div>
         </div>
-      </div>
 
       {/* Action footer */}
       <div className="border-t border-slate-100 px-3 md:px-5 py-2 flex items-center justify-between gap-1.5">
@@ -891,7 +934,12 @@ function JobCard({
           )}
 
         </div>
-      </div>
+      </div>{/* end left column */}
+
+      {/* ── Right: match score panel ───────────────────────────────────── */}
+      {job.match_score != null && (
+        <ScorePanel score={job.match_score} description={job.description || ''} />
+      )}
     </div>
   )
 }
