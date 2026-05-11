@@ -17,7 +17,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import case, delete, select, update, func as sqlfunc, text
+from sqlalchemy import delete, select, update, func as sqlfunc, text
 
 from ..auth import get_current_user
 from ..database import get_db
@@ -172,14 +172,7 @@ async def list_pulled_jobs(
         .join(UserJobState, UserJobState.job_id == JobListing.id)
         .where(UserJobState.user_id == user_id)
         .order_by(
-            case(
-                (JobListing.site == "linkedin",      0),
-                (JobListing.site == "indeed",        1),
-                (JobListing.site == "glassdoor",     2),
-                (JobListing.site == "zip_recruiter", 3),
-                (JobListing.site == "workday",       99),
-                else_=4,
-            ).asc(),
+            UserJobState.match_score.desc().nullslast(),
             UserJobState.created_at.desc(),
         )
     )
