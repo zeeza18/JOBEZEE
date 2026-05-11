@@ -98,8 +98,9 @@ function clearState() {
   try { localStorage.removeItem(LS_KEY) } catch { /* ok */ }
 }
 
-async function saveToDb(state: PersistedState, images?: { photo_result?: ImageResult | null; cover_result?: ImageResult | null }): Promise<void> {
+async function saveToDb(state: PersistedState): Promise<void> {
   try {
+    // Only sends profile fields — never touches photo/cover in DB
     await fetch('/api/linkedin-boost/save', {
       method: 'POST',
       credentials: 'include',
@@ -108,8 +109,6 @@ async function saveToDb(state: PersistedState, images?: { photo_result?: ImageRe
         result:          state.result,
         optimize_result: state.optimizeResult,
         target_role:     state.targetRole,
-        photo_result:    images?.photo_result ?? null,
-        cover_result:    images?.cover_result ?? null,
       }),
     })
   } catch { /* fire-and-forget — localStorage is the fallback */ }
@@ -1782,7 +1781,7 @@ export default function ProfileBoostPage() {
               <div className="flex items-center gap-4">
                 <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); setProfileImage(null); setProfileImageUrl(null); savePhotoCache(null); clearImageFromDb('photo') }}
                   className="text-xs text-slate-400 hover:text-red-500 transition">Clear</button>
-                <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); savePhotoCache(null) }}
+                <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); setProfileImageUrl(null); savePhotoCache(null); clearImageFromDb('photo') }}
                   className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace photo →</button>
               </div>
             </>
@@ -1821,7 +1820,7 @@ export default function ProfileBoostPage() {
               <div className="flex items-center gap-4">
                 <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); setCoverImage(null); setCoverImageUrl(null); saveCoverCache(null); clearImageFromDb('cover') }}
                   className="text-xs text-slate-400 hover:text-red-500 transition">Clear</button>
-                <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); saveCoverCache(null) }}
+                <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); setCoverImageUrl(null); saveCoverCache(null); clearImageFromDb('cover') }}
                   className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace banner →</button>
               </div>
             </>
