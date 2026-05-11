@@ -457,7 +457,7 @@ function SectionFeedbackRow({ label, content, bucket, copyText, feedbackExtra }:
 // (left header + img alt when broken + right header). Now only left card has label.
 
 function ImageFeedbackRow({ imageUrl, result, label, isBanner }: {
-  imageUrl: string; result: ImageResult; label: string; isBanner?: boolean
+  imageUrl?: string; result: ImageResult; label: string; isBanner?: boolean
 }) {
   const scorePct = result.score
   const scoreColor = scorePct >= 80 ? 'text-emerald-600' : scorePct >= 60 ? 'text-amber-600' : 'text-red-600'
@@ -468,9 +468,18 @@ function ImageFeedbackRow({ imageUrl, result, label, isBanner }: {
           <span className="text-sm font-bold text-slate-800">{label}</span>
         </div>
         <div className="p-4 flex items-center justify-center bg-slate-50 min-h-[120px]">
-          {isBanner
-            ? <img src={imageUrl} alt="" className="w-full rounded-lg object-cover max-h-36 border border-slate-200 shadow-sm" />
-            : <img src={imageUrl} alt="" className="h-32 w-32 rounded-full object-cover border-2 border-slate-200 shadow-sm" />}
+          {imageUrl ? (
+            isBanner
+              ? <img src={imageUrl} alt="" className="w-full rounded-lg object-cover max-h-36 border border-slate-200 shadow-sm" />
+              : <img src={imageUrl} alt="" className="h-32 w-32 rounded-full object-cover border-2 border-slate-200 shadow-sm" />
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-slate-400">
+              {isBanner
+                ? <div className="w-full max-w-[180px] h-16 rounded-lg bg-slate-200 flex items-center justify-center"><Upload className="h-6 w-6" /></div>
+                : <div className="h-20 w-20 rounded-full bg-slate-200 flex items-center justify-center"><Camera className="h-6 w-6" /></div>}
+              <span className="text-xs">Re-upload to preview</span>
+            </div>
+          )}
         </div>
       </div>
       <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 h-full">
@@ -1744,9 +1753,9 @@ export default function ProfileBoostPage() {
             )}
           </div>
 
-          {photoPhase === 'done' && photoResult && profileImageUrl ? (
+          {photoPhase === 'done' && photoResult ? (
             <>
-              <ImageFeedbackRow imageUrl={profileImageUrl} result={photoResult} label="Profile Photo" />
+              <ImageFeedbackRow imageUrl={profileImageUrl ?? undefined} result={photoResult} label="Profile Photo" />
               <div className="flex items-center gap-4">
                 <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); setProfileImage(null); setProfileImageUrl(null); savePhotoCache(null) }}
                   className="text-xs text-slate-400 hover:text-red-500 transition">Clear</button>
@@ -1783,9 +1792,9 @@ export default function ProfileBoostPage() {
             )}
           </div>
 
-          {coverPhase === 'done' && coverResult && coverImageUrl ? (
+          {coverPhase === 'done' && coverResult ? (
             <>
-              <ImageFeedbackRow imageUrl={coverImageUrl} result={coverResult} label="Cover Banner" isBanner />
+              <ImageFeedbackRow imageUrl={coverImageUrl ?? undefined} result={coverResult} label="Cover Banner" isBanner />
               <div className="flex items-center gap-4">
                 <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); setCoverImage(null); setCoverImageUrl(null); saveCoverCache(null) }}
                   className="text-xs text-slate-400 hover:text-red-500 transition">Clear</button>
