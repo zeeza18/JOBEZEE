@@ -1,10 +1,7 @@
 """
-Async SQLAlchemy engine + session factory wired to Neon PostgreSQL.
+Async SQLAlchemy engine + session factory wired to Hetzner PostgreSQL.
 """
 from __future__ import annotations
-
-import re
-import sys
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -17,23 +14,7 @@ from .config import get_settings
 
 _settings = get_settings()
 
-# ── Windows SSL workaround ────────────────────────────────────────────────────
-# asyncpg's URL-level ssl=require parameter uses a code path that triggers
-# WinError 10054 (connection forcibly closed) on Windows because the Proactor
-# event loop (even after switching to Selector) mishandles the SSL upgrade.
-# Fix: strip the ssl param from the URL and pass an explicit ssl.SSLContext via
-# connect_args instead.  Production on Linux is unaffected (the guard is win32).
-_db_url      = _settings.DATABASE_URL or "postgresql+asyncpg://ci:ci@localhost/ci"
-_connect_args: dict = {}
-
-if sys.platform == "win32":
-    import ssl as _ssl
-    _db_url = re.sub(r"[?&]ssl=\w+", "", _db_url)
-    _db_url = re.sub(r"[?&]sslmode=\w+", "", _db_url)
-    _ssl_ctx = _ssl.create_default_context()
-    _ssl_ctx.check_hostname = False
-    _ssl_ctx.verify_mode    = _ssl.CERT_NONE
-    _connect_args["ssl"]    = _ssl_ctx
+_db_url = _settings.DATABASE_URL or "postgresql+asyncpg://jobezee:Jobezee_PG_2026!@localhost:5432/jobezee"
 
 engine = create_async_engine(
     _db_url,
@@ -41,9 +22,8 @@ engine = create_async_engine(
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
-    pool_timeout=15,        # fail fast instead of hanging when pool exhausted
-    pool_recycle=300,       # recycle connections every 5 min (avoids stale sockets)
-    connect_args=_connect_args,
+    pool_timeout=15,
+    pool_recycle=300,
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -374,6 +354,17 @@ async def run_schema_migration() -> None:
               )
         """))
 
+        # ── job_listings: LLM extraction columns ─────────────────────────────
+        for col, defn in [
+            ("llm_skills",       "JSONB        DEFAULT NULL"),
+            ("llm_title",        "TEXT         DEFAULT NULL"),
+            ("llm_years_min",    "INTEGER      DEFAULT NULL"),
+            ("llm_extracted_at", "TIMESTAMPTZ  DEFAULT NULL"),
+        ]:
+            await conn.execute(text(
+                f"ALTER TABLE job_listings ADD COLUMN IF NOT EXISTS {col} {defn}"
+            ))
+
         # ── preference_cache: idempotent columns ─────────────────────────────
         await conn.execute(text(
             "ALTER TABLE preference_cache ADD COLUMN IF NOT EXISTS total_jobs INTEGER DEFAULT 0"
@@ -389,6 +380,15 @@ async def run_schema_migration() -> None:
         ]:
             await conn.execute(text(
                 f"ALTER TABLE tailor_jobs ADD COLUMN IF NOT EXISTS {col} {defn}"
+            ))
+
+        # ── linkedin_boost_results: photo/cover columns added later ──────────────
+        for col, defn in [
+            ("photo_result", "JSON DEFAULT NULL"),
+            ("cover_result", "JSON DEFAULT NULL"),
+        ]:
+            await conn.execute(text(
+                f"ALTER TABLE linkedin_boost_results ADD COLUMN IF NOT EXISTS {col} {defn}"
             ))
 
         # ── user_credits: create if not exists (safety net alongside create_all)

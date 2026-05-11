@@ -144,30 +144,56 @@ async def save_boost_result(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Upsert the user's latest boost result + optimize result."""
+    """Upsert the user's latest boost result, optimize result, and image results."""
     result          = body.get("result")
     optimize_result = body.get("optimize_result")
     target_role     = body.get("target_role", "")
+    photo_result    = body.get("photo_result")
+    cover_result    = body.get("cover_result")
 
-    if not result:
+    # Allow saving image-only updates (photo/cover) without a profile result
+    if not result and photo_result is None and cover_result is None:
         raise HTTPException(400, "result is required")
 
-    stmt = pg_insert(LinkedInBoostResult).values(
-        user_id         = str(current_user.id),
-        result          = result,
-        optimize_result = optimize_result,
-        target_role     = target_role,
-    ).on_conflict_do_update(
-        index_elements=["user_id"],
-        set_={
-            "result":          result,
-            "optimize_result": optimize_result,
-            "target_role":     target_role,
-            "updated_at":      __import__("sqlalchemy").func.now(),
-        },
-    )
-    await db.execute(stmt)
-    await db.commit()
+    existing = (await db.execute(
+        select(LinkedInBoostResult).where(LinkedInBoostResult.user_id == str(current_user.id))
+    )).scalar_one_or_none()
+
+    if existing:
+        # Merge: only overwrite fields that are provided in this call
+        update_fields: dict = {"updated_at": __import__("sqlalchemy").func.now()}
+        if result          is not None: update_fields["result"]          = result
+        if optimize_result is not None: update_fields["optimize_result"] = optimize_result
+        if target_role:                 update_fields["target_role"]     = target_role
+        if photo_result    is not None: update_fields["photo_result"]    = photo_result
+        if cover_result    is not None: update_fields["cover_result"]    = cover_result
+        for k, v in update_fields.items():
+            if k != "updated_at":
+                setattr(existing, k, v)
+        await db.commit()
+    else:
+        if not result:
+            raise HTTPException(400, "result is required for first save")
+        stmt = pg_insert(LinkedInBoostResult).values(
+            user_id         = str(current_user.id),
+            result          = result,
+            optimize_result = optimize_result,
+            target_role     = target_role,
+            photo_result    = photo_result,
+            cover_result    = cover_result,
+        ).on_conflict_do_update(
+            index_elements=["user_id"],
+            set_={
+                "result":          result,
+                "optimize_result": optimize_result,
+                "target_role":     target_role,
+                "photo_result":    photo_result,
+                "cover_result":    cover_result,
+                "updated_at":      __import__("sqlalchemy").func.now(),
+            },
+        )
+        await db.execute(stmt)
+        await db.commit()
     return {"ok": True}
 
 
@@ -185,9 +211,11 @@ async def get_saved_boost_result(
         return {"found": False}
 
     return {
-        "found":          True,
-        "result":         row.result,
+        "found":           True,
+        "result":          row.result,
         "optimize_result": row.optimize_result,
-        "target_role":    row.target_role,
-        "updated_at":     row.updated_at.isoformat() if row.updated_at is not None else None,
+        "target_role":     row.target_role,
+        "photo_result":    row.photo_result,
+        "cover_result":    row.cover_result,
+        "updated_at":      row.updated_at.isoformat() if row.updated_at is not None else None,
     }

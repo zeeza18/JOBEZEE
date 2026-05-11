@@ -98,7 +98,7 @@ function clearState() {
   try { localStorage.removeItem(LS_KEY) } catch { /* ok */ }
 }
 
-async function saveToDb(state: PersistedState): Promise<void> {
+async function saveToDb(state: PersistedState, images?: { photo_result?: ImageResult | null; cover_result?: ImageResult | null }): Promise<void> {
   try {
     await fetch('/api/linkedin-boost/save', {
       method: 'POST',
@@ -108,18 +108,42 @@ async function saveToDb(state: PersistedState): Promise<void> {
         result:          state.result,
         optimize_result: state.optimizeResult,
         target_role:     state.targetRole,
+        photo_result:    images?.photo_result ?? null,
+        cover_result:    images?.cover_result ?? null,
       }),
     })
   } catch { /* fire-and-forget — localStorage is the fallback */ }
 }
 
-async function loadFromDb(): Promise<PersistedState | null> {
+async function saveImageToDb(key: 'photo_result' | 'cover_result', imageResult: ImageResult): Promise<void> {
+  try {
+    await fetch('/api/linkedin-boost/save', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [key]: imageResult }),
+    })
+  } catch { /* fire-and-forget */ }
+}
+
+interface DbState {
+  result: BoostResult; optimizeResult: OptimizeResult | null; targetRole: string
+  photoResult: ImageResult | null; coverResult: ImageResult | null
+}
+
+async function loadFromDb(): Promise<DbState | null> {
   try {
     const res = await fetch('/api/linkedin-boost/saved', { credentials: 'include' })
     if (!res.ok) return null
     const data = await res.json()
     if (!data.found) return null
-    return { result: data.result, optimizeResult: data.optimize_result ?? null, targetRole: data.target_role ?? '' }
+    return {
+      result:         data.result,
+      optimizeResult: data.optimize_result ?? null,
+      targetRole:     data.target_role ?? '',
+      photoResult:    data.photo_result ?? null,
+      coverResult:    data.cover_result ?? null,
+    }
   } catch { return null }
 }
 
@@ -1094,14 +1118,29 @@ export default function ProfileBoostPage() {
 
   // Load from DB on mount when localStorage has nothing (e.g. different machine)
   useEffect(() => {
-    if (persisted) return  // localStorage hit — no need to hit DB
+    const hasProfileCache = !!persisted
+    const hasPhotoCache   = !!loadPhotoCache()?.result
+    const hasCoverCache   = !!loadCoverCache()?.result
+    if (hasProfileCache && hasPhotoCache && hasCoverCache) return
     loadFromDb().then(dbState => {
       if (!dbState) return
-      setResult(dbState.result)
-      setOptimizeResult(dbState.optimizeResult)
-      setTargetRole(dbState.targetRole)
-      setProfilePhase('analyzed')
-      saveState(dbState)  // warm localStorage for next time
+      if (!hasProfileCache && dbState.result) {
+        setResult(dbState.result)
+        setOptimizeResult(dbState.optimizeResult)
+        setTargetRole(dbState.targetRole)
+        setProfilePhase('analyzed')
+        saveState({ result: dbState.result, optimizeResult: dbState.optimizeResult, targetRole: dbState.targetRole })
+      }
+      if (!hasPhotoCache && dbState.photoResult) {
+        setPhotoResult(dbState.photoResult)
+        setPhotoPhase('done')
+        savePhotoCache({ status: 'done', dataUrl: '', result: dbState.photoResult })
+      }
+      if (!hasCoverCache && dbState.coverResult) {
+        setCoverResult(dbState.coverResult)
+        setCoverPhase('done')
+        saveCoverCache({ status: 'done', dataUrl: '', result: dbState.coverResult })
+      }
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1138,6 +1177,7 @@ export default function ProfileBoostPage() {
           const pr = data.result as unknown as ImageResult
           setPhotoResult(pr); setPhotoPhase('done')
           savePhotoCache({ status: 'done', dataUrl, result: pr })
+          saveImageToDb('photo_result', pr)
         } else if (data.status === 'error') {
           clearInterval(iv)
           setPhotoError(data.error as string); setPhotoPhase('error')
@@ -1156,7 +1196,8 @@ export default function ProfileBoostPage() {
           clearInterval(iv)
           const cr = data.result as unknown as ImageResult
           setCoverResult(cr); setCoverPhase('done')
-          saveCoverCache({ status: 'done', dataUrl, result: cr })
+          saveCoverCache({ status: 'done', dataUrl: dataUrl, result: cr })
+          saveImageToDb('cover_result', cr)
         } else if (data.status === 'error') {
           clearInterval(iv)
           setCoverError(data.error as string); setCoverPhase('error')

@@ -601,5 +601,7 @@ class LinkedInBoostResult(Base):
     result          = Column(JSON, nullable=False)
     optimize_result = Column(JSON, nullable=True)
     target_role     = Column(String(200), default='')
+    photo_result    = Column(JSON, nullable=True)
+    cover_result    = Column(JSON, nullable=True)
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
     updated_at      = Column(DateTime(timezone=True), onupdate=func.now())
