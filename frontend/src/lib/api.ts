@@ -125,6 +125,9 @@ export interface PulledJob {
   skills            : string[]
   status            : string
   pulled_at         : string
+  match_score       : number | null
+  matched_skills    : string[]
+  missing_skills    : string[]
 }
 
 export interface JobStats {

@@ -186,6 +186,18 @@ async def upload_resume(
     profile.resume_filename = file.filename or ""
     profile.resume_url      = f"/uploads/resumes/{safe_name}"
     profile.resume_bytes    = _b64.b64encode(contents).decode()
+
+    # Extract resume metadata via Groq (sync — fast, ~0.3s)
+    try:
+        from ..services.extraction_service import pdf_to_text, extract_resume as _extract_resume
+        _text = pdf_to_text(contents)
+        if _text:
+            _extracted = _extract_resume(_text)
+            if _extracted:
+                profile.resume_extraction = _extracted.model_dump()
+    except Exception:
+        pass   # extraction is best-effort; never block the upload
+
     await db.commit()
 
     return {"filename": file.filename, "url": f"/uploads/resumes/{safe_name}"}

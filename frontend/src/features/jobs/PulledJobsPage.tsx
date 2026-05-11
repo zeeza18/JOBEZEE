@@ -468,9 +468,48 @@ function JobDetailDrawer({
             </div>
           </div>
 
+          {/* Match score breakdown */}
+          {job.match_score != null && (
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <MatchScoreGauge score={job.match_score} />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Resume Match</p>
+                  <p className="text-sm text-slate-500">Based on your resume skills and experience</p>
+                </div>
+              </div>
+              {(job.matched_skills?.length > 0 || job.missing_skills?.length > 0) && (
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2.5">
+                  {job.matched_skills?.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 mb-1.5">You have</p>
+                      <div className="flex flex-wrap gap-1">
+                        {job.matched_skills.map(s => (
+                          <span key={s} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">
+                            <span>👍</span>{s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {job.missing_skills?.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Missing</p>
+                      <div className="flex flex-wrap gap-1">
+                        {job.missing_skills.slice(0, 12).map(s => (
+                          <span key={s} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {job.skills && job.skills.length > 0 && (
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Skills</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Skills (from posting)</p>
               <div className="flex flex-wrap gap-1.5">
                 {job.skills.map((s) => (
                   <span key={s} className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-xs text-cyan-700">{s}</span>
@@ -600,6 +639,47 @@ function JobDetailDrawer({
 
 // ─── Job Card ─────────────────────────────────────────────────────────────────
 
+// ─── Match Score Gauge ────────────────────────────────────────────────────────
+
+function matchLabel(pct: number): { text: string; cls: string } {
+  if (pct >= 0.70) return { text: 'GOOD MATCH',  cls: 'text-emerald-600' }
+  if (pct >= 0.50) return { text: 'FAIR MATCH',  cls: 'text-amber-500'   }
+  if (pct >= 0.30) return { text: 'WEAK MATCH',  cls: 'text-orange-500'  }
+  return                  { text: 'LOW MATCH',   cls: 'text-rose-400'    }
+}
+
+function matchRingColor(pct: number): string {
+  if (pct >= 0.70) return '#10b981'   // emerald-500
+  if (pct >= 0.50) return '#f59e0b'   // amber-400
+  if (pct >= 0.30) return '#f97316'   // orange-500
+  return                  '#f43f5e'   // rose-500
+}
+
+function MatchScoreGauge({ score }: { score: number }) {
+  const R   = 16
+  const circ = 2 * Math.PI * R
+  const dash = circ * score
+  const color = matchRingColor(score)
+  const pct   = Math.round(score * 100)
+  const { text, cls } = matchLabel(score)
+  return (
+    <div className="flex flex-col items-center shrink-0 gap-0.5">
+      <div className="relative w-11 h-11">
+        <svg viewBox="0 0 40 40" className="w-full h-full -rotate-90">
+          <circle cx="20" cy="20" r={R} fill="none" stroke="#e2e8f0" strokeWidth="4" />
+          <circle cx="20" cy="20" r={R} fill="none" stroke={color} strokeWidth="4"
+            strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+            style={{ transition: 'stroke-dasharray 0.5s ease' }} />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-700 leading-none">
+          {pct}%
+        </span>
+      </div>
+      <span className={`text-[8px] font-bold tracking-wide leading-none ${cls}`}>{text}</span>
+    </div>
+  )
+}
+
 function JobCard({
   job, tailorState, applyState, onStatusChange, onOpenDrawer, onTailor, onAutoApply,
   onDeleteTailor, convertHourly,
@@ -673,10 +753,15 @@ function JobCard({
           </div>
         </div>
 
-        {/* Row 2: title */}
-        <h3 className="font-semibold text-slate-900 text-sm md:text-base leading-snug mb-2 line-clamp-2 break-words">
-          {job.title}
-        </h3>
+        {/* Row 2: title + match score gauge */}
+        <div className="flex items-start gap-2 mb-2">
+          <h3 className="flex-1 font-semibold text-slate-900 text-sm md:text-base leading-snug line-clamp-2 break-words min-w-0">
+            {job.title}
+          </h3>
+          {job.match_score != null && (
+            <MatchScoreGauge score={job.match_score} />
+          )}
+        </div>
 
         {/* Row 3: location */}
         {job.location && (

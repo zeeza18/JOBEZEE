@@ -165,6 +165,9 @@ async def list_pulled_jobs(
             UserJobState.status,
             UserJobState.created_at.label("pulled_at"),
             UserJobState.id.label("state_id"),
+            UserJobState.match_score,
+            UserJobState.matched_skills,
+            UserJobState.missing_skills,
         )
         .join(UserJobState, UserJobState.job_id == JobListing.id)
         .where(UserJobState.user_id == user_id)
@@ -292,6 +295,9 @@ async def list_pulled_jobs(
             "skills"            : row["skills"] or [],
             "status"            : row["status"] or "new",
             "pulled_at"         : row["pulled_at"] or datetime.now(timezone.utc),
+            "match_score"       : row["match_score"],
+            "matched_skills"    : row["matched_skills"] or [],
+            "missing_skills"    : row["missing_skills"] or [],
         }
         for row in rows
     ]

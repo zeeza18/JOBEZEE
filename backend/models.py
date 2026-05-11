@@ -103,6 +103,9 @@ class UserProfile(Base):
     avatar_url      = Column(String(500), default="")
     avatar_b64      = Column(Text,        nullable=True)  # data:<mime>;base64,... — persists across deploys
 
+    # ── Resume extraction (Groq LLM — cached on upload) ─────────────────────
+    resume_extraction = Column(JSON, nullable=True)   # ResumeExtracted dict: title/skills/years_exp/…
+
     # ── Email digest tracking ─────────────────────────────────────────────────
     last_digest_at  = Column(DateTime(timezone=True), nullable=True)  # last digest email sent
 
@@ -194,6 +197,12 @@ class PulledJob(Base):
     # ── User action ──────────────────────────────────────────────────────────
     status          = Column(String(50), default="new")   # new / saved / applied / hidden
     resume_used_url = Column(String(500), default="")     # URL of the resume used when applying
+
+    # ── Match score (computed against user's resume_extraction) ──────────────
+    match_score    = Column(Float,   nullable=True)
+    matched_skills = Column(JSON,    nullable=True)
+    missing_skills = Column(JSON,    nullable=True)
+    scored_at      = Column(DateTime(timezone=True), nullable=True)
 
     pulled_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -376,6 +385,13 @@ class UserJobState(Base):
     user_id    = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     job_id     = Column(PGUUID(as_uuid=True), ForeignKey("job_listings.id"), nullable=False, index=True)
     status     = Column(String(50), default="new")   # new / saved / hidden
+
+    # ── Match score (computed against user's resume_extraction) ──────────────
+    match_score    = Column(Float,   nullable=True)
+    matched_skills = Column(JSON,    nullable=True)
+    missing_skills = Column(JSON,    nullable=True)
+    scored_at      = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

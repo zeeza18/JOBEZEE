@@ -128,6 +128,7 @@ async def run_column_migrations() -> None:
         ("linkedin_cookies",          "TEXT          DEFAULT ''"),
         ("avatar_b64",                "TEXT          DEFAULT NULL"),
         ("last_digest_at",            "TIMESTAMPTZ   DEFAULT NULL"),
+        ("resume_extraction",         "JSON          DEFAULT NULL"),
     ]
 
     # ── pulled_jobs ───────────────────────────────────────────────────────────
@@ -395,6 +396,28 @@ async def run_schema_migration() -> None:
         await conn.execute(text(
             "ALTER TABLE linkedin_boost_results ALTER COLUMN result DROP NOT NULL"
         ))
+
+        # ── user_job_states: match score columns ─────────────────────────────
+        for col, defn in [
+            ("match_score",    "FLOAT        DEFAULT NULL"),
+            ("matched_skills", "JSON         DEFAULT NULL"),
+            ("missing_skills", "JSON         DEFAULT NULL"),
+            ("scored_at",      "TIMESTAMPTZ  DEFAULT NULL"),
+        ]:
+            await conn.execute(text(
+                f"ALTER TABLE user_job_states ADD COLUMN IF NOT EXISTS {col} {defn}"
+            ))
+
+        # ── pulled_jobs: match score columns (v1 compat) ──────────────────────
+        for col, defn in [
+            ("match_score",    "FLOAT        DEFAULT NULL"),
+            ("matched_skills", "JSON         DEFAULT NULL"),
+            ("missing_skills", "JSON         DEFAULT NULL"),
+            ("scored_at",      "TIMESTAMPTZ  DEFAULT NULL"),
+        ]:
+            await conn.execute(text(
+                f"ALTER TABLE pulled_jobs ADD COLUMN IF NOT EXISTS {col} {defn}"
+            ))
 
         # ── user_credits: create if not exists (safety net alongside create_all)
         await conn.execute(text("""

@@ -229,6 +229,9 @@ class PulledJobResponse(BaseModel):
     skills            : list[str]        = []
     status            : str              = "new"
     pulled_at         : datetime
+    match_score       : Optional[float]  = None
+    matched_skills    : list[str]        = []
+    missing_skills    : list[str]        = []
 
     @field_validator("status", mode="before")
     @classmethod

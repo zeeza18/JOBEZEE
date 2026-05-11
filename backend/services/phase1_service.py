@@ -562,6 +562,89 @@ async def _save_jobs(
     return inserted
 
 
+async def _score_jobs_for_users(
+    job_ids  : list[uuid.UUID],
+    user_ids : list[str],
+) -> None:
+    """
+    Score each (user, job) pair using the user's stored resume_extraction.
+    Updates user_job_states.match_score / matched_skills / missing_skills / scored_at.
+    Only runs for users who have a resume_extraction stored.
+    """
+    if not job_ids or not user_ids:
+        return
+
+    from ..database import AsyncSessionLocal
+    from ..models import JobListing, UserProfile, UserJobState
+    from ..services.scorer_service import score_job_for_user
+    from sqlalchemy import select, update
+    from datetime import datetime, timezone
+
+    # Parse user_ids to UUID for query
+    user_uuids: list[uuid.UUID] = []
+    for uid in user_ids:
+        try:
+            user_uuids.append(uuid.UUID(uid))
+        except (ValueError, AttributeError):
+            pass
+
+    if not user_uuids:
+        return
+
+    async with AsyncSessionLocal() as db:
+        # Load jobs
+        jobs_rows = (await db.execute(
+            select(JobListing).where(JobListing.id.in_(job_ids))
+        )).scalars().all()
+        jobs = {j.id: j for j in jobs_rows}
+
+        # Load profiles that have resume_extraction
+        profiles_rows = (await db.execute(
+            select(UserProfile).where(UserProfile.id.in_(user_uuids))
+        )).scalars().all()
+        profiles = {str(p.id): p for p in profiles_rows if p.resume_extraction}
+
+        if not profiles or not jobs:
+            return
+
+        now    = datetime.now(timezone.utc)
+        scored = 0
+
+        for uid, profile in profiles.items():
+            rex = profile.resume_extraction
+            for jid, job in jobs.items():
+                try:
+                    score, matched, missing = score_job_for_user(
+                        job_title         = job.title or "",
+                        job_description   = job.description or "",
+                        job_llm_skills    = list(job.llm_skills) if job.llm_skills else None,
+                        job_llm_years_min = job.llm_years_min,
+                        resume_extraction = rex,
+                    )
+                    await db.execute(
+                        update(UserJobState)
+                        .where(
+                            UserJobState.user_id == uid,
+                            UserJobState.job_id  == jid,
+                        )
+                        .values(
+                            match_score    = score,
+                            matched_skills = matched,
+                            missing_skills = missing,
+                            scored_at      = now,
+                        )
+                    )
+                    scored += 1
+                except Exception as exc:
+                    log.debug("[Scorer] skip (%s, %s): %s", uid, jid, exc)
+
+            if scored and scored % 100 == 0:
+                await db.commit()
+
+        await db.commit()
+        log.info("[Scorer] scored %d job-user pairs", scored)
+
+
 async def _get_preference_cache(role_tag: str, location_tag: str):
     """Return PreferenceCache row for (role_tag, location_tag) or None."""
     from ..database import AsyncSessionLocal
@@ -747,6 +830,13 @@ async def _save_jobs_v2(
                 )
                 fanout_count += res.rowcount or 0
             await db.commit()
+
+            # Score new jobs against each matching user's resume (background, best-effort)
+            if matching_user_ids:
+                try:
+                    await _score_jobs_for_users(new_job_ids, matching_user_ids)
+                except Exception as _se:
+                    log.warning("[Phase1][v2] scoring failed (non-fatal): %s", _se)
 
             # Count how many of these jobs are now in the requesting user's view
             if requesting_user_id and new_job_ids:
