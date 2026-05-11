@@ -115,13 +115,31 @@ async function saveToDb(state: PersistedState, images?: { photo_result?: ImageRe
   } catch { /* fire-and-forget — localStorage is the fallback */ }
 }
 
-async function saveImageToDb(key: 'photo_result' | 'cover_result', imageResult: ImageResult): Promise<void> {
+async function saveImageToDb(
+  key: 'photo' | 'cover',
+  imageResult: ImageResult,
+  dataUrl: string,
+): Promise<void> {
   try {
     await fetch('/api/linkedin-boost/save', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [key]: imageResult }),
+      body: JSON.stringify({
+        [`${key}_result`]:    imageResult,
+        [`${key}_data_url`]:  dataUrl,
+      }),
+    })
+  } catch { /* fire-and-forget */ }
+}
+
+async function clearImageFromDb(key: 'photo' | 'cover'): Promise<void> {
+  try {
+    await fetch('/api/linkedin-boost/save', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [`${key}_result`]: null, [`${key}_data_url`]: null }),
     })
   } catch { /* fire-and-forget */ }
 }
@@ -129,6 +147,7 @@ async function saveImageToDb(key: 'photo_result' | 'cover_result', imageResult: 
 interface DbState {
   result: BoostResult; optimizeResult: OptimizeResult | null; targetRole: string
   photoResult: ImageResult | null; coverResult: ImageResult | null
+  photoDataUrl: string | null; coverDataUrl: string | null
 }
 
 async function loadFromDb(): Promise<DbState | null> {
@@ -143,6 +162,8 @@ async function loadFromDb(): Promise<DbState | null> {
       targetRole:     data.target_role ?? '',
       photoResult:    data.photo_result ?? null,
       coverResult:    data.cover_result ?? null,
+      photoDataUrl:   data.photo_data_url ?? null,
+      coverDataUrl:   data.cover_data_url ?? null,
     }
   } catch { return null }
 }
@@ -1143,12 +1164,14 @@ export default function ProfileBoostPage() {
       if (!hasPhotoCache && dbState.photoResult) {
         setPhotoResult(dbState.photoResult)
         setPhotoPhase('done')
-        savePhotoCache({ status: 'done', dataUrl: '', result: dbState.photoResult })
+        if (dbState.photoDataUrl) setProfileImageUrl(dbState.photoDataUrl)
+        savePhotoCache({ status: 'done', dataUrl: dbState.photoDataUrl ?? '', result: dbState.photoResult })
       }
       if (!hasCoverCache && dbState.coverResult) {
         setCoverResult(dbState.coverResult)
         setCoverPhase('done')
-        saveCoverCache({ status: 'done', dataUrl: '', result: dbState.coverResult })
+        if (dbState.coverDataUrl) setCoverImageUrl(dbState.coverDataUrl)
+        saveCoverCache({ status: 'done', dataUrl: dbState.coverDataUrl ?? '', result: dbState.coverResult })
       }
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1186,7 +1209,7 @@ export default function ProfileBoostPage() {
           const pr = data.result as unknown as ImageResult
           setPhotoResult(pr); setPhotoPhase('done')
           savePhotoCache({ status: 'done', dataUrl, result: pr })
-          saveImageToDb('photo_result', pr)
+          saveImageToDb('photo', pr, dataUrl)
         } else if (data.status === 'error') {
           clearInterval(iv)
           setPhotoError(data.error as string); setPhotoPhase('error')
@@ -1206,7 +1229,7 @@ export default function ProfileBoostPage() {
           const cr = data.result as unknown as ImageResult
           setCoverResult(cr); setCoverPhase('done')
           saveCoverCache({ status: 'done', dataUrl: dataUrl, result: cr })
-          saveImageToDb('cover_result', cr)
+          saveImageToDb('cover', cr, dataUrl)
         } else if (data.status === 'error') {
           clearInterval(iv)
           setCoverError(data.error as string); setCoverPhase('error')
@@ -1757,7 +1780,7 @@ export default function ProfileBoostPage() {
             <>
               <ImageFeedbackRow imageUrl={profileImageUrl ?? undefined} result={photoResult} label="Profile Photo" />
               <div className="flex items-center gap-4">
-                <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); setProfileImage(null); setProfileImageUrl(null); savePhotoCache(null) }}
+                <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); setProfileImage(null); setProfileImageUrl(null); savePhotoCache(null); clearImageFromDb('photo') }}
                   className="text-xs text-slate-400 hover:text-red-500 transition">Clear</button>
                 <button onClick={() => { setPhotoPhase('idle'); setPhotoResult(null); savePhotoCache(null) }}
                   className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace photo →</button>
@@ -1796,7 +1819,7 @@ export default function ProfileBoostPage() {
             <>
               <ImageFeedbackRow imageUrl={coverImageUrl ?? undefined} result={coverResult} label="Cover Banner" isBanner />
               <div className="flex items-center gap-4">
-                <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); setCoverImage(null); setCoverImageUrl(null); saveCoverCache(null) }}
+                <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); setCoverImage(null); setCoverImageUrl(null); saveCoverCache(null); clearImageFromDb('cover') }}
                   className="text-xs text-slate-400 hover:text-red-500 transition">Clear</button>
                 <button onClick={() => { setCoverPhase('idle'); setCoverResult(null); saveCoverCache(null) }}
                   className="text-xs text-slate-400 hover:text-cyan-600 transition">Replace banner →</button>

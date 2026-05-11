@@ -145,47 +145,57 @@ async def save_boost_result(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Upsert the user's latest boost result, optimize result, and image results."""
-    result          = body.get("result")
-    optimize_result = body.get("optimize_result")
-    target_role     = body.get("target_role", "")
-    photo_result    = body.get("photo_result")
-    cover_result    = body.get("cover_result")
+    # Use sentinel to distinguish "not provided" from explicit null (clear)
+    _MISSING = object()
+    result          = body.get("result",          _MISSING)
+    optimize_result = body.get("optimize_result", _MISSING)
+    target_role     = body.get("target_role",     "")
+    photo_result    = body.get("photo_result",    _MISSING)
+    cover_result    = body.get("cover_result",    _MISSING)
+    photo_data_url  = body.get("photo_data_url",  _MISSING)
+    cover_data_url  = body.get("cover_data_url",  _MISSING)
 
-    if result is None and photo_result is None and cover_result is None:
+    has_anything = any(v is not _MISSING for v in [result, optimize_result, photo_result, cover_result, photo_data_url, cover_data_url])
+    if not has_anything:
         raise HTTPException(400, "nothing to save")
 
     existing = (await db.execute(
         select(LinkedInBoostResult).where(LinkedInBoostResult.user_id == str(current_user.id))
     )).scalar_one_or_none()
 
+    def _set(obj: Any, field: str, val: Any) -> None:
+        if val is not _MISSING:
+            setattr(obj, field, val)  # val=None means explicit clear
+
     if existing:
-        # Merge: only overwrite fields that are provided in this call
-        update_fields: dict = {"updated_at": __import__("sqlalchemy").func.now()}
-        if result          is not None: update_fields["result"]          = result
-        if optimize_result is not None: update_fields["optimize_result"] = optimize_result
-        if target_role:                 update_fields["target_role"]     = target_role
-        if photo_result    is not None: update_fields["photo_result"]    = photo_result
-        if cover_result    is not None: update_fields["cover_result"]    = cover_result
-        for k, v in update_fields.items():
-            if k != "updated_at":
-                setattr(existing, k, v)
+        _set(existing, "result",          result)
+        _set(existing, "optimize_result", optimize_result)
+        if target_role: existing.target_role = target_role
+        _set(existing, "photo_result",    photo_result)
+        _set(existing, "cover_result",    cover_result)
+        _set(existing, "photo_data_url",  photo_data_url)
+        _set(existing, "cover_data_url",  cover_data_url)
         await db.commit()
     else:
         stmt = pg_insert(LinkedInBoostResult).values(
-            user_id         = str(current_user.id),
-            result          = result,
-            optimize_result = optimize_result,
-            target_role     = target_role,
-            photo_result    = photo_result,
-            cover_result    = cover_result,
+            user_id        = str(current_user.id),
+            result         = None if result is _MISSING else result,
+            optimize_result= None if optimize_result is _MISSING else optimize_result,
+            target_role    = target_role,
+            photo_result   = None if photo_result is _MISSING else photo_result,
+            cover_result   = None if cover_result is _MISSING else cover_result,
+            photo_data_url = None if photo_data_url is _MISSING else photo_data_url,
+            cover_data_url = None if cover_data_url is _MISSING else cover_data_url,
         ).on_conflict_do_update(
             index_elements=["user_id"],
             set_={
-                "result":          result,
-                "optimize_result": optimize_result,
+                "result":          None if result is _MISSING else result,
+                "optimize_result": None if optimize_result is _MISSING else optimize_result,
                 "target_role":     target_role,
-                "photo_result":    photo_result,
-                "cover_result":    cover_result,
+                "photo_result":    None if photo_result is _MISSING else photo_result,
+                "cover_result":    None if cover_result is _MISSING else cover_result,
+                "photo_data_url":  None if photo_data_url is _MISSING else photo_data_url,
+                "cover_data_url":  None if cover_data_url is _MISSING else cover_data_url,
                 "updated_at":      __import__("sqlalchemy").func.now(),
             },
         )
@@ -214,5 +224,7 @@ async def get_saved_boost_result(
         "target_role":     row.target_role,
         "photo_result":    row.photo_result,
         "cover_result":    row.cover_result,
+        "photo_data_url":  row.photo_data_url,
+        "cover_data_url":  row.cover_data_url,
         "updated_at":      row.updated_at.isoformat() if row.updated_at is not None else None,
     }

@@ -384,8 +384,10 @@ async def run_schema_migration() -> None:
 
         # ── linkedin_boost_results: photo/cover columns + nullable result ────────
         for col, defn in [
-            ("photo_result", "JSON DEFAULT NULL"),
-            ("cover_result", "JSON DEFAULT NULL"),
+            ("photo_result",   "JSON DEFAULT NULL"),
+            ("cover_result",   "JSON DEFAULT NULL"),
+            ("photo_data_url", "TEXT DEFAULT NULL"),
+            ("cover_data_url", "TEXT DEFAULT NULL"),
         ]:
             await conn.execute(text(
                 f"ALTER TABLE linkedin_boost_results ADD COLUMN IF NOT EXISTS {col} {defn}"
