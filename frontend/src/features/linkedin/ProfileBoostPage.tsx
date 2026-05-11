@@ -98,6 +98,31 @@ function clearState() {
   try { localStorage.removeItem(LS_KEY) } catch { /* ok */ }
 }
 
+async function saveToDb(state: PersistedState): Promise<void> {
+  try {
+    await fetch('/api/linkedin-boost/save', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        result:          state.result,
+        optimize_result: state.optimizeResult,
+        target_role:     state.targetRole,
+      }),
+    })
+  } catch { /* fire-and-forget — localStorage is the fallback */ }
+}
+
+async function loadFromDb(): Promise<PersistedState | null> {
+  try {
+    const res = await fetch('/api/linkedin-boost/saved', { credentials: 'include' })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (!data.found) return null
+    return { result: data.result, optimizeResult: data.optimize_result ?? null, targetRole: data.target_role ?? '' }
+  } catch { return null }
+}
+
 // ─── Step definitions ─────────────────────────────────────────────────────────
 
 const ANALYZE_STEPS: Array<{ id: string; label: string }> = [
@@ -1067,6 +1092,19 @@ export default function ProfileBoostPage() {
   const stopPolling = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null } }
   useEffect(() => () => stopPolling(), [])
 
+  // Load from DB on mount when localStorage has nothing (e.g. different machine)
+  useEffect(() => {
+    if (persisted) return  // localStorage hit — no need to hit DB
+    loadFromDb().then(dbState => {
+      if (!dbState) return
+      setResult(dbState.result)
+      setOptimizeResult(dbState.optimizeResult)
+      setTargetRole(dbState.targetRole)
+      setProfilePhase('analyzed')
+      saveState(dbState)  // warm localStorage for next time
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!profileImage) return  // no file selected — keep cached dataUrl if present
     const url = URL.createObjectURL(profileImage)
@@ -1207,7 +1245,9 @@ export default function ProfileBoostPage() {
           stopPolling()
           const r = data.result as BoostResult
           setResult(r); setProfilePhase('analyzed')
-          saveState({ result: r, optimizeResult: null, targetRole })
+          const state = { result: r, optimizeResult: null, targetRole }
+          saveState(state)
+          saveToDb(state)
         }
       } catch (e: unknown) { stopPolling(); setProfileError(e instanceof Error ? e.message : String(e)); setProfilePhase('input') }
     }, POLL_INTERVAL)
@@ -1247,7 +1287,9 @@ export default function ProfileBoostPage() {
           stopPolling()
           const r = data.result as BoostResult
           setResult(r); setProfilePhase('analyzed')
-          saveState({ result: r, optimizeResult: null, targetRole })
+          const state = { result: r, optimizeResult: null, targetRole }
+          saveState(state)
+          saveToDb(state)
         }
       } catch (e: unknown) { stopPolling(); setProfileError(e instanceof Error ? e.message : String(e)); setProfilePhase('input') }
     }, POLL_INTERVAL)
@@ -1280,7 +1322,11 @@ export default function ProfileBoostPage() {
           stopPolling()
           const or = data.result as OptimizeResult
           setOptimizeResult(or); setProfilePhase('analyzed')
-          if (result) saveState({ result, optimizeResult: or, targetRole })
+          if (result) {
+            const state = { result, optimizeResult: or, targetRole }
+            saveState(state)
+            saveToDb(state)
+          }
         }
       } catch (e: unknown) { stopPolling(); setProfileError(e instanceof Error ? e.message : String(e)); setProfilePhase('analyzed') }
     }, POLL_INTERVAL)

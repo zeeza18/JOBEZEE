@@ -360,6 +360,11 @@ class JobListing(Base):
     skills          = Column(JSON, default=list)
     exp_years_min   = Column(Integer, nullable=True)   # min yrs experience extracted from title/desc
     first_seen_at   = Column(DateTime(timezone=True), server_default=func.now())
+    # LLM-extracted fields (populated async by scripts/extract_jobs.py)
+    llm_skills       = Column(JSON, nullable=True)          # e.g. ["Python", "AWS", "Docker"]
+    llm_title        = Column(String(300), nullable=True)   # normalized job title
+    llm_years_min    = Column(Integer, nullable=True)       # required years of experience
+    llm_extracted_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class UserJobState(Base):
@@ -586,3 +591,15 @@ class UserCredits(Base):
     balance   = Column(Float, default=0.0)   # USD
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class LinkedInBoostResult(Base):
+    __tablename__ = "linkedin_boost_results"
+
+    id              = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id         = Column(String(36), nullable=False, unique=True, index=True)
+    result          = Column(JSON, nullable=False)
+    optimize_result = Column(JSON, nullable=True)
+    target_role     = Column(String(200), default='')
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at      = Column(DateTime(timezone=True), onupdate=func.now())

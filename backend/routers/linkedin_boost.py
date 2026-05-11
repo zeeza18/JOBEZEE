@@ -7,9 +7,17 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import httpx
-from fastapi import APIRouter, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..auth import get_current_user
+from ..database import get_db
+from ..models import LinkedInBoostResult
 
 router = APIRouter(prefix="/api/linkedin-boost", tags=["linkedin-boost"])
 
@@ -126,3 +134,60 @@ async def optimize(body: dict) -> dict:
 @router.get("/optimize-status/{job_id}")
 async def optimize_status(job_id: str) -> dict:
     return await _proxy_get(f"/api/linkedin-boost/optimize-status/{job_id}")
+
+
+# ── Persist / load boost results ─────────────────────────────────────────────
+
+@router.post("/save")
+async def save_boost_result(
+    body: dict,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Upsert the user's latest boost result + optimize result."""
+    result          = body.get("result")
+    optimize_result = body.get("optimize_result")
+    target_role     = body.get("target_role", "")
+
+    if not result:
+        raise HTTPException(400, "result is required")
+
+    stmt = pg_insert(LinkedInBoostResult).values(
+        user_id         = str(current_user.id),
+        result          = result,
+        optimize_result = optimize_result,
+        target_role     = target_role,
+    ).on_conflict_do_update(
+        index_elements=["user_id"],
+        set_={
+            "result":          result,
+            "optimize_result": optimize_result,
+            "target_role":     target_role,
+            "updated_at":      __import__("sqlalchemy").func.now(),
+        },
+    )
+    await db.execute(stmt)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/saved")
+async def get_saved_boost_result(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return the user's most recent saved boost result, or null if none."""
+    row = (await db.execute(
+        select(LinkedInBoostResult).where(LinkedInBoostResult.user_id == str(current_user.id))
+    )).scalar_one_or_none()
+
+    if not row:
+        return {"found": False}
+
+    return {
+        "found":          True,
+        "result":         row.result,
+        "optimize_result": row.optimize_result,
+        "target_role":    row.target_role,
+        "updated_at":     row.updated_at.isoformat() if row.updated_at is not None else None,
+    }
