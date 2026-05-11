@@ -12,9 +12,9 @@ const mainNav = [
 ]
 
 const linkedinNav = [
-  { to: '/app/linkedin',     label: 'Easy Apply',   icon: Linkedin },
-  { to: '/app/linkedin/boost',  label: 'Profile Boost', icon: Linkedin },
-  { to: '/app/linkedin/contacts',label: 'Contacts',   icon: Linkedin },
+  { to: '/app/linkedin',      label: 'Easy Apply',    icon: Linkedin, end: true },
+  { to: '/app/linkedin/boost',   label: 'Profile Boost', icon: Linkedin, end: true },
+  { to: '/app/linkedin/contacts',label: 'Contacts',      icon: Linkedin, end: true },
 ]
 
 const connectorsNav = [
