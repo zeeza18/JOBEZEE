@@ -482,11 +482,11 @@ function JobDetailDrawer({
                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2.5">
                   {job.matched_skills?.length > 0 && (
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 mb-1.5">You have</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 mb-1.5">Matched skills</p>
                       <div className="flex flex-wrap gap-1">
                         {job.matched_skills.map(s => (
-                          <span key={s} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">
-                            <span>👍</span>{s}
+                          <span key={s} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+                            <span className="text-emerald-500 font-bold">✓</span>{s}
                           </span>
                         ))}
                       </div>
@@ -494,10 +494,10 @@ function JobDetailDrawer({
                   )}
                   {job.missing_skills?.length > 0 && (
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Missing</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Missing skills</p>
                       <div className="flex flex-wrap gap-1">
                         {job.missing_skills.slice(0, 12).map(s => (
-                          <span key={s} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500">{s}</span>
+                          <span key={s} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">{s}</span>
                         ))}
                       </div>
                     </div>
