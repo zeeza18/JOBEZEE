@@ -470,38 +470,51 @@ function JobDetailDrawer({
 
           {/* Match score breakdown */}
           {job.match_score != null && (
-            <div>
-              <div className="flex items-center gap-3 mb-3">
+            <div className="space-y-3">
+              {/* Score header row */}
+              <div className="flex items-center gap-3">
                 <MatchScoreGauge score={job.match_score} />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Resume Match</p>
-                  <p className="text-sm text-slate-500">Based on your resume skills and experience</p>
-                </div>
+                <p className="text-sm font-semibold text-slate-700">Resume Match Score</p>
               </div>
-              {(job.matched_skills?.length > 0 || job.missing_skills?.length > 0) && (
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2.5">
-                  {job.matched_skills?.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 mb-1.5">Matched skills</p>
-                      <div className="flex flex-wrap gap-1">
-                        {job.matched_skills.map(s => (
-                          <span key={s} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
-                            <span className="text-emerald-500 font-bold">✓</span>{s}
-                          </span>
-                        ))}
-                      </div>
+
+              {/* Matching section */}
+              {(() => {
+                const salary  = fmtSalary(job) || extractDescSalary(job.description || '')
+                const exp     = extractExp(job.description || '')
+                const hasInfo = salary || exp || (job.matched_skills?.length ?? 0) > 0
+                return hasInfo ? (
+                  <div>
+                    <p className="text-sm font-bold text-emerald-600 mb-2">Matching</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {salary && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                          <span className="font-bold">✓</span> {salary}
+                        </span>
+                      )}
+                      {exp && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                          <span className="font-bold">✓</span> {exp} exp
+                        </span>
+                      )}
+                      {(job.matched_skills ?? []).map(s => (
+                        <span key={s} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                          <span className="font-bold">✓</span> {s}
+                        </span>
+                      ))}
                     </div>
-                  )}
-                  {job.missing_skills?.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Missing skills</p>
-                      <div className="flex flex-wrap gap-1">
-                        {job.missing_skills.slice(0, 12).map(s => (
-                          <span key={s} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">{s}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  </div>
+                ) : null
+              })()}
+
+              {/* Missing section */}
+              {(job.missing_skills?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-sm font-bold text-slate-500 mb-2">Missing</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(job.missing_skills ?? []).slice(0, 15).map(s => (
+                      <span key={s} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">{s}</span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -934,6 +947,7 @@ function JobCard({
           )}
 
         </div>
+      </div>{/* end action footer */}
       </div>{/* end left column */}
 
       {/* ── Right: match score panel ───────────────────────────────────── */}
@@ -1992,17 +2006,17 @@ export default function PulledJobsPage() {
         const bApp = b.status === 'applied' ? 0 : 1
         if (aApp !== bApp) return bApp - aApp
       }
-      // Most recently posted first
+      // Primary: AI match score highest first (null = unscored, ranks last)
+      const aScore = a.match_score ?? -1
+      const bScore = b.match_score ?? -1
+      if (bScore !== aScore) return bScore - aScore
+
+      // Tiebreaker: most recently posted
       const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0
       const bTime = b.posted_at ? new Date(b.posted_at).getTime() : 0
       if (bTime !== aTime) return bTime - aTime
 
-      // Primary tier: how many of (salary / location / exp) the job actually has info for.
-      // Tier 3 (all 3 present) → Tier 2 → Tier 1 → Tier 0 (nothing mentioned).
-      const aInfo = jobInfoCount(a), bInfo = jobInfoCount(b)
-      if (bInfo !== aInfo) return bInfo - aInfo
-
-      // Within same info tier: jobs matching user preferences rank higher.
+      // Within same score+time: jobs matching user preferences rank higher.
       const scoreA = salaryScore(a, userMin, userMax) + locationMatchScore(a, prefLocs) + expMatchScore(a, userYears)
       const scoreB = salaryScore(b, userMin, userMax) + locationMatchScore(b, prefLocs) + expMatchScore(b, userYears)
       return scoreB - scoreA
