@@ -151,9 +151,8 @@ async def save_boost_result(
     photo_result    = body.get("photo_result")
     cover_result    = body.get("cover_result")
 
-    # Allow saving image-only updates (photo/cover) without a profile result
-    if not result and photo_result is None and cover_result is None:
-        raise HTTPException(400, "result is required")
+    if result is None and photo_result is None and cover_result is None:
+        raise HTTPException(400, "nothing to save")
 
     existing = (await db.execute(
         select(LinkedInBoostResult).where(LinkedInBoostResult.user_id == str(current_user.id))
@@ -172,8 +171,6 @@ async def save_boost_result(
                 setattr(existing, k, v)
         await db.commit()
     else:
-        if not result:
-            raise HTTPException(400, "result is required for first save")
         stmt = pg_insert(LinkedInBoostResult).values(
             user_id         = str(current_user.id),
             result          = result,

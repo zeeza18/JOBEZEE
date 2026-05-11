@@ -382,7 +382,7 @@ async def run_schema_migration() -> None:
                 f"ALTER TABLE tailor_jobs ADD COLUMN IF NOT EXISTS {col} {defn}"
             ))
 
-        # ── linkedin_boost_results: photo/cover columns added later ──────────────
+        # ── linkedin_boost_results: photo/cover columns + nullable result ────────
         for col, defn in [
             ("photo_result", "JSON DEFAULT NULL"),
             ("cover_result", "JSON DEFAULT NULL"),
@@ -390,6 +390,9 @@ async def run_schema_migration() -> None:
             await conn.execute(text(
                 f"ALTER TABLE linkedin_boost_results ADD COLUMN IF NOT EXISTS {col} {defn}"
             ))
+        await conn.execute(text(
+            "ALTER TABLE linkedin_boost_results ALTER COLUMN result DROP NOT NULL"
+        ))
 
         # ── user_credits: create if not exists (safety net alongside create_all)
         await conn.execute(text("""

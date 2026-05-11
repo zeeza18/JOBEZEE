@@ -598,7 +598,7 @@ class LinkedInBoostResult(Base):
 
     id              = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id         = Column(String(36), nullable=False, unique=True, index=True)
-    result          = Column(JSON, nullable=False)
+    result          = Column(JSON, nullable=True)
     optimize_result = Column(JSON, nullable=True)
     target_role     = Column(String(200), default='')
     photo_result    = Column(JSON, nullable=True)
