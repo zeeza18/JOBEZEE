@@ -80,11 +80,24 @@ def _extract_skills_fallback(text: str) -> list[str]:
     tokens += re.findall(r"\b[A-Za-z]\+\+|\b[A-Za-z]#", text)
 
     _NOISE = {
+        # Resume / JD section headers
         "summary", "experience", "education", "skills", "projects",
         "technical", "professional", "key", "certifications", "awards",
         "responsibilities", "achievements", "languages", "interests",
         "requirements", "qualifications", "about", "overview", "note",
         "important", "salary", "benefits", "location", "equal", "opportunity",
+        # Common English words that appear ALL-CAPS in JDs
+        "will", "must", "have", "need", "with", "your", "our", "the",
+        "and", "for", "this", "that", "are", "not", "you", "can", "may",
+        "also", "both", "well", "able", "all", "any", "new", "such",
+        "who", "what", "when", "where", "how", "they", "them", "their",
+        "other", "more", "work", "team", "role", "good", "great", "strong",
+        "us", "or", "if", "no", "yes", "etc", "per", "via", "plus",
+        "top", "core", "high", "low", "big", "end", "full",
+        # Degree abbreviations (not skills by themselves)
+        "bs", "ms", "ba", "ma", "mba", "phd", "md",
+        # Too-generic domain labels (the whole field isn't a skill)
+        "ai", "ml", "it", "bi", "qa", "io",
     }
 
     seen: set[str] = set()
@@ -159,9 +172,9 @@ def _skills_score(
             matched_display.append(jd_orig)
             continue
 
-        # 2. Substring match (3+ chars) — "postgres" ⊂ "postgresql"
+        # 2. Substring match — "postgres" ⊂ "postgresql", "ai" ⊂ "aiengineer"
         for res_norm in res_set:
-            if len(jd_norm) >= 3 and jd_norm in res_norm:
+            if len(jd_norm) >= 2 and jd_norm in res_norm:
                 matched_display.append(jd_orig)
                 found = True
                 break
@@ -247,6 +260,14 @@ def score_job_for_user(
 
     # Job skills: prefer LLM-extracted originals, fall back to domain-agnostic regex
     j_skills_raw: list[str] = list(job_llm_skills) if job_llm_skills else _extract_skills_fallback(job_description)
+
+    # Drop trivially noisy JD tokens: standalone 1-2 char words and common English
+    _JD_NOISE = {
+        "ai", "ml", "it", "bi", "qa", "io",
+        "bs", "ms", "ba", "ma", "mba", "phd",
+        "will", "must", "have", "good", "strong", "plus", "etc",
+    }
+    j_skills_raw = [s for s in j_skills_raw if _normalize_skill(s) not in _JD_NOISE]
 
     j_years = int(job_llm_years_min or 0) or _extract_years_from_text(job_description)
 
