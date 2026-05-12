@@ -903,16 +903,6 @@ function JobCard({
                   {source}
                 </span>
               )}
-              {job.status === 'applied' && (
-                <span className="shrink-0 flex items-center gap-0.5 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                  <CheckCircle2 className="h-2.5 w-2.5" /> Applied
-                </span>
-              )}
-              {job.status === 'hidden' && (
-                <span className="shrink-0 flex items-center gap-0.5 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-500">
-                  <Ban className="h-2.5 w-2.5" /> Not Interested
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-0.5 shrink-0">
               {job.url && (
@@ -990,6 +980,39 @@ function JobCard({
               {descPreview}
             </p>
           )}
+
+          {/* Matching / Missing skills */}
+          {job.match_score != null && (() => {
+            const matched = (job.matched_skills ?? []).slice(0, 5)
+            const missing = (job.missing_skills ?? []).slice(0, 4)
+            const extraM  = (job.matched_skills ?? []).length - matched.length
+            const extraX  = (job.missing_skills ?? []).length - missing.length
+            if (!matched.length && !missing.length) return null
+            return (
+              <div className="mt-2.5 space-y-1.5">
+                {matched.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-emerald-600 shrink-0 mr-0.5">Matching</span>
+                    {matched.map(s => (
+                      <span key={s} className="inline-flex items-center gap-0.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                        <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />{s}
+                      </span>
+                    ))}
+                    {extraM > 0 && <span className="text-[10px] text-slate-400">+{extraM}</span>}
+                  </div>
+                )}
+                {missing.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-rose-500 shrink-0 mr-0.5">Missing</span>
+                    {missing.map(s => (
+                      <span key={s} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-500">{s}</span>
+                    ))}
+                    {extraX > 0 && <span className="text-[10px] text-slate-400">+{extraX}</span>}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
       {/* Action footer */}
@@ -2068,13 +2091,16 @@ export default function PulledJobsPage() {
 
     return jobs.filter(j => {
       // Tab filter
-      if (activeTab === 'new')      return Date.now() - new Date(j.pulled_at).getTime() < 48 * 3_600_000
+      if (activeTab === 'new')      return j.status !== 'hidden' && Date.now() - new Date(j.pulled_at).getTime() < 24 * 3_600_000
       if (activeTab === 'saved')    return j.status === 'saved' || j.status === 'favourite'
       if (activeTab === 'hidden')   return j.status === 'hidden'
       if (activeTab === 'applied')  return j.status === 'applied'
       if (activeTab === 'tailored') return (tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error') || j.status === 'applied'
-      // ALL: exclude hidden only
+      // ALL: exclude hidden, saved/favourite, and any job with an active tailor state
       if (j.status === 'hidden') return false
+      if (j.status === 'saved' || j.status === 'favourite') return false
+      const _ts = tailorJobs.get(j.id)
+      if (_ts && _ts.status !== 'error') return false
 
       // Panel filters
       if (filters.location) {
@@ -2146,11 +2172,11 @@ export default function PulledJobsPage() {
 
       return true
     }).sort((a, b) => {
-      // Saved float to top in ALL
-      if (activeTab === 'all') {
-        const aS = a.status === 'saved' || a.status === 'favourite' ? 1 : 0
-        const bS = b.status === 'saved' || b.status === 'favourite' ? 1 : 0
-        if (aS !== bS) return bS - aS
+      // NEW tab: newest pulled first — no match score ranking
+      if (activeTab === 'new') {
+        const aTime = a.pulled_at ? new Date(a.pulled_at).getTime() : 0
+        const bTime = b.pulled_at ? new Date(b.pulled_at).getTime() : 0
+        return bTime - aTime
       }
       // Tailored tab: done > tailoring > queued > applied
       if (activeTab === 'tailored') {
@@ -2181,8 +2207,19 @@ export default function PulledJobsPage() {
   }, [jobs, activeTab, filters, userProfile, tailorJobs])
 
   // ── Tab counts ───────────────────────────────────────────────────────────────
-  const allCount      = stats ? (stats.total - (stats.hidden || 0)) : 0
-  const newCount      = stats?.new ?? 0
+  const allCount = useMemo(
+    () => jobs.filter(j =>
+      j.status !== 'hidden' &&
+      j.status !== 'saved' &&
+      j.status !== 'favourite' &&
+      !(tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error')
+    ).length,
+    [jobs, tailorJobs],
+  )
+  const newCount = useMemo(
+    () => jobs.filter(j => j.status !== 'hidden' && Date.now() - new Date(j.pulled_at).getTime() < 24 * 3_600_000).length,
+    [jobs],
+  )
   const savedCount    = stats ? ((stats.saved || 0) + (stats.favourite || 0)) : 0
   const hiddenCount   = stats?.hidden ?? 0
   const appliedCount  = stats?.applied ?? 0
