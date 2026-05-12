@@ -243,7 +243,15 @@ def _load_env_key(name: str) -> str:
     val = os.environ.get(name, "")
     if val:
         return val
-    for p in [Path(__file__).parents[2] / ".env", Path(__file__).parents[3] / ".env"]:
+    # Search candidate .env locations — backend/.env, repo root, parent
+    candidates = [
+        Path(__file__).parents[1] / ".env",   # backend/.env  ← actual location
+        Path(__file__).parents[2] / ".env",   # repo root/.env
+        Path(__file__).parents[3] / ".env",   # one above repo
+        Path.cwd() / ".env",                  # wherever the script is run from
+        Path.cwd() / "backend" / ".env",      # cwd/backend/.env
+    ]
+    for p in candidates:
         if p.exists():
             for line in p.read_text(encoding="utf-8").splitlines():
                 line = line.strip()

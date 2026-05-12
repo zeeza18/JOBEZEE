@@ -88,7 +88,18 @@ def style_header(cell, color="4472C4"):
     cell.fill  = PatternFill("solid", fgColor=color)
     cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
+def check_groq():
+    from backend.services.extraction_service import _load_env_key, _GROQ_MODEL
+    key = _load_env_key("GROQ_API_KEY")
+    if not key:
+        print("⚠  GROQ_API_KEY not found — will use regex fallback (lower quality)")
+        return False
+    print(f"✓  GROQ_API_KEY loaded ({key[:8]}...) | model: {_GROQ_MODEL}")
+    return True
+
 def run():
+    llm_ok = check_groq()
+    print()
     wb = openpyxl.load_workbook(XLSX_IN)
     ws = wb.active
 
@@ -172,7 +183,9 @@ def run():
             ws.cell(row=row_idx, column=11 + i).value = f"{disp}%"
             score_line.append(f"{label.split()[0]}={disp}%")
 
-        print("  " + "  ".join(score_line))
+        comp_line = (f"sem={pct(comps['semantic'])} sk={pct(comps['skills'])} "
+                     f"exp={pct(comps['exp'])} ttl={pct(comps['title'])}")
+        print(f"  [{comp_line}]  " + "  ".join(score_line))
 
     wb.save(XLSX_OUT)
     print(f"\nSaved → {XLSX_OUT}")
