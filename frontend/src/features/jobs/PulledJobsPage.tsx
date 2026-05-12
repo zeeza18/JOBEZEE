@@ -471,23 +471,42 @@ function JobDetailDrawer({
 
           {/* Match score breakdown */}
           {job.match_score != null && (() => {
-            const desc        = job.description || ''
-            const salary      = fmtSalary(job) || extractDescSalary(desc)
-            const exp         = extractExp(desc)
-            const sponsorship = detectSponsorship(desc)
-            const jdEdu       = detectJDEdu(desc)
-            const userEduLvl  = eduLevel(userProfile?.education ?? '')
-            const eduMatched  = jdEdu != null && userEduLvl >= jdEdu.level
-            const eduMissing  = jdEdu != null && userEduLvl < jdEdu.level
+            const desc = job.description || ''
 
-            const matchItems  = [
-              salary ? { key: 'salary', label: salary } : null,
-              exp    ? { key: 'exp',    label: `${exp} exp` } : null,
+            // ── Salary: compare job salary vs user target ────────────────────
+            const jobSalary    = fmtSalary(job) || extractDescSalary(desc)
+            const salaryRange  = jobSalaryRange(job)
+            const userSalMin   = userProfile?.salary_min ?? 0
+            const salaryMet    = jobSalary && (!userSalMin || (salaryRange ? salaryRange[0] >= userSalMin : true))
+            const salaryMiss   = jobSalary && userSalMin > 0 && salaryRange != null && salaryRange[1] < userSalMin
+
+            // ── Experience: from resume_extraction, compare against JD ───────
+            const resumeYears  = userProfile?.resume_extraction?.years_exp ?? 0
+            const jdExpNum     = extractExpNum(desc) ?? 0
+            const expMet       = jdExpNum > 0 && resumeYears > 0 && resumeYears >= jdExpNum
+            const expMiss      = jdExpNum > 0 && resumeYears > 0 && resumeYears < jdExpNum
+            const expLabel     = jdExpNum > 0 ? `${jdExpNum}+ yrs exp` : ''
+
+            // ── Education: from resume_extraction ───────────────────────────
+            const jdEdu        = detectJDEdu(desc)
+            const userEduStr   = userProfile?.resume_extraction?.education ?? userProfile?.education ?? ''
+            const userEduLvl   = eduLevel(userEduStr)
+            const eduMatched   = jdEdu != null && userEduLvl >= jdEdu.level
+            const eduMissing   = jdEdu != null && userEduLvl > 0 && userEduLvl < jdEdu.level
+
+            // ── Sponsorship ──────────────────────────────────────────────────
+            const sponsorship  = detectSponsorship(desc)
+
+            const matchItems = [
+              (salaryMet && !salaryMiss) ? { key: 'salary', label: jobSalary! } : null,
+              expMet ? { key: 'exp', label: expLabel } : null,
               (jdEdu && eduMatched) ? { key: 'edu', label: jdEdu.label.replace(' req.', '') } : null,
               ...(job.matched_skills ?? []).map(s => ({ key: s, label: s })),
             ].filter(Boolean) as { key: string; label: string }[]
 
             const missingItems = [
+              salaryMiss ? { key: 'salary', label: `Salary below target` } : null,
+              expMiss ? { key: 'exp', label: expLabel } : null,
               (jdEdu && eduMissing) ? { key: 'edu', label: jdEdu.label } : null,
               ...(job.missing_skills ?? []).slice(0, 12).map(s => ({ key: s, label: s })),
             ].filter(Boolean) as { key: string; label: string }[]
@@ -496,8 +515,7 @@ function JobDetailDrawer({
               : sponsorship === 'no' ? 'bg-rose-50 border-rose-200 text-rose-600'
               : 'bg-slate-50 border-slate-200 text-slate-500'
             const sponsorDot = sponsorship === 'yes' ? 'bg-emerald-400'
-              : sponsorship === 'no' ? 'bg-rose-400'
-              : 'bg-slate-300'
+              : sponsorship === 'no' ? 'bg-rose-400' : 'bg-slate-300'
             const sponsorLabel = sponsorship === 'yes' ? 'Yes' : sponsorship === 'no' ? 'No' : 'Maybe'
 
             return (
@@ -507,7 +525,7 @@ function JobDetailDrawer({
                   <MatchScoreGauge score={job.match_score} />
                   <div>
                     <p className="text-sm font-semibold text-slate-700">Resume Match</p>
-                    <p className="text-xs text-slate-400">Based on your profile</p>
+                    <p className="text-xs text-slate-400">Based on your resume</p>
                   </div>
                 </div>
 

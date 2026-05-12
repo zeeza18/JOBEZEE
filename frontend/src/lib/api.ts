@@ -100,6 +100,15 @@ export interface UserProfile {
   resume_url                : string
   apply_password            : string
 
+  // LLM-extracted resume facts (populated on resume upload)
+  resume_extraction         ?: {
+    title       ?: string
+    skills      ?: string[]
+    years_exp   ?: number
+    education   ?: string   // "phd" | "masters" | "bachelors" | "associate" | "none"
+    location    ?: string
+  } | null
+
   created_at                : string
   updated_at                : string
 }

@@ -167,7 +167,8 @@ class UserProfileResponse(UserProfileBase):
     resume_filename : str = ""
     resume_url      : str = ""
     avatar_url      : str = ""
-    credentials_set : dict = Field(default_factory=dict)   # {field: bool} — which sensitive fields are set in DB
+    credentials_set : dict = Field(default_factory=dict)
+    resume_extraction: dict | None = None   # LLM-extracted resume facts: title, skills, years_exp, education, location
     created_at      : datetime
     updated_at      : datetime
 
