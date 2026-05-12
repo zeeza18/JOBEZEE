@@ -589,6 +589,63 @@ async def _run_startup_db() -> None:
     except Exception as exc:
         _log.warning("[Startup] Stuck-job cleanup failed (non-fatal): %s", exc)
 
+    # ── Rescore any unscored jobs (e.g. from failed fan-out batches) ──────────
+    try:
+        from sqlalchemy import select as _sel, update as _upd2, func as _func
+        from .models import UserProfile, UserJobState, JobListing
+        from .services.scorer_service import score_job_for_user
+        from datetime import datetime, timezone
+
+        async with AsyncSessionLocal() as _db:
+            # Find users with resume_extraction that have unscored jobs
+            profiles = (await _db.execute(
+                _sel(UserProfile).where(UserProfile.resume_extraction.isnot(None))
+            )).scalars().all()
+
+            total_rescored = 0
+            for p in profiles:
+                uid = str(p.id)
+                unscored_states = (await _db.execute(
+                    _sel(UserJobState)
+                    .where(UserJobState.user_id == uid, UserJobState.match_score.is_(None))
+                    .limit(500)
+                )).scalars().all()
+
+                if not unscored_states:
+                    continue
+
+                job_ids = [s.job_id for s in unscored_states]
+                jobs = {j.id: j for j in (await _db.execute(
+                    _sel(JobListing).where(JobListing.id.in_(job_ids))
+                )).scalars().all()}
+
+                now = datetime.now(timezone.utc)
+                for state in unscored_states:
+                    job = jobs.get(state.job_id)
+                    if not job:
+                        continue
+                    try:
+                        score, matched, missing = score_job_for_user(
+                            job.title or "", job.description or "",
+                            list(job.llm_skills) if job.llm_skills else None,
+                            job.llm_years_min, p.resume_extraction,
+                        )
+                        await _db.execute(
+                            _upd2(UserJobState).where(UserJobState.id == state.id)
+                            .values(match_score=score, matched_skills=matched,
+                                    missing_skills=missing, scored_at=now)
+                        )
+                        total_rescored += 1
+                    except Exception:
+                        pass
+
+                await _db.commit()
+
+            if total_rescored:
+                _log.info("[Startup] Auto-rescored %d unscored job-user pairs", total_rescored)
+    except Exception as exc:
+        _log.warning("[Startup] Auto-rescore failed (non-fatal): %s", exc)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
