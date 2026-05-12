@@ -137,52 +137,50 @@ _SYS = (
 )
 
 _JD_PROMPT = """\
-You are an ATS keyword extraction expert. Extract EVERY keyword from the job description.
-
-EXTRACT ALL OF THESE:
-
-1. TECHNICAL SKILLS
-   - Programming languages (Python, SQL, Java, R, C++, etc.)
-   - Libraries/Frameworks (Pandas, NumPy, TensorFlow, PyTorch, FastAPI, React, etc.)
-   - Platforms (AWS, GCP, Azure, Databricks, Snowflake, etc.)
-   - Tools (Docker, Kubernetes, Git, Jira, Terraform, etc.)
-   - Databases (PostgreSQL, MongoDB, Redis, MySQL, etc.)
-   - AI/ML terms (LLM, RAG, NLP, transformers, vector databases, fine-tuning, etc.)
-   - Specific products/APIs (OpenAI, Anthropic, LangChain, LangGraph, Salesforce, SAP, etc.)
-
-2. SOFT SKILLS (only if explicitly mentioned)
-   - Communication, collaboration, leadership, problem-solving
-   - Stakeholder management, cross-functional teamwork
-
-3. DOMAIN TERMS
-   - Industry-specific terms (FinTech, healthcare, compliance, HIPAA, SOC2, etc.)
-   - Role-specific terms (agent development, orchestration, financial modeling, etc.)
-   - Methodologies (Agile, Scrum, CI/CD, DevOps, Six Sigma, etc.)
-   - Certifications (CPA, PMP, AWS Certified, Series 7, RN, etc.)
+You are an expert ATS keyword extractor for job descriptions. Your job is to identify ONLY genuine skills, tools, technologies, and domain certifications — NOT benefits, perks, policies, or generic words.
 
 Job Description:
 {jd_text}
 
 Return ONLY this JSON (no markdown, no code fences, no extra text):
 {{
-  "job_title": "2-3 word job title",
-  "keywords": ["Python", "TensorFlow", "AWS", "..."],
+  "job_title": "2-5 word job title",
+  "keywords": ["Python", "TensorFlow", "AWS", "CI/CD", "..."],
   "needs": ["5+ years Python experience", "Bachelor's degree Computer Science", "..."],
-  "results": ["build and deploy AI agents", "optimize ML pipelines", "..."],
   "location": "Remote or City, State/Country",
   "salary_text": "$80k-$120k or empty string"
 }}
 
-CRITICAL RULES:
-- keywords[]: EVERY specific tool, library, platform, methodology, certification, domain term — each as a separate string
-- needs[]: years of experience requirements, degree requirements, clearance requirements — as readable phrases
-- results[]: what the job wants built/done/achieved
-- DO NOT add the company name to keywords[] — it is the employer, not a skill
-- DO NOT add geographic terms (USA, Texas, Remote) to keywords[]
-- DO NOT add contract/legal types (LLC, C2C, W2) to keywords[]
-- DO NOT add boilerplate words (WILL, MUST, HAVE, EXP, PEOPLE, TEAM) to keywords[]
-- location: city/region from the JD (empty string if fully remote or not stated)
-- salary_text: exact salary range text if present, else empty string
+WHAT TO INCLUDE in keywords[]:
+- Programming languages: Python, SQL, Java, R, C++, Go, Rust, TypeScript
+- Libraries / frameworks: Pandas, PyTorch, FastAPI, React, LangChain, Spark
+- Cloud platforms: AWS, GCP, Azure, Databricks, Snowflake
+- DevOps / infra tools: Docker, Kubernetes, Terraform, GitHub Actions, CI/CD, Airflow
+- Databases: PostgreSQL, MongoDB, Redis, MySQL, Pinecone, Weaviate
+- AI / ML terms: LLM, RAG, NLP, fine-tuning, embeddings, transformers, LoRA, RLHF
+- Specific AI products: OpenAI, Anthropic, LangGraph, Hugging Face, Groq
+- Domain certifications: CPA, PMP, CISSP, AWS Certified, Series 7, PCI-DSS, HIPAA, SOC2
+- Methodologies: Agile, Scrum, DevOps, MLOps, Six Sigma
+- Soft skills ONLY if explicitly listed as requirements: leadership, communication
+
+WHAT TO NEVER INCLUDE in keywords[]:
+- Currency codes: USD, EUR, GBP, CAD — these are payment units, not skills
+- Country / region codes: USA, IND, UK, APAC, EMEA, LATAM — not skills
+- HR benefits and perks: PTO, EAP, FSA, HSA, 401k, ESPP, RSU, stipend — not skills
+- Employee discount platforms: DashPass, TicketsAtWork, Hims, Hers, Calm, Headspace — perks not skills
+- Company names used as perks ("LinkedIn Learning", "DoorDash credits") — not the same as knowing the tool
+- Acronyms of laws / regulations that are NOT certifications: ADA (Americans with Disabilities Act), FMLA, EEO, EEOC, NLRA — skip unless the job explicitly requires certifying knowledge of them
+- Generic HR policy words: Work/Life (balance), Culture, Benefits, Perks, Growth, Diversity
+- Generic job-ad filler: MUST, WILL, HAVE, TEAM, PEOPLE, ROLE, GREAT, PLUS, YEARS
+- Contract / tax types: C2C, W2, LLC, Corp
+- Duplicates: if you see both "CUDA" and "CUDA/NVIDIA", output only the more descriptive one
+
+DEDUPLICATION RULES:
+- Keep the most descriptive / specific version: prefer "CUDA/NVIDIA" over "CUDA" alone if both appear
+- Prefer "PostgreSQL" over "Postgres" if both appear; never list both
+- Prefer "GitHub" over "Git" if both appear in the same JD and they mean the same thing
+
+Return ONLY the JSON. No explanation, no markdown.
 
 VALIDATION: valid JSON only, no trailing commas, no text outside the JSON object."""
 
@@ -346,6 +344,60 @@ def _parse_education_from_needs(needs: list[str]) -> str:
     return "none"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Hard noise filter — terms that are NEVER skills regardless of LLM output
+# ─────────────────────────────────────────────────────────────────────────────
+
+_NOISE = frozenset({
+    # Currency codes
+    "usd", "eur", "gbp", "cad", "aud", "inr", "jpy",
+    # Country / region codes
+    "usa", "ind", "uk", "eu", "us", "apac", "emea", "latam", "nam",
+    # HR benefits & policy acronyms
+    "pto", "eap", "fsa", "hsa", "espp", "rsu", "401k",
+    # Employee discount platforms / company perks
+    "dashpass", "ticketsatwork", "hims", "hers", "calm", "headspace",
+    # Work-life / generic policy phrases
+    "work/life", "worklife", "work-life",
+    # Laws/acts (not certifications)
+    "fmla", "eeo", "eeoc", "nlra",
+    # Pure filler
+    "team", "people", "role", "will", "must", "have", "great", "plus",
+    "years", "growth", "culture", "benefits", "perks", "diversity",
+    # Contract types
+    "c2c", "w2", "llc", "corp",
+})
+
+
+def _filter_skills(skills: list[str]) -> list[str]:
+    """Remove definite non-skills and deduplicate by normalized key."""
+    seen_norm: dict[str, str] = {}   # norm → best display name
+    for s in skills:
+        s = s.strip()
+        if not s or len(s) < 2:
+            continue
+        norm = re.sub(r"[\s\-\._/]+", "", s.lower())
+        if norm in _NOISE:
+            continue
+        # Keep the longer / more descriptive variant (CUDA/NVIDIA > CUDA)
+        if norm not in seen_norm or len(s) > len(seen_norm[norm]):
+            seen_norm[norm] = s
+    # Also suppress if a strict substring of another kept skill
+    # e.g. drop "CUDA" when "CUDA/NVIDIA" is present
+    display_vals = list(seen_norm.values())
+    final: list[str] = []
+    for s in display_vals:
+        norm_s = re.sub(r"[\s\-\._/]+", "", s.lower())
+        shadowed = any(
+            norm_s != re.sub(r"[\s\-\._/]+", "", other.lower()) and
+            norm_s in re.sub(r"[\s\-\._/]+", "", other.lower())
+            for other in display_vals
+        )
+        if not shadowed:
+            final.append(s)
+    return sorted(final)
+
+
 def pdf_to_text(pdf_bytes: bytes) -> str:
     try:
         from pdfminer.high_level import extract_text as _pdfminer
@@ -380,13 +432,12 @@ def extract_jd(text: str) -> JobExtracted | None:
         return None
 
     try:
-        # Map tool1_prompt.txt output → JobExtracted fields
+        # Map output → JobExtracted fields
         keywords : list[str] = data.get("keywords") or []
         needs    : list[str] = data.get("needs") or []
-        results  : list[str] = data.get("results") or []
 
-        # Combine keywords + results as the full skill list
-        all_skills = keywords + [r for r in results if len(r.split()) <= 5]
+        # Filter noise and deduplicate before storing
+        all_skills = _filter_skills(keywords)
 
         years_min  = _parse_years_from_needs(needs) or data.get("years_min") or 0
         education  = _parse_education_from_needs(needs)
