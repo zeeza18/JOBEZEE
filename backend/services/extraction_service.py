@@ -34,6 +34,8 @@ class JobExtracted(BaseModel):
     skills: list[str] = []
     years_min: int = 0
     education: str = "none"
+    location: str = ""        # job location e.g. "Remote", "New York, NY"
+    salary_text: str = ""     # e.g. "$80,000 - $120,000" or "£50k" or ""
 
     @field_validator("skills", mode="before")
     @classmethod
@@ -60,6 +62,11 @@ class JobExtracted(BaseModel):
     @field_validator("title", mode="before")
     @classmethod
     def _clean_title(cls, v):
+        return str(v).strip() if v else ""
+
+    @field_validator("location", "salary_text", mode="before")
+    @classmethod
+    def _clean_str(cls, v):
         return str(v).strip() if v else ""
 
 
@@ -119,45 +126,70 @@ class ResumeExtracted(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 _SYS = (
-    "You are a precise data extractor. "
-    "Return ONLY valid JSON — no explanation, no markdown, no code fences."
+    "You are an ATS keyword extraction expert. "
+    "Return ONLY valid JSON — no markdown, no code fences, no extra text."
 )
 
 _JD_PROMPT = """\
-Extract structured data from this job description.
+You are an ATS keyword extraction expert. Extract EVERY keyword from this job description.
+Works for ALL professions: tech, finance, healthcare, marketing, design, admin, sales, law, art, education, and more.
 
 Job Description:
 {text}
 
-Return exactly this JSON (no extra keys):
-{{"title": "job title", "skills": ["Python", "AWS", "Docker"], "years_min": 3, "education": "bachelors"}}
+Return ONLY this JSON (no markdown, no code fences):
+{{"title": "2-3 word job title", "skills": ["keyword1", "keyword2", ...], "years_min": 0, "education": "bachelors", "location": "Remote or City, Country", "salary_text": "$80k - $120k or empty string"}}
 
-Rules:
-- skills: ONLY hard technical skills — programming languages, frameworks, libraries, platforms, \
-databases, cloud services, DevOps tools, ML/AI frameworks. NO soft skills, NO company names, \
-NO adjectives.
-- years_min: integer (0 if not stated)
-- education: one of: phd / masters / bachelors / associate / none"""
+EXTRACT ALL of these into skills[]:
+1. Hard skills: programming languages, tools, platforms, databases, cloud, certifications, software, equipment
+2. Domain terms: industry-specific knowledge, methodologies, frameworks, processes
+3. Soft skills explicitly mentioned: "leadership", "communication", "stakeholder management", "cross-functional"
+4. Role-specific outcomes: "data analysis", "budget management", "patient care", "sales forecasting", "graphic design"
+5. Certifications: CPA, PMP, CFA, RN, MD, Series 7, AWS Certified, Google Analytics, etc.
+6. Action deliverables: what they want built/done e.g. "agent development", "financial modelling", "campaign management"
+
+RULES:
+- Extract EVERY specific keyword — technical, professional, domain, soft skills all included
+- Each item is a separate string: RIGHT: "Python", "leadership" | WRONG: "Python and leadership"
+- DO NOT include the employer company name in skills[]
+- years_min: integer years of experience required (0 if not stated)
+- education: one of: phd / masters / bachelors / associate / none
+- location: job location e.g. "Remote", "New York, NY", "London, UK" (empty string if not found)
+- salary_text: salary range as written in JD (empty string if not found)
+
+VALIDATION: valid JSON only, no trailing commas, no text outside the JSON object."""
 
 _RESUME_PROMPT = """\
-Extract structured data from this resume.
+You are an ATS keyword extraction expert. Extract ALL relevant information from this resume.
+Works for ALL professions: tech, finance, healthcare, marketing, design, admin, sales, law, art, education, and more.
 
 Resume:
 {text}
 
-Return exactly this JSON (no extra keys):
-{{"title": "most recent job title", "skills": ["Python", "React", "PostgreSQL"], \
-"years_exp": 5, "education": "bachelors", "work_authorized": true, \
-"salary_expectation": 120000, "location": "New York, NY", "has_references": false}}
+Return ONLY this JSON (no markdown, no code fences):
+{{"title": "most recent job title", "skills": ["keyword1", "keyword2", ...], "years_exp": 5, \
+"education": "bachelors", "work_authorized": true, "salary_expectation": 120000, \
+"location": "New York, NY", "has_references": false}}
 
-Rules:
-- skills: ONLY hard technical skills — programming languages, frameworks, tools, platforms, databases, cloud services. NO soft skills.
-- years_exp: integer, total years of professional experience (0 if unknown)
+EXTRACT ALL of these into skills[]:
+1. Hard skills: programming, tools, platforms, certifications, software, equipment, languages
+2. Domain expertise: industry knowledge, methodologies, processes, regulations
+3. Soft skills explicitly listed: "leadership", "project management", "client relations", "public speaking"
+4. Deliverables and outcomes: "financial reporting", "UX research", "campaign analytics", "patient assessment"
+5. Certifications: CPA, PMP, CFA, AWS Certified, Google Analytics, Series 7, RN, etc.
+6. Tools and software: Excel, Salesforce, Figma, AutoCAD, SAP, QuickBooks, Adobe Suite, etc.
+
+RULES:
+- skills[]: capture EVERY hard AND soft skill explicitly mentioned — all domains, all levels
+- Each item is separate: RIGHT: "Excel", "client management" | WRONG: "Excel and client management"
+- years_exp: total years of professional experience as integer (0 if unknown)
 - education: one of: phd / masters / bachelors / associate / none
-- work_authorized: true if resume mentions US work authorization / citizen / permanent resident; false if mentions visa/sponsorship needed; true if unclear
+- work_authorized: true if resume mentions US work authorization/citizen/PR; false if needs visa sponsorship; true if unclear
 - salary_expectation: annual salary in USD as integer (0 if not stated)
-- location: city and state/country from resume header (empty string if not found)
-- has_references: true if resume mentions references, recommendations, or LinkedIn endorsements"""
+- location: city and state/country from header (empty string if not found)
+- has_references: true if mentions references, recommendations, or LinkedIn endorsements
+
+VALIDATION: valid JSON only, no trailing commas, no text outside the JSON object."""
 
 
 # ─────────────────────────────────────────────────────────────────────────────

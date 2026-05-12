@@ -689,23 +689,23 @@ function ScorePanel({ score, description }: { score: number; description: string
   const h1b   = detectH1B(description)
 
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-3 py-4 w-[108px] shrink-0 bg-slate-900 rounded-r-xl">
+    <div className="flex flex-col items-center justify-center gap-2 px-3 py-4 w-[108px] shrink-0 rounded-r-xl border-l border-slate-100 bg-gradient-to-b from-slate-50 to-white">
       <div className="relative w-[56px] h-[56px]">
         <svg viewBox="0 0 56 56" className="w-full h-full -rotate-90">
-          <circle cx="28" cy="28" r={R} fill="none" stroke="#334155" strokeWidth="5" />
+          <circle cx="28" cy="28" r={R} fill="none" stroke="#e2e8f0" strokeWidth="5" />
           <circle cx="28" cy="28" r={R} fill="none" stroke={color} strokeWidth="5"
             strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
             style={{ transition: 'stroke-dasharray 0.6s ease' }} />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold text-white leading-none">
+        <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold text-slate-800 leading-none">
           {pct}%
         </span>
       </div>
       <span className="text-[10px] font-extrabold tracking-widest leading-none text-center"
         style={{ color: lblColor }}>{label}</span>
       {h1b && (
-        <span className="text-[9px] font-semibold text-emerald-400 leading-none text-center">
-          ✓ H1B Sponsor
+        <span className="text-[9px] font-semibold text-cyan-500 leading-none text-center">
+          ✓ H1B
         </span>
       )}
     </div>
