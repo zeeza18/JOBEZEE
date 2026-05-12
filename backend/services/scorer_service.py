@@ -57,56 +57,38 @@ def _build_skill_map(skills: list[str]) -> dict[str, str]:
 
 def _extract_skills_fallback(text: str) -> list[str]:
     """
-    Extracts candidate skill tokens without a hardcoded dictionary.
-    Returns original-cased tokens (not normalized) so display names are clean.
-    Works for tech, finance, healthcare, marketing, design, admin, etc.
+    Regex fallback used ONLY when the LLM (Groq) is unavailable.
+    The LLM handles all filtering; this is a best-effort safety net.
+    Works for all professions — no domain-specific hardcoding.
     """
     tokens: list[str] = []
 
-    # CamelCase terms: LangChain, FastAPI, PostgreSQL
+    # CamelCase named tools: LangChain, FastAPI, PostgreSQL, TensorFlow
     tokens += re.findall(r"\b[A-Z][a-z]+(?:[A-Z][a-z]*)+\b", text)
 
-    # ALL-CAPS acronyms 2–8 chars: SQL, CPA, PMP, NLP, AWS, MBA, CFA, GKE
-    tokens += re.findall(r"\b[A-Z]{2,8}\b", text)
+    # 3–6 char ALL-CAPS acronyms: SQL, AWS, GCP, PMP, CPA, SAP, RAG, HIPAA
+    # (3-char min avoids grabbing 2-char English words: IT, OR, AI, ML, US)
+    tokens += re.findall(r"\b[A-Z]{3,6}\b", text)
 
-    # Hyphenated / slash terms preserved: CI/CD, end-to-end, full-stack
-    tokens += re.findall(r"\b[A-Z][A-Za-z0-9]*/[A-Z][A-Za-z0-9]*\b", text)   # CI/CD
-    tokens += re.findall(r"\b[a-zA-Z][a-zA-Z0-9]*(?:-[a-zA-Z0-9]+)+\b", text)  # scikit-learn
+    # Named slash-compounds: CI/CD, REST/JSON, TS/SCI
+    tokens += re.findall(r"\b[A-Z][A-Za-z0-9]{1,5}/[A-Z][A-Za-z0-9]{1,5}\b", text)
 
-    # Dot-notation: Node.js, Vue.js
+    # Hyphenated: scikit-learn, end-to-end, full-stack, LLM-based
+    tokens += re.findall(r"\b[a-zA-Z][a-zA-Z0-9]*(?:-[a-zA-Z0-9]+)+\b", text)
+
+    # JS dot-notation: Node.js, Vue.js, Next.js
     tokens += re.findall(r"\b[A-Za-z][A-Za-z0-9]*\.[jJ][sS]\b", text)
 
     # Special: C++, C#, F#
     tokens += re.findall(r"\b[A-Za-z]\+\+|\b[A-Za-z]#", text)
 
-    _NOISE = {
-        # Resume / JD section headers
-        "summary", "experience", "education", "skills", "projects",
-        "technical", "professional", "key", "certifications", "awards",
-        "responsibilities", "achievements", "languages", "interests",
-        "requirements", "qualifications", "about", "overview", "note",
-        "important", "salary", "benefits", "location", "equal", "opportunity",
-        # Common English words that appear ALL-CAPS in JDs
-        "will", "must", "have", "need", "with", "your", "our", "the",
-        "and", "for", "this", "that", "are", "not", "you", "can", "may",
-        "also", "both", "well", "able", "all", "any", "new", "such",
-        "who", "what", "when", "where", "how", "they", "them", "their",
-        "other", "more", "work", "team", "role", "good", "great", "strong",
-        "us", "or", "if", "no", "yes", "etc", "per", "via", "plus",
-        "top", "core", "high", "low", "big", "end", "full",
-        # Degree abbreviations (not skills by themselves)
-        "bs", "ms", "ba", "ma", "mba", "phd", "md",
-        # Too-generic domain labels (the whole field isn't a skill)
-        "ai", "ml", "it", "bi", "qa", "io",
-    }
-
     seen: set[str] = set()
     result: list[str] = []
     for t in tokens:
         n = t.lower().strip()
-        if n and len(n) > 1 and n not in seen and n not in _NOISE:
+        if n and len(n) > 1 and n not in seen:
             seen.add(n)
-            result.append(t)   # keep original casing
+            result.append(t)
     return result
 
 
@@ -258,16 +240,8 @@ def score_job_for_user(
     r_years      = int(resume_extraction.get("years_exp") or 0)
     r_title      = str(resume_extraction.get("title") or "")
 
-    # Job skills: prefer LLM-extracted originals, fall back to domain-agnostic regex
+    # Job skills: prefer LLM-extracted originals, fall back to regex
     j_skills_raw: list[str] = list(job_llm_skills) if job_llm_skills else _extract_skills_fallback(job_description)
-
-    # Drop trivially noisy JD tokens: standalone 1-2 char words and common English
-    _JD_NOISE = {
-        "ai", "ml", "it", "bi", "qa", "io",
-        "bs", "ms", "ba", "ma", "mba", "phd",
-        "will", "must", "have", "good", "strong", "plus", "etc",
-    }
-    j_skills_raw = [s for s in j_skills_raw if _normalize_skill(s) not in _JD_NOISE]
 
     j_years = int(job_llm_years_min or 0) or _extract_years_from_text(job_description)
 
