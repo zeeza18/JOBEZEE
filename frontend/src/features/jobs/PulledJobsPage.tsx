@@ -981,38 +981,6 @@ function JobCard({
             </p>
           )}
 
-          {/* Matching / Missing skills */}
-          {job.match_score != null && (() => {
-            const matched = (job.matched_skills ?? []).slice(0, 5)
-            const missing = (job.missing_skills ?? []).slice(0, 4)
-            const extraM  = (job.matched_skills ?? []).length - matched.length
-            const extraX  = (job.missing_skills ?? []).length - missing.length
-            if (!matched.length && !missing.length) return null
-            return (
-              <div className="mt-2.5 space-y-1.5">
-                {matched.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-emerald-600 shrink-0 mr-0.5">Matching</span>
-                    {matched.map(s => (
-                      <span key={s} className="inline-flex items-center gap-0.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />{s}
-                      </span>
-                    ))}
-                    {extraM > 0 && <span className="text-[10px] text-slate-400">+{extraM}</span>}
-                  </div>
-                )}
-                {missing.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-rose-500 shrink-0 mr-0.5">Missing</span>
-                    {missing.map(s => (
-                      <span key={s} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-500">{s}</span>
-                    ))}
-                    {extraX > 0 && <span className="text-[10px] text-slate-400">+{extraX}</span>}
-                  </div>
-                )}
-              </div>
-            )
-          })()}
         </div>
 
       {/* Action footer */}
