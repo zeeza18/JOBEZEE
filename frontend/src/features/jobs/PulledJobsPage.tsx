@@ -483,7 +483,7 @@ function JobDetailDrawer({
             const matchItems  = [
               salary ? { key: 'salary', label: salary } : null,
               exp    ? { key: 'exp',    label: `${exp} exp` } : null,
-              (jdEdu && eduMatched) ? { key: 'edu', label: jdEdu.label.replace(' req.', ' ✓') } : null,
+              (jdEdu && eduMatched) ? { key: 'edu', label: jdEdu.label.replace(' req.', '') } : null,
               ...(job.matched_skills ?? []).map(s => ({ key: s, label: s })),
             ].filter(Boolean) as { key: string; label: string }[]
 
@@ -520,7 +520,7 @@ function JobDetailDrawer({
                     <div className="flex flex-wrap gap-1.5">
                       {matchItems.map(({ key, label }) => (
                         <span key={key} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                          <span>✓</span> {label}
+                          <CheckCircle2 className="h-3 w-3 shrink-0" /> {label}
                         </span>
                       ))}
                     </div>
@@ -760,8 +760,8 @@ function ScorePanel({ score, description }: { score: number; description: string
       <span className="text-[10px] font-extrabold tracking-widest leading-none text-center"
         style={{ color: lblColor }}>{label}</span>
       {h1b && (
-        <span className="text-[9px] font-semibold text-cyan-500 leading-none text-center">
-          ✓ H1B
+        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-cyan-500 leading-none text-center">
+          <CheckCircle2 className="h-2.5 w-2.5 shrink-0" /> H1B
         </span>
       )}
     </div>
