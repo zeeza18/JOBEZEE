@@ -97,35 +97,40 @@ def _extract_skills_fallback(text: str) -> list[str]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _semantic_score(resume_text: str, job_description: str) -> float:
-    """TF-IDF cosine similarity. Falls back to Dice coefficient."""
+    """
+    Domain-vocabulary coverage: what fraction of meaningful JD words
+    appear anywhere in the resume.
+
+    TF-IDF cosine was 5-12% for all JD/resume pairs (expected — different
+    document styles and lengths make cosine inherently low). Replaced with
+    JD-coverage: count unique content words from JD that exist in resume,
+    divided by unique JD content words. This gives 30-80% range which is
+    meaningful for weighting.
+    """
     if not resume_text or not job_description:
-        return 0.40
+        return 0.50
 
-    try:
-        from sklearn.feature_extraction.text import TfidfVectorizer
-        from sklearn.metrics.pairwise import cosine_similarity
+    # Meaningful words: 4+ chars, not pure stopwords
+    _STOP = {
+        "that", "this", "with", "have", "from", "they", "will", "your",
+        "what", "their", "been", "more", "when", "about", "into", "than",
+        "then", "them", "were", "also", "each", "such", "very", "over",
+        "both", "after", "well", "even", "most", "work", "team", "role",
+        "good", "able", "must", "should", "would", "could",
+    }
 
-        corpus = [_clean(job_description)[:4000], _clean(resume_text)[:4000]]
-        vec = TfidfVectorizer(
-            stop_words="english", ngram_range=(1, 2),
-            max_features=6000, sublinear_tf=True,
-        )
-        tfidf = vec.fit_transform(corpus)
-        return round(float(cosine_similarity(tfidf[0:1], tfidf[1:2])[0][0]), 4)
-    except Exception:
-        pass
+    def _words(text: str) -> set[str]:
+        return {w for w in re.findall(r"\b[a-z]{4,}\b", text.lower()) if w not in _STOP}
 
-    try:
-        def _tok(t: str) -> set[str]:
-            return set(re.findall(r"\b[a-z]{3,}\b", t.lower()))
-        jd_t  = _tok(job_description)
-        res_t = _tok(resume_text)
-        if not jd_t or not res_t:
-            return 0.40
-        overlap = len(jd_t & res_t)
-        return round(min(2 * overlap / (len(jd_t) + len(res_t)) * 4, 1.0), 4)
-    except Exception:
-        return 0.40
+    jd_words  = _words(job_description)
+    res_words = _words(resume_text)
+
+    if not jd_words:
+        return 0.50
+
+    overlap = len(jd_words & res_words)
+    coverage = overlap / len(jd_words)
+    return round(min(coverage * 1.4, 1.0), 4)   # scale up slightly; cap at 1.0
 
 
 def _skills_score(

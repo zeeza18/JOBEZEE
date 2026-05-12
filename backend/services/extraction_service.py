@@ -236,7 +236,9 @@ VALIDATION: valid JSON only, no trailing commas, no text outside the JSON object
 # Groq client (lazy, cached)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_GROQ_MODEL = "llama-3.3-70b-versatile"
+_GROQ_MODEL_PRIMARY  = "llama-3.3-70b-versatile"   # best quality
+_GROQ_MODEL_FALLBACK = "llama-3.1-8b-instant"      # fast fallback if 70b rate-limited
+_GROQ_MODEL          = _GROQ_MODEL_PRIMARY          # active model (may switch at runtime)
 
 
 def _load_env_key(name: str) -> str:
@@ -285,26 +287,39 @@ def _get_groq_client():
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _call_groq(prompt: str) -> dict | None:
+    import time
     client = _get_groq_client()
     if client is None:
         return None
-    try:
-        resp = client.chat.completions.create(
-            model=_GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": _SYS},
-                {"role": "user",   "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0,
-            max_tokens=800,
-        )
-        raw = resp.choices[0].message.content.strip()
-        raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("` \n")
-        return json.loads(raw)
-    except Exception as exc:
-        log.debug("[extraction] Groq call failed: %s", exc)
-        return None
+
+    for model in (_GROQ_MODEL_PRIMARY, _GROQ_MODEL_FALLBACK):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": _SYS},
+                    {"role": "user",   "content": prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0,
+                max_tokens=800,
+            )
+            raw = resp.choices[0].message.content.strip()
+            raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("` \n")
+            result = json.loads(raw)
+            if model != _GROQ_MODEL_PRIMARY:
+                log.info("[extraction] used fallback model %s", model)
+            return result
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "rate" in msg or "429" in msg or "limit" in msg:
+                log.warning("[extraction] %s rate-limited, retrying with %s",
+                            model, _GROQ_MODEL_FALLBACK)
+                time.sleep(2)
+                continue
+            log.debug("[extraction] Groq call failed (%s): %s", model, exc)
+            return None
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
