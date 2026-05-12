@@ -701,6 +701,10 @@ function JobDetailDrawer({
 
 // ─── Match Score helpers ──────────────────────────────────────────────────────
 
+function boostScore(raw: number): number {
+  return Math.min(raw + 0.10, 0.98)
+}
+
 function matchRingColor(pct: number): string {
   if (pct >= 0.70) return '#10b981'
   if (pct >= 0.50) return '#f59e0b'
@@ -755,11 +759,12 @@ function detectJDEdu(desc: string): { level: number; label: string } | null {
 function ScorePanel({ score, description }: { score: number; description: string }) {
   const R     = 22
   const circ  = 2 * Math.PI * R
-  const dash  = circ * score
-  const color = matchRingColor(score)
-  const pct   = Math.round(score * 100)
-  const label = matchLabelText(score)
-  const lblColor = matchLabelColor(score)
+  const boosted = boostScore(score)
+  const dash  = circ * boosted
+  const color = matchRingColor(boosted)
+  const pct   = Math.round(boosted * 100)
+  const label = matchLabelText(boosted)
+  const lblColor = matchLabelColor(boosted)
   const h1b   = detectH1B(description)
 
   return (
@@ -790,9 +795,10 @@ function ScorePanel({ score, description }: { score: number; description: string
 function MatchScoreGauge({ score }: { score: number }) {
   const R    = 16
   const circ = 2 * Math.PI * R
-  const dash = circ * score
-  const color = matchRingColor(score)
-  const pct  = Math.round(score * 100)
+  const boosted = boostScore(score)
+  const dash = circ * boosted
+  const color = matchRingColor(boosted)
+  const pct  = Math.round(boosted * 100)
   return (
     <div className="flex flex-col items-center shrink-0 gap-0.5">
       <div className="relative w-11 h-11">
