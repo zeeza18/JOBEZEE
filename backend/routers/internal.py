@@ -24,14 +24,15 @@ def _check_secret(authorization: str | None) -> None:
 
 
 class DigestJob(BaseModel):
-    title    : str
-    company  : str
-    location : str
-    job_type : str = ""
-    salary_text: str = ""
-    site     : str = ""
-    source   : str = ""
-    url      : str = ""
+    title      : str
+    company    : str
+    location   : str
+    job_type   : str   = ""
+    salary_text: str   = ""
+    site       : str   = ""
+    source     : str   = ""
+    url        : str   = ""
+    match_score: float | None = None
 
 
 class DigestRequest(BaseModel):

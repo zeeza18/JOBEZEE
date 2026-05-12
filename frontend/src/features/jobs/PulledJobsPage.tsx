@@ -1996,9 +1996,8 @@ export default function PulledJobsPage() {
       if (activeTab === 'hidden')   return j.status === 'hidden'
       if (activeTab === 'applied')  return j.status === 'applied'
       if (activeTab === 'tailored') return (tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error') || j.status === 'applied'
-      // ALL: exclude hidden + very low match scores
+      // ALL: exclude hidden only
       if (j.status === 'hidden') return false
-      if (j.match_score != null && j.match_score < 0.10) return false
 
       // Panel filters
       if (filters.location) {

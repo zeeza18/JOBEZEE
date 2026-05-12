@@ -138,6 +138,9 @@ _JOBS_HTML = """\
     .tag.salary {{ background:#f0fdf4; color:#15803d; border-color:#bbf7d0; }}
     .tag.source {{ background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }}
     .view-link {{ font-size:12px; font-weight:600; color:#06b6d4; text-decoration:none; }}
+    .score-high {{ display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:12px; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; white-space:nowrap; }}
+    .score-mid  {{ display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:12px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; white-space:nowrap; }}
+    .score-low  {{ display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:12px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; white-space:nowrap; }}
     .more-note {{ font-size:12px; color:#94a3b8; margin:12px 0 0; text-align:center; }}
     .divider {{ border:none; border-top:1px solid #e2e8f0; margin:24px 0; }}
     .cta-wrap {{ text-align:center; padding:4px 0 8px; }}
@@ -193,7 +196,10 @@ _JOBS_HTML = """\
 
 _JOB_CARD_HTML = """\
 <div class="job-card">
-  <div class="job-title">{title}</div>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:3px;">
+    <div class="job-title" style="margin:0;">{title}</div>
+    {score_badge}
+  </div>
   <div class="job-company">{company} &middot; {location}</div>
   <div class="job-meta">
     {type_tag}
@@ -211,21 +217,31 @@ def _build_job_cards(jobs: list) -> str:
         loc    = (j.location or "").strip() or "Location not specified"
         jtype  = (j.job_type or "").replace("_", " ").title() or ""
         sal    = (j.salary_text or "").strip()
-        source = (j.site or j.source or "").title()
+        source = (j.site or getattr(j, "source", "") or "").title()
         url    = j.url or "#"
 
         type_tag   = f'<span class="tag">{jtype}</span>' if jtype else ""
         salary_tag = f'<span class="tag salary">{sal}</span>' if sal else ""
         source_tag = f'<span class="tag source">{source}</span>' if source else ""
 
+        # Match score badge
+        raw_score = getattr(j, "match_score", None)
+        if raw_score is not None:
+            boosted = min(round(raw_score * 100) + 10, 98)
+            cls = "score-high" if boosted >= 70 else ("score-mid" if boosted >= 50 else "score-low")
+            score_badge = f'<span class="{cls}">{boosted}% match</span>'
+        else:
+            score_badge = ""
+
         cards.append(_JOB_CARD_HTML.format(
-            title      = j.title or "Untitled",
-            company    = j.company or "Unknown Company",
-            location   = loc,
-            type_tag   = type_tag,
-            salary_tag = salary_tag,
-            source_tag = source_tag,
-            url        = url,
+            title       = j.title or "Untitled",
+            company     = j.company or "Unknown Company",
+            location    = loc,
+            type_tag    = type_tag,
+            salary_tag  = salary_tag,
+            source_tag  = source_tag,
+            score_badge = score_badge,
+            url         = url,
         ))
     return "\n".join(cards)
 

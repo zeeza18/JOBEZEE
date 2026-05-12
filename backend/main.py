@@ -95,14 +95,14 @@ async def _send_job_digests() -> None:
                 # Show jobs added since last email; if first ever, use one interval back
                 cutoff = last_sent if last_sent else (now - cooldown)
 
-                # Query live tables with the same preference filters as GET /api/jobs
+                # Query live tables — include match_score so email shows recommendation %
                 from sqlalchemy import func as _sqlfunc, or_ as _or_, and_ as _and_
                 _q = (
-                    select(JobListing)
+                    select(JobListing, UserJobState.match_score.label("ms"))
                     .join(UserJobState, UserJobState.job_id == JobListing.id)
                     .where(UserJobState.user_id == str(profile.id))
                     .where(UserJobState.created_at >= cutoff)
-                    .order_by(UserJobState.created_at.desc())
+                    .order_by(UserJobState.match_score.desc().nullslast(), UserJobState.created_at.desc())
                     .limit(50)
                 )
 
@@ -160,11 +160,27 @@ async def _send_job_digests() -> None:
                             _and_(JobListing.exp_years_min >= _lo, JobListing.exp_years_min <= _hi),
                         ))
 
-                jobs_res = await db.execute(_q)
-                new_jobs = jobs_res.scalars().all()
-                if not new_jobs:
+                rows = (await db.execute(_q)).all()
+                if not rows:
                     _log.debug("[DigestEmail] skip %s — no new jobs since %s", email, str(cutoff)[:16])
                     continue
+
+                # Wrap (JobListing, match_score) rows into simple objects for the email template
+                from types import SimpleNamespace as _SN
+                email_jobs = [
+                    _SN(
+                        title       = r[0].title or "",
+                        company     = r[0].company or "",
+                        location    = r[0].location or "",
+                        job_type    = r[0].job_type or "",
+                        salary_text = r[0].salary_text or "",
+                        site        = r[0].site or "",
+                        source      = r[0].source or "",
+                        url         = r[0].url or "",
+                        match_score = r[1],
+                    )
+                    for r in rows
+                ]
 
                 name = (getattr(profile, "full_name", "") or "").strip()
                 if not name and user:
@@ -176,13 +192,13 @@ async def _send_job_digests() -> None:
                         cfg      = _cfg2,
                         to_email = email,
                         name     = name or email,
-                        jobs     = new_jobs,
+                        jobs     = email_jobs,
                     )
                     # Persist timestamp to DB so restarts don't reset cooldown
                     profile.last_digest_at = now
                     await db.commit()
                     _log.info("[DigestEmail] sent → %s (%d jobs since %s)",
-                              email, len(new_jobs), str(cutoff)[:16])
+                              email, len(email_jobs), str(cutoff)[:16])
                 except Exception as _exc:
                     _log.warning("[DigestEmail] failed for %s: %s", email, _exc)
     except Exception as exc:
@@ -212,6 +228,7 @@ async def _send_digest_via_render(cfg, to_email: str, name: str, jobs: list) -> 
                     "site"       : j.site or "",
                     "source"     : j.source or "",
                     "url"        : j.url or "",
+                    "match_score": getattr(j, "match_score", None),
                 }
                 for j in jobs
             ],
