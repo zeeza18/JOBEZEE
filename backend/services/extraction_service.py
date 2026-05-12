@@ -152,6 +152,9 @@ RULES:
 - Extract EVERY specific keyword — technical, professional, domain, soft skills all included
 - Each item is a separate string: RIGHT: "Python", "leadership" | WRONG: "Python and leadership"
 - DO NOT include the employer company name in skills[]
+- DO NOT include broad field labels that are just the job domain itself: WRONG: "AI", "ML", "IT", "HR", "Finance", "Healthcare" — these are the department, not a specific skill
+- DO NOT include degree abbreviations as standalone skills: WRONG: "MS", "BS", "MBA", "PhD" — instead capture what's required e.g. "Master's degree Computer Science"
+- DO NOT include common English auxiliary words even if they appear in caps: WRONG: "WILL", "MUST", "HAVE", "AND", "OR", "NOT", "WITH", "FOR"
 - years_min: integer years of experience required (0 if not stated)
 - education: one of: phd / masters / bachelors / associate / none
 - location: job location e.g. "Remote", "New York, NY", "London, UK" (empty string if not found)
@@ -182,6 +185,8 @@ EXTRACT ALL of these into skills[]:
 RULES:
 - skills[]: capture EVERY hard AND soft skill explicitly mentioned — all domains, all levels
 - Each item is separate: RIGHT: "Excel", "client management" | WRONG: "Excel and client management"
+- DO NOT include broad field labels ("AI", "ML", "IT", "Finance", "Healthcare") — extract the specific tools/techniques instead
+- DO NOT include degree abbreviations ("MS", "BS", "MBA", "PhD") as standalone skills — list them only if part of a certification name
 - years_exp: total years of professional experience as integer (0 if unknown)
 - education: one of: phd / masters / bachelors / associate / none
 - work_authorized: true if resume mentions US work authorization/citizen/PR; false if needs visa sponsorship; true if unclear
