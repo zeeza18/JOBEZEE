@@ -974,12 +974,6 @@ function JobCard({
             {posted && <span className="text-slate-400">{posted}</span>}
           </div>
 
-          {/* Description preview */}
-          {descPreview && (
-            <p className="mt-2 text-[11px] md:text-xs text-slate-400 line-clamp-2 leading-relaxed">
-              {descPreview}
-            </p>
-          )}
 
         </div>
 
