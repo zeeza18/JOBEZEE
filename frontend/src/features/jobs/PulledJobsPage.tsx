@@ -358,7 +358,7 @@ function JobDescription({ text }: { text: string }) {
 // ─── Job Detail Drawer ────────────────────────────────────────────────────────
 
 function JobDetailDrawer({
-  job, onClose, onStatusChange, tailorState, onTailor, descCache,
+  job, onClose, onStatusChange, tailorState, onTailor, descCache, userProfile,
 }: {
   job            : PulledJob
   onClose        : () => void
@@ -366,6 +366,7 @@ function JobDetailDrawer({
   tailorState?   : TailorJobState
   onTailor       : (job: PulledJob) => void
   descCache      : React.RefObject<Map<string, string>>
+  userProfile?   : UserProfile | null
 }) {
   const [updating, setUpdating]         = useState(false)
   const [fullDesc, setFullDesc]         = useState<string | null>(null)
@@ -469,56 +470,86 @@ function JobDetailDrawer({
           </div>
 
           {/* Match score breakdown */}
-          {job.match_score != null && (
-            <div className="space-y-3">
-              {/* Score header row */}
-              <div className="flex items-center gap-3">
-                <MatchScoreGauge score={job.match_score} />
-                <p className="text-sm font-semibold text-slate-700">Resume Match Score</p>
-              </div>
+          {job.match_score != null && (() => {
+            const desc        = job.description || ''
+            const salary      = fmtSalary(job) || extractDescSalary(desc)
+            const exp         = extractExp(desc)
+            const sponsorship = detectSponsorship(desc)
+            const jdEdu       = detectJDEdu(desc)
+            const userEduLvl  = eduLevel(userProfile?.education ?? '')
+            const eduMatched  = jdEdu != null && userEduLvl >= jdEdu.level
+            const eduMissing  = jdEdu != null && userEduLvl < jdEdu.level
 
-              {/* Matching section */}
-              {(() => {
-                const salary  = fmtSalary(job) || extractDescSalary(job.description || '')
-                const exp     = extractExp(job.description || '')
-                const hasInfo = salary || exp || (job.matched_skills?.length ?? 0) > 0
-                return hasInfo ? (
+            const matchItems  = [
+              salary ? { key: 'salary', label: salary } : null,
+              exp    ? { key: 'exp',    label: `${exp} exp` } : null,
+              (jdEdu && eduMatched) ? { key: 'edu', label: jdEdu.label.replace(' req.', ' ✓') } : null,
+              ...(job.matched_skills ?? []).map(s => ({ key: s, label: s })),
+            ].filter(Boolean) as { key: string; label: string }[]
+
+            const missingItems = [
+              (jdEdu && eduMissing) ? { key: 'edu', label: jdEdu.label } : null,
+              ...(job.missing_skills ?? []).slice(0, 12).map(s => ({ key: s, label: s })),
+            ].filter(Boolean) as { key: string; label: string }[]
+
+            const sponsorColor = sponsorship === 'yes' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              : sponsorship === 'no' ? 'bg-rose-50 border-rose-200 text-rose-600'
+              : 'bg-slate-50 border-slate-200 text-slate-500'
+            const sponsorDot = sponsorship === 'yes' ? 'bg-emerald-400'
+              : sponsorship === 'no' ? 'bg-rose-400'
+              : 'bg-slate-300'
+            const sponsorLabel = sponsorship === 'yes' ? 'Yes' : sponsorship === 'no' ? 'No' : 'Maybe'
+
+            return (
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+                {/* Score header */}
+                <div className="flex items-center gap-3">
+                  <MatchScoreGauge score={job.match_score} />
                   <div>
-                    <p className="text-sm font-bold text-emerald-600 mb-2">Matching</p>
+                    <p className="text-sm font-semibold text-slate-700">Resume Match</p>
+                    <p className="text-xs text-slate-400">Based on your profile</p>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200" />
+
+                {/* Matching */}
+                {matchItems.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 mb-1.5">Matching</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {salary && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                          <span className="font-bold">✓</span> {salary}
-                        </span>
-                      )}
-                      {exp && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                          <span className="font-bold">✓</span> {exp} exp
-                        </span>
-                      )}
-                      {(job.matched_skills ?? []).map(s => (
-                        <span key={s} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                          <span className="font-bold">✓</span> {s}
+                      {matchItems.map(({ key, label }) => (
+                        <span key={key} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                          <span>✓</span> {label}
                         </span>
                       ))}
                     </div>
                   </div>
-                ) : null
-              })()}
+                )}
 
-              {/* Missing section */}
-              {(job.missing_skills?.length ?? 0) > 0 && (
-                <div>
-                  <p className="text-sm font-bold text-slate-500 mb-2">Missing</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(job.missing_skills ?? []).slice(0, 15).map(s => (
-                      <span key={s} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">{s}</span>
-                    ))}
+                {/* Missing */}
+                {missingItems.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-rose-500 mb-1.5">Missing</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {missingItems.map(({ key, label }) => (
+                        <span key={key} className="rounded-full border border-rose-100 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-500">{label}</span>
+                      ))}
+                    </div>
                   </div>
+                )}
+
+                {/* Sponsorship */}
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Sponsorship Likely</p>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${sponsorColor}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${sponsorDot}`} />
+                    {sponsorLabel}
+                  </span>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )
+          })()}
 
           {job.skills && job.skills.length > 0 && (
             <div>
@@ -675,6 +706,31 @@ function matchLabelColor(pct: number): string {
 
 function detectH1B(desc: string): boolean {
   return /h[\s-]?1[\s-]?b|visa\s+sponsor|sponsor.*visa|will\s+sponsor|sponsorship\s+available/i.test(desc || '')
+}
+
+function detectSponsorship(desc: string): 'yes' | 'no' | 'maybe' {
+  const d = (desc || '').toLowerCase()
+  if (/(?:will|can|do|does)\s+(?:provide|offer|sponsor)|sponsorship\s+(?:is\s+)?(?:available|provided|offered)|h[\s-]?1[\s-]?b\s+(?:sponsor|ok|welcome|accepted)|visa\s+sponsorship\s+(?:available|provided)|open\s+to\s+(?:visa\s+)?sponsor/i.test(d)) return 'yes'
+  if (/(?:will|can|do|does)\s+not\s+(?:provide|offer|sponsor)|no\s+(?:visa\s+)?sponsorship|must\s+(?:be\s+)?(?:authorized|eligible)\s+to\s+work|without\s+(?:the\s+need\s+for\s+)?(?:visa|employer)\s+sponsorship|not\s+(?:eligible|available)\s+for\s+sponsorship|(?:us\s+)?(?:citizen|permanent\s+resident)\s+only|authorization.*without.*sponsor/i.test(d)) return 'no'
+  return 'maybe'
+}
+
+function eduLevel(edu: string): number {
+  const e = (edu || '').toLowerCase()
+  if (e.includes('phd') || e.includes('doctor')) return 5
+  if (e.includes('master') || e.includes('mba') || e.includes('m.s')) return 4
+  if (e.includes('bachelor') || e.includes('b.s') || e.includes('undergrad')) return 3
+  if (e.includes('associate')) return 2
+  return 0
+}
+
+function detectJDEdu(desc: string): { level: number; label: string } | null {
+  const d = (desc || '').toLowerCase()
+  if (/phd|doctorate|ph\.d/.test(d)) return { level: 5, label: 'PhD required' }
+  if (/master'?s?|mba|m\.s\.|m\.eng/.test(d)) return { level: 4, label: "Master's req." }
+  if (/bachelor'?s?|b\.s\.|undergraduate|4[\s-]year\s+degree/.test(d)) return { level: 3, label: "Bachelor's req." }
+  if (/associate'?s?/.test(d)) return { level: 2, label: 'Associate req.' }
+  return null
 }
 
 // Large gauge for the card right panel
@@ -1916,8 +1972,9 @@ export default function PulledJobsPage() {
       if (activeTab === 'hidden')   return j.status === 'hidden'
       if (activeTab === 'applied')  return j.status === 'applied'
       if (activeTab === 'tailored') return (tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error') || j.status === 'applied'
-      // ALL: exclude hidden
+      // ALL: exclude hidden + very low match scores
       if (j.status === 'hidden') return false
+      if (j.match_score != null && j.match_score < 0.10) return false
 
       // Panel filters
       if (filters.location) {
@@ -2265,6 +2322,7 @@ export default function PulledJobsPage() {
             tailorState={tailorJobs.get(selectedJob.id)}
             onTailor={handleTailor}
             descCache={descCache}
+            userProfile={userProfile}
           />
         )}
       </AnimatePresence>
