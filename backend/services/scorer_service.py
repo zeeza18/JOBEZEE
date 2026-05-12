@@ -4,11 +4,11 @@ scorer_service.py — Domain-agnostic JD-resume scorer.
 Works for ALL professions: tech, finance, healthcare, marketing, design,
 admin, sales, law, art, education, and more.
 
-Scoring model (weighted):
-  40% TF-IDF cosine semantic similarity   (catches domain language, synonyms)
-  25% skills precision on JD requirements (fuzzy — preserves original display names)
-  20% experience fit                      (years asked vs years found)
-  15% title alignment                     (sequence similarity + word overlap)
+Scoring model (4 components, skills-first):
+  40% skills precision   fuzzy match of JD keywords against resume skills
+  25% semantic coverage  fraction of JD vocabulary present in resume text
+  20% experience fit     years asked vs years found, smooth penalty curve
+  15% title alignment    sequence similarity + word overlap
 """
 from __future__ import annotations
 
@@ -264,19 +264,18 @@ def score_job_for_user(
 
     jd_words = len((job_description or "").split())
     if jd_words < 30:
-        # No/minimal JD text (e.g. Workday listings) — drop semantic component,
-        # redistribute its 40% weight across the remaining three.
+        # No/minimal JD (Workday) — drop semantic, redistribute across 3
         score = round(
-            skill_pct * 0.50 +
-            exp       * 0.30 +
-            title     * 0.20,
+            skill_pct * 0.55 +
+            exp       * 0.28 +
+            title     * 0.17,
             4,
         )
     else:
         semantic = _semantic_score(sem_resume, job_description)
         score = round(
-            semantic  * 0.40 +
-            skill_pct * 0.25 +
+            skill_pct * 0.40 +
+            semantic  * 0.25 +
             exp       * 0.20 +
             title     * 0.15,
             4,

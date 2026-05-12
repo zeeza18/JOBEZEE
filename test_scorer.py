@@ -39,12 +39,13 @@ from backend.services.scorer_service import (
 XLSX_IN  = "jd_resume_export.xlsx"
 XLSX_OUT = "jd_resume_scored.xlsx"
 
+# Columns: (label, semantic_w, skills_w, exp_w, title_w)
 WEIGHT_SETS = [
-    ("W1 40s/25sk/20e/15t",  0.40, 0.25, 0.20, 0.15),  # production default
-    ("W2 30s/40sk/20e/10t",  0.30, 0.40, 0.20, 0.10),  # skills-heavy
-    ("W3 50s/25sk/15e/10t",  0.50, 0.25, 0.15, 0.10),  # semantic-heavy
-    ("W4 35s/35sk/20e/10t",  0.35, 0.35, 0.20, 0.10),  # balanced
-    ("W5 25s/45sk/20e/10t",  0.25, 0.45, 0.20, 0.10),  # max skills
+    ("W1 sk40/se25/e20/t15", 0.25, 0.40, 0.20, 0.15),  # ← NEW default (skills-first + semantic)
+    ("W2 sk50/se20/e20/t10", 0.20, 0.50, 0.20, 0.10),  # skills dominant
+    ("W3 sk35/se30/e20/t15", 0.30, 0.35, 0.20, 0.15),  # semantic stronger
+    ("W4 sk40/se20/e30/t10", 0.20, 0.40, 0.30, 0.10),  # experience-heavy
+    ("W5 sk45/se25/e20/t10", 0.25, 0.45, 0.20, 0.10),  # max skills precision
 ]
 
 def boost(raw: float) -> int:
