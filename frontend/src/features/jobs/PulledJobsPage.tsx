@@ -156,12 +156,13 @@ function extractHourlyRate(desc: string): string {
 /** Extract minimum years of experience from job description. e.g. "4–7+ years" → "4+ yrs" */
 function extractExp(desc: string): string {
   if (!desc) return ''
-  // Match patterns like "4-7+ years", "4–7 years", "5+ years", "3 to 5 years"
-  const m = desc.match(/(\d+)\s*[-–—to]+\s*(\d+)\+?\s*years?|\b(\d+)\+\s*years?/i)
-  if (!m) return ''
-  const min = m[1] ?? m[3]
-  if (!min) return ''
-  return `${min}+ yrs`
+  // Prefer explicit year ranges: "4-7+ years", "4–7 years", "5+ years", "3 to 5 years"
+  const m = desc.match(/(\d+)\s*[-–—to]+\s*(\d+)\+?\s*years?\s*(?:of)?\s*(?:experience)?|\b(\d+)\+\s*years?\s*(?:of)?\s*(?:experience)?/i)
+  if (m) {
+    const min = m[1] ?? m[3]
+    if (min) return `${min}+ yrs`
+  }
+  return ''
 }
 
 // ─── Preference-match scoring ─────────────────────────────────────────────────
@@ -238,11 +239,33 @@ function expMatchScore(job: PulledJob, userYears: number): 0 | 1 | 2 {
 }
 
 function detectWorkMode(job: PulledJob): 'remote' | 'hybrid' | 'onsite' | 'unknown' {
-  const text = [(job.location || ''), (job.title || '')].join(' ').toLowerCase()
-  if (/\bremote\b/.test(text)) return 'remote'
+  const text = [(job.location || ''), (job.title || ''), (job.description || '').slice(0, 800)].join(' ').toLowerCase()
   if (/\bhybrid\b/.test(text)) return 'hybrid'
+  if (/\bremote\b/.test(text)) return 'remote'
   if (/\bon[\s-]?site\b|\bonsite\b|\bin[\s-]?person\b|\bin[\s-]?office\b/.test(text)) return 'onsite'
   return 'unknown'
+}
+
+/** Extract job type from description when job_type field is blank. */
+function extractJobType(desc: string): string {
+  if (!desc) return ''
+  const t = desc.toLowerCase()
+  if (/\bcontract\b|\bcontractor\b|\bc2c\b|\bcorp[\s-]?to[\s-]?corp\b/.test(t)) return 'Contract'
+  if (/\bpart[\s-]?time\b/.test(t)) return 'Part-time'
+  if (/\binternship\b|\bintern\b/.test(t)) return 'Internship'
+  if (/\bfull[\s-]?time\b/.test(t)) return 'Full-time'
+  return ''
+}
+
+/** Extract experience level label from description. */
+function extractExpLevel(desc: string): string {
+  if (!desc) return ''
+  const t = desc.toLowerCase()
+  if (/\bsenior\b|\bstaff\b|\bprincipal\b|\blead\b|\bsr[\s.]\b/.test(t)) return 'Senior'
+  if (/\bmid[\s-]?level\b|\bmidlevel\b|\bii\b|\b2[\s-]?years?\b/.test(t)) return 'Mid-level'
+  if (/\bjunior\b|\bentry[\s-]?level\b|\bjr[\s.]\b/.test(t)) return 'Entry-level'
+  if (/\binternship\b|\bintern\b/.test(t)) return 'Intern'
+  return ''
 }
 
 /** 2 = matches preferred location, 1 = no location info, 0 = doesn't match. */
@@ -849,9 +872,11 @@ function JobCard({
     : rawHourly) : ''
   const hoursPerWk  = extractHours(job.description || '')
   const exp         = extractExp(job.description || '')
+  const expLevel    = extractExpLevel(job.description || '')
   const posted      = fmtPosted(job.posted_at)
   const source = job.site || job.source || ''
-  const typeLabel = JOB_TYPE_LABELS[job.job_type] || job.job_type || ''
+  const typeLabel = JOB_TYPE_LABELS[job.job_type] || job.job_type || extractJobType(job.description || '')
+  const descPreview = (job.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220)
 
   const setStatus = async (e: React.MouseEvent, status: string) => {
     e.stopPropagation()
@@ -886,11 +911,6 @@ function JobCard({
               {job.status === 'hidden' && (
                 <span className="shrink-0 flex items-center gap-0.5 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-500">
                   <Ban className="h-2.5 w-2.5" /> Not Interested
-                </span>
-              )}
-              {(job.status === 'new' || job.status === 'saved') && (
-                <span className="shrink-0 flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                  Not Applied
                 </span>
               )}
             </div>
@@ -948,10 +968,10 @@ function JobCard({
                 {typeLabel}
               </span>
             )}
-            {exp && (
+            {(exp || expLevel) && (
               <span className="flex items-center gap-1">
                 <GraduationCap className="h-3 w-3 shrink-0 text-slate-400" />
-                {exp}
+                {exp || expLevel}
               </span>
             )}
             {(salary || hourlyRate) && (
@@ -963,6 +983,13 @@ function JobCard({
             )}
             {posted && <span className="text-slate-400">{posted}</span>}
           </div>
+
+          {/* Description preview */}
+          {descPreview && (
+            <p className="mt-2 text-[11px] md:text-xs text-slate-400 line-clamp-2 leading-relaxed">
+              {descPreview}
+            </p>
+          )}
         </div>
 
       {/* Action footer */}
