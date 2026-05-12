@@ -279,17 +279,28 @@ def score_job_for_user(
         sem_resume = f"{r_title}. Skills: {', '.join(r_skills_raw)}. {r_years} years experience. {location}"
 
     # Component scores
-    semantic              = _semantic_score(sem_resume, job_description)
     skill_pct, matched, missing = _skills_score(r_skills_raw, j_skills_raw)
-    exp                   = _exp_score(r_years, j_years)
-    title                 = _title_score(r_title, job_title)
+    exp                         = _exp_score(r_years, j_years)
+    title                       = _title_score(r_title, job_title)
 
-    score = round(
-        semantic  * 0.40 +
-        skill_pct * 0.25 +
-        exp       * 0.20 +
-        title     * 0.15,
-        4,
-    )
+    jd_words = len((job_description or "").split())
+    if jd_words < 30:
+        # No/minimal JD text (e.g. Workday listings) — drop semantic component,
+        # redistribute its 40% weight across the remaining three.
+        score = round(
+            skill_pct * 0.50 +
+            exp       * 0.30 +
+            title     * 0.20,
+            4,
+        )
+    else:
+        semantic = _semantic_score(sem_resume, job_description)
+        score = round(
+            semantic  * 0.40 +
+            skill_pct * 0.25 +
+            exp       * 0.20 +
+            title     * 0.15,
+            4,
+        )
 
     return score, matched, missing
