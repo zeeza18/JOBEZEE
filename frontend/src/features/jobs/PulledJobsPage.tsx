@@ -5,8 +5,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ArrowUpRight, Bookmark, BookmarkCheck, Bot, CheckCircle2, ChevronRight,
-  Download, Eye, EyeOff, Filter, Loader2, RefreshCw,
+  ArrowUpRight, Ban, Bookmark, BookmarkCheck, Bot, Briefcase, Building2,
+  CheckCircle2, ChevronRight, DollarSign, Download, Eye, EyeOff, Filter,
+  Globe, GraduationCap, Loader2, MapPin, RefreshCw,
   Sparkles, Trash2, X, XCircle, Zap,
 } from 'lucide-react'
 import { applyApi, jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
@@ -868,13 +869,28 @@ function JobCard({
       {/* ── Left: main content ─────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="p-3 md:p-5 pb-2 md:pb-4 flex-1">
-          {/* Row 1: company + source badge + quick-open */}
+          {/* Row 1: company + source badge + status badge + quick-open */}
           <div className="flex items-center justify-between gap-2 mb-1.5 min-w-0">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
               <span className="text-xs md:text-sm font-semibold text-slate-500 truncate min-w-0">{job.company}</span>
               {source && (
                 <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] md:text-xs font-medium capitalize ${srcColor(source)}`}>
                   {source}
+                </span>
+              )}
+              {job.status === 'applied' && (
+                <span className="shrink-0 flex items-center gap-0.5 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  <CheckCircle2 className="h-2.5 w-2.5" /> Applied
+                </span>
+              )}
+              {job.status === 'hidden' && (
+                <span className="shrink-0 flex items-center gap-0.5 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-500">
+                  <Ban className="h-2.5 w-2.5" /> Not Interested
+                </span>
+              )}
+              {(job.status === 'new' || job.status === 'saved') && (
+                <span className="shrink-0 flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+                  Not Applied
                 </span>
               )}
             </div>
@@ -899,19 +915,53 @@ function JobCard({
             {job.title}
           </h3>
 
-          {/* Row 3: location */}
-          {job.location && (
-            <p className="text-xs md:text-sm text-slate-500 truncate mb-0.5">{job.location}</p>
-          )}
-
-          {/* Row 4: salary · hourly · hrs/wk · type · exp · posted */}
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs md:text-sm text-slate-400">
-            {salary     && <span className="font-medium text-slate-600">{salary}</span>}
-            {hourlyRate && <span className="font-medium text-slate-600">{hourlyRate}</span>}
-            {hoursPerWk && <>{(salary || hourlyRate) && <span>·</span>}<span className="text-slate-500">{hoursPerWk}</span></>}
-            {typeLabel  && <><span>·</span><span>{typeLabel}</span></>}
-            {exp        && <><span>·</span><span>{exp}</span></>}
-            {posted     && <><span>·</span><span>{posted}</span></>}
+          {/* Row 3: icon meta row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5 text-[11px] md:text-xs text-slate-500">
+            {job.location && (
+              <span className="flex items-center gap-1 min-w-0">
+                <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+                <span className="truncate">{job.location}</span>
+              </span>
+            )}
+            {(() => {
+              const wm = detectWorkMode(job)
+              if (wm === 'remote') return (
+                <span className="flex items-center gap-1">
+                  <Globe className="h-3 w-3 shrink-0 text-slate-400" />Remote
+                </span>
+              )
+              if (wm === 'hybrid') return (
+                <span className="flex items-center gap-1">
+                  <Building2 className="h-3 w-3 shrink-0 text-slate-400" />Hybrid
+                </span>
+              )
+              if (wm === 'onsite') return (
+                <span className="flex items-center gap-1">
+                  <Building2 className="h-3 w-3 shrink-0 text-slate-400" />On-site
+                </span>
+              )
+              return null
+            })()}
+            {typeLabel && (
+              <span className="flex items-center gap-1">
+                <Briefcase className="h-3 w-3 shrink-0 text-slate-400" />
+                {typeLabel}
+              </span>
+            )}
+            {exp && (
+              <span className="flex items-center gap-1">
+                <GraduationCap className="h-3 w-3 shrink-0 text-slate-400" />
+                {exp}
+              </span>
+            )}
+            {(salary || hourlyRate) && (
+              <span className="flex items-center gap-1 font-medium text-slate-600">
+                <DollarSign className="h-3 w-3 shrink-0 text-slate-400" />
+                {salary || hourlyRate}
+                {hoursPerWk && <span className="font-normal text-slate-400 ml-1">· {hoursPerWk}</span>}
+              </span>
+            )}
+            {posted && <span className="text-slate-400">{posted}</span>}
           </div>
         </div>
 

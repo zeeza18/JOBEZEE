@@ -71,7 +71,7 @@ def _hetzner_truncate(tables: list[str]) -> None:
     _hetzner_sql(f"TRUNCATE {', '.join(tables)} CASCADE;")
 
 
-# ── Local asyncpg mode (works with Neon or any postgres) ─────────────────────
+# ── Local mode — Hetzner PostgreSQL (no SSL needed) ──────────────────────────
 def _local_sql(query: str, db_url: str) -> list[dict]:
     import asyncio, asyncpg
 
@@ -81,8 +81,7 @@ def _local_sql(query: str, db_url: str) -> list[dict]:
             url = "postgresql://" + url[len(pfx):]
 
     async def _run():
-        ssl = "require" in url
-        conn = await asyncpg.connect(url, ssl=ssl if ssl else None)
+        conn = await asyncpg.connect(url)
         try:
             rows = await conn.fetch(query)
             return [dict(r) for r in rows]

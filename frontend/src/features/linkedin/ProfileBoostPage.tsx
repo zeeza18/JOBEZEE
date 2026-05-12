@@ -1147,10 +1147,11 @@ export default function ProfileBoostPage() {
 
   // Load from DB on mount when localStorage has nothing (e.g. different machine)
   useEffect(() => {
-    const hasProfileCache = !!persisted
-    const hasPhotoCache   = !!loadPhotoCache()?.result
-    const hasCoverCache   = !!loadCoverCache()?.result
-    if (hasProfileCache && hasPhotoCache && hasCoverCache) return
+    const hasProfileCache  = !!persisted
+    const hasOptimizeCache = !!persisted?.optimizeResult
+    const hasPhotoCache    = !!loadPhotoCache()?.result
+    const hasCoverCache    = !!loadCoverCache()?.result
+    if (hasProfileCache && hasOptimizeCache && hasPhotoCache && hasCoverCache) return
     loadFromDb().then(dbState => {
       if (!dbState) return
       if (!hasProfileCache && dbState.result) {
@@ -1159,6 +1160,10 @@ export default function ProfileBoostPage() {
         setTargetRole(dbState.targetRole)
         setProfilePhase('analyzed')
         saveState({ result: dbState.result, optimizeResult: dbState.optimizeResult, targetRole: dbState.targetRole })
+      } else if (hasProfileCache && !hasOptimizeCache && dbState.optimizeResult) {
+        // Profile is cached but optimize result was generated on another device — sync it in
+        setOptimizeResult(dbState.optimizeResult)
+        saveState({ ...persisted!, optimizeResult: dbState.optimizeResult })
       }
       if (!hasPhotoCache && dbState.photoResult) {
         setPhotoResult(dbState.photoResult)
