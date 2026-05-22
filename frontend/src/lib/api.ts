@@ -666,3 +666,34 @@ export const resumeAnalysisApi = {
     }).then(r => r.json())
   },
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Interview
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type InterviewRound = 'phone' | 'mid' | 'technical' | 'hr'
+
+export interface InterviewQuestion {
+  id: number
+  question: string
+  category: string
+  estimated_time_seconds: number
+}
+
+export interface GeneratedInterview {
+  job_title: string
+  company: string
+  round: InterviewRound
+  round_label: string
+  duration_minutes: number
+  questions: InterviewQuestion[]
+}
+
+export const interviewApi = {
+  generate: (body: {
+    job_description: string
+    resume_text: string
+    round_type: InterviewRound
+    duration_minutes: number
+  }) => post<GeneratedInterview>('/api/interview/generate', body),
+}

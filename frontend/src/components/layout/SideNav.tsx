@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight, CreditCard, Linkedin, Plug } from 'lucide-react'
+import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight, CreditCard, Linkedin, Plug, Mic2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/useAuthStore'
 import LogoBrand from '../common/LogoBrand'
@@ -9,6 +9,7 @@ const mainNav = [
   { to: '/app/pulled-jobs',  label: 'Jobs',      icon: Sparkles },
   { to: '/app/tailor',       label: 'Resume',    icon: Wand2 },
   { to: '/app/apply',        label: 'Apply',     icon: Send },
+  { to: '/app/interview',    label: 'Interview',  icon: Mic2 },
 ]
 
 const linkedinNav = [
