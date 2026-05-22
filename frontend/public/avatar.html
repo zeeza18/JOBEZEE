@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #0f0f1a; }
+    #c { display: block; }
+    #loading {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      color: #888; font-family: Arial, sans-serif; font-size: 16px;
+    }
+  </style>
+  <script type="importmap">
+  { "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js/+esm",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }}
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const params    = new URLSearchParams(location.search);
+    const avatarUrl = params.get('avatar') || '/avatars/sophia/sophia.glb';
+    const speaker   = params.get('speaker') || 'sophia';
+    const apiBase   = params.get('apiBase') || '';
+
+    // ── Renderer ─────────────────────────────────────────────────────────────
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas: document.getElementById('c') });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace  = THREE.SRGBColorSpace;
+    renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+
+    // ── Scene + camera ────────────────────────────────────────────────────────
+    const scene  = new THREE.Scene();
+    scene.background = new THREE.Color(0x596b72); // slate blue-grey — matches wall, contrasts skin
+    const camera = new THREE.PerspectiveCamera(28, window.innerWidth / window.innerHeight, 0.01, 50);
+
+    // ── Lighting ──────────────────────────────────────────────────────────────
+    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+    const key  = new THREE.DirectionalLight(0xfff6e8, 1.4); key.position.set(1.5, 4, 2.5);  scene.add(key);
+    const fill = new THREE.DirectionalLight(0xe0eeff, 0.5); fill.position.set(-2, 2, 1);     scene.add(fill);
+    const rim  = new THREE.DirectionalLight(0xffffff,  0.3); rim.position.set(0, 3, -4);     scene.add(rim);
+
+    // ── Morph target index map (ARKit + Oculus visemes) ───────────────────────
+    const MT = {
+      eyeBlinkLeft:0, eyeBlinkRight:1,
+      eyeLookDownLeft:2, eyeLookDownRight:3,
+      eyeLookInLeft:4, eyeLookInRight:5,
+      eyeLookOutLeft:6, eyeLookOutRight:7,
+      eyeLookUpLeft:8, eyeLookUpRight:9,
+      eyeSquintLeft:10, eyeSquintRight:11,
+      eyeWideLeft:12, eyeWideRight:13,
+      jawForward:14, jawLeft:15, jawOpen:16, jawRight:17,
+      mouthClose:18, mouthDimpleLeft:19, mouthDimpleRight:20,
+      mouthFrownLeft:21, mouthFrownRight:22, mouthFunnel:23,
+      mouthLeft:24, mouthLowerDownLeft:25, mouthLowerDownRight:26,
+      mouthPressLeft:27, mouthPressRight:28, mouthPucker:29,
+      mouthRight:30, mouthRollLower:31, mouthRollUpper:32,
+      mouthShrugLower:33, mouthShrugUpper:34,
+      mouthSmileLeft:35, mouthSmileRight:36,
+      mouthStretchLeft:37, mouthStretchRight:38,
+      mouthUpperUpLeft:39, mouthUpperUpRight:40,
+      browDownLeft:41, browDownRight:42, browInnerUp:43,
+      browOuterUpLeft:44, browOuterUpRight:45,
+      cheekPuff:46, cheekSquintLeft:47, cheekSquintRight:48,
+      noseSneerLeft:49, noseSneerRight:50, tongueOut:51,
+      viseme_sil:52, viseme_PP:53, viseme_FF:54, viseme_TH:55,
+      viseme_DD:56, viseme_kk:57, viseme_CH:58, viseme_SS:59,
+      viseme_nn:60, viseme_RR:61, viseme_aa:62, viseme_E:63,
+      viseme_I:64, viseme_O:65, viseme_U:66,
+    };
+
+    // ── Bones ─────────────────────────────────────────────────────────────────
+    let headBone=null, neckBone=null, spineBone=null, spine1Bone=null;
+    let lEyeBone=null, rEyeBone=null;
+    let lArmBone=null, rArmBone=null, lForeArmBone=null, rForeArmBone=null;
+    let lHandBone=null, rHandBone=null;
+    let jawBone=null, lMouthBone=null, rMouthBone=null;
+    let lEyeLidBone=null, rEyeLidBone=null, lBrowBone=null, rBrowBone=null;
+    // Finger bones for natural curl
+    let lFingers=[], rFingers=[];
+
+    // ── Morph mesh ────────────────────────────────────────────────────────────
+    let morphMesh = null;
+
+    function setMT(name, v) {
+      if (morphMesh && MT[name] !== undefined)
+        morphMesh.morphTargetInfluences[MT[name]] = Math.max(0, Math.min(1, v));
+    }
+    function getMT(name) {
+      return (morphMesh && MT[name] !== undefined)
+        ? morphMesh.morphTargetInfluences[MT[name]] : 0;
+    }
+    // Smooth lerp toward target for morph targets
+    function lerpMT(name, target, spd) {
+      setMT(name, getMT(name) + (target - getMT(name)) * spd);
+    }
+
+    // ── Load avatar ───────────────────────────────────────────────────────────
+    const loader = new GLTFLoader();
+    let ready  = false;
+
+    loader.load(avatarUrl, (gltf) => {
+      const root = gltf.scene;
+      scene.add(root);
+
+      // Centre X/Z; lower by 0.3m so hips are at chair-seat height (~0.47m)
+      // Legs go underground — hidden below desk level, creating seated look
+      const box = new THREE.Box3().setFromObject(root);
+      const SEAT_LOWER = 0.30;   // shift Sophia down so she appears seated
+      root.position.set(
+        -(box.min.x+box.max.x)/2,
+        -box.min.y - SEAT_LOWER,
+        -(box.min.z+box.max.z)/2
+      );
+      box.setFromObject(root);
+      const totalH = box.max.y - box.min.y;
+
+      // Gather bones + mesh — only pick THREE.Bone objects for skeleton control
+      root.traverse(obj => {
+        if (obj.isSkinnedMesh && obj.morphTargetInfluences) morphMesh = obj;
+        if (!obj.isBone) return;
+        switch (obj.name) {
+          case 'Head':    headBone  = obj; break;
+          case 'Neck':    neckBone  = obj; break;
+          case 'Spine':   spineBone = obj; break;
+          case 'Spine1':  spine1Bone = obj; break;
+          case 'LeftEye': lEyeBone  = obj; break;
+          case 'RightEye':rEyeBone  = obj; break;
+          case 'LeftArm':     lArmBone = obj; break;
+          case 'RightArm':    rArmBone = obj; break;
+          case 'LeftForeArm': lForeArmBone = obj; break;
+          case 'RightForeArm':rForeArmBone = obj; break;
+          case 'LeftHand':  lHandBone = obj; break;
+          case 'RightHand': rHandBone = obj; break;
+        }
+        if (/^LeftHand(Thumb|Index|Middle|Ring|Pinky)\d$/.test(obj.name))  lFingers.push(obj);
+        if (/^RightHand(Thumb|Index|Middle|Ring|Pinky)\d$/.test(obj.name)) rFingers.push(obj);
+      });
+      // Use skeleton bones directly — guaranteed to drive skin deformation
+      if (morphMesh && morphMesh.skeleton) {
+        const skel = morphMesh.skeleton;
+        const sb = name => skel.bones.find(b => b.name === name) || null;
+        headBone      = sb('Head');
+        neckBone      = sb('Neck');
+        spineBone     = sb('Spine');
+        spine1Bone    = sb('Spine1');
+        lEyeBone      = sb('LeftEye');
+        rEyeBone      = sb('RightEye');
+        lArmBone      = sb('LeftArm');
+        rArmBone      = sb('RightArm');
+        lForeArmBone  = sb('LeftForeArm');
+        rForeArmBone  = sb('RightForeArm');
+        lHandBone     = sb('LeftHand');
+        rHandBone     = sb('RightHand');
+        jawBone       = sb('jaw');
+        lMouthBone    = sb('LeftMouth');
+        rMouthBone    = sb('RightMouth');
+        lEyeLidBone   = sb('LeftEyeLid');
+        rEyeLidBone   = sb('RightEyeLid');
+        lBrowBone     = sb('LeftEyeBrow');
+        rBrowBone     = sb('RightEyeBrow');
+        lFingers = []; rFingers = [];
+        skel.bones.forEach(b => {
+          if (/^LeftHand(Thumb|Index|Middle|Ring|Pinky)\d$/.test(b.name))  lFingers.push(b);
+          if (/^RightHand(Thumb|Index|Middle|Ring|Pinky)\d$/.test(b.name)) rFingers.push(b);
+        });
+      }
+
+      // Record jaw rest Z so animate() can delta from it
+      jawRestZ = jawBone ? jawBone.rotation.z : -2.1;
+      window.__jawRestZ = jawRestZ;
+
+      // ── A-pose: arms naturally at sides, ~60° below horizontal ──────────────
+      if (lArmBone)     lArmBone.rotation.y     =  ARM_DOWN_C;
+      if (rArmBone)     rArmBone.rotation.y     =  ARM_DOWN_C;
+      if (lForeArmBone) lForeArmBone.rotation.y =  0.15;
+      if (rForeArmBone) rForeArmBone.rotation.y =  0.15;
+      if (lHandBone)    lHandBone.rotation.z    =  0.1;
+      if (rHandBone)    rHandBone.rotation.z    = -0.1;
+      lFingers.forEach(b => { b.rotation.z =  0.22; });
+      rFingers.forEach(b => { b.rotation.z = -0.22; });
+
+      // No forced spine lean — keep natural seated pose
+      // No laptop anymore — eyes look at camera (forward), not screen
+      setMT('eyeLookDownLeft',  0.0);
+      setMT('eyeLookDownRight', 0.0);
+
+      // Idle smile baseline
+      setMT('mouthSmileLeft',  0.12);
+      setMT('mouthSmileRight', 0.12);
+      setMT('cheekSquintLeft',  0.06);
+      setMT('cheekSquintRight', 0.06);
+
+      // Camera: close frontal portrait — lamp and shelf just peek at edges
+      camera.fov = 44;
+      camera.updateProjectionMatrix();
+      const FACE_Y = box.max.y - 0.18;   // eye/face level
+      camera.position.set(0, FACE_Y, 1.08);
+      camera.lookAt(0, FACE_Y, 0);
+
+      document.getElementById('loading').style.display = 'none';
+      // Expose debug handles for Playwright tests
+      window.__morphMesh   = morphMesh;
+      window.__jawBone     = jawBone;
+      window.__getJaw      = () => morphMesh ? morphMesh.morphTargetInfluences[16] : null;
+      window.__getSpeaking = () => speaking;
+      window.__getJawBoneRot = () => jawBone ? { x: jawBone.rotation.x, y: jawBone.rotation.y, z: jawBone.rotation.z } : null;
+      window.__getNeckRot  = () => neckBone ? { x: neckBone.rotation.x, y: neckBone.rotation.y, z: neckBone.rotation.z } : null;
+      window.__getHeadRot  = () => headBone ? { x: headBone.rotation.x, y: headBone.rotation.y, z: headBone.rotation.z } : null;
+      window.__getRootRot  = () => ({ x: root.rotation.x, y: root.rotation.y, z: root.rotation.z });
+      window.__getSpineRot = () => spineBone ? { x: spineBone.rotation.x, y: spineBone.rotation.y, z: spineBone.rotation.z } : null;
+      window.__getHipsRot  = () => {
+        const hips = morphMesh?.skeleton?.bones?.find(b => b.name === 'Hips') || null;
+        return hips ? { x: hips.rotation.x, y: hips.rotation.y, z: hips.rotation.z } : null;
+      };
+      ready = true;
+      parent.postMessage({ type: 'ready' }, '*');
+    },
+    prog => { if (prog.lengthComputable) document.getElementById('loading').textContent = `Loading ${Math.round(prog.loaded/prog.total*100)}%`; },
+    err  => { console.error(err); parent.postMessage({ type:'error', message: String(err) }, '*'); }
+    );
+
+    // ── Office room — built directly in Three.js (no GLB caching issues) ─────
+    {
+      const M = (hex, rough=0.9, metal=0) => {
+        const m = new THREE.MeshStandardMaterial({ color: hex, roughness: rough, metalness: metal });
+        return m;
+      };
+      const box = (w,h,d, x,y,z, mat) => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+        mesh.position.set(x,y,z); scene.add(mesh); return mesh;
+      };
+
+      // Colours
+      const wallMat  = M(0x8a9da8, 0.95);   // slate blue-grey — contrasts with skin
+      const floorMat = M(0x3d2b1a, 0.55);   // dark walnut floor
+      const ceilMat  = M(0xc8c0b4, 0.98);   // off-white ceiling
+      const deskMat  = M(0x2a1a0e, 0.45);   // dark walnut desk
+      const legMat   = M(0x1a0f07, 0.6);    // dark legs
+      const shelfMat = M(0x4a3020, 0.6);    // medium wood shelf
+      const bookMats = [
+        M(0x2d4a7a), M(0x7a2d2d), M(0x2d7a4a),
+        M(0x7a6a1a), M(0x5a2d7a)
+      ];
+      const lampMat  = M(0xb8922a, 0.15, 0.85); // gold lamp
+      const plantMat = M(0x2a5a20, 0.85);
+      const potMat   = M(0x8a6a40, 0.75);
+
+      // Room shell (Sophia at Z=0, camera at Z≈2.1, back wall Z=-1.4)
+      box(5.2, 4, 0.08,  0, 2,  -1.4, wallMat);    // back wall
+      box(0.08,4, 4,    -2.5,2,  0.5, wallMat);    // left wall
+      box(0.08,4, 4,     2.5,2,  0.5, wallMat);    // right wall
+      box(5.2, 0.04,4,   0, 0,   0.5, floorMat);   // floor
+      box(5.2, 0.04,4,   0, 4,   0.5, ceilMat);    // ceiling
+
+      // Window on left wall (bright glow)
+      const winMat = new THREE.MeshStandardMaterial({
+        color: 0xfff3d4, emissive: 0xffd070, emissiveIntensity: 0.8, roughness: 0.1
+      });
+      box(0.04, 1.4, 1.8,  -2.46, 1.7, -0.6, winMat);
+
+      // ── Open half-height bookshelf (right side) ──────────────────────────────
+      {
+        const SX=1.68, SZ=-1.35, SW=0.52, SH=1.0, SD=0.28, SB=0.06;
+        // Frame panels (open front — no face panel so books are visible)
+        box(SW,   0.020, SD,    SX,         SB+0.010, SZ, shelfMat); // bottom
+        box(SW,   0.020, SD,    SX,         SB+SH-0.010, SZ, shelfMat); // top
+        box(0.020, SH,  SD,    SX-SW/2+0.010, SB+SH/2, SZ, shelfMat); // left side
+        box(0.020, SH,  SD,    SX+SW/2-0.010, SB+SH/2, SZ, shelfMat); // right side
+        box(SW,   0.020, 0.018, SX,         SB+SH/2,   SZ-SD/2+0.009, shelfMat); // back strip top
+        box(SW,   SH,   0.018, SX,         SB+SH/2,   SZ-SD/2+0.009, shelfMat); // back panel
+        // Mid shelf divider
+        const MY = SB + SH*0.48;
+        box(SW-0.040, 0.018, SD-0.020, SX, MY, SZ, shelfMat);
+
+        // ── Books on lower shelf (stand upright, spines face camera) ──────────
+        const bColors = [0x1e4d8c,0x8c1e1e,0x1e7a3a,0xb07d10,0x5c1e8c,0x8c3a1e,0x1e6b6b,0x6b1e4d];
+        let bx = SX - SW/2 + 0.030;
+        const lowerBooks = [[0.036,0.21],[0.028,0.20],[0.040,0.22],[0.032,0.21],[0.038,0.20],[0.030,0.22],[0.034,0.21]];
+        lowerBooks.forEach(([bw, bh], i) => {
+          if (bx + bw*2 > SX + SW/2 - 0.030) return;
+          const bm = new THREE.MeshStandardMaterial({ color: bColors[i%bColors.length], roughness: 0.72 });
+          const bk = new THREE.Mesh(new THREE.BoxGeometry(bw*2, bh*2, SD-0.040), bm);
+          bk.position.set(bx+bw, SB+0.020+bh, SZ); scene.add(bk);
+          // Spine label strip (lighter band)
+          const lm = new THREE.MeshStandardMaterial({ color: 0xf0eee8, roughness: 0.9 });
+          const lb = new THREE.Mesh(new THREE.BoxGeometry(bw*1.6, 0.040, 0.003), lm);
+          lb.position.set(bx+bw, SB+0.020+bh*0.65, SZ+SD/2-0.018); scene.add(lb);
+          bx += bw*2 + 0.007;
+        });
+
+        // ── Binders on upper shelf ────────────────────────────────────────────
+        bx = SX - SW/2 + 0.030;
+        const upperBinders = [[0.044,0.15,0xd45000],[0.036,0.14,0x00668a],[0.040,0.16,0x229933],[0.032,0.14,0xaa1144],[0.044,0.15,0xcc8800]];
+        upperBinders.forEach(([bw,bh,col]) => {
+          if (bx + bw*2 > SX + SW/2 - 0.030) return;
+          const bm = new THREE.MeshStandardMaterial({ color: col, roughness: 0.65, metalness: 0.05 });
+          const bk = new THREE.Mesh(new THREE.BoxGeometry(bw*2, bh*2, SD-0.040), bm);
+          bk.position.set(bx+bw, MY+0.018+bh, SZ); scene.add(bk);
+          bx += bw*2 + 0.009;
+        });
+
+        // ── Vase on top of shelf ──────────────────────────────────────────────
+        const TOP_Y = SB + SH;
+        const vaseMat2 = new THREE.MeshStandardMaterial({ color: 0x4a7a8a, roughness: 0.20, metalness: 0.12 });
+        const VX = SX - 0.12;
+        const vBody = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.030, 0.13, 14), vaseMat2);
+        vBody.position.set(VX, TOP_Y+0.065, SZ); scene.add(vBody);
+        const vNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.038, 0.042, 14), vaseMat2);
+        vNeck.position.set(VX, TOP_Y+0.151, SZ); scene.add(vNeck);
+        const vRim = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 8, 14), vaseMat2);
+        vRim.rotation.x = Math.PI/2; vRim.position.set(VX, TOP_Y+0.172, SZ); scene.add(vRim);
+        // Vase pattern ring
+        const vRing = new THREE.Mesh(new THREE.TorusGeometry(0.039, 0.004, 8, 14), new THREE.MeshStandardMaterial({color:0x8ab8c8,roughness:0.3,metalness:0.1}));
+        vRing.rotation.x = Math.PI/2; vRing.position.set(VX, TOP_Y+0.085, SZ); scene.add(vRing);
+
+        // ── Plant in vase ─────────────────────────────────────────────────────
+        const leafMat = new THREE.MeshStandardMaterial({ color: 0x2d7a30, roughness: 0.8, side: THREE.DoubleSide });
+        for (let i=0; i<8; i++) {
+          const a = i * Math.PI * 0.25;
+          const lf = new THREE.Mesh(new THREE.PlaneGeometry(0.10+Math.random()*0.04, 0.13+Math.random()*0.04), leafMat);
+          lf.position.set(VX + Math.cos(a)*0.025, TOP_Y + 0.195 + i*0.008, SZ + Math.sin(a)*0.025);
+          lf.rotation.set(-0.25 + Math.random()*0.2, a, 0.1*Math.sin(a)); scene.add(lf);
+        }
+
+        // ── Small decorative item right of vase ───────────────────────────────
+        const dMat = new THREE.MeshStandardMaterial({ color: 0xc8a84b, roughness: 0.25, metalness: 0.75 });
+        const dObj = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 8), dMat);
+        dObj.position.set(SX+0.05, TOP_Y+0.028, SZ); scene.add(dObj);
+      }
+
+      // ── Stylish straight standing floor lamp ─────────────────────────────────
+      const LX=-0.88, LZ=-0.20;
+      const mBlack = new THREE.MeshStandardMaterial({ color:0x111111, roughness:0.22, metalness:0.92 });
+      const mGold  = new THREE.MeshStandardMaterial({ color:0xb8902a, roughness:0.10, metalness:0.96 });
+
+      // Weighted marble base — flat wide disc
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.18,0.055,28), new THREE.MeshStandardMaterial({ color:0xccc4b8, roughness:0.45, metalness:0.04 }));
+      base.position.set(LX,0.028,LZ); scene.add(base);
+      // Gold accent ring on base
+      const baseRing = new THREE.Mesh(new THREE.TorusGeometry(0.155,0.007,8,28), mGold);
+      baseRing.rotation.x=Math.PI/2; baseRing.position.set(LX,0.055,LZ); scene.add(baseRing);
+
+      // Straight slim pole — matte black, goes full height
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.011,0.013,1.62,12), mBlack);
+      pole.position.set(LX,0.865,LZ); scene.add(pole);
+      // Gold mid-ring detail at ~1m height
+      const midRing = new THREE.Mesh(new THREE.TorusGeometry(0.018,0.005,8,16), mGold);
+      midRing.rotation.x=Math.PI/2; midRing.position.set(LX,1.02,LZ); scene.add(midRing);
+
+      // Shade canopy (small gold cap at top of pole)
+      const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.02,0.06,14), mGold);
+      canopy.position.set(LX,1.69,LZ); scene.add(canopy);
+
+      // Drum shade — open cylinder, tapered, linen colour
+      const hd = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.17,0.14,0.22,24,1,true),
+        new THREE.MeshStandardMaterial({ color:0xf2e4cc, emissive:0xffcc66, emissiveIntensity:0.5, roughness:0.65, side:THREE.DoubleSide })
+      );
+      hd.position.set(LX,1.56,LZ); scene.add(hd);
+      // Gold top + bottom rims on shade
+      const rimT = new THREE.Mesh(new THREE.TorusGeometry(0.17,0.007,8,24), mGold);
+      rimT.rotation.x=Math.PI/2; rimT.position.set(LX,1.67,LZ); scene.add(rimT);
+      const rimB = new THREE.Mesh(new THREE.TorusGeometry(0.14,0.007,8,24), mGold);
+      rimB.rotation.x=Math.PI/2; rimB.position.set(LX,1.45,LZ); scene.add(rimB);
+
+      const shadeHead = { x:LX, y:1.56, z:LZ };
+
+      // ── Motivational framed poster — left of Sophia, clearly visible ───────────
+      const FX = -0.60; // between lamp and Sophia on back wall
+      const frameMat = M(0x1a1008, 0.6, 0.05);
+      box(0.68, 0.50, 0.025,  FX, 1.72, -1.385, frameMat);
+      box(0.58, 0.40, 0.026,  FX, 1.72, -1.386, M(0xf0ece4, 0.95));
+      const printBg = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.34, 0.027), new THREE.MeshStandardMaterial({ color: 0x0d1b2e, roughness: 0.9 }));
+      printBg.position.set(FX, 1.72, -1.387); scene.add(printBg);
+      // Quote lines (mimicking text)
+      const inkMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.30, roughness: 1 });
+      [[0.28,0.011,1.835],[0.24,0.011,1.782],[0.19,0.011,1.729]].forEach(([w,h,y]) => {
+        const l = new THREE.Mesh(new THREE.BoxGeometry(w,h,0.028), inkMat);
+        l.position.set(FX, y, -1.388); scene.add(l);
+      });
+      // Gold rule + small author line
+      const gRule = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.004,0.028), new THREE.MeshStandardMaterial({ color:0xc8a84b, emissive:0xc8a84b, emissiveIntensity:0.5, roughness:0.4 }));
+      gRule.position.set(FX, 1.668, -1.388); scene.add(gRule);
+      const authLine = new THREE.Mesh(new THREE.BoxGeometry(0.10,0.009,0.028), inkMat);
+      authLine.position.set(FX, 1.648, -1.388); scene.add(authLine);
+
+      // ── Motivational quote frame — canvas texture with real text ─────────────
+      {
+        const QX = 0.78, QY = 1.88, QZ = -1.34;
+
+        // Render quote onto a canvas
+        const qc = document.createElement('canvas');
+        qc.width = 640; qc.height = 420;
+        const ctx = qc.getContext('2d');
+
+        // Parchment background
+        ctx.fillStyle = '#f7f3ec';
+        ctx.fillRect(0, 0, 640, 420);
+
+        // Outer gold border
+        ctx.strokeStyle = '#c8a84b'; ctx.lineWidth = 7;
+        ctx.strokeRect(18, 18, 604, 384);
+        // Inner thin border
+        ctx.strokeStyle = '#a08030'; ctx.lineWidth = 2;
+        ctx.strokeRect(30, 30, 580, 360);
+
+        // Large decorative open-quote mark
+        ctx.fillStyle = '#c8a84b';
+        ctx.font = 'bold 90px Georgia, serif';
+        ctx.fillText('“', 44, 105);
+
+        // Quote text
+        ctx.fillStyle = '#1a1830';
+        ctx.textAlign = 'center';
+        ctx.font = 'italic 38px Georgia, serif';
+        ctx.fillText('The only way to do', 320, 130);
+        ctx.fillText('great work is to love', 320, 178);
+        ctx.fillText('what you do.', 320, 226);
+
+        // Gold rule
+        ctx.fillStyle = '#c8a84b';
+        ctx.fillRect(220, 248, 200, 2);
+
+        // Author
+        ctx.fillStyle = '#4a4060';
+        ctx.font = '500 26px Georgia, serif';
+        ctx.fillText('— Steve Jobs', 320, 292);
+
+        // Subtle bottom flourish dots
+        [290,320,350].forEach(x => {
+          ctx.beginPath(); ctx.arc(x, 340, 4, 0, Math.PI*2);
+          ctx.fillStyle = '#c8a84b'; ctx.fill();
+        });
+
+        const qTex = new THREE.CanvasTexture(qc);
+
+        // Dark walnut outer frame
+        const qFrame = M(0x1c0e06, 0.55, 0.04);
+        box(0.72, 0.50, 0.026, QX, QY, QZ, qFrame);
+
+        // Quote print inside frame
+        const qPrint = new THREE.Mesh(
+          new THREE.BoxGeometry(0.62, 0.40, 0.004),
+          new THREE.MeshStandardMaterial({ map: qTex, roughness: 0.9, metalness: 0 })
+        );
+        qPrint.position.set(QX, QY, QZ + 0.015); scene.add(qPrint);
+      }
+
+      // Window light (point light from left window)
+      const winLight = new THREE.PointLight(0xffd080, 1.5, 6);
+      winLight.position.set(-2.0, 1.7, -0.6); scene.add(winLight);
+
+      // ── Executive office chair ────────────────────────────────────────────────
+      // Chair seat center at Y=0.455 (Sophia's hip level after SEAT_LOWER=0.30)
+      // Chair back top at Y≈1.19 — peeks above Sophia's head as backdrop
+      const chairLeather = M(0x0b0b0b, 0.55, 0.04);
+      const chairChrome  = M(0x909090, 0.12, 0.95);
+      const chairAccent  = M(0x0d0d0d, 0.5, 0.05);
+
+      // Seat cushion
+      box(0.60, 0.09, 0.52,  0, 0.455, -0.42, chairLeather);
+      box(0.56, 0.04, 0.48,  0, 0.499, -0.42, chairAccent);  // top quilted overlay
+
+      // Chair back panel
+      box(0.56, 0.60, 0.09,  0, 0.800, -0.69, chairLeather);
+      // Lumbar support bulge
+      box(0.50, 0.22, 0.06,  0, 0.640, -0.66, M(0x090909, 0.5, 0.04));
+      // Shoulder wings
+      box(0.60, 0.12, 0.07,  0, 1.005, -0.69, chairLeather);
+      // Headrest
+      box(0.28, 0.18, 0.11,  0, 1.125, -0.69, chairLeather);
+      // Headrest quilted face
+      box(0.22, 0.14, 0.06,  0, 1.125, -0.65, chairAccent);
+
+      // Armrest pads (at elbow height, flanking Sophia)
+      box(0.07, 0.04, 0.30, -0.31, 0.565, -0.28, M(0x1a1a1a, 0.70, 0.25));
+      box(0.07, 0.04, 0.30,  0.31, 0.565, -0.28, M(0x1a1a1a, 0.70, 0.25));
+      // Armrest stems
+      box(0.045, 0.14, 0.045, -0.31, 0.487, -0.30, chairChrome);
+      box(0.045, 0.14, 0.045,  0.31, 0.487, -0.30, chairChrome);
+
+      // Gas-lift column
+      box(0.06, 0.44, 0.06,  0, 0.228, -0.42, chairChrome);
+      // Seat plate connector
+      box(0.12, 0.05, 0.12,  0, 0.452, -0.42, chairChrome);
+
+      // 5-star chrome base + casters
+      for (let i = 0; i < 5; i++) {
+        const ang = (i / 5) * Math.PI * 2;
+        const armMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.40, 0.032, 0.055),
+          new THREE.MeshStandardMaterial({ color: 0x1e1e1e, roughness: 0.2, metalness: 0.92 })
+        );
+        armMesh.position.set(Math.cos(ang) * 0.14, 0.016, -0.42 + Math.sin(ang) * 0.14);
+        armMesh.rotation.y = -ang;
+        scene.add(armMesh);
+        const caster = new THREE.Mesh(
+          new THREE.SphereGeometry(0.023, 8, 6),
+          new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.55 })
+        );
+        caster.position.set(Math.cos(ang) * 0.275, 0.023, -0.42 + Math.sin(ang) * 0.275);
+        scene.add(caster);
+      }
+
+      // Warm light from shade interior
+      const lampLight = new THREE.PointLight(0xffe0a0, 1.3, 2.5);
+      lampLight.position.set(shadeHead.x, shadeHead.y-0.05, shadeHead.z);
+      scene.add(lampLight);
+      // Shade inner emissive — warm cream glow
+      hd.material = new THREE.MeshStandardMaterial({ color:0xf5e8c8, emissive:0xffcc66, emissiveIntensity:0.55, roughness:0.6, side:THREE.DoubleSide });
+    }
+
+    // ── Audio analysis ────────────────────────────────────────────────────────
+    let analyser  = null;
+    let timeData  = null;
+    let freqData  = null;
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function noise(t, ...freqs) {
+      return freqs.reduce((s,[f,a,p=0]) => s + Math.sin(t*f+p)*a, 0);
+    }
+    function smoothstep(x) { return x*x*(3-2*x); }
+
+    // Jaw bone rest Z rotation — set at load time, used by animate()
+    let jawRestZ = -2.1;
+
+    // ── Blink state — frequent (every 0.8–2.5 s) ─────────────────────────────
+    let nextBlink = 0.5 + Math.random() * 1.0;
+    let blinkT    = -1;
+
+    // ── Eye dart state ────────────────────────────────────────────────────────
+    let eyeTargetH = 0, eyeTargetV = 0, nextEyeDart = 3;
+
+    // ── Arm pose constants (must be visible to animate loop) ─────────────────
+    const ARM_DOWN_C   = Math.PI / 3;
+    const FOREARM_IN   = 2.2;
+
+    // ── Gesture state (speaking) ──────────────────────────────────────────────
+    let gesturePhase = 0;
+    let nextGesture  = 4;
+    // Keyword-triggered reactions
+    let triggerGesture = null;   // 'wave' | 'nod_smile' | 'confident' | null
+    let triggerGestureT = 0;
+
+    // ── Speaking flag + audio ─────────────────────────────────────────────────
+    let speaking   = false;
+    let audioCtx   = null;
+    let currentSrc = null;
+
+    const clock = new THREE.Clock();
+
+    // ── Main animation loop ───────────────────────────────────────────────────
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!ready) { renderer.render(scene, camera); return; }
+      const t = clock.getElapsedTime();
+
+      // ── Breathing ──────────────────────────────────────────────────────────
+      const breath = 1 + Math.sin(t * 1.3) * 0.004;
+      if (spineBone)  spineBone.scale.set(breath, 1, breath);
+      if (spine1Bone) spine1Bone.scale.set(breath, 1, breath);
+
+      // ── Eye blink ──────────────────────────────────────────────────────────
+      if (t > nextBlink) { blinkT = t; nextBlink = t + 0.8 + Math.random() * 1.7; }
+      if (blinkT >= 0) {
+        const bd = t - blinkT;
+        const bv = bd < 0.07 ? smoothstep(bd/0.07) : (bd < 0.15 ? smoothstep(1-(bd-0.07)/0.08) : 0);
+        setMT('eyeBlinkLeft', bv);
+        setMT('eyeBlinkRight', bv);
+        if (bd > 0.15) blinkT = -1;
+      }
+
+      // ── Eye dart — micro-saccades while reading screen (stay in screen zone) ──
+      if (t > nextEyeDart) {
+        // Horizontal: tiny drift left/right as if scanning text
+        eyeTargetH = (Math.random() - 0.5) * 0.008;
+        // Vertical: stay biased downward (reading screen below)
+        eyeTargetV = 0.005 + Math.random() * 0.006;
+        nextEyeDart = t + 1.5 + Math.random() * 2.0;
+      }
+      if (lEyeBone) { lEyeBone.rotation.y += (eyeTargetH - lEyeBone.rotation.y) * 0.10; lEyeBone.rotation.x += (eyeTargetV - lEyeBone.rotation.x) * 0.10; }
+      if (rEyeBone) { rEyeBone.rotation.y += (eyeTargetH - rEyeBone.rotation.y) * 0.10; rEyeBone.rotation.x += (eyeTargetV - rEyeBone.rotation.x) * 0.10; }
+
+      // ── Head / neck idle ───────────────────────────────────────────────────
+      const headObj = neckBone || headBone;
+      if (headObj) {
+        const spk = speaking;
+        // Idle: looking at camera — face forward, very subtle natural drift
+        const idleY = noise(t, [0.37, 0.006], [0.13, 0.003, 1.2]);          // gentle left/right drift around 0
+        const idleX = 0.04 + noise(t, [0.51, 0.004], [0.19, 0.002, 0.8]);   // nearly level, tiny nod
+        const idleZ = noise(t, [0.28, 0.004], [0.09, 0.002, 2.1]);           // minimal tilt
+
+        if (!spk) {
+          headObj.rotation.y += (idleY - headObj.rotation.y) * 0.05;
+          headObj.rotation.x += (idleX - headObj.rotation.x) * 0.05;
+          headObj.rotation.z += (idleZ - headObj.rotation.z) * 0.05;
+        } else {
+          // Speaking: face camera — Y stays near 0 (no sideways), X near 0 (not chin-down)
+          const spkY = noise(t, [0.45, 0.012], [2.2, 0.006, 0.5]);   // tiny left/right only
+          const spkX = noise(t, [3.1, 0.018], [1.8, 0.010, 0.3]);    // slight nods around 0
+          const spkZ = noise(t, [2.5, 0.008], [0.9, 0.004, 0.7]);    // minimal tilt
+          headObj.rotation.y += (spkY - headObj.rotation.y) * 0.08;
+          headObj.rotation.x += (spkX - headObj.rotation.x) * 0.08;
+          headObj.rotation.z += (spkZ - headObj.rotation.z) * 0.08;
+        }
+      }
+
+      // ── Triggered gesture face/head overlays ──────────────────────────────
+      if (triggerGesture && headObj) {
+        const tgth = t - triggerGestureT;
+        if (triggerGesture === 'wave' && tgth < 2.2) {
+          // Brow flash: quick raise-and-settle in first 0.55s
+          if (tgth < 0.55) {
+            const bf = Math.sin(tgth * Math.PI / 0.50) * 0.60 * Math.max(0, 1 - tgth * 2.0);
+            lerpMT('browInnerUp',      Math.max(getMT('browInnerUp'),      bf),      0.22);
+            lerpMT('browOuterUpLeft',  Math.max(getMT('browOuterUpLeft'),  bf*0.75), 0.22);
+            lerpMT('browOuterUpRight', Math.max(getMT('browOuterUpRight'), bf*0.75), 0.22);
+          }
+        } else if (triggerGesture === 'nod_smile' && tgth < 1.8) {
+          // Two quick nods (additive rotation on top of speaking animation)
+          const nod = Math.sin(tgth * Math.PI * 3.2) * 0.10
+                    * Math.min(1, tgth * 5.0)
+                    * Math.max(0, 1 - (tgth - 1.2) / 0.6);
+          headObj.rotation.x += nod;
+          // Big warm smile
+          const senv = Math.min(1, tgth / 0.25) * Math.max(0, 1 - (tgth - 1.3) / 0.5);
+          lerpMT('mouthSmileLeft',  Math.max(getMT('mouthSmileLeft'),  0.58 * senv), 0.14);
+          lerpMT('mouthSmileRight', Math.max(getMT('mouthSmileRight'), 0.58 * senv), 0.14);
+          lerpMT('cheekSquintLeft',  Math.max(getMT('cheekSquintLeft'),  0.45 * senv), 0.12);
+          lerpMT('cheekSquintRight', Math.max(getMT('cheekSquintRight'), 0.45 * senv), 0.12);
+        } else if (triggerGesture === 'confident' && tgth < 2.5) {
+          // Slight chin-up — pull head rotation toward -0.06
+          const cenv = tgth < 0.4 ? tgth/0.4 : (tgth > 2.1 ? (2.5-tgth)/0.4 : 1.0);
+          headObj.rotation.x += (-0.06 * cenv - headObj.rotation.x) * 0.04;
+        }
+      }
+
+      // ── Torso sway ─────────────────────────────────────────────────────────
+      if (spine1Bone) {
+        const amt = speaking ? 0.010 : 0.005;
+        spine1Bone.rotation.z = noise(t, [0.25, amt], [0.11, amt*0.5, 1.5]);
+        spine1Bone.rotation.y = noise(t, [0.18, amt*0.6]);
+      }
+
+      // ── Audio-driven face ──────────────────────────────────────────────────
+      if (speaking && analyser && timeData && freqData) {
+        analyser.getFloatTimeDomainData(timeData);
+        analyser.getFloatFrequencyData(freqData);
+
+        // RMS amplitude → jaw open
+        let rms = 0;
+        for (let i = 0; i < timeData.length; i++) rms += timeData[i] * timeData[i];
+        rms = Math.sqrt(rms / timeData.length);
+        const jaw = Math.min(1.0, rms * 14);
+
+        lerpMT('jawOpen', jaw, 0.4);
+        // Jaw bone: negative Z delta opens chin down — 0.13 rad ≈ natural speech
+        if (jawBone) jawBone.rotation.z += ((jawRestZ - jaw * 0.13) - jawBone.rotation.z) * 0.4;
+
+        // Frequency bands → viseme approximation
+        const db2lin = d => Math.pow(10, Math.max(-80, d) / 20);
+        // Very low: bass / vowels (100-300 Hz at fftSize=256, 44100 Hz → bin≈1-3)
+        const bass  = (db2lin(freqData[1])+db2lin(freqData[2])+db2lin(freqData[3]))/3;
+        // Mid: vowels (500-1500 Hz → bin≈6-17)
+        const mid   = (db2lin(freqData[6])+db2lin(freqData[8])+db2lin(freqData[10]))/3;
+        // High: sibilants / consonants (2k-5kHz → bin≈23-58)
+        const high  = (db2lin(freqData[24])+db2lin(freqData[35])+db2lin(freqData[50]))/3;
+
+        // Map to visemes (blended, not mutually exclusive)
+        const jawN = jaw; // 0-0.75
+        lerpMT('viseme_aa', Math.min(1, bass * 3) * jawN * 0.8, 0.35);
+        lerpMT('viseme_O',  Math.min(1, mid * 2)  * jawN * 0.6, 0.35);
+        lerpMT('viseme_SS', Math.min(1, high * 4) * 0.4,        0.25);
+        lerpMT('viseme_E',  Math.min(1, mid * 1.5)* jawN * 0.4, 0.30);
+
+        // Lower lip pull-down makes jaw opening dramatically more visible
+        lerpMT('mouthLowerDownLeft',  Math.min(1.0, jawN * 1.4), 0.35);
+        lerpMT('mouthLowerDownRight', Math.min(1.0, jawN * 1.4), 0.35);
+        // Upper lip rises on open vowels
+        lerpMT('mouthUpperUpLeft',  Math.min(0.6, jawN * 0.8), 0.30);
+        lerpMT('mouthUpperUpRight', Math.min(0.6, jawN * 0.8), 0.30);
+
+        // Brow raise while speaking (subtle)
+        lerpMT('browInnerUp',    Math.min(0.3, jawN * 0.5), 0.15);
+        lerpMT('browOuterUpLeft', Math.min(0.2, jawN * 0.4), 0.15);
+        lerpMT('browOuterUpRight', Math.min(0.2, jawN * 0.4), 0.15);
+        // Cheek squint when opening mouth
+        lerpMT('cheekSquintLeft',  0.06 + jawN * 0.2, 0.2);
+        lerpMT('cheekSquintRight', 0.06 + jawN * 0.2, 0.2);
+        // Eyes squint slightly when talking
+        lerpMT('eyeSquintLeft',  jawN * 0.15, 0.2);
+        lerpMT('eyeSquintRight', jawN * 0.15, 0.2);
+        // Eyes forward when speaking (looking at camera, not screen)
+        lerpMT('eyeLookDownLeft',  0,    0.10);
+        lerpMT('eyeLookDownRight', 0,    0.10);
+
+        // Smile reduces slightly when jaw opens wide (prevents fighting open)
+        const smileSpk = Math.max(0, 0.12 - jawN * 0.10);
+        lerpMT('mouthSmileLeft',  smileSpk, 0.08);
+        lerpMT('mouthSmileRight', smileSpk, 0.08);
+        // Eyebrow bones lift with speech energy
+        if (lBrowBone) lBrowBone.rotation.x += (-jawN * 0.04 - lBrowBone.rotation.x) * 0.12;
+        if (rBrowBone) rBrowBone.rotation.x += (-jawN * 0.04 - rBrowBone.rotation.x) * 0.12;
+      } else if (!speaking) {
+        // Smooth reset jaw bone to rest
+        if (jawBone) jawBone.rotation.z += (jawRestZ - jawBone.rotation.z) * 0.15;
+        if (lBrowBone) lBrowBone.rotation.x += (0 - lBrowBone.rotation.x) * 0.08;
+        if (rBrowBone) rBrowBone.rotation.x += (0 - rBrowBone.rotation.x) * 0.08;
+        // Smooth reset to idle face
+        lerpMT('jawOpen',    0, 0.15);
+        lerpMT('viseme_aa',  0, 0.15);
+        lerpMT('viseme_O',   0, 0.15);
+        lerpMT('viseme_SS',  0, 0.15);
+        lerpMT('viseme_E',   0, 0.15);
+        lerpMT('mouthLowerDownLeft',  0, 0.12);
+        lerpMT('mouthLowerDownRight', 0, 0.12);
+        lerpMT('mouthUpperUpLeft',    0, 0.12);
+        lerpMT('mouthUpperUpRight',   0, 0.12);
+        lerpMT('browInnerUp',  0, 0.08);
+        lerpMT('browOuterUpLeft',  0, 0.08);
+        lerpMT('browOuterUpRight', 0, 0.08);
+        lerpMT('cheekSquintLeft',  0.06, 0.08);
+        lerpMT('cheekSquintRight', 0.06, 0.08);
+        lerpMT('eyeSquintLeft',  0, 0.1);
+        lerpMT('eyeSquintRight', 0, 0.1);
+        // Idle: eyes forward — looking at camera
+        lerpMT('eyeLookDownLeft',  0.0, 0.05);
+        lerpMT('eyeLookDownRight', 0.0, 0.05);
+        lerpMT('mouthSmileLeft',  0.12, 0.05);
+        lerpMT('mouthSmileRight', 0.12, 0.05);
+      }
+
+      // ── Arm gestures + hand movement ──────────────────────────────────────────
+      const tgt = t - triggerGestureT;
+      let armHandled = false;
+
+      if (triggerGesture === 'wave' && speaking && tgt < 2.2) {
+        // Right arm raises, hand oscillates side-to-side — greeting wave
+        armHandled = true;
+        const env = tgt < 0.35 ? tgt/0.35 : (tgt > 1.8 ? (2.2-tgt)/0.4 : 1.0);
+        const waveOsc = Math.sin(t * 5.5) * 0.44 * env;
+        if (lArmBone)     lArmBone.rotation.y     += (ARM_DOWN_C - lArmBone.rotation.y) * 0.05;
+        if (rArmBone)     rArmBone.rotation.y     += ((ARM_DOWN_C - 0.90*env) - rArmBone.rotation.y) * 0.12;
+        if (lForeArmBone) { lForeArmBone.rotation.x += (0 - lForeArmBone.rotation.x)*0.05; lForeArmBone.rotation.y += (0.15 - lForeArmBone.rotation.y)*0.05; }
+        if (rForeArmBone) { rForeArmBone.rotation.x += (-0.55*env - rForeArmBone.rotation.x)*0.12; rForeArmBone.rotation.y += (0.15 - rForeArmBone.rotation.y)*0.06; }
+        if (lHandBone)    { lHandBone.rotation.z += (0.1 - lHandBone.rotation.z)*0.05; lHandBone.rotation.x = 0; }
+        if (rHandBone)    { rHandBone.rotation.z = -0.1 + waveOsc; rHandBone.rotation.x = 0; }
+        lFingers.forEach(b => { b.rotation.z += (0.22 - b.rotation.z)*0.06; });
+        rFingers.forEach(b => { b.rotation.z += (-0.08 - b.rotation.z)*0.10; }); // open palm for wave
+
+      } else if (triggerGesture === 'nod_smile' && speaking && tgt < 1.8) {
+        // Both arms open slightly — warm welcoming pose
+        armHandled = true;
+        const env = tgt < 0.30 ? tgt/0.30 : (tgt > 1.4 ? (1.8-tgt)/0.4 : 1.0);
+        if (lArmBone)     lArmBone.rotation.y     += ((ARM_DOWN_C - 0.20*env) - lArmBone.rotation.y) * 0.08;
+        if (rArmBone)     rArmBone.rotation.y     += ((ARM_DOWN_C - 0.20*env) - rArmBone.rotation.y) * 0.08;
+        if (lForeArmBone) { lForeArmBone.rotation.x += (-0.18*env - lForeArmBone.rotation.x)*0.08; lForeArmBone.rotation.y += (-0.08 - lForeArmBone.rotation.y)*0.06; }
+        if (rForeArmBone) { rForeArmBone.rotation.x += (-0.18*env - rForeArmBone.rotation.x)*0.08; rForeArmBone.rotation.y += (-0.08 - rForeArmBone.rotation.y)*0.06; }
+        if (lHandBone)    lHandBone.rotation.z += (0.42*env - lHandBone.rotation.z)*0.10;
+        if (rHandBone)    rHandBone.rotation.z += (-0.42*env - rHandBone.rotation.z)*0.10;
+        lFingers.forEach(b => { b.rotation.z += (0.08 - b.rotation.z)*0.08; }); // open palms
+        rFingers.forEach(b => { b.rotation.z += (-0.08 - b.rotation.z)*0.08; });
+
+      } else if (triggerGesture === 'confident' && speaking && tgt < 2.5) {
+        // Right arm raises, open palm — assertive confident gesture
+        armHandled = true;
+        const env = tgt < 0.35 ? tgt/0.35 : (tgt > 2.1 ? (2.5-tgt)/0.4 : 1.0);
+        if (lArmBone)     lArmBone.rotation.y     += (ARM_DOWN_C - lArmBone.rotation.y) * 0.05;
+        if (rArmBone)     rArmBone.rotation.y     += ((ARM_DOWN_C - 0.35*env) - rArmBone.rotation.y) * 0.07;
+        if (lForeArmBone) { lForeArmBone.rotation.x += (0 - lForeArmBone.rotation.x)*0.05; lForeArmBone.rotation.y += (0.15 - lForeArmBone.rotation.y)*0.05; }
+        if (rForeArmBone) { rForeArmBone.rotation.x += (-0.30*env - rForeArmBone.rotation.x)*0.08; rForeArmBone.rotation.y += (0.12 - rForeArmBone.rotation.y)*0.06; }
+        if (lHandBone)    { lHandBone.rotation.z += (0.1 - lHandBone.rotation.z)*0.05; lHandBone.rotation.x = 0; }
+        if (rHandBone)    { rHandBone.rotation.z += (-0.52*env - rHandBone.rotation.z)*0.10; rHandBone.rotation.x = Math.sin(t*1.8)*0.015*env; }
+        lFingers.forEach(b => { b.rotation.z += (0.22 - b.rotation.z)*0.06; });
+        rFingers.forEach(b => { b.rotation.z += (-0.06 - b.rotation.z)*0.08; }); // open palm
+
+      } else {
+        if (triggerGesture && tgt > 2.5) triggerGesture = null;
+
+        if (speaking) {
+          // Advance gesture phase every 1.8–4 s
+          if (t > nextGesture) {
+            gesturePhase = (gesturePhase + 1) % 4;
+            nextGesture  = t + 1.8 + Math.random() * 2.2;
+          }
+          const pulse = Math.sin(t * 2.8) * 0.018;
+
+          let lArmYT = ARM_DOWN_C, rArmYT = ARM_DOWN_C;
+          let lFXt = 0, rFXt = 0, lFYt = 0.15, rFYt = 0.15;
+          let lHZt = 0.1, rHZt = -0.1, lFgZ = 0.14, rFgZ = -0.14;
+
+          switch (gesturePhase) {
+            case 0:
+              lArmYT = ARM_DOWN_C - 0.22;
+              lFXt = -0.42; lFYt = -0.25; lHZt = 0.38; lFgZ = 0.10;
+              break;
+            case 1:
+              rArmYT = ARM_DOWN_C - 0.22;
+              rFXt = -0.42; rFYt = -0.25; rHZt = -0.38; rFgZ = -0.10;
+              break;
+            case 2:
+              lArmYT = ARM_DOWN_C - 0.15; rArmYT = ARM_DOWN_C - 0.15;
+              lFXt = -0.22; rFXt = -0.22; lFYt = -0.15; rFYt = -0.15;
+              lHZt = 0.44; rHZt = -0.44; lFgZ = 0.08; rFgZ = -0.08;
+              break;
+            case 3:
+              break;
+          }
+
+          if (lArmBone)     lArmBone.rotation.y     += (lArmYT - lArmBone.rotation.y)     * 0.04;
+          if (rArmBone)     rArmBone.rotation.y     += (rArmYT - rArmBone.rotation.y)     * 0.04;
+          if (lForeArmBone) { lForeArmBone.rotation.x += (lFXt - lForeArmBone.rotation.x) * 0.05; lForeArmBone.rotation.y += (lFYt - lForeArmBone.rotation.y) * 0.05; }
+          if (rForeArmBone) { rForeArmBone.rotation.x += (rFXt - rForeArmBone.rotation.x) * 0.05; rForeArmBone.rotation.y += (rFYt - rForeArmBone.rotation.y) * 0.05; }
+          if (lHandBone)    { lHandBone.rotation.z += (lHZt - lHandBone.rotation.z) * 0.07; lHandBone.rotation.x = pulse; }
+          if (rHandBone)    { rHandBone.rotation.z += (rHZt - rHandBone.rotation.z) * 0.07; rHandBone.rotation.x = pulse * 0.7; }
+          lFingers.forEach(b => { b.rotation.z += (lFgZ + pulse * 0.6 - b.rotation.z) * 0.08; });
+          rFingers.forEach(b => { b.rotation.z += (rFgZ - pulse * 0.6 - b.rotation.z) * 0.08; });
+        } else {
+          // Smooth return to rest A-pose
+          if (lArmBone)     lArmBone.rotation.y     += (ARM_DOWN_C - lArmBone.rotation.y)     * 0.04;
+          if (rArmBone)     rArmBone.rotation.y     += (ARM_DOWN_C - rArmBone.rotation.y)     * 0.04;
+          if (lForeArmBone) { lForeArmBone.rotation.x += (0    - lForeArmBone.rotation.x) * 0.04; lForeArmBone.rotation.y += (0.15 - lForeArmBone.rotation.y) * 0.04; }
+          if (rForeArmBone) { rForeArmBone.rotation.x += (0    - rForeArmBone.rotation.x) * 0.04; rForeArmBone.rotation.y += (0.15 - rForeArmBone.rotation.y) * 0.04; }
+          if (lHandBone)    { lHandBone.rotation.x += (0    - lHandBone.rotation.x) * 0.05; lHandBone.rotation.z += ( 0.1  - lHandBone.rotation.z) * 0.04; }
+          if (rHandBone)    { rHandBone.rotation.x += (0    - rHandBone.rotation.x) * 0.05; rHandBone.rotation.z += (-0.1  - rHandBone.rotation.z) * 0.04; }
+          lFingers.forEach(b => { b.rotation.z += ( 0.22 - b.rotation.z) * 0.05; });
+          rFingers.forEach(b => { b.rotation.z += (-0.22 - b.rotation.z) * 0.05; });
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // ── Resize ─────────────────────────────────────────────────────────────────
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ── TTS + audio analysis ──────────────────────────────────────────────────
+    window.addEventListener('message', async (e) => {
+      if (!e.data?.type) return;
+
+      if (e.data.type === 'speak') {
+        // Keyword-triggered reactions
+        const textLow = (e.data.text || '').toLowerCase();
+        triggerGestureT = clock.getElapsedTime();
+        if (/\b(hi|hello|hey)\b/.test(textLow)) {
+          triggerGesture = 'wave';
+        } else if (/\b(good|great|excellent|perfect|wonderful|fantastic|amazing|nice)\b/.test(textLow)) {
+          triggerGesture = 'nod_smile';
+        } else if (/\b(certainly|absolutely|of course|i am|i'm|my |i have|i've)\b/.test(textLow)) {
+          triggerGesture = 'confident';
+        } else {
+          triggerGesture = null;
+        }
+        speaking = true;
+        parent.postMessage({ type: 'speaking' }, '*');
+        try {
+          const res = await fetch(`${apiBase}/api/avatar/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              input: { text: e.data.text },
+              voice: { speaker: e.data.speaker || speaker },
+              audioConfig: {},
+            }),
+          });
+          if (!res.ok) throw new Error('TTS ' + res.status);
+          const { audioContent } = await res.json();
+
+          // Set up audio context + analyser
+          if (!audioCtx) audioCtx = new AudioContext();
+          if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+          if (!analyser) {
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.6;
+            timeData = new Float32Array(analyser.fftSize);
+            freqData = new Float32Array(analyser.frequencyBinCount);
+          }
+
+          const bin = atob(audioContent);
+          const raw = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) raw[i] = bin.charCodeAt(i);
+          const buf = await audioCtx.decodeAudioData(raw.buffer);
+
+          if (currentSrc) { try { currentSrc.stop(); } catch {} }
+          currentSrc = audioCtx.createBufferSource();
+          currentSrc.buffer = buf;
+          currentSrc.connect(analyser);
+          analyser.connect(audioCtx.destination);
+          currentSrc.onended = () => {
+            speaking = false;
+            parent.postMessage({ type: 'speaking-stopped' }, '*');
+          };
+          currentSrc.start();
+        } catch (err) {
+          console.error('Speak error:', err);
+          speaking = false;
+          parent.postMessage({ type: 'error', message: err.message }, '*');
+          parent.postMessage({ type: 'speaking-stopped' }, '*');
+        }
+      }
+
+      if (e.data.type === 'stop') {
+        speaking = false;
+        if (currentSrc) { try { currentSrc.stop(); } catch {} }
+      }
+    });
+  </script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="loading">Loading…</div>
+</body>
+</html>

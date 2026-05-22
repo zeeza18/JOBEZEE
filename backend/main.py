@@ -32,6 +32,7 @@ from .routers import billing
 from .routers import resume_analysis
 from .routers import linkedin_boost
 from .routers import interview
+from .routers import avatar_interview
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -733,6 +734,7 @@ app.include_router(billing.router,      tags=["billing"])
 app.include_router(resume_analysis.router, tags=["resume-analysis"])
 app.include_router(linkedin_boost.router,  tags=["linkedin-boost"])
 app.include_router(interview.router,        tags=["interview"])
+app.include_router(avatar_interview.router, tags=["avatar-interview"])
 
 # ── Static files (uploaded resumes) ──────────────────────────────────────────
 

@@ -33,3 +33,6 @@ reportlab==4.2.5
 python-dotenv==1.0.1
 rich==13.9.4
 psutil
+
+# ── Avatar interview (TTS) ─────────────────────────────────────────────────────
+edge-tts>=6.1.9

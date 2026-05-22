@@ -72,6 +72,23 @@ export const InterviewSetupModal = ({ mode, profileResumeAvailable, onClose, onS
 
         <div className="px-6 py-5 space-y-5 max-h-[75vh] overflow-y-auto">
 
+          {/* Sophia banner */}
+          <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-violet-50 to-cyan-50 border border-violet-100 px-4 py-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-cyan-400 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-violet-800">Sophia will conduct this interview</p>
+              <p className="text-[11px] text-violet-500 mt-0.5">
+                {mode === 'schedule'
+                  ? 'Speak naturally — Sophia will ask your questions via voice at the scheduled time'
+                  : 'Speak naturally — Sophia will ask your questions via voice using a 3D avatar'}
+              </p>
+            </div>
+          </div>
+
           {/* Job Description */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Job Description</label>
