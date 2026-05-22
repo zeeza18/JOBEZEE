@@ -17,7 +17,7 @@ export default {
         sidebar: '#0d1117',
       },
       fontFamily: {
-        sans: ['"Space Grotesk"', ...fontFamily.sans],
+        sans: ['"Plus Jakarta Sans"', ...fontFamily.sans],
       },
       boxShadow: {
         soft: '0 1px 3px rgba(0,0,0,0.08)',

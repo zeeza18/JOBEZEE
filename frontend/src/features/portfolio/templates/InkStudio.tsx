@@ -231,7 +231,7 @@ export default function InkStudio({ profile, primaryColor: _primaryColor, accent
 
       <footer className="border-t-2 border-black py-6 px-8 flex items-center justify-between text-xs font-sans uppercase tracking-widest text-gray-400">
         <span>&copy; {new Date().getFullYear()} {name}</span>
-        <span>Built with <span style={{ color: accentColor }}>JOBEZEE</span></span>
+        <span>Built with <span style={{ color: accentColor }}>JobEzee</span></span>
       </footer>
     </div>
   )

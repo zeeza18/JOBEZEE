@@ -64,7 +64,7 @@ const jobTemplates: Omit<Job, 'id' | 'postedAt'>[] = [
     salaryRange: '$150k - $185k',
     description: 'Lead frontend initiatives building modern dashboards and design systems with React, TypeScript, and accessibility-first principles.',
     skills: ['React', 'TypeScript', 'Design Systems', 'Accessibility', 'Testing'],
-    source: 'JOBEZEE Feed',
+    source: 'JobEzee Feed',
   },
   {
     title: 'Full Stack Engineer',
@@ -84,7 +84,7 @@ const jobTemplates: Omit<Job, 'id' | 'postedAt'>[] = [
     salaryRange: '$90/hr',
     description: 'Design flows for onboarding and dashboards with prototyping in Figma and close engineering collaboration.',
     skills: ['UX', 'UI', 'Figma', 'Prototyping', 'Design Systems'],
-    source: 'JOBEZEE Feed',
+    source: 'JobEzee Feed',
   },
   {
     title: 'Data Analyst',
@@ -104,7 +104,7 @@ const jobTemplates: Omit<Job, 'id' | 'postedAt'>[] = [
     salaryRange: '$145k - $170k',
     description: 'Ship consumer app experiences with React Native, animations, and performance optimizations.',
     skills: ['React Native', 'TypeScript', 'Animations', 'Testing'],
-    source: 'JOBEZEE Feed',
+    source: 'JobEzee Feed',
   },
   {
     title: 'Backend Engineer',

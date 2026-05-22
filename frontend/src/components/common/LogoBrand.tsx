@@ -16,7 +16,7 @@ export default function LogoBrand({ size = 'md', subtitle, variant = 'dark' }: P
   return (
     <div className="flex flex-col gap-1">
       <div className={`flex items-center ${gapCls}`}>
-        {/* JOBEZEE wordmark — letters stagger in */}
+        {/* JobEzee wordmark — letters stagger in */}
         <div className={`flex font-black tracking-tight leading-none ${textCls}`}>
           {JOBE.map((l, i) => (
             <motion.span

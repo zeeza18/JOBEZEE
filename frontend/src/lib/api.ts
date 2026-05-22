@@ -1,5 +1,5 @@
 /**
- * Typed API client for the JOBEZEE FastAPI backend.
+ * Typed API client for the JobEzee FastAPI backend.
  * Uses native fetch with credentials: 'include' so httpOnly JWT cookies
  * are sent automatically on every request.
  */

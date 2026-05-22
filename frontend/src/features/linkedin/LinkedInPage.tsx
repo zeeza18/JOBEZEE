@@ -775,11 +775,11 @@ const LinkedInPage = () => {
                         if (/\[heartbeat\]/i.test(raw))                        return null
                         if (/runAiBot\.py started/i.test(raw))                 return null
                         if (/importing open_chrome/i.test(raw))                return null
-                        if (/\[JOBEZEE\] Config written/i.test(raw))           return null
-                        if (/\[JOBEZEE\] Bot process started/i.test(raw))      return null
-                        if (/\[JOBEZEE\] Delegating to Hetzner/i.test(raw))    return null
-                        if (/\[JOBEZEE\] Saved LinkedIn session cookies found/i.test(raw)) return null
-                        if (/\[JOBEZEE\] (experience_level|on_site|job_type|salary)/i.test(raw)) return null
+                        if (/\[JobEzee\] Config written/i.test(raw))           return null
+                        if (/\[JobEzee\] Bot process started/i.test(raw))      return null
+                        if (/\[JobEzee\] Delegating to Hetzner/i.test(raw))    return null
+                        if (/\[JobEzee\] Saved LinkedIn session cookies found/i.test(raw)) return null
+                        if (/\[JobEzee\] (experience_level|on_site|job_type|salary)/i.test(raw)) return null
                         if (/Extracted about company/i.test(raw))              return null
                         if (/Failed to scroll to About Company/i.test(raw))    return null
                         if (/HR info was not given/i.test(raw))                return null
@@ -848,8 +848,8 @@ const LinkedInPage = () => {
                         if (/daily.*apply.*limit|Easy Apply.*limit.*reached/i.test(raw))
                           return { text: 'LinkedIn daily Easy Apply limit reached', cls: 'text-amber-400' }
 
-                        if (/\[JOBEZEE\] ERROR:|WORKER ERROR/i.test(raw))
-                          return { text: raw.replace(/\[JOBEZEE\]\s*/i, ''), cls: 'text-red-400' }
+                        if (/\[JobEzee\] ERROR:|WORKER ERROR/i.test(raw))
+                          return { text: raw.replace(/\[JobEzee\]\s*/i, ''), cls: 'text-red-400' }
                         if (/\[ERROR\]/i.test(raw))
                           return { text: raw.replace(/\[ERROR\]\s*/i, ''), cls: 'text-red-400' }
 
@@ -857,12 +857,12 @@ const LinkedInPage = () => {
                         if (/Bot finished/i.test(raw))                   return { text: 'Bot finished', cls: 'text-slate-400' }
                         if (/Bot finished \(exit code/i.test(raw))       return { text: 'Bot finished', cls: 'text-slate-400' }
 
-                        if (/\[JOBEZEE\] Using name:/i.test(raw))        return { text: raw.replace('[JOBEZEE] ', ''), cls: 'text-slate-400' }
-                        if (/\[JOBEZEE\] search_terms/i.test(raw)) {
+                        if (/\[JobEzee\] Using name:/i.test(raw))        return { text: raw.replace('[JobEzee] ', ''), cls: 'text-slate-400' }
+                        if (/\[JobEzee\] search_terms/i.test(raw)) {
                           const roles = raw.match(/search_terms\s*=\s*(.+)/)
                           return { text: `Roles: ${roles ? roles[1] : ''}`, cls: 'text-slate-400' }
                         }
-                        if (/\[JOBEZEE\] tailor_resume/i.test(raw))      return { text: raw.replace('[JOBEZEE] ', ''), cls: 'text-slate-400' }
+                        if (/\[JobEzee\] tailor_resume/i.test(raw))      return { text: raw.replace('[JobEzee] ', ''), cls: 'text-slate-400' }
 
                         if (/Jobs Easy Applied:/i.test(raw))             return { text: raw.trim(), cls: 'text-emerald-300' }
                         if (/Total applied/i.test(raw))                  return { text: raw.trim(), cls: 'text-emerald-300' }

@@ -64,8 +64,8 @@ def _hetzner_count(table: str) -> int:
     try:
         r = _hetzner_sql(f"SELECT COUNT(*) FROM {table};")
         return int(r.strip())
-    except Exception:
-        return -1
+    except Exception as exc:
+        raise RuntimeError(f"Count failed for {table}: {exc}") from exc
 
 def _hetzner_truncate(tables: list[str]) -> None:
     _hetzner_sql(f"TRUNCATE {', '.join(tables)} CASCADE;")

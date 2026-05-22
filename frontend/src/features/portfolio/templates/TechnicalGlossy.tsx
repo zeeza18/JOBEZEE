@@ -1139,7 +1139,7 @@ export default function TechnicalGlossy({
             <div className="flex items-center gap-6 text-sm text-white/40">
               <span>&copy; {new Date().getFullYear()} All rights reserved</span>
               <span className="hidden md:block">|</span>
-              <span className="hidden md:block">Built with JOBEZEE</span>
+              <span className="hidden md:block">Built with JobEzee</span>
             </div>
 
             <div className="flex items-center gap-4">

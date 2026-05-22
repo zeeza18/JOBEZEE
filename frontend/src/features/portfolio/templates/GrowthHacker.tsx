@@ -262,7 +262,7 @@ export default function GrowthHacker({ profile, primaryColor, accentColor, showS
 
       <footer className="border-t py-6 px-8 flex justify-between text-xs text-stone-700" style={{ borderColor: '#292524' }}>
         <span>&copy; {new Date().getFullYear()} {name}</span>
-        <span>Built with <span style={{ color: orange }}>JOBEZEE</span></span>
+        <span>Built with <span style={{ color: orange }}>JobEzee</span></span>
       </footer>
     </div>
   )

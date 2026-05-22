@@ -273,7 +273,7 @@ export default function MedProfile({ profile, primaryColor, accentColor, showSec
 
       <footer className="bg-white border-t border-blue-100 py-5 px-8 flex justify-between text-xs text-gray-400">
         <span>&copy; {new Date().getFullYear()} {name}</span>
-        <span>Built with <span className="font-semibold" style={{ color: blue }}>JOBEZEE</span></span>
+        <span>Built with <span className="font-semibold" style={{ color: blue }}>JobEzee</span></span>
       </footer>
     </div>
   )

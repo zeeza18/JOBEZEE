@@ -301,7 +301,7 @@ export default function CorporatePro({ profile, primaryColor, accentColor, showS
 
       <footer className="py-6 px-8 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
         <span>&copy; {new Date().getFullYear()} {name}</span>
-        <span>Built with <span className="font-semibold" style={{ color: primaryColor }}>JOBEZEE</span></span>
+        <span>Built with <span className="font-semibold" style={{ color: primaryColor }}>JobEzee</span></span>
       </footer>
     </div>
   )

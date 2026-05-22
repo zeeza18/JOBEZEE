@@ -299,7 +299,7 @@ export default function NeonGrid({ profile, primaryColor, accentColor, showSecti
       )}
 
       <footer className="py-8 text-center text-slate-700 text-sm border-t" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-        Built with <span style={{ color: primaryColor }}>JOBEZEE</span>
+        Built with <span style={{ color: primaryColor }}>JobEzee</span>
       </footer>
     </div>
   )

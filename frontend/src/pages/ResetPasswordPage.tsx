@@ -83,7 +83,7 @@ export default function ResetPasswordPage() {
           </h2>
           <p className="mt-4 text-lg text-slate-500">Choose something strong and unique.</p>
         </div>
-        <p className="text-xs text-slate-400">© 2026 JOBEZEE</p>
+        <p className="text-xs text-slate-400">© 2026 JobEzee</p>
       </div>
 
       {/* Right form panel */}

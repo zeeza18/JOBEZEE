@@ -97,7 +97,7 @@ export default function AuthPage() {
           </div>
         </div>
 
-        <p className="text-xs text-slate-400">© 2026 JOBEZEE · No credit card required</p>
+        <p className="text-xs text-slate-400">© 2026 JobEzee · No credit card required</p>
       </div>
 
       {/* Right panel — form */}

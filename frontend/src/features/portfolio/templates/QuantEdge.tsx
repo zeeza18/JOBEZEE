@@ -271,7 +271,7 @@ export default function QuantEdge({ profile, primaryColor, accentColor, showSect
 
         <footer className="py-6 px-10 border-t border-gray-100 text-xs text-gray-400 flex justify-between">
           <span>&copy; {new Date().getFullYear()} {name}</span>
-          <span>Built with <span style={{ color: emerald }}>JOBEZEE</span></span>
+          <span>Built with <span style={{ color: emerald }}>JobEzee</span></span>
         </footer>
       </main>
     </div>

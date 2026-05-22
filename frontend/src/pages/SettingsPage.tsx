@@ -528,7 +528,7 @@ const SettingsPage = () => {
                   className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition" />
                 <PwField value={creds.apply_password} onChange={setCred('apply_password')} placeholder="Default password" />
               </div>
-              <p className="text-xs text-slate-400">These are used when signing up / logging in to job sites. Not your JOBEZEE password.</p>
+              <p className="text-xs text-slate-400">These are used when signing up / logging in to job sites. Not your JobEzee password.</p>
             </div>
 
             <div className="mx-5 h-px bg-slate-100" />

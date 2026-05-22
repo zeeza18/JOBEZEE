@@ -495,7 +495,7 @@ export default function ModernDev({
       <footer className="py-8 px-8 border-t flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-700"
         style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
         <span>&copy; {new Date().getFullYear()} {name}. All rights reserved.</span>
-        <span>Built with <span className="font-bold" style={{ color: primaryColor }}>JOBEZEE</span> · Portfolio Builder</span>
+        <span>Built with <span className="font-bold" style={{ color: primaryColor }}>JobEzee</span> · Portfolio Builder</span>
       </footer>
     </div>
   )

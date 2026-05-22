@@ -1924,7 +1924,7 @@ function Footer({ name, primaryColor, accentColor, linkedin, github }: FooterPro
             >
               &#9829;
             </motion.span>
-            <span>using JOBEZEE</span>
+            <span>using JobEzee</span>
           </div>
         </motion.div>
       </div>

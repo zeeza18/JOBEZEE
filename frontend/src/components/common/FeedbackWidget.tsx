@@ -230,7 +230,7 @@ export default function FeedbackWidget({ sidebarOpen }: Props) {
                   <Check className="h-6 w-6 text-emerald-500" />
                 </div>
                 <p className="text-sm font-semibold text-slate-800">Thanks for the feedback!</p>
-                <p className="text-xs text-slate-400 text-center">We read every message and use it to improve JOBEZEE.</p>
+                <p className="text-xs text-slate-400 text-center">We read every message and use it to improve JobEzee.</p>
               </div>
             ) : (
               <>

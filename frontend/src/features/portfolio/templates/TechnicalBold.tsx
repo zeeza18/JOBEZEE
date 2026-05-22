@@ -1191,7 +1191,7 @@ export default function TechnicalBold({
           {/* Bottom bar */}
           <div className="mt-8 pt-6 border-t-2 border-gray-200 flex items-center justify-between">
             <p className="text-xs text-gray-400 font-medium">
-              Built with JOBEZEE Portfolio Builder
+              Built with JobEzee Portfolio Builder
             </p>
             <div className="flex gap-4">
               <div className="h-2 w-20 bg-black" />
