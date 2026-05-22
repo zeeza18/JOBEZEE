@@ -417,7 +417,7 @@ async def get_session(
     return _session_to_dict(s)
 
 
-@router.delete("/sessions/{session_id}", status_code=204)
+@router.delete("/sessions/{session_id}", status_code=204, response_model=None)
 async def delete_session(
     session_id: str,
     current_user: User = Depends(get_current_user),
@@ -532,7 +532,7 @@ async def start_scheduled(
     return _scheduled_to_dict(item)
 
 
-@router.delete("/scheduled/{item_id}", status_code=204)
+@router.delete("/scheduled/{item_id}", status_code=204, response_model=None)
 async def cancel_scheduled(
     item_id: str,
     current_user: User = Depends(get_current_user),
