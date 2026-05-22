@@ -257,10 +257,21 @@ function TailorMockup() {
 
 // ─── Mockup: Apply ───────────────────────────────────────────────────────────
 const APPLY_JOBS = [
-  { t: 'Senior ML Engineer',     c: 'Google DeepMind', loc: 'San Francisco' },
+  { t: 'Senior ML Engineer',     c: 'Microsoft',        loc: 'Redmond · Remote' },
   { t: 'Staff Backend Engineer', c: 'Stripe',           loc: 'New York'      },
   { t: 'AI Product Manager',     c: 'OpenAI',           loc: 'Remote'        },
 ]
+
+function MicrosoftLogo({ className = '' }: { className?: string }) {
+  return (
+    <span className={`grid grid-cols-2 gap-0.5 ${className}`} aria-label="Microsoft">
+      <span className="block bg-[#f25022]" />
+      <span className="block bg-[#7fba00]" />
+      <span className="block bg-[#00a4ef]" />
+      <span className="block bg-[#ffb900]" />
+    </span>
+  )
+}
 
 function ApplyMockup() {
   const [jobIdx, setJobIdx]   = useState(0)
@@ -300,8 +311,8 @@ function ApplyMockup() {
         )}
       </div>
       <div className="p-5 text-center space-y-4">
-        <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-all duration-500 ${applied ? 'bg-gradient-to-br from-emerald-400 to-teal-500 shadow-emerald-200' : 'bg-gradient-to-br from-cyan-500 to-sky-500 shadow-cyan-200'}`}>
-          {applied ? <CheckCircle2 className="h-7 w-7 text-white" /> : <Send className="h-6 w-6 text-white" />}
+        <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-all duration-500 ${applied ? 'bg-gradient-to-br from-emerald-400 to-teal-500 shadow-emerald-200' : 'border border-slate-100 bg-white shadow-slate-200'}`}>
+          {applied ? <CheckCircle2 className="h-7 w-7 text-white" /> : <MicrosoftLogo className="h-7 w-7" />}
         </div>
         <div>
           <p className="text-sm font-bold text-slate-800">{job.t}</p>
