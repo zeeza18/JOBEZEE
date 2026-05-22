@@ -20,6 +20,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -170,9 +171,7 @@ async def generate_questions(
     avg_q       = AVG_MINS_PER_Q.get(req.round_type, 4)
     q_count     = max(3, min(20, req.duration_minutes // avg_q))
 
-    jd_snippet = (req.job_description or "")[:3000]
-
-    # Resolve resume: fetch from profile DB when the frontend signals to use it
+    # ── Resolve resume ─────────────────────────────────────────────────────────
     if (req.resume_text or "").strip() == "(use profile resume)":
         prof_res = await db.execute(
             select(UserProfile).where(UserProfile.id == current_user.id)
@@ -184,34 +183,95 @@ async def generate_questions(
                 422,
                 "No resume found in your profile. Please upload a resume on the Profile page first.",
             )
-        lines = []
-        if rex.get("title"):       lines.append(f"Title: {rex['title']}")
-        if rex.get("years_exp"):   lines.append(f"Years of experience: {rex['years_exp']}")
-        if rex.get("skills"):      lines.append(f"Skills: {', '.join(rex['skills'])}")
-        if rex.get("education"):   lines.append(f"Education: {rex['education']}")
-        if rex.get("location"):    lines.append(f"Location: {rex['location']}")
-        resume_snippet = "\n".join(lines)[:2000]
     else:
-        resume_snippet = (req.resume_text or "")[:2000]
+        # Build rex dict from pasted text (used as fallback context)
+        rex = {"raw": (req.resume_text or "")[:2000]}
 
+    def _fmt_resume(r: dict) -> str:
+        if r.get("raw"):
+            return r["raw"]
+        lines = []
+        if r.get("title"):     lines.append(f"Title: {r['title']}")
+        if r.get("years_exp"): lines.append(f"Years of experience: {r['years_exp']}")
+        if r.get("skills"):    lines.append(f"Skills: {', '.join(r['skills'])}")
+        if r.get("education"): lines.append(f"Education: {r['education']}")
+        if r.get("location"):  lines.append(f"Location: {r['location']}")
+        return "\n".join(lines)
+
+    resume_context = _fmt_resume(rex)
+
+    # ── Step 1: Extract JD using tool1_prompt ──────────────────────────────────
+    tool1_path = Path(__file__).parent.parent.parent / "tailor" / "prompt" / "tool1_prompt.txt"
+    jd_extraction: dict[str, Any] = {}
+    try:
+        tool1_system = tool1_path.read_text(encoding="utf-8")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r1 = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model":       "gpt-4o-mini",
+                    "messages":    [
+                        {"role": "system", "content": tool1_system},
+                        {"role": "user",   "content": (req.job_description or "")[:4000]},
+                    ],
+                    "temperature": 0.0,
+                    "max_tokens":  800,
+                },
+            )
+        r1.raise_for_status()
+        raw1 = r1.json()["choices"][0]["message"]["content"].strip()
+        if raw1.startswith("```"):
+            raw1 = raw1.split("```")[1]
+            if raw1.startswith("json"):
+                raw1 = raw1[4:]
+            raw1 = raw1.strip()
+        jd_extraction = json.loads(raw1)
+        log.info("[Interview] JD extracted: title=%s company=%s keywords=%d",
+                 jd_extraction.get("job_title"), jd_extraction.get("company_name"),
+                 len(jd_extraction.get("keywords", [])))
+    except Exception as exc:
+        log.warning("[Interview] JD extraction failed (using raw JD): %s", exc)
+        # Fall back to raw JD text
+        jd_extraction = {}
+
+    # ── Build question-generation context ─────────────────────────────────────
+    if jd_extraction:
+        keywords = jd_extraction.get("keywords", [])[:40]
+        needs    = jd_extraction.get("needs", [])
+        results  = jd_extraction.get("results", [])
+        job_ctx  = (
+            f"Title: {jd_extraction.get('job_title', 'Unknown')}\n"
+            f"Company: {jd_extraction.get('company_name', 'Unknown')}\n"
+            f"Required skills: {', '.join(keywords)}\n"
+            f"Requirements: {'; '.join(needs)}\n"
+            f"Expected outcomes: {'; '.join(results)}"
+        )
+    else:
+        job_ctx = (req.job_description or "")[:3000]
+
+    # ── Step 2: Generate interview questions ──────────────────────────────────
     system_prompt = (
         "You are an expert technical recruiter generating realistic mock interview questions. "
         "Respond with valid JSON only — no markdown, no extra text."
     )
+    extracted_title   = jd_extraction.get("job_title", "")
+    extracted_company = jd_extraction.get("company_name", "Unknown")
+
     user_prompt = f"""Generate exactly {q_count} interview questions for a {round_label} interview.
 
 Round description: {round_desc}
 
-Job Description:
-{jd_snippet}
+Job Details:
+{job_ctx}
 
-Candidate Resume:
-{resume_snippet}
+Candidate Profile:
+{resume_context}
 
 Return this exact JSON shape:
 {{
-  "job_title": "<extracted job title from JD>",
-  "company": "<extracted company name, or 'Unknown'>",
+  "job_title": "{extracted_title or '<job title>'}",
+  "company": "{extracted_company}",
   "round": "{req.round_type}",
   "round_label": "{round_label}",
   "duration_minutes": {req.duration_minutes},
@@ -226,10 +286,10 @@ Return this exact JSON shape:
 }}
 
 Rules:
-- Questions must be directly relevant to the JD and candidate's resume
+- Questions must be directly relevant to the extracted skills, requirements, and candidate profile
 - Ask only real interview questions — no coaching, no hints, no answers
-- For technical rounds: at least 2 concrete coding/algorithm problems
-- Spread types across the duration appropriately
+- For technical rounds: include at least 2 concrete coding/algorithm problems using skills from the JD
+- Spread question types across the duration appropriately
 """
 
     try:
@@ -251,7 +311,6 @@ Rules:
         raw     = resp.json()
         content = raw["choices"][0]["message"]["content"].strip()
 
-        # Strip markdown fences if model ignores instructions
         if content.startswith("```"):
             content = content.split("```")[1]
             if content.startswith("json"):
