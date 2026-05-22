@@ -665,6 +665,38 @@ function heroStatusStyle(status: string) {
   return 'bg-cyan-50 text-cyan-700 border-cyan-200'
 }
 
+function AnimatedCounter({ value }: { value: number }) {
+  const [display, setDisplay] = useState(value)
+  const previousValueRef = useRef(value)
+
+  useEffect(() => {
+    const from = previousValueRef.current
+    previousValueRef.current = value
+    const delta = value - from
+    if (delta === 0) {
+      setDisplay(value)
+      return
+    }
+
+    let frame = 0
+    const frames = 28
+    const timer = window.setInterval(() => {
+      frame += 1
+      const progress = 1 - Math.pow(1 - frame / frames, 3)
+      setDisplay(Math.round(from + delta * progress))
+
+      if (frame >= frames) {
+        window.clearInterval(timer)
+        setDisplay(value)
+      }
+    }, 20)
+
+    return () => window.clearInterval(timer)
+  }, [value])
+
+  return <>{display}</>
+}
+
 function HeroDashboardMockup() {
   const [activeTab, setActiveTab] = useState('Dashboard')
   const [jobs, setJobs] = useState(HERO_DASHBOARD_JOBS)
@@ -748,10 +780,10 @@ function HeroDashboardMockup() {
   }, [moveToTab])
 
   const dashboardStats = [
-    { l: 'Jobs Pulled', v: '247', color: 'text-cyan-600',    bg: 'bg-cyan-50',    border: 'border-cyan-100' },
-    { l: 'Saved',       v: String(jobs.filter(job => job.status === 'Saved').length),     color: 'text-sky-600',     bg: 'bg-sky-50',     border: 'border-sky-100' },
-    { l: 'Applied',     v: String(jobs.filter(job => job.status === 'Applied').length),   color: 'text-violet-600',  bg: 'bg-violet-50',  border: 'border-violet-100' },
-    { l: 'Interviews',  v: String(jobs.filter(job => job.status === 'Interview').length), color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+    { l: 'Jobs Pulled', v: 247, color: 'text-cyan-600',    bg: 'bg-cyan-50',    border: 'border-cyan-100' },
+    { l: 'Saved',       v: jobs.filter(job => job.status === 'Saved').length,     color: 'text-sky-600',     bg: 'bg-sky-50',     border: 'border-sky-100' },
+    { l: 'Applied',     v: jobs.filter(job => job.status === 'Applied').length,   color: 'text-violet-600',  bg: 'bg-violet-50',  border: 'border-violet-100' },
+    { l: 'Interviews',  v: jobs.filter(job => job.status === 'Interview').length, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
   ]
 
   const renderDashboard = () => (
@@ -760,7 +792,9 @@ function HeroDashboardMockup() {
         {dashboardStats.map((s) => (
           <div key={s.l} className={`rounded-xl border ${s.border} ${s.bg} p-3 text-left`}>
             <p className="text-[10px] text-slate-500">{s.l}</p>
-            <p className={`mt-1 text-2xl font-black ${s.color}`}>{s.v}</p>
+            <p className={`mt-1 text-2xl font-black tabular-nums ${s.color}`}>
+              <AnimatedCounter value={s.v} />
+            </p>
           </div>
         ))}
       </div>
@@ -1125,51 +1159,52 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 pt-24 pb-20 text-center">
+      <section className="relative flex min-h-screen items-center overflow-hidden px-6 pb-16 pt-24">
         <div className="pointer-events-none absolute left-1/2 top-0 h-[700px] w-[1000px] -translate-x-1/2 rounded-full bg-gradient-to-b from-cyan-100/60 to-transparent blur-3xl" />
         <div className="pointer-events-none absolute -left-40 top-40 h-80 w-80 rounded-full bg-sky-100/50 blur-3xl" />
         <div className="pointer-events-none absolute -right-20 bottom-40 h-80 w-80 rounded-full bg-indigo-100/40 blur-3xl" />
 
-        <div className="relative z-10 max-w-4xl">
-          <h1 className="text-5xl font-black leading-[1.08] tracking-tight text-slate-900 sm:text-6xl md:text-7xl lg:text-8xl">
-            AI won't take your job.<br />
-            <span className="bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 bg-clip-text text-transparent">
-              It'll get you one.
-            </span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-xl text-xl leading-relaxed text-slate-500">
-            The job market is brutal: layoffs, competition, hundreds of applicants per role.
-            JobEzee finds jobs, tailors your resume, applies for you, and prepares you for interviews so you walk in ready.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <button onClick={() => navigate('/auth')}
-              className="group flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-sky-500 px-10 py-4 text-base font-bold text-white shadow-lg shadow-cyan-200 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-cyan-300">
-              Start for Free
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </button>
-            <button onClick={() => navigate('/auth')}
-              className="rounded-2xl border border-slate-200 bg-white px-8 py-4 text-base font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-              Sign in →
-            </button>
+        <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:gap-12">
+          <div className="text-center lg:text-left">
+            <h1 className="text-5xl font-black leading-[1.04] tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
+              AI won't take your job.<br />
+              <span className="bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 bg-clip-text text-transparent">
+                It'll get you one.
+              </span>
+            </h1>
+            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-slate-500 lg:mx-0">
+              JobEzee finds matched jobs, tailors your resume, applies faster, and prepares you for interviews so you can focus on landing the offer.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+              <button onClick={() => navigate('/auth')}
+                className="group flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-sky-500 px-10 py-4 text-base font-bold text-white shadow-lg shadow-cyan-200 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-cyan-300">
+                Start for Free
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </button>
+              <button onClick={() => navigate('/auth')}
+                className="rounded-2xl border border-slate-200 bg-white px-8 py-4 text-base font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                Sign in →
+              </button>
+            </div>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-5 text-sm text-slate-400 lg:justify-start">
+              {[
+                { icon: <Shield className="h-4 w-4 text-cyan-500" />,       text: 'Secure' },
+                { icon: <Zap className="h-4 w-4 text-cyan-500" />,          text: 'AI-tailored' },
+                { icon: <CheckCircle2 className="h-4 w-4 text-cyan-500" />, text: 'Interview-ready' },
+              ].map((item) => (
+                <span key={item.text} className="flex items-center gap-1.5">{item.icon} {item.text}</span>
+              ))}
+            </div>
           </div>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-5 text-sm text-slate-400">
-            {[
-              { icon: <Shield className="h-4 w-4 text-cyan-500" />,       text: 'Secured' },
-              { icon: <Zap className="h-4 w-4 text-cyan-500" />,          text: 'Optimized' },
-              { icon: <CheckCircle2 className="h-4 w-4 text-cyan-500" />, text: 'Reliable' },
-            ].map((item) => (
-              <span key={item.text} className="flex items-center gap-1.5">{item.icon} {item.text}</span>
-            ))}
-          </div>
-        </div>
 
-        {/* Hero dashboard */}
-        <div className="hero-mockup relative mx-auto mt-16 w-full max-w-4xl px-2 md:px-0">
-          <HeroDashboardMockup />
+          {/* Hero dashboard */}
+          <div className="hero-mockup relative mx-auto w-full max-w-4xl px-0">
+            <HeroDashboardMockup />
+          </div>
         </div>
 
         {/* Scroll hint */}
-        <div className="mt-12 flex flex-col items-center gap-2 text-slate-400">
+        <div className="absolute bottom-5 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 text-slate-400 xl:flex">
           <span className="text-xs font-medium tracking-widest uppercase">Scroll to explore</span>
           <div className="flex h-8 w-5 items-start justify-center rounded-full border-2 border-slate-300 p-1">
             <div className="h-2 w-0.5 animate-bounce rounded-full bg-cyan-500" />
@@ -1258,24 +1293,6 @@ export default function LandingPage() {
         mockup={<CelebrateMockup onCelebrate={fireConfetti} />}
         reverse
       />
-
-      {/* ── STATS ── */}
-      <section className="border-t border-slate-100 bg-slate-50 px-6 py-20">
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-4 md:grid-cols-4">
-          {[
-            { value: '4',     label: 'Job boards',          sub: 'Indeed · LinkedIn · Glassdoor · ZipRecruiter' },
-            { value: '74',    label: 'Countries supported', sub: 'NA, EU, APAC, ME, LATAM' },
-            { value: '80+',   label: 'Workday portals',     sub: 'Direct employer access' },
-            { value: '3 min', label: 'Setup time',          sub: 'Profile → first results' },
-          ].map((s) => (
-            <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-              <p className="text-4xl font-black text-cyan-500">{s.value}</p>
-              <p className="mt-1 text-sm font-bold text-slate-800">{s.label}</p>
-              <p className="mt-0.5 text-xs text-slate-400">{s.sub}</p>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* ── FINAL CTA ── */}
       <section className="bg-gradient-to-b from-cyan-50/50 to-white border-t border-slate-100 px-6 py-28">
