@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button'
 import { SectionHeader } from '../../components/common/SectionHeader'
 import { InterviewSetupModal } from './InterviewSetupModal'
 import { InterviewSession } from './InterviewSession'
-import { interviewApi, type GeneratedInterview, type InterviewSession as ISession, type ScheduledInterview } from '../../lib/api'
+import { interviewApi, profileApi, type GeneratedInterview, type InterviewSession as ISession, type ScheduledInterview, type UserProfile as ApiProfile } from '../../lib/api'
 import { useAppStore } from '../../store/useAppStore'
 
 function fmtElapsed(secs: number) {
@@ -26,9 +26,9 @@ const ROUND_BADGE: Record<string, string> = {
 
 const InterviewPage = () => {
   const { pushToast } = useAppStore()
-  const profile = useAppStore(s => s.profile)
 
   const [modal,      setModal]      = useState<'schedule' | 'instant' | null>(null)
+  const [apiProfile, setApiProfile] = useState<ApiProfile | null>(null)
   const [active,     setActive]     = useState<GeneratedInterview | null>(null)
   const [saving,     setSaving]     = useState(false)
 
@@ -62,6 +62,7 @@ const InterviewPage = () => {
   useEffect(() => {
     loadSessions()
     loadScheduled()
+    profileApi.get().then(setApiProfile).catch(() => {})
   }, [loadSessions, loadScheduled])
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ const InterviewPage = () => {
           scheduled_at:     new Date(scheduledAt).toISOString(),
         })
         setScheduled(prev => [item, ...prev])
-        pushToast({ title: 'Interview scheduled', description: `Confirmation email sent to ${profile?.email || 'your inbox'}`, type: 'success' })
+        pushToast({ title: 'Interview scheduled', description: `Confirmation email sent to ${apiProfile?.email || 'your inbox'}`, type: 'success' })
       } catch {
         pushToast({ title: 'Failed to schedule', description: 'Please try again', type: 'error' })
       }
@@ -158,7 +159,7 @@ const InterviewPage = () => {
     )
   }
 
-  const profileHasResume = !!(profile as any)?.resume_url
+  const profileHasResume = !!(apiProfile?.resume_extraction || apiProfile?.resume_url)
 
   return (
     <div className="space-y-6">

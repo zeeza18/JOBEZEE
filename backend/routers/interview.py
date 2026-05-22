@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..models import User, InterviewSessionRecord, ScheduledInterviewRecord
+from ..models import User, InterviewSessionRecord, ScheduledInterviewRecord, UserProfile
 from ..config import get_settings
 from ..services.email_service import send_interview_scheduled_email
 
@@ -152,6 +152,7 @@ def _scheduled_to_dict(s: ScheduledInterviewRecord) -> dict:
 async def generate_questions(
     req: GenerateRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     cfg = get_settings()
     api_key = (cfg.OPENAI_API_KEY or "").strip()
@@ -169,8 +170,29 @@ async def generate_questions(
     avg_q       = AVG_MINS_PER_Q.get(req.round_type, 4)
     q_count     = max(3, min(20, req.duration_minutes // avg_q))
 
-    jd_snippet     = (req.job_description or "")[:3000]
-    resume_snippet = (req.resume_text or "")[:2000]
+    jd_snippet = (req.job_description or "")[:3000]
+
+    # Resolve resume: fetch from profile DB when the frontend signals to use it
+    if (req.resume_text or "").strip() == "(use profile resume)":
+        prof_res = await db.execute(
+            select(UserProfile).where(UserProfile.id == current_user.id)
+        )
+        prof = prof_res.scalar_one_or_none()
+        rex  = (prof.resume_extraction or {}) if prof else {}
+        if not rex:
+            raise HTTPException(
+                422,
+                "No resume found in your profile. Please upload a resume on the Profile page first.",
+            )
+        lines = []
+        if rex.get("title"):       lines.append(f"Title: {rex['title']}")
+        if rex.get("years_exp"):   lines.append(f"Years of experience: {rex['years_exp']}")
+        if rex.get("skills"):      lines.append(f"Skills: {', '.join(rex['skills'])}")
+        if rex.get("education"):   lines.append(f"Education: {rex['education']}")
+        if rex.get("location"):    lines.append(f"Location: {rex['location']}")
+        resume_snippet = "\n".join(lines)[:2000]
+    else:
+        resume_snippet = (req.resume_text or "")[:2000]
 
     system_prompt = (
         "You are an expert technical recruiter generating realistic mock interview questions. "
