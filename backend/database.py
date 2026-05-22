@@ -433,4 +433,54 @@ async def run_schema_migration() -> None:
             "CREATE INDEX IF NOT EXISTS ix_user_credits_user_id ON user_credits (user_id)"
         ))
 
+        # ── interview_sessions table ───────────────────────────────────────────
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS interview_sessions (
+                id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id            VARCHAR(36) NOT NULL,
+                job_title          VARCHAR(300) NOT NULL DEFAULT '',
+                company            VARCHAR(200) NOT NULL DEFAULT '',
+                round_type         VARCHAR(20)  NOT NULL DEFAULT '',
+                round_label        VARCHAR(100) NOT NULL DEFAULT '',
+                duration_minutes   INTEGER      NOT NULL DEFAULT 30,
+                questions          JSONB        NOT NULL DEFAULT '[]'::jsonb,
+                answers            JSONB        NOT NULL DEFAULT '[]'::jsonb,
+                elapsed_seconds    INTEGER      NOT NULL DEFAULT 0,
+                questions_answered INTEGER      NOT NULL DEFAULT 0,
+                status             VARCHAR(20)  NOT NULL DEFAULT 'completed',
+                jd_snippet         TEXT         NOT NULL DEFAULT '',
+                completed_at       TIMESTAMPTZ,
+                created_at         TIMESTAMPTZ  NOT NULL DEFAULT now()
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_interview_sessions_user_id ON interview_sessions (user_id)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_interview_sessions_created_at ON interview_sessions (created_at)"
+        ))
+
+        # ── scheduled_interviews table ────────────────────────────────────────
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS scheduled_interviews (
+                id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id            VARCHAR(36) NOT NULL,
+                job_title          VARCHAR(300) NOT NULL DEFAULT '',
+                company            VARCHAR(200) NOT NULL DEFAULT '',
+                round_type         VARCHAR(20)  NOT NULL DEFAULT '',
+                round_label        VARCHAR(100) NOT NULL DEFAULT '',
+                duration_minutes   INTEGER      NOT NULL DEFAULT 30,
+                questions          JSONB        NOT NULL DEFAULT '[]'::jsonb,
+                scheduled_at       TIMESTAMPTZ  NOT NULL,
+                status             VARCHAR(20)  NOT NULL DEFAULT 'pending',
+                created_at         TIMESTAMPTZ  NOT NULL DEFAULT now()
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_scheduled_interviews_user_id ON scheduled_interviews (user_id)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_scheduled_interviews_scheduled_at ON scheduled_interviews (scheduled_at)"
+        ))
+
     log.info("[Migration] v2 schema migration complete")

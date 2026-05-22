@@ -29,7 +29,7 @@ export interface SessionResult {
 
 interface Props {
   interview: GeneratedInterview
-  onFinish: (result: SessionResult) => void
+  onFinish: (result: SessionResult) => Promise<void>
   onExit: () => void
 }
 

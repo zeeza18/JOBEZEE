@@ -671,6 +671,10 @@ export const resumeAnalysisApi = {
 // Interview
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Interview
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type InterviewRound = 'phone' | 'mid' | 'technical' | 'hr'
 
 export interface InterviewQuestion {
@@ -689,6 +693,36 @@ export interface GeneratedInterview {
   questions: InterviewQuestion[]
 }
 
+export interface InterviewSession {
+  id: string
+  job_title: string
+  company: string
+  round_type: InterviewRound
+  round_label: string
+  duration_minutes: number
+  questions: InterviewQuestion[]
+  answers: string[]
+  elapsed_seconds: number
+  questions_answered: number
+  status: string
+  jd_snippet: string
+  completed_at: string | null
+  created_at: string | null
+}
+
+export interface ScheduledInterview {
+  id: string
+  job_title: string
+  company: string
+  round_type: InterviewRound
+  round_label: string
+  duration_minutes: number
+  questions: InterviewQuestion[]
+  scheduled_at: string
+  status: string
+  created_at: string | null
+}
+
 export const interviewApi = {
   generate: (body: {
     job_description: string
@@ -696,4 +730,32 @@ export const interviewApi = {
     round_type: InterviewRound
     duration_minutes: number
   }) => post<GeneratedInterview>('/api/interview/generate', body),
+
+  // Sessions
+  saveSession: (body: {
+    job_title: string; company: string; round_type: string; round_label: string
+    duration_minutes: number; questions: InterviewQuestion[]; answers: string[]
+    elapsed_seconds: number; jd_snippet?: string; completed_at?: string
+  }) => post<InterviewSession>('/api/interview/sessions', body),
+
+  listSessions: (params?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.limit  != null) qs.set('limit',  String(params.limit))
+    if (params?.offset != null) qs.set('offset', String(params.offset))
+    const q = qs.toString()
+    return get<{ total: number; sessions: InterviewSession[] }>(`/api/interview/sessions${q ? `?${q}` : ''}`)
+  },
+
+  getSession:    (id: string) => get<InterviewSession>(`/api/interview/sessions/${id}`),
+  deleteSession: (id: string) => del<void>(`/api/interview/sessions/${id}`),
+
+  // Scheduled
+  createScheduled: (body: {
+    job_title: string; company: string; round_type: string; round_label: string
+    duration_minutes: number; questions: InterviewQuestion[]; scheduled_at: string
+  }) => post<ScheduledInterview>('/api/interview/scheduled', body),
+
+  listScheduled:   ()         => get<{ scheduled: ScheduledInterview[] }>('/api/interview/scheduled'),
+  startScheduled:  (id: string) => request<ScheduledInterview>('PATCH', `/api/interview/scheduled/${id}/start`),
+  cancelScheduled: (id: string) => del<void>(`/api/interview/scheduled/${id}`),
 }

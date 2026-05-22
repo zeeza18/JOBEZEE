@@ -1,33 +1,55 @@
 """
-Interview API — AI-powered mock interview question generation using GPT-4o-mini.
+Interview API — AI-powered mock interview system.
+
+Endpoints
+─────────
+POST /api/interview/generate              — generate questions via GPT-4o-mini
+POST /api/interview/sessions              — save a completed session
+GET  /api/interview/sessions              — list user's sessions (paginated)
+GET  /api/interview/sessions/{id}         — get one session
+DELETE /api/interview/sessions/{id}       — delete a session
+
+POST /api/interview/scheduled             — create a scheduled interview
+GET  /api/interview/scheduled             — list upcoming scheduled interviews
+DELETE /api/interview/scheduled/{id}      — cancel a scheduled interview
+PATCH /api/interview/scheduled/{id}/start — mark as started (returns the interview to run)
 """
 from __future__ import annotations
 
 import json
 import logging
-import os
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import select, delete, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import get_current_user
+from ..database import get_db
+from ..models import User, InterviewSessionRecord, ScheduledInterviewRecord
 from ..config import get_settings
+from ..services.email_service import send_interview_scheduled_email
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/interview", tags=["interview"])
 
+# ── Round metadata ─────────────────────────────────────────────────────────────
+
 ROUND_DESCRIPTIONS = {
     "phone": (
-        "Phone Screen (15-20 min typical): Easy, conversational questions. Cover: "
+        "Phone Screen (15–20 min typical): Easy, conversational questions. Cover: "
         "work authorization / visa status, salary expectations, availability / start date, "
         "why they're interested in this specific role and company, general background fit. "
         "Keep questions simple and open-ended. No coding."
     ),
     "mid": (
         "Round 1 — Mid-Level Interview: Mix of behavioral and moderate technical questions. "
-        "Include STAR-format behavioral prompts ('Tell me about a time...'), "
+        "Include STAR-format behavioral prompts ('Tell me about a time…'), "
         "situational scenarios relevant to the JD, moderate technical conceptual questions "
         "(no live coding, but can ask how they would approach a problem). "
         "Can include sales scenarios if the role is sales-related."
@@ -47,22 +69,90 @@ ROUND_DESCRIPTIONS = {
 }
 
 ROUND_LABELS = {
-    "phone": "Phone Screen",
-    "mid": "Round 1 (Mid-Level)",
+    "phone":     "Phone Screen",
+    "mid":       "Round 1 (Mid-Level)",
     "technical": "Technical Round",
-    "hr": "HR Round",
+    "hr":        "HR Round",
 }
 
+AVG_MINS_PER_Q = {"phone": 3, "hr": 4, "mid": 4, "technical": 5}
+
+
+# ── Pydantic schemas ───────────────────────────────────────────────────────────
 
 class GenerateRequest(BaseModel):
     job_description: str
-    resume_text: str
-    round_type: str       # phone | mid | technical | hr
+    resume_text:     str
+    round_type:      str   # phone | mid | technical | hr
     duration_minutes: int  # 5–60
 
 
+class SaveSessionRequest(BaseModel):
+    job_title:        str
+    company:          str
+    round_type:       str
+    round_label:      str
+    duration_minutes: int
+    questions:        list[dict]
+    answers:          list[str]
+    elapsed_seconds:  int
+    jd_snippet:       str = ""
+    completed_at:     str = ""   # ISO string
+
+
+class CreateScheduledRequest(BaseModel):
+    job_title:        str
+    company:          str
+    round_type:       str
+    round_label:      str
+    duration_minutes: int
+    questions:        list[dict]
+    scheduled_at:     str   # ISO datetime string
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _session_to_dict(s: InterviewSessionRecord) -> dict:
+    return {
+        "id":                 str(s.id),
+        "job_title":          s.job_title,
+        "company":            s.company,
+        "round_type":         s.round_type,
+        "round_label":        s.round_label,
+        "duration_minutes":   s.duration_minutes,
+        "questions":          s.questions or [],
+        "answers":            s.answers or [],
+        "elapsed_seconds":    s.elapsed_seconds,
+        "questions_answered": s.questions_answered,
+        "status":             s.status,
+        "jd_snippet":         s.jd_snippet,
+        "completed_at":       s.completed_at.isoformat() if s.completed_at else None,
+        "created_at":         s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+def _scheduled_to_dict(s: ScheduledInterviewRecord) -> dict:
+    return {
+        "id":               str(s.id),
+        "job_title":        s.job_title,
+        "company":          s.company,
+        "round_type":       s.round_type,
+        "round_label":      s.round_label,
+        "duration_minutes": s.duration_minutes,
+        "questions":        s.questions or [],
+        "scheduled_at":     s.scheduled_at.isoformat() if s.scheduled_at else None,
+        "status":           s.status,
+        "created_at":       s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+# ── Question generation ────────────────────────────────────────────────────────
+
 @router.post("/generate")
-async def generate_questions(req: GenerateRequest) -> dict:
+async def generate_questions(
+    req: GenerateRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict:
     cfg = get_settings()
     api_key = (cfg.OPENAI_API_KEY or "").strip()
     if not api_key:
@@ -74,22 +164,19 @@ async def generate_questions(req: GenerateRequest) -> dict:
     if not (5 <= req.duration_minutes <= 60):
         raise HTTPException(400, "duration_minutes must be between 5 and 60")
 
-    round_desc = ROUND_DESCRIPTIONS[req.round_type]
+    round_desc  = ROUND_DESCRIPTIONS[req.round_type]
     round_label = ROUND_LABELS[req.round_type]
+    avg_q       = AVG_MINS_PER_Q.get(req.round_type, 4)
+    q_count     = max(3, min(20, req.duration_minutes // avg_q))
 
-    # Estimate question count based on duration (avg 3–5 min per question)
-    avg_mins_per_q = 3 if req.round_type == "phone" else 4 if req.round_type == "hr" else 5
-    question_count = max(3, min(20, req.duration_minutes // avg_mins_per_q))
-
-    jd_snippet   = req.job_description[:3000] if req.job_description else "(no JD provided)"
-    resume_snippet = req.resume_text[:2000]    if req.resume_text      else "(no resume provided)"
+    jd_snippet     = (req.job_description or "")[:3000]
+    resume_snippet = (req.resume_text or "")[:2000]
 
     system_prompt = (
         "You are an expert technical recruiter generating realistic mock interview questions. "
-        "You MUST respond with valid JSON only — no markdown fences, no extra text."
+        "Respond with valid JSON only — no markdown, no extra text."
     )
-
-    user_prompt = f"""Generate exactly {question_count} interview questions for a {round_label} interview.
+    user_prompt = f"""Generate exactly {q_count} interview questions for a {round_label} interview.
 
 Round description: {round_desc}
 
@@ -99,10 +186,10 @@ Job Description:
 Candidate Resume:
 {resume_snippet}
 
-Return a JSON object with this exact shape:
+Return this exact JSON shape:
 {{
   "job_title": "<extracted job title from JD>",
-  "company": "<extracted company name from JD, or 'Unknown'>",
+  "company": "<extracted company name, or 'Unknown'>",
   "round": "{req.round_type}",
   "round_label": "{round_label}",
   "duration_minutes": {req.duration_minutes},
@@ -111,42 +198,38 @@ Return a JSON object with this exact shape:
       "id": 1,
       "question": "<the interview question>",
       "category": "<one of: background|fit|coding|system_design|behavioral|scenario|technical|hr>",
-      "estimated_time_seconds": <estimated seconds to answer, between 60 and 600>
+      "estimated_time_seconds": <60–600>
     }}
   ]
 }}
 
 Rules:
-- Questions must be directly relevant to the JD and tailored to the candidate's resume
-- No cheating assistance — only ask real interview questions an interviewer would ask
-- Spread question types across the duration appropriately
-- For technical rounds, include at least 2 concrete coding / algorithm problems
-- estimated_time_seconds should reflect realistic interview pacing
+- Questions must be directly relevant to the JD and candidate's resume
+- Ask only real interview questions — no coaching, no hints, no answers
+- For technical rounds: at least 2 concrete coding/algorithm problems
+- Spread types across the duration appropriately
 """
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={
-                    "model": "gpt-4o-mini",
-                    "messages": [
+                    "model":       "gpt-4o-mini",
+                    "messages":    [
                         {"role": "system", "content": system_prompt},
                         {"role": "user",   "content": user_prompt},
                     ],
                     "temperature": 0.7,
-                    "max_tokens": 2500,
+                    "max_tokens":  2500,
                 },
             )
         resp.raise_for_status()
-        raw = resp.json()
+        raw     = resp.json()
         content = raw["choices"][0]["message"]["content"].strip()
 
-        # Strip markdown fences if model added them despite instructions
+        # Strip markdown fences if model ignores instructions
         if content.startswith("```"):
             content = content.split("```")[1]
             if content.startswith("json"):
@@ -154,15 +237,12 @@ Rules:
             content = content.strip()
 
         data: dict[str, Any] = json.loads(content)
-
-        # Validate minimal structure
         if "questions" not in data or not isinstance(data["questions"], list):
             raise ValueError("Response missing 'questions' array")
-
         return data
 
     except httpx.HTTPStatusError as exc:
-        log.error("[Interview] OpenAI HTTP error: %s %s", exc.response.status_code, exc.response.text[:300])
+        log.error("[Interview] OpenAI error %s: %s", exc.response.status_code, exc.response.text[:300])
         raise HTTPException(502, f"OpenAI API error: {exc.response.status_code}")
     except (json.JSONDecodeError, ValueError) as exc:
         log.error("[Interview] JSON parse error: %s", exc)
@@ -170,3 +250,224 @@ Rules:
     except Exception as exc:
         log.exception("[Interview] Unexpected error: %s", exc)
         raise HTTPException(500, "Interview generation failed")
+
+
+# ── Session CRUD ───────────────────────────────────────────────────────────────
+
+@router.post("/sessions", status_code=201)
+async def save_session(
+    req: SaveSessionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    answered = sum(1 for a in req.answers if (a or "").strip())
+    completed_dt: datetime | None = None
+    if req.completed_at:
+        try:
+            completed_dt = datetime.fromisoformat(req.completed_at.replace("Z", "+00:00"))
+        except ValueError:
+            completed_dt = datetime.now(timezone.utc)
+
+    session = InterviewSessionRecord(
+        user_id            = current_user.id,
+        job_title          = req.job_title[:300],
+        company            = req.company[:200],
+        round_type         = req.round_type[:20],
+        round_label        = req.round_label[:100],
+        duration_minutes   = req.duration_minutes,
+        questions          = req.questions,
+        answers            = req.answers,
+        elapsed_seconds    = req.elapsed_seconds,
+        questions_answered = answered,
+        status             = "completed",
+        jd_snippet         = req.jd_snippet[:500],
+        completed_at       = completed_dt or datetime.now(timezone.utc),
+    )
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    log.info("[Interview] Session saved: user=%s id=%s round=%s", current_user.id, session.id, req.round_type)
+    return _session_to_dict(session)
+
+
+@router.get("/sessions")
+async def list_sessions(
+    limit:  int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    total_res = await db.execute(
+        select(func.count()).where(InterviewSessionRecord.user_id == current_user.id)
+    )
+    total = total_res.scalar() or 0
+
+    res = await db.execute(
+        select(InterviewSessionRecord)
+        .where(InterviewSessionRecord.user_id == current_user.id)
+        .order_by(InterviewSessionRecord.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    sessions = res.scalars().all()
+    return {"total": total, "sessions": [_session_to_dict(s) for s in sessions]}
+
+
+@router.get("/sessions/{session_id}")
+async def get_session(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    try:
+        uid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid session ID")
+
+    res = await db.execute(
+        select(InterviewSessionRecord).where(
+            InterviewSessionRecord.id == uid,
+            InterviewSessionRecord.user_id == current_user.id,
+        )
+    )
+    s = res.scalar_one_or_none()
+    if not s:
+        raise HTTPException(404, "Session not found")
+    return _session_to_dict(s)
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    try:
+        uid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid session ID")
+
+    result = await db.execute(
+        delete(InterviewSessionRecord).where(
+            InterviewSessionRecord.id == uid,
+            InterviewSessionRecord.user_id == current_user.id,
+        )
+    )
+    await db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(404, "Session not found")
+
+
+# ── Scheduled interviews CRUD ──────────────────────────────────────────────────
+
+@router.post("/scheduled", status_code=201)
+async def create_scheduled(
+    req: CreateScheduledRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    try:
+        sched_dt = datetime.fromisoformat(req.scheduled_at.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(400, "Invalid scheduled_at datetime format")
+
+    item = ScheduledInterviewRecord(
+        user_id          = current_user.id,
+        job_title        = req.job_title[:300],
+        company          = req.company[:200],
+        round_type       = req.round_type[:20],
+        round_label      = req.round_label[:100],
+        duration_minutes = req.duration_minutes,
+        questions        = req.questions,
+        scheduled_at     = sched_dt,
+        status           = "pending",
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    log.info("[Interview] Scheduled: user=%s id=%s at=%s", current_user.id, item.id, sched_dt)
+
+    # Fire-and-forget confirmation email
+    try:
+        formatted_dt = sched_dt.strftime("%B %d, %Y at %I:%M %p UTC")
+        cfg = get_settings()
+        import asyncio as _asyncio
+        _asyncio.create_task(send_interview_scheduled_email(
+            to_email    = current_user.email,
+            name        = getattr(current_user, "full_name", "") or current_user.email,
+            job_title   = req.job_title,
+            company     = req.company,
+            round_label = req.round_label,
+            duration    = req.duration_minutes,
+            scheduled_at= formatted_dt,
+            app_url     = f"{cfg.FRONTEND_URL}/app/interview",
+        ))
+    except Exception as _e:
+        log.warning("[Interview] Email send failed (non-fatal): %s", _e)
+
+    return _scheduled_to_dict(item)
+
+
+@router.get("/scheduled")
+async def list_scheduled(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    res = await db.execute(
+        select(ScheduledInterviewRecord)
+        .where(
+            ScheduledInterviewRecord.user_id == current_user.id,
+            ScheduledInterviewRecord.status == "pending",
+        )
+        .order_by(ScheduledInterviewRecord.scheduled_at.asc())
+    )
+    items = res.scalars().all()
+    return {"scheduled": [_scheduled_to_dict(i) for i in items]}
+
+
+@router.patch("/scheduled/{item_id}/start")
+async def start_scheduled(
+    item_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    try:
+        uid = uuid.UUID(item_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid ID")
+
+    res = await db.execute(
+        select(ScheduledInterviewRecord).where(
+            ScheduledInterviewRecord.id == uid,
+            ScheduledInterviewRecord.user_id == current_user.id,
+        )
+    )
+    item = res.scalar_one_or_none()
+    if not item:
+        raise HTTPException(404, "Scheduled interview not found")
+
+    item.status = "started"
+    await db.commit()
+    return _scheduled_to_dict(item)
+
+
+@router.delete("/scheduled/{item_id}", status_code=204)
+async def cancel_scheduled(
+    item_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    try:
+        uid = uuid.UUID(item_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid ID")
+
+    result = await db.execute(
+        delete(ScheduledInterviewRecord).where(
+            ScheduledInterviewRecord.id == uid,
+            ScheduledInterviewRecord.user_id == current_user.id,
+        )
+    )
+    await db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(404, "Scheduled interview not found")

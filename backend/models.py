@@ -609,6 +609,62 @@ class UserCredits(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
+# ---------------------------------------------------------------------------
+# Interview Sessions
+# ---------------------------------------------------------------------------
+
+class InterviewSessionRecord(Base):
+    """One completed mock interview session per user."""
+    __tablename__ = "interview_sessions"
+
+    id               = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id          = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+
+    # Interview metadata
+    job_title        = Column(String(300), default="")
+    company          = Column(String(200), default="")
+    round_type       = Column(String(20),  default="")    # phone | mid | technical | hr
+    round_label      = Column(String(100), default="")
+    duration_minutes = Column(Integer, default=30)
+
+    # AI-generated questions + candidate answers (parallel arrays)
+    questions        = Column(JSON, default=list)   # [{id, question, category, estimated_time_seconds}]
+    answers          = Column(JSON, default=list)   # ["answer text", ...] indexed by question order
+
+    # Outcome
+    elapsed_seconds  = Column(Integer, default=0)
+    questions_answered = Column(Integer, default=0)
+    status           = Column(String(20), default="completed")   # completed | abandoned
+
+    # Snapshot of the JD used (first 500 chars — for display)
+    jd_snippet       = Column(Text, default="")
+
+    completed_at     = Column(DateTime(timezone=True), nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class ScheduledInterviewRecord(Base):
+    """Interview scheduled by the user for a future date."""
+    __tablename__ = "scheduled_interviews"
+
+    id               = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id          = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+
+    job_title        = Column(String(300), default="")
+    company          = Column(String(200), default="")
+    round_type       = Column(String(20),  default="")
+    round_label      = Column(String(100), default="")
+    duration_minutes = Column(Integer, default=30)
+
+    # Pre-generated questions stored so the interview starts instantly
+    questions        = Column(JSON, default=list)
+
+    scheduled_at     = Column(DateTime(timezone=True), nullable=False)
+    status           = Column(String(20), default="pending")   # pending | started | cancelled
+
+    created_at       = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
 class LinkedInBoostResult(Base):
     __tablename__ = "linkedin_boost_results"
 
