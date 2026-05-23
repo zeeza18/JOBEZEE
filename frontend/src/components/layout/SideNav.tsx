@@ -106,10 +106,8 @@ const SideNav = ({ open, onToggle }: SideNavProps) => {
           </button>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-16 border-b border-white/[0.05] flex-shrink-0 gap-1.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-sky-600">
-            <span className="text-[11px] font-black text-white leading-none">Jz</span>
-          </div>
+        <div className="flex flex-col items-center justify-center h-16 border-b border-white/[0.05] flex-shrink-0 gap-1">
+          <LogoBrand size="xs" />
           <button
             onClick={onToggle}
             className="rounded p-0.5 text-slate-600 hover:text-white hover:bg-white/[0.07] transition-colors"
