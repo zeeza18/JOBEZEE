@@ -157,7 +157,7 @@ function AddCreditsForm({ onSuccess }: { onSuccess: () => void }) {
         <button
           type="submit"
           disabled={submitting || !amount}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 transition-colors"
+          className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:-translate-y-0.5 hover:shadow-md hover:shadow-cyan-200 disabled:opacity-50 disabled:translate-y-0 text-white text-sm font-semibold py-2.5 transition-all"
         >
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
           {submitting ? 'Processing…' : 'Add Credits'}

@@ -44,7 +44,7 @@ const NavItem = ({ to, label, icon: Icon, badge, end, collapsed }: {
     className={({ isActive }) =>
       cn(
         'flex items-center gap-3 rounded-md text-sm transition-colors',
-        collapsed ? 'w-10 h-10 mx-auto justify-center p-0' : 'px-3 py-2',
+        collapsed ? 'w-12 h-10 mx-auto justify-center p-0' : 'px-3 py-2',
         isActive
           ? 'bg-cyan-500/[0.08] text-cyan-400 font-medium'
           : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
@@ -89,35 +89,20 @@ const SideNav = ({ open, onToggle }: SideNavProps) => {
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 bg-[#0d1117] border-r border-white/[0.06] flex flex-col z-40 hidden md:flex transition-all duration-300 ease-in-out',
-        open ? 'w-60' : 'w-16'
+        'fixed inset-y-0 left-0 bg-[#0d1117] border-r border-white/[0.05] flex flex-col z-40 hidden md:flex transition-all duration-300 ease-in-out',
+        open ? 'w-60' : 'w-20'
       )}
     >
       {/* Header */}
-      <div className={cn('flex items-center h-16 border-b border-white/[0.06] flex-shrink-0', open ? 'px-4 justify-between' : 'flex-col justify-center gap-1')}>
-        {open ? (
-          <>
-            <LogoBrand size="sm" />
-            <button
-              onClick={onToggle}
-              className="rounded-md p-1.5 text-slate-500 hover:text-white hover:bg-white/[0.05] transition-colors"
-              title="Collapse sidebar"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          </>
-        ) : (
-          <>
-            <span className="text-base font-black leading-none text-white">J<span className="text-cyan-400">z</span></span>
-            <button
-              onClick={onToggle}
-              className="rounded-md p-1 text-slate-500 hover:text-white hover:bg-white/[0.05] transition-colors"
-              title="Expand sidebar"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </>
-        )}
+      <div className={cn('flex items-center h-16 border-b border-white/[0.05] flex-shrink-0 px-3', open ? 'justify-between' : 'justify-between')}>
+        <LogoBrand size="sm" />
+        <button
+          onClick={onToggle}
+          className="rounded-lg p-1.5 text-slate-500 hover:text-white hover:bg-white/[0.07] transition-colors flex-shrink-0"
+          title={open ? 'Collapse sidebar' : 'Expand sidebar'}
+        >
+          {open ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
       </div>
 
       {/* Nav scroll area */}

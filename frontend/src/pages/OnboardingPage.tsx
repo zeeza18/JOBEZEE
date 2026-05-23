@@ -61,7 +61,7 @@ function ChipsInput({
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <div className="flex min-h-[3rem] flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="flex min-h-[3rem] flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         {values.map((v) => (
           <span key={v} className="flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand-dark">
             {v}
@@ -252,10 +252,10 @@ const OnboardingPage = () => {
                         setField('work_modes', next)
                         setField('remote_preference', next[0] ?? 'hybrid')
                       }}
-                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                      className={`px-3 py-1.5 rounded-xl border text-sm font-semibold transition-all ${
                         selected
-                          ? 'bg-cyan-500 border-cyan-500 text-white'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300'
+                          ? 'bg-gradient-to-r from-cyan-500 to-sky-500 border-cyan-500 text-white shadow-sm shadow-cyan-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300 hover:text-cyan-600'
                       }`}
                     >
                       {fmt(o)}
@@ -279,10 +279,10 @@ const OnboardingPage = () => {
                         setField('job_types', next)
                         setField('job_type', next[0] ?? 'full_time')
                       }}
-                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                      className={`px-3 py-1.5 rounded-xl border text-sm font-semibold transition-all ${
                         selected
-                          ? 'bg-cyan-500 border-cyan-500 text-white'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300'
+                          ? 'bg-gradient-to-r from-cyan-500 to-sky-500 border-cyan-500 text-white shadow-sm shadow-cyan-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300 hover:text-cyan-600'
                       }`}
                     >
                       {fmt(o)}
@@ -306,10 +306,10 @@ const OnboardingPage = () => {
                         setField('experience_levels', next)
                         setField('experience_level', next[0] ?? 'mid')
                       }}
-                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                      className={`px-3 py-1.5 rounded-xl border text-sm font-semibold transition-all ${
                         selected
-                          ? 'bg-cyan-500 border-cyan-500 text-white'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300'
+                          ? 'bg-gradient-to-r from-cyan-500 to-sky-500 border-cyan-500 text-white shadow-sm shadow-cyan-200'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-cyan-300 hover:text-cyan-600'
                       }`}
                     >
                       {fmt(o)}
@@ -347,7 +347,7 @@ const OnboardingPage = () => {
               <select
                 value={form.salary_currency ?? 'USD'}
                 onChange={(e) => setField('salary_currency', e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
               >
                 {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -458,7 +458,7 @@ const OnboardingPage = () => {
               <select
                 value={form.education ?? ''}
                 onChange={(e) => setField('education', e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition"
               >
                 {['', ...EDU_OPTIONS].map((opt) => <option key={opt} value={opt}>{opt || 'Select'}</option>)}
               </select>
@@ -665,7 +665,7 @@ const OnboardingPage = () => {
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <SectionHeader title="Save your profile" eyebrow="One-time setup · Next or skip through the cards" />
 
-      <Card className="flex items-center justify-between gap-4 bg-gradient-to-r from-cyan-50 via-white to-slate-50">
+      <Card className="flex items-center justify-between gap-4 bg-gradient-to-r from-cyan-50/80 via-white to-sky-50/40 border-cyan-100">
         <div>
           <p className="text-sm font-semibold text-slate-900">Step {step + 1} of {steps.length}</p>
           <p className="text-sm text-slate-600">Use Next to save answers to the database. You can always edit later in Profile.</p>

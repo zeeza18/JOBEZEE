@@ -29,8 +29,8 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     <button
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
-        checked ? 'bg-cyan-500' : 'bg-slate-200'
+        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-all duration-200',
+        checked ? 'bg-gradient-to-r from-cyan-500 to-sky-500 shadow-sm shadow-cyan-200' : 'bg-slate-200'
       )}
     >
       <span
@@ -409,7 +409,7 @@ const SettingsPage = () => {
               )}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-medium px-4 py-2 transition-colors">
+                  <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 hover:-translate-y-0.5 hover:shadow-md hover:shadow-cyan-200 text-white text-sm font-semibold px-4 py-2 transition-all">
                     {avatarUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                     {avatarUploading ? 'Uploading…' : 'Upload Photo'}
                     <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarUpload} disabled={avatarUploading} />
@@ -502,7 +502,7 @@ const SettingsPage = () => {
                 />
                 <button
                   onClick={handleSlugSave}
-                  className="shrink-0 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
+                  className="shrink-0 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:shadow-md transition-all"
                 >
                   Save
                 </button>
@@ -599,7 +599,7 @@ const SettingsPage = () => {
             <div className="px-5 py-4 flex items-center justify-between border-t border-slate-100">
               <p className="text-xs text-slate-400">Credentials are encrypted at rest and never shared.</p>
               <button onClick={saveCredentials} disabled={credsSaving}
-                className="flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 transition-colors">
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:-translate-y-0.5 hover:shadow-md hover:shadow-amber-200 disabled:opacity-60 disabled:translate-y-0 text-white text-sm font-semibold px-4 py-2 transition-all">
                 {credsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : credsSaved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                 {credsSaving ? 'Saving…' : credsSaved ? 'Saved!' : 'Save Credentials'}
               </button>

@@ -120,10 +120,10 @@ function StatCard({ count, sub, label, loading, accent, textColor, onClick, onSe
   return (
     <button
       onClick={onClick}
-      className="relative w-full h-[88px] rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col items-center justify-center gap-0.5 overflow-hidden group"
+      className="relative w-full h-[88px] rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col items-center justify-center gap-0.5 overflow-hidden group"
     >
       {/* top accent bar */}
-      <span className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${accent}`} />
+      <span className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${accent}`} />
 
       {/* settings icon */}
       <button
@@ -175,7 +175,7 @@ function DailyGoalPopover({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div ref={ref} className="absolute right-0 top-8 z-50 w-52 rounded-xl border border-slate-200 bg-white shadow-lg p-3 space-y-2">
+    <div ref={ref} className="absolute right-0 top-8 z-50 w-52 rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 p-3 space-y-2">
       <p className="text-xs font-semibold text-slate-700">Daily Apply Goal</p>
       <div className="flex items-center gap-2">
         <input
@@ -185,7 +185,7 @@ function DailyGoalPopover({ onClose }: { onClose: () => void }) {
           className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-400"
         />
         <button onClick={save}
-          className="shrink-0 rounded-lg bg-cyan-500 px-2 py-1 text-xs font-semibold text-white hover:bg-cyan-600 transition-colors">
+          className="shrink-0 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-500 px-2 py-1 text-xs font-semibold text-white hover:shadow-md transition-all">
           Save
         </button>
       </div>
@@ -354,7 +354,7 @@ const DashboardPage = () => {
 
       {/* ── Profile hero card ───────────────────────────────────────── */}
       <Card className="overflow-hidden shrink-0">
-        <div className="bg-gradient-to-r from-white to-cyan-50/40 px-5 py-3 flex flex-col md:flex-row md:items-center gap-3 md:gap-5">
+        <div className="bg-gradient-to-r from-white via-cyan-50/30 to-sky-50/20 px-5 py-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-5">
 
           {/* Avatar + Name — always a single row, flex-1 on desktop */}
           <div className="flex items-center gap-5 min-w-0 md:flex-1">
@@ -522,7 +522,7 @@ const DashboardPage = () => {
                             <ChevronDown className="h-2.5 w-2.5 shrink-0" />
                           </button>
                           {isOpen && (
-                            <div className="absolute left-2 top-9 z-50 w-36 rounded-xl border border-slate-200 bg-white shadow-lg py-1">
+                            <div className="absolute left-2 top-9 z-50 w-36 rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 py-1">
                               {ALL_STATUSES.map(s => (
                                 <button key={s} onClick={() => updateStatus(job.job_id, s)}
                                   className={`w-full text-left px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 transition-colors ${STATUS_CFG[s].cls} bg-transparent border-none`}>

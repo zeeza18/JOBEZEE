@@ -17,7 +17,7 @@ const AppShell = () => {
       <div
         className={cn(
           'flex-1 flex flex-col bg-[#f6f8fa] min-w-0 overflow-hidden transition-all duration-300 ease-in-out',
-          sidebarOpen ? 'md:pl-60' : 'md:pl-16'
+          sidebarOpen ? 'md:pl-60' : 'md:pl-20'
         )}
       >
         <TopNav />
