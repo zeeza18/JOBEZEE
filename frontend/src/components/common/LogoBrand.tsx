@@ -10,7 +10,7 @@ const JOBE = ['J', 'o', 'b', 'E']
 const ZEE  = ['z', 'e', 'e']
 
 export default function LogoBrand({ size = 'md', subtitle, variant = 'dark' }: Props) {
-  const textCls = size === 'xs' ? 'text-xs' : size === 'sm' ? 'text-lg' : size === 'lg' ? 'text-3xl' : 'text-xl'
+  const textCls = size === 'xs' ? 'text-xs' : size === 'sm' ? 'text-lg' : size === 'lg' ? 'text-4xl' : 'text-xl'
   const gapCls  = size === 'sm' ? 'gap-2'    : 'gap-2.5'
 
   return (

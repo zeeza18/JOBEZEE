@@ -108,7 +108,7 @@ function JobsMockup() {
         {/* Search bar */}
         <div className="mock-card-0 flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50/50 px-3 py-2">
           <Search className="h-4 w-4 text-cyan-500 shrink-0" />
-          <span className="text-xs text-slate-500">Scanning Indeed · LinkedIn · Glassdoor · ZipRecruiter · Workday…</span>
+          <span className="truncate text-xs text-slate-500">Scanning Indeed · LinkedIn · Glassdoor · ZipRecruiter · Workday…</span>
           <span className="ml-auto h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-500 shrink-0" />
         </div>
         {/* Job cards */}
@@ -402,7 +402,8 @@ function TrackMockup() {
           <span className="text-[11px] font-bold text-emerald-700">{offerCnt} offers! You're crushing it.</span>
         </div>
       )}
-      <div className="grid grid-cols-4 gap-2 p-3">
+      <div className="overflow-x-auto -mx-1 px-1">
+      <div className="grid grid-cols-4 gap-2 p-3 min-w-[380px]">
         {cols.map((col, ci) => (
           <div key={col.label} className={`track-col-${ci} rounded-xl border-t-2 border border-slate-100 ${col.color} bg-slate-50/50 p-2`}>
             <div className="mb-2 flex items-center justify-between px-0.5">
@@ -424,6 +425,7 @@ function TrackMockup() {
             </div>
           </div>
         ))}
+      </div>
       </div>
       <p className="text-center text-[9px] text-slate-300 pb-2">Tap any card to move it forward</p>
     </div>
@@ -623,25 +625,25 @@ function Scene({
   return (
     <section
       id={id}
-      className={`scene scene-${id} relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-white px-6 py-20`}
+      className={`scene scene-${id} relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-white px-4 sm:px-6 py-12 md:py-20`}
     >
       {/* Soft bg blob */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className={`absolute -top-32 ${reverse ? 'right-0' : 'left-0'} h-[600px] w-[600px] rounded-full bg-cyan-50/60 blur-3xl`} />
       </div>
 
-      <div className={`relative mx-auto flex w-full max-w-6xl flex-col items-center gap-16 lg:flex-row lg:gap-20 ${reverse ? 'lg:flex-row-reverse' : ''}`}>
+      <div className={`relative mx-auto flex w-full max-w-6xl flex-col items-center gap-8 md:gap-12 lg:flex-row lg:gap-20 ${reverse ? 'lg:flex-row-reverse' : ''}`}>
         {/* Text */}
         <div className="flex-1 text-center lg:text-left">
           <span className={`s-label inline-block rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-widest ${accent}`}>
             {label}
           </span>
-          <h2 className="s-head mt-4 text-4xl font-black leading-[1.1] tracking-tight text-slate-900 md:text-5xl"
+          <h2 className="s-head mt-3 sm:mt-4 text-3xl sm:text-4xl font-black leading-[1.1] tracking-tight text-slate-900 md:text-5xl"
             dangerouslySetInnerHTML={{ __html: headline }} />
-          <p className="s-desc mx-auto mt-5 max-w-md text-lg leading-relaxed text-slate-500 lg:mx-0">{sub}</p>
+          <p className="s-desc mx-auto mt-3 sm:mt-5 max-w-md text-sm sm:text-base md:text-lg leading-relaxed text-slate-500 lg:mx-0">{sub}</p>
         </div>
         {/* Mockup */}
-        <div className="s-mockup flex flex-1 items-center justify-center">
+        <div className="s-mockup flex w-full flex-1 items-center justify-center overflow-hidden">
           {mockup}
         </div>
       </div>
@@ -990,7 +992,7 @@ function HeroDashboardMockup() {
             </button>
           ))}
         </div>
-        <div className="flex min-h-[360px] flex-1 flex-col justify-center p-4 md:min-h-[370px] md:p-5">
+        <div className="flex min-h-[280px] flex-1 flex-col justify-center p-3 sm:p-4 md:min-h-[370px] md:p-5">
           <div key={activeTab} className="animate-[hero-panel-in_420ms_ease-out]">
             {renderActivePanel()}
           </div>
@@ -1166,38 +1168,38 @@ export default function LandingPage() {
 
       {/* ── NAV ── */}
       <nav className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center px-6 py-4 backdrop-blur-md bg-white/80 border-b border-slate-100/60">
-        <LogoBrand size="md" variant="light" />
+        <LogoBrand size="lg" variant="light" />
       </nav>
 
       {/* ── HERO ── */}
-      <section className="relative flex min-h-screen items-center overflow-hidden px-6 pb-16 pt-24">
+      <section className="relative flex min-h-screen items-center overflow-hidden px-4 sm:px-6 pb-12 sm:pb-16 pt-20 sm:pt-24">
         <div className="pointer-events-none absolute left-1/2 top-0 h-[700px] w-[1000px] -translate-x-1/2 rounded-full bg-gradient-to-b from-cyan-100/60 to-transparent blur-3xl" />
         <div className="pointer-events-none absolute -left-40 top-40 h-80 w-80 rounded-full bg-sky-100/50 blur-3xl" />
         <div className="pointer-events-none absolute -right-20 bottom-40 h-80 w-80 rounded-full bg-indigo-100/40 blur-3xl" />
 
-        <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:gap-12">
+        <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-6 sm:gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:gap-12">
           <div className="text-center lg:text-left">
-            <h1 className="text-5xl font-black leading-[1.04] tracking-tight text-slate-900 sm:text-6xl lg:text-7xl">
+            <h1 className="text-[2.1rem] font-black leading-[1.1] tracking-tight text-slate-900 sm:text-5xl sm:leading-[1.04] lg:text-7xl">
               AI won't take your job.<br />
               <span className="bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 bg-clip-text text-transparent">
                 It'll get you one.
               </span>
             </h1>
-            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-slate-500 lg:mx-0">
+            <p className="mx-auto mt-4 sm:mt-6 max-w-xl text-sm sm:text-base md:text-lg leading-relaxed text-slate-500 lg:mx-0">
               JobEzee finds matched jobs, tailors your resume, applies faster, and prepares you for interviews so you can focus on landing the offer.
             </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+            <div className="mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
               <button onClick={() => navigate('/auth')}
-                className="group flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-sky-500 px-10 py-4 text-base font-bold text-white shadow-lg shadow-cyan-200 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-cyan-300">
+                className="group flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-sky-500 px-6 py-3 sm:px-10 sm:py-4 text-sm sm:text-base font-bold text-white shadow-lg shadow-cyan-200 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-cyan-300">
                 Start for Free
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </button>
               <button onClick={() => navigate('/auth')}
-                className="rounded-2xl border border-slate-200 bg-white px-8 py-4 text-base font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-3 sm:px-8 sm:py-4 text-sm sm:text-base font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 Sign in →
               </button>
             </div>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-5 text-sm text-slate-400 lg:justify-start">
+            <div className="mt-4 sm:mt-6 flex flex-wrap items-center justify-center gap-4 sm:gap-5 text-xs sm:text-sm text-slate-400 lg:justify-start">
               {[
                 { icon: <Shield className="h-4 w-4 text-cyan-500" />,       text: 'Secure' },
                 { icon: <Zap className="h-4 w-4 text-cyan-500" />,          text: 'AI-tailored' },
@@ -1209,7 +1211,7 @@ export default function LandingPage() {
           </div>
 
           {/* Hero dashboard */}
-          <div className="hero-mockup relative mx-auto w-full max-w-4xl px-0">
+          <div className="hero-mockup relative mx-auto w-full max-w-4xl px-0 sm:px-0">
             <HeroDashboardMockup />
           </div>
         </div>
@@ -1224,8 +1226,8 @@ export default function LandingPage() {
       </section>
 
       {/* ── Board ticker ── */}
-      <div className="overflow-hidden border-y border-slate-100 bg-slate-50 py-4">
-        <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+      <div className="overflow-hidden border-y border-slate-100 bg-slate-50 py-3 sm:py-4">
+        <p className="mb-2 sm:mb-3 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400">
           Searches across all major platforms globally
         </p>
         <div className="flex w-max animate-[scroll_20s_linear_infinite] whitespace-nowrap" style={{ willChange: 'transform' }}>
@@ -1306,44 +1308,44 @@ export default function LandingPage() {
       />
 
       {/* ── FINAL CTA ── */}
-      <section className="bg-gradient-to-b from-cyan-50/50 to-white border-t border-slate-100 px-6 py-28">
+      <section className="bg-gradient-to-b from-cyan-50/50 to-white border-t border-slate-100 px-4 sm:px-6 py-16 sm:py-28">
         <div className="mx-auto max-w-2xl text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-sky-500 shadow-xl shadow-cyan-200">
-            <Trophy className="h-8 w-8 text-white" />
+          <div className="mx-auto mb-5 sm:mb-6 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-sky-500 shadow-xl shadow-cyan-200">
+            <Trophy className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
           </div>
-          <h2 className="text-4xl font-black tracking-tight text-slate-900 md:text-5xl">
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 md:text-5xl">
             Your next role is{' '}
             <span className="bg-gradient-to-r from-cyan-500 to-sky-500 bg-clip-text text-transparent">
               one scroll away.
             </span>
           </h2>
-          <p className="mx-auto mt-5 max-w-lg text-lg text-slate-500">
+          <p className="mx-auto mt-4 sm:mt-5 max-w-lg text-sm sm:text-base md:text-lg text-slate-500">
             Set up your profile in 3 minutes. Let JobEzee's AI handle searching, tailoring,
             and tracking. You show up to interviews. We handle everything else.
           </p>
-          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <div className="mt-6 sm:mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <button onClick={() => navigate('/auth')}
-              className="group flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-sky-500 px-10 py-4 text-base font-bold text-white shadow-lg shadow-cyan-200 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-cyan-300">
+              className="group flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-sky-500 px-8 py-3.5 sm:px-10 sm:py-4 text-sm sm:text-base font-bold text-white shadow-lg shadow-cyan-200 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-cyan-300">
               Create Free Account
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </button>
             <button onClick={() => navigate('/auth')}
-              className="rounded-2xl border border-slate-200 bg-white px-8 py-4 text-base font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              className="w-full sm:w-auto rounded-2xl border border-slate-200 bg-white px-6 py-3.5 sm:px-8 sm:py-4 text-sm sm:text-base font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
               Sign in →
             </button>
           </div>
-          <p className="mt-4 text-sm text-slate-400">No credit card required · Free to get started</p>
+          <p className="mt-4 text-xs sm:text-sm text-slate-400">No credit card required · Free to get started</p>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-slate-100 bg-white px-6 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 md:flex-row">
+      <footer className="border-t border-slate-100 bg-white px-4 sm:px-6 py-6 sm:py-8">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 md:flex-row">
           <LogoBrand size="sm" variant="light" />
-          <p className="text-sm text-slate-400">
+          <p className="text-xs sm:text-sm text-center text-slate-400">
             © 2026 JobEzee · Built with React 19, FastAPI &amp; PostgreSQL
           </p>
-          <div className="flex gap-6 text-sm text-slate-400">
+          <div className="flex gap-6 text-xs sm:text-sm text-slate-400">
             <Link to="/privacy" className="transition hover:text-slate-700">Privacy</Link>
             <Link to="/terms" className="transition hover:text-slate-700">Terms</Link>
           </div>
