@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight, CreditCard, Linkedin, Plug, Mic2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -73,8 +74,10 @@ interface SideNavProps {
 const SideNav = ({ open, onToggle }: SideNavProps) => {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
+  const [confirmLogout, setConfirmLogout] = useState(false)
 
   const handleLogout = async () => {
+    setConfirmLogout(false)
     await logout()
     navigate('/')
   }
@@ -160,24 +163,44 @@ const SideNav = ({ open, onToggle }: SideNavProps) => {
 
       {/* Footer — user + logout */}
       <div className="border-t border-white/[0.06] px-3 py-3 flex-shrink-0">
-        <div className={cn('flex items-center gap-2', !open && 'flex-col gap-2')}>
-          <div
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-semibold text-cyan-400"
-            title={!open ? displayName : undefined}
-          >
-            {initials}
+        {confirmLogout ? (
+          <div className={cn('flex flex-col gap-2', open ? 'items-start' : 'items-center')}>
+            {open && <p className="text-xs font-semibold text-slate-300 px-1">Sign out?</p>}
+            <div className={cn('flex gap-1.5', !open && 'flex-col items-center')}>
+              <button
+                onClick={handleLogout}
+                className="rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-semibold px-3 py-1.5 transition-colors"
+              >
+                {open ? 'Log out' : <LogOut className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                onClick={() => setConfirmLogout(false)}
+                className="rounded-lg bg-white/[0.06] hover:bg-white/[0.10] text-slate-400 text-xs font-semibold px-3 py-1.5 transition-colors"
+              >
+                {open ? 'Stay' : '✕'}
+              </button>
+            </div>
           </div>
-          {open && (
-            <span className="flex-1 truncate text-sm text-slate-300">{displayName}</span>
-          )}
-          <button
-            onClick={handleLogout}
-            className="rounded-md p-1.5 text-slate-500 transition-colors hover:text-red-400 hover:bg-red-500/10"
-            title="Sign out"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        ) : (
+          <div className={cn('flex items-center gap-2', !open && 'flex-col gap-2')}>
+            <div
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-semibold text-cyan-400"
+              title={!open ? displayName : undefined}
+            >
+              {initials}
+            </div>
+            {open && (
+              <span className="flex-1 truncate text-sm text-slate-300">{displayName}</span>
+            )}
+            <button
+              onClick={() => setConfirmLogout(true)}
+              className="rounded-md p-1.5 text-slate-500 transition-colors hover:text-red-400 hover:bg-red-500/10"
+              title="Sign out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   )
