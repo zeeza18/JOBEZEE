@@ -1344,7 +1344,6 @@ export default function LandingPage() {
             © 2026 JobEzee · Built with React 19, FastAPI &amp; PostgreSQL
           </p>
           <div className="flex gap-6 text-sm text-slate-400">
-            <a href="https://github.com/zeeza18/JOBEZEE" target="_blank" rel="noopener noreferrer" className="transition hover:text-slate-700">GitHub</a>
             <Link to="/privacy" className="transition hover:text-slate-700">Privacy</Link>
             <Link to="/terms" className="transition hover:text-slate-700">Terms</Link>
           </div>
