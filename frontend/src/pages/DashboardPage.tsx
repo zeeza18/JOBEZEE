@@ -362,6 +362,9 @@ const DashboardPage = () => {
   return (
     <div className="flex flex-col gap-4 md:h-[calc(100vh-108px)] md:overflow-hidden">
 
+      {/* ── Page title ──────────────────────────────────────────────── */}
+      <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dashboard</h1>
+
       {/* ── Profile hero card ───────────────────────────────────────── */}
       <Card className="overflow-hidden shrink-0">
         <div className="bg-gradient-to-r from-white via-cyan-50/30 to-sky-50/20 px-5 py-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-5">
