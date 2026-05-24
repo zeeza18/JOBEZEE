@@ -50,9 +50,9 @@ const MobileDock = () => (
     <nav className="flex items-center justify-around px-1 py-1 pb-safe">
       {leftDock.map((item) => <DockItem key={item.to} {...item} />)}
 
-      {/* Center Home button */}
+      {/* Center Dashboard button */}
       <NavLink
-        to="/app"
+        to="/dashboard"
         end
         className="flex flex-col items-center justify-center gap-0.5 -mt-4 min-w-[56px]"
       >

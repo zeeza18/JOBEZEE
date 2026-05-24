@@ -43,12 +43,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/** Redirects already-logged-in users away from public pages (/, /auth) straight to /app. */
+/** Redirects already-logged-in users away from public pages (/, /auth) straight to /dashboard. */
 function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
   const { user, initializing } = useAuthStore()
 
   if (initializing) return <PageLoader />
-  if (user) return <Navigate to="/app" replace />
+  if (user) return <Navigate to="/dashboard" replace />
   return <>{children}</>
 }
 
@@ -60,7 +60,8 @@ const AppRoutes = () => (
       <Route path="/onboarding" element={<AuthGuard><OnboardingPage /></AuthGuard>} />
 
       <Route element={<AuthGuard><AppShell /></AuthGuard>}>
-        <Route path="/app"                element={<DashboardPage />} />
+        <Route path="/dashboard"          element={<DashboardPage />} />
+        <Route path="/app"                element={<Navigate to="/dashboard" replace />} />
         <Route path="/app/search"         element={<CombinedJobsPage />} />
         <Route path="/app/pulled-jobs"    element={<CombinedJobsPage />} />
         <Route path="/app/tailor"         element={<TailorPage />} />

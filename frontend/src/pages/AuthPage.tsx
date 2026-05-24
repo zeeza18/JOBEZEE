@@ -34,7 +34,7 @@ export default function AuthPage() {
       if (mode === 'login') {
         await login(form.email, form.password)
         searchApi.trigger().catch(() => {})
-        navigate('/app')
+        navigate('/dashboard')
       } else {
         await register(form.email, form.password, form.full_name)
         navigate('/onboarding')

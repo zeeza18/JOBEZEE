@@ -7,7 +7,7 @@ import { cn } from '../../lib/utils'
 import { SignOutModal } from '../common/SignOutModal'
 
 const menuItems = [
-  { to: '/app',             label: 'Dashboard', icon: Home,     end: true  },
+  { to: '/dashboard',       label: 'Dashboard', icon: Home,     end: true  },
   { to: '/app/pulled-jobs', label: 'Jobs',      icon: Sparkles, end: false },
   { to: '/app/tailor',      label: 'Tailor',    icon: Wand2,    end: false },
   { to: '/app/apply',       label: 'Auto',      icon: Zap,      end: false },
@@ -38,7 +38,7 @@ const TopNav = () => {
     <>
       <header className="md:hidden sticky top-0 z-30 border-b border-white/[0.06] bg-[#0d1117]">
         <div className="flex items-center justify-between px-4 py-3">
-          <button onClick={() => navigate('/app')} aria-label="Home">
+          <button onClick={() => navigate('/dashboard')} aria-label="Dashboard">
             <LogoBrand size="sm" />
           </button>
 

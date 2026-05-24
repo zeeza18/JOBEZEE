@@ -650,7 +650,7 @@ const OnboardingPage = () => {
     } catch {
       // non-fatal — jobs page will auto-trigger if needed
     }
-    navigate('/app')
+    navigate('/dashboard')
   }
 
   if (loading) {
@@ -673,7 +673,7 @@ const OnboardingPage = () => {
         <Button
           variant="ghost"
           icon={<SkipForward className="h-4 w-4" />}
-          onClick={() => navigate('/app')}
+          onClick={() => navigate('/dashboard')}
           className="text-slate-600"
         >
           Skip onboarding

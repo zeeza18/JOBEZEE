@@ -7,7 +7,7 @@ import LogoBrand from '../common/LogoBrand'
 import { SignOutModal } from '../common/SignOutModal'
 
 const mainNav = [
-  { to: '/app',              label: 'Dashboard', icon: Home,     end: true },
+  { to: '/dashboard',        label: 'Dashboard', icon: Home,     end: true },
   { to: '/app/pulled-jobs',  label: 'Jobs',      icon: Sparkles },
   { to: '/app/tailor',       label: 'Resume',    icon: Wand2 },
   { to: '/app/apply',        label: 'Apply',     icon: Send },
