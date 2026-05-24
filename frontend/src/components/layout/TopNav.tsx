@@ -4,6 +4,7 @@ import { LogOut, User, Settings, Menu, X, Home, Sparkles, Wand2, Zap, Globe } fr
 import { useAuthStore } from '../../store/useAuthStore'
 import LogoBrand from '../common/LogoBrand'
 import { cn } from '../../lib/utils'
+import { SignOutModal } from '../common/SignOutModal'
 
 const menuItems = [
   { to: '/app',             label: 'Home',      icon: Home,     end: true  },
@@ -139,42 +140,29 @@ const TopNav = () => {
         {/* Footer — user + logout */}
         {user && (
           <div className="border-t border-white/[0.06] px-3 py-3 flex-shrink-0">
-            {confirmLogout ? (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-slate-300 px-1">Sign out?</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleLogout}
-                    className="flex-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-semibold py-2 transition-colors"
-                  >
-                    Log out
-                  </button>
-                  <button
-                    onClick={() => setConfirmLogout(false)}
-                    className="flex-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.10] text-slate-400 text-xs font-semibold py-2 transition-colors"
-                  >
-                    Stay
-                  </button>
-                </div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-semibold text-cyan-400">
+                {initials}
               </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-semibold text-cyan-400">
-                  {initials}
-                </div>
-                <span className="flex-1 truncate text-sm text-slate-300">{displayName}</span>
-                <button
-                  onClick={() => setConfirmLogout(true)}
-                  className="rounded-md p-1.5 text-slate-500 transition hover:text-red-400 hover:bg-red-500/10"
-                  title="Sign out"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
+              <span className="flex-1 truncate text-sm text-slate-300">{displayName}</span>
+              <button
+                onClick={() => setConfirmLogout(true)}
+                className="rounded-md p-1.5 text-slate-500 transition hover:text-red-400 hover:bg-red-500/10"
+                title="Sign out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         )}
       </div>
+
+      <SignOutModal
+        open={confirmLogout}
+        displayName={displayName}
+        onConfirm={handleLogout}
+        onCancel={() => setConfirmLogout(false)}
+      />
     </>
   )
 }

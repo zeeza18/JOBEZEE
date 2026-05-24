@@ -302,17 +302,6 @@ export default function ProfilePage() {
         eyebrow="Editor — update your saved job-search profile"
       />
 
-      {/* Search running banner */}
-      {searching && sessionId && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 rounded-xl border border-brand/30 bg-brand/5 px-4 py-3">
-          <Loader2 className="h-4 w-4 animate-spin text-brand" />
-          <p className="text-sm text-brand-dark">
-            Search running (session <span className="font-mono font-bold">{sessionId}</span>) —{' '}
-            <a href="/app/pulled-jobs" className="underline">check Pulled Jobs</a> in ~60 s.
-          </p>
-        </motion.div>
-      )}
 
       {/* Tab bar */}
       <div className="flex overflow-x-auto gap-1 rounded-2xl border border-slate-100 bg-slate-50 p-1">
@@ -669,6 +658,41 @@ export default function ProfilePage() {
           )}
 
         </motion.div>
+      </AnimatePresence>
+
+      {/* Search running — fixed floating card */}
+      <AnimatePresence>
+        {searching && sessionId && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+            className="fixed bottom-6 right-6 z-50 flex w-80 items-start gap-3 rounded-2xl border border-cyan-200 bg-white px-5 py-4 shadow-[0_8px_32px_rgba(6,182,212,0.18)] ring-1 ring-cyan-100"
+          >
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-gradient shadow-glow">
+              <Loader2 className="h-4 w-4 animate-spin text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-800">Search in Progress</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Session <span className="font-mono font-bold text-cyan-600">{sessionId}</span>
+              </p>
+              <a
+                href="/app/pulled-jobs"
+                className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-cyan-600 hover:text-cyan-700"
+              >
+                View Pulled Jobs <ChevronRight className="h-3 w-3" />
+              </a>
+            </div>
+            <button
+              onClick={() => setSearching(false)}
+              className="ml-auto shrink-0 text-slate-300 hover:text-slate-500 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Action bar */}

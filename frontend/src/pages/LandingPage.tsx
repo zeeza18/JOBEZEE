@@ -1168,7 +1168,7 @@ export default function LandingPage() {
 
       {/* ── NAV ── */}
       <nav className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center px-6 py-4 backdrop-blur-md bg-white/80 border-b border-slate-100/60">
-        <LogoBrand size="lg" variant="light" />
+        <div className="scale-[0.9] origin-center"><LogoBrand size="lg" variant="light" /></div>
       </nav>
 
       {/* ── HERO ── */}
@@ -1341,7 +1341,7 @@ export default function LandingPage() {
       {/* ── FOOTER ── */}
       <footer className="border-t border-slate-100 bg-white px-4 sm:px-6 py-6 sm:py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 md:flex-row">
-          <LogoBrand size="sm" variant="light" />
+          <div className="scale-[0.9] origin-center"><LogoBrand size="sm" variant="light" /></div>
           <p className="text-xs sm:text-sm text-center text-slate-400">
             © 2026 JobEzee · Built with React 19, FastAPI &amp; PostgreSQL
           </p>
