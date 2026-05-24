@@ -108,15 +108,16 @@ function getFavicon(url: string) {
 // ── Stat card (square KPI tile) ───────────────────────────────────────────────
 interface StatCardProps {
   count: number | null
-  sub?: string        // optional small badge below count e.g. "12 new"
+  sub?: string
   label: string
   loading?: boolean
-  accent: string      // gradient classes e.g. "from-cyan-400 to-sky-500"
+  accent: string
   textColor: string
   onClick: () => void
-  onSettings: () => void
+  onSettings?: () => void
+  showSettings?: boolean
 }
-function StatCard({ count, sub, label, loading, accent, textColor, onClick, onSettings }: StatCardProps) {
+function StatCard({ count, sub, label, loading, accent, textColor, onClick, onSettings, showSettings }: StatCardProps) {
   return (
     <button
       onClick={onClick}
@@ -125,14 +126,16 @@ function StatCard({ count, sub, label, loading, accent, textColor, onClick, onSe
       {/* top accent bar */}
       <span className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${accent}`} />
 
-      {/* settings icon */}
-      <button
-        onClick={e => { e.stopPropagation(); onSettings() }}
-        className="absolute top-3 right-3 rounded-full p-1 text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-all"
-        title="Settings"
-      >
-        <Settings2 className="h-3.5 w-3.5" />
-      </button>
+      {/* settings icon — only for Applied (daily goal) */}
+      {showSettings && onSettings && (
+        <button
+          onClick={e => { e.stopPropagation(); onSettings() }}
+          className="absolute top-3 right-3 rounded-full p-1 text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-all"
+          title="Settings"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+        </button>
+      )}
 
       {/* number */}
       {loading ? (
@@ -423,20 +426,20 @@ const DashboardPage = () => {
                 sub={botStats?.new_jobs_count ? `${botStats.new_jobs_count} new` : undefined}
                 label="Openings" loading={statsLoad || jobStats === null}
                 accent="from-cyan-400 to-sky-500" textColor="text-cyan-600"
-                onClick={() => navigate('/app/pulled-jobs')} onSettings={() => navigate('/app/settings')} />
+                onClick={() => navigate('/app/pulled-jobs')} />
             </div>
             <div className="flex-1 md:flex-none md:w-32">
               <StatCard
                 count={botStats?.saved_count ?? null}
                 label="Saved" loading={statsLoad}
                 accent="from-violet-400 to-purple-500" textColor="text-violet-600"
-                onClick={() => navigate('/app/pulled-jobs')} onSettings={() => navigate('/app/settings')} />
+                onClick={() => navigate('/app/pulled-jobs')} />
             </div>
             <div className="flex-1 md:flex-none md:w-32 relative">
               <span data-ctx="applied-count" className="hidden">{botStats?.total_applied ?? 0}</span>
               <StatCard count={botStats?.total_applied ?? null} label="Applied" loading={statsLoad}
                 accent="from-emerald-400 to-teal-500" textColor="text-emerald-600"
-                onClick={() => navigate('/app/applications')} onSettings={() => setGoalOpen(p => !p)} />
+                onClick={() => navigate('/app/applications')} onSettings={() => setGoalOpen(p => !p)} showSettings />
               {goalOpen && <DailyGoalPopover onClose={() => setGoalOpen(false)} />}
             </div>
           </div>

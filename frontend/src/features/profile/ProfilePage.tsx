@@ -682,7 +682,7 @@ export default function ProfilePage() {
                 href="/app/pulled-jobs"
                 className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-cyan-600 hover:text-cyan-700"
               >
-                View Pulled Jobs <ChevronRight className="h-3 w-3" />
+                View Jobs <ChevronRight className="h-3 w-3" />
               </a>
             </div>
             <button
