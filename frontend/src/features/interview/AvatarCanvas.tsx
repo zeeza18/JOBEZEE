@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { GeneratedInterview } from '../../lib/api'
+import type { GeneratedInterview, InterviewQuestion } from '../../lib/api'
+import CodingPanel, { type TestResult } from './CodingPanel'
 
 // ── Backend base URL (mirrors api.ts logic) ────────────────────────────────
 const _HOST    = typeof window !== 'undefined' ? window.location.hostname : ''
@@ -159,6 +160,11 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
   const [callSecs,       setCallSecs]       = useState(0)
   const [callLive,       setCallLive]       = useState(false)
 
+  // ── Coding challenge state ─────────────────────────────────────────────────
+  const [codingActive,  setCodingActive]  = useState(false)
+  const [sophiaHint,    setSophiaHint]    = useState<string | null>(null)
+  const codingSubmittedRef = useRef(false)
+
   useEffect(() => () => {
     timerRef.current && clearInterval(timerRef.current)
     camStreamRef.current?.getTracks().forEach(t => t.stop())
@@ -207,6 +213,50 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
       setTimeout(() => setViewToast(''), 1800)
       return next
     })
+  }
+
+  // ── Coding helpers ────────────────────────────────────────────────────────
+  const currentCodingQuestion = (): InterviewQuestion | null => {
+    const iTurns = historyRef.current.filter(t => t.role === 'interviewer').length
+    const idx    = Math.max(0, iTurns - 1)
+    const q      = interview.questions[idx] as InterviewQuestion | undefined
+    return (q?.category === 'coding' && q?.coding_challenge) ? q : null
+  }
+
+  const handleCodeSubmit = (code: string, results: TestResult[]) => {
+    void code
+    codingSubmittedRef.current = true
+    setCodingActive(false)
+    setSophiaHint(null)
+    const passed  = results.filter(r => r.passed).length
+    const detail  = passed === 3 ? 'All tests passed.' : passed === 2 ? 'One test failed.' : passed === 1 ? 'Two tests failed.' : 'All tests failed.'
+    const summary = `[CODE SUBMITTED] ${passed}/3 test cases passed. ${detail}`
+    fetchNext(summary)
+    setTimeout(() => { codingSubmittedRef.current = false }, 800)
+  }
+
+  const handleHintRequest = async (code: string, hintIdx: number) => {
+    const q = currentCodingQuestion()
+    if (!q?.coding_challenge) return
+    const hints = q.coding_challenge.hints || []
+    if (hintIdx >= hints.length) return
+    try {
+      const res = await fetch(`${BASE}/api/avatar/coding-hint`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          problem:      q.coding_challenge.problem,
+          current_code: code,
+          hints,
+          hint_index:   hintIdx,
+        }),
+      })
+      if (res.ok) {
+        const { hint } = await res.json()
+        setSophiaHint(hint)
+        setTimeout(() => setSophiaHint(null), 9000)
+      }
+    } catch { /* silent */ }
   }
 
   const buildResult = (): AvatarResult => ({
@@ -343,7 +393,15 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
           isFillerRef.current = false
           if (pendingReplyRef.current) { speakText(pendingReplyRef.current); pendingReplyRef.current = null }
           else { setPhase('processing'); waitingRef.current = true }
-        } else { startListening() }
+        } else {
+          // Check if current question is a coding challenge
+          const cq = currentCodingQuestion()
+          if (cq && !codingSubmittedRef.current) {
+            setCodingActive(true)
+          } else {
+            startListening()
+          }
+        }
       }
       else if (e.data.type === 'error') { setErrorMsg(e.data.message || 'Avatar error'); setPhase('error') }
     }
@@ -353,8 +411,18 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
 
   const iframeSrc = `/avatar.html?avatar=${encodeURIComponent(AVATAR_URL)}&speaker=${SPEAKER}&body=F&apiBase=${encodeURIComponent(BASE)}`
 
-  const sophiaWrap = { spotlight:'absolute inset-0 bottom-16', sideBySide:'absolute top-0 bottom-16 left-0 w-[60%]', youFocused:'absolute top-3 bottom-[4.8rem] right-3 w-[34%] rounded-2xl overflow-hidden shadow-2xl' }[viewMode]
-  const camWrap    = { spotlight:'absolute bottom-[4.8rem] right-4 w-52 h-[155px] rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-2xl', sideBySide:'absolute top-0 bottom-16 right-0 w-[40%]', youFocused:'absolute top-0 bottom-16 left-0 w-[66%]' }[viewMode]
+  const sophiaWrap = codingActive
+    ? 'absolute top-0 bottom-16 left-0 w-[38%]'
+    : { spotlight:'absolute inset-0 bottom-16', sideBySide:'absolute top-0 bottom-16 left-0 w-[60%]', youFocused:'absolute top-3 bottom-[4.8rem] right-3 w-[34%] rounded-2xl overflow-hidden shadow-2xl' }[viewMode]
+  const camWrap = { spotlight:'absolute bottom-[4.8rem] right-4 w-52 h-[155px] rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-2xl', sideBySide:'absolute top-0 bottom-16 right-0 w-[40%]', youFocused:'absolute top-0 bottom-16 left-0 w-[66%]' }[viewMode]
+
+  // Current coding question for the render
+  const currentCQ = (() => {
+    const iTurns = history.filter(t => t.role === 'interviewer').length
+    const idx    = Math.max(0, iTurns - 1)
+    const q      = interview.questions[idx] as InterviewQuestion | undefined
+    return (q?.category === 'coding' && q?.coding_challenge) ? q : null
+  })()
 
   return (
     <div className="relative w-full h-screen bg-[#07071a] overflow-hidden select-none font-sans">
@@ -362,12 +430,36 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
       {/* Sophia iframe */}
       <div className={`${sophiaWrap} transition-all duration-500`}>
         <iframe ref={iframeRef} src={iframeSrc} className="w-full h-full border-0" allow="autoplay" />
-        {phase === 'speaking' && viewMode === 'spotlight' && (
+        {phase === 'speaking' && !codingActive && viewMode === 'spotlight' && (
           <div className="absolute inset-0 pointer-events-none ring-inset ring-2 ring-blue-500/20 animate-pulse" />
+        )}
+        {/* Sophia hint bubble overlaid on her panel during coding */}
+        {sophiaHint && codingActive && (
+          <div className="absolute bottom-4 left-3 right-3 z-10 bg-[#130d28]/90 backdrop-blur-xl border border-violet-500/25 rounded-xl px-3 py-2.5 pointer-events-none">
+            <div className="flex items-center gap-1.5 mb-1">
+              <div className="w-3 h-3 rounded-full bg-gradient-to-br from-violet-400 to-cyan-400 shrink-0" />
+              <span className="text-violet-300/65 text-[10px] font-semibold tracking-wide uppercase">Sophia</span>
+            </div>
+            <p className="text-white/70 text-[11.5px] italic leading-relaxed">{sophiaHint}</p>
+          </div>
         )}
       </div>
 
-      {/* Camera feed */}
+      {/* Coding panel — right 62% when active */}
+      {codingActive && currentCQ?.coding_challenge && (
+        <div className="absolute top-0 bottom-16 right-0 w-[62%] z-10">
+          <CodingPanel
+            challenge={currentCQ.coding_challenge}
+            BASE={BASE}
+            sophiaHint={sophiaHint}
+            onSubmit={handleCodeSubmit}
+            onHintRequest={handleHintRequest}
+          />
+        </div>
+      )}
+
+      {/* Camera feed — hidden during coding */}
+      {!codingActive && (
       <div className={`${camWrap} transition-all duration-500 bg-[#111128]`}>
         <video ref={cameraRef} autoPlay muted playsInline className={`w-full h-full object-cover scale-x-[-1] ${camOn?'block':'hidden'}`} />
         {!camOn && (
@@ -382,6 +474,7 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
         )}
         <div className="absolute bottom-2 left-3 text-white/40 text-[10px] font-medium tracking-wide">YOU</div>
       </div>
+      )}
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 h-13 z-20 flex items-center px-5 py-3 bg-gradient-to-b from-black/75 via-black/30 to-transparent gap-3 pointer-events-none">

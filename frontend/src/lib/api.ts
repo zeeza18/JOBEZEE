@@ -677,11 +677,26 @@ export const resumeAnalysisApi = {
 
 export type InterviewRound = 'phone' | 'mid' | 'technical' | 'hr'
 
+export interface CodingTestCase {
+  call: string
+  expected: string
+}
+
+export interface CodingChallenge {
+  problem: string
+  starter_code: string
+  language: string
+  test_cases: CodingTestCase[]
+  hints: string[]
+  solution_approach: string
+}
+
 export interface InterviewQuestion {
   id: number
   question: string
   category: string
   estimated_time_seconds: number
+  coding_challenge?: CodingChallenge
 }
 
 export interface GeneratedInterview {

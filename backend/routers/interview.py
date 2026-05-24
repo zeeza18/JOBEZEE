@@ -16,8 +16,12 @@ PATCH /api/interview/scheduled/{id}/start — mark as started (returns the inter
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
+import sys
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -290,6 +294,26 @@ Rules:
 - Ask only real interview questions — no coaching, no hints, no answers
 - For technical rounds: include at least 2 concrete coding/algorithm problems using skills from the JD
 - Spread question types across the duration appropriately
+- For ANY question with category "coding", add a "coding_challenge" field:
+  {{
+    "problem": "<full clear problem statement with input/output description and constraints>",
+    "starter_code": "<function signature + docstring stub, e.g. def fn(x): pass>",
+    "language": "<best fit: python|javascript|sql|bash — match the JD tech stack>",
+    "test_cases": [
+      {{"call": "<exact function call, e.g. fn(121)>", "expected": "<Python repr() of result, e.g. True>"}},
+      {{"call": "<edge case call>", "expected": "<Python repr()>"}},
+      {{"call": "<another call>", "expected": "<Python repr()>"}}
+    ],
+    "hints": [
+      "<broad hint about the approach>",
+      "<more specific hint about technique>",
+      "<near-solution hint — almost gives it away>"
+    ],
+    "solution_approach": "<one sentence describing the optimal approach>"
+  }}
+- coding_challenge test_cases must have exactly 3 entries
+- expected values must match Python repr() exactly: True/False (not true/false), strings in single quotes
+- DSA problems: use python; SQL problems: use sql; bash/CLI problems: use bash; framework problems (FastAPI, LangChain): use python
 """
 
     try:
@@ -331,6 +355,100 @@ Rules:
     except Exception as exc:
         log.exception("[Interview] Unexpected error: %s", exc)
         raise HTTPException(500, "Interview generation failed")
+
+
+# ── Code execution ────────────────────────────────────────────────────────────
+
+class _TestCase(BaseModel):
+    call: str
+    expected: str
+
+class RunCodeRequest(BaseModel):
+    code: str
+    language: str = "python"
+    test_cases: list[_TestCase]
+
+
+async def _run_python(code: str, test_cases: list[_TestCase], timeout: int = 5) -> list[dict]:
+    results: list[dict] = []
+    for tc in test_cases:
+        harness = f"{code}\n\n_result = {tc.call}\nprint(repr(_result))\n"
+        tmp_path = ""
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
+                f.write(harness)
+                tmp_path = f.name
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, tmp_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            except asyncio.TimeoutError:
+                proc.kill()
+                results.append({"passed": False, "actual": "Time limit exceeded (5s)", "expected": tc.expected, "call": tc.call, "error": "TLE"})
+                continue
+            finally:
+                try: os.unlink(tmp_path)
+                except OSError: pass
+            actual    = stdout.decode().strip()
+            error_out = stderr.decode().strip()
+            passed    = actual == tc.expected.strip()
+            results.append({
+                "passed":   passed,
+                "actual":   actual if actual else error_out[:300],
+                "expected": tc.expected,
+                "call":     tc.call,
+                "error":    error_out[:200] if (error_out and not passed) else None,
+            })
+        except Exception as exc:
+            results.append({"passed": False, "actual": str(exc), "expected": tc.expected, "call": tc.call, "error": str(exc)})
+    return results
+
+
+def _run_sql(code: str, test_cases: list[_TestCase]) -> list[dict]:
+    import sqlite3
+    results: list[dict] = []
+    for tc in test_cases:
+        try:
+            conn = sqlite3.connect(":memory:")
+            cur  = conn.cursor()
+            cur.executescript(code)
+            cur.execute(tc.call)
+            rows   = cur.fetchall()
+            actual = repr(rows)
+            conn.close()
+            results.append({"passed": actual == tc.expected.strip(), "actual": actual, "expected": tc.expected, "call": tc.call, "error": None})
+        except Exception as exc:
+            results.append({"passed": False, "actual": str(exc), "expected": tc.expected, "call": tc.call, "error": str(exc)})
+    return results
+
+
+@router.post("/run-code")
+async def run_code(
+    req: RunCodeRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Execute user code against 3 test cases. Returns per-case pass/fail."""
+    if not req.code.strip():
+        raise HTTPException(400, "No code provided")
+    if len(req.test_cases) == 0:
+        raise HTTPException(400, "No test cases provided")
+
+    lang = req.language.lower()
+    if lang in ("python", "py"):
+        results = await _run_python(req.code, req.test_cases)
+    elif lang == "sql":
+        results = _run_sql(req.code, req.test_cases)
+    else:
+        # For bash / JS / framework code — mark as submitted, no auto-test
+        results = [
+            {"passed": True, "actual": "(not auto-tested)", "expected": tc.expected, "call": tc.call, "error": None}
+            for tc in req.test_cases
+        ]
+
+    return {"results": results, "passed_count": sum(1 for r in results if r["passed"])}
 
 
 # ── Session CRUD ───────────────────────────────────────────────────────────────

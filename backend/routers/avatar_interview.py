@@ -56,6 +56,13 @@ class ChatRequest(BaseModel):
     round_type: str = "mid"
 
 
+class CodingHintRequest(BaseModel):
+    problem: str
+    current_code: str
+    hints: list[str] = []
+    hint_index: int = 0
+
+
 # ── TTS ───────────────────────────────────────────────────────────────────────
 
 @router.post("/tts")
@@ -127,16 +134,55 @@ async def avatar_chat(
     interviewer_turns = sum(1 for m in req.history if m.role == "interviewer")
     questions = req.questions or []
 
+    # Detect code submission in the most recent candidate message
+    last_candidate = next(
+        (m.text for m in reversed(req.history) if m.role == "candidate"), ""
+    )
+    is_code_submission = last_candidate.startswith("[CODE SUBMITTED]")
+
     system = SOPHIA_PERSONA
+    if is_code_submission:
+        # Parse pass count from message like "[CODE SUBMITTED] 2/3 test cases passed."
+        import re
+        m = re.search(r"(\d)/3", last_candidate)
+        passed_count = int(m.group(1)) if m else 0
+        if passed_count == 3:
+            reaction = (
+                "The candidate submitted code and ALL 3 test cases passed. "
+                "React with genuine excitement: 'Oh nice! All three test cases passed — well done!' "
+                "Keep it under 25 words."
+            )
+        elif passed_count == 2:
+            reaction = (
+                "The candidate submitted code and 2/3 test cases passed. "
+                "Say something like: 'Good effort! Two out of three — that last edge case is tricky, "
+                "you were close.' Under 30 words."
+            )
+        elif passed_count == 1:
+            reaction = (
+                "The candidate submitted code and only 1/3 test cases passed. "
+                "Say: 'You got one case right. The approach was almost there — "
+                "let me move us forward.' Under 30 words."
+            )
+        else:
+            reaction = (
+                "The candidate submitted code and 0/3 test cases passed. "
+                "Gently explain: 'None of the tests passed this time — that happens. "
+                "The key is [brief 1-sentence approach hint]. Let's keep going.' Under 40 words."
+            )
+        system += f"\n\n{reaction}"
+
     if interviewer_turns < len(questions):
         next_q = questions[interviewer_turns].get("question", "")
         if next_q:
-            system += (
-                f'\n\nFor this turn, after a brief natural acknowledgement of the candidate\'s '
-                f'answer, ask exactly this question: "{next_q}"'
-            )
+            if is_code_submission:
+                system += f'\n\nAfter your reaction, naturally transition to: "{next_q}"'
+            else:
+                system += (
+                    f'\n\nFor this turn, after a brief natural acknowledgement of the candidate\'s '
+                    f'answer, ask exactly this question: "{next_q}"'
+                )
     elif questions:
-        # All questions done — close the interview
         system += (
             "\n\nAll interview questions have been asked. Give a warm, natural closing: "
             "thank the candidate, let them know the interview is now complete, and wish them well."
@@ -169,3 +215,47 @@ async def avatar_chat(
     except Exception as exc:
         log.error("[Avatar Chat] %s", exc)
         raise HTTPException(502, f"Chat failed: {exc}")
+
+
+# ── Coding hint ───────────────────────────────────────────────────────────────
+
+@router.post("/coding-hint")
+async def coding_hint(
+    req: CodingHintRequest,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return a short Sophia-style hint while the candidate is coding."""
+    cfg = get_settings()
+    api_key = (cfg.OPENAI_API_KEY or "").strip()
+
+    if not api_key or req.hint_index >= len(req.hints):
+        fallbacks = [
+            "Mmhmm... keep thinking through it.",
+            "You're on the right track — trust your instincts.",
+            "Almost there, just think about the edge cases.",
+        ]
+        return {"hint": fallbacks[req.hint_index % len(fallbacks)]}
+
+    raw_hint = req.hints[req.hint_index]
+    prompt = (
+        f"You are Sophia, a warm AI interviewer watching a candidate code in real-time.\n"
+        f"Problem: {req.problem[:300]}\n"
+        f"Candidate's current code:\n{req.current_code[:600]}\n\n"
+        f"Rephrase this hint naturally, as if thinking aloud alongside them (max 20 words): {raw_hint}\n"
+        "Sound like: 'Mmhmm...', 'Almost there...', 'What if...', 'Think about...'. "
+        "No bullet points. No markdown. Just one short natural sentence."
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": "gpt-4o-mini", "max_tokens": 60, "messages": [{"role": "user", "content": prompt}]},
+            )
+        resp.raise_for_status()
+        hint = resp.json()["choices"][0]["message"]["content"].strip()
+        return {"hint": hint}
+    except Exception as exc:
+        log.warning("[Avatar Coding Hint] %s", exc)
+        return {"hint": raw_hint}
