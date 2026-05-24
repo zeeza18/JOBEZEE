@@ -425,7 +425,7 @@ const DashboardPage = () => {
           <div className="flex items-center gap-3 md:shrink-0">
             <div className="flex-1 md:flex-none md:w-32">
               <StatCard
-                count={jobStats?.total ?? null}
+                count={jobStats ? jobStats.total - (jobStats.saved ?? 0) - (jobStats.hidden ?? 0) - (jobStats.favourite ?? 0) : null}
                 sub={botStats?.new_jobs_count ? `${botStats.new_jobs_count} new` : undefined}
                 label="Openings" loading={statsLoad || jobStats === null}
                 accent="from-cyan-400 to-sky-500" textColor="text-cyan-600"
