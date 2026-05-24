@@ -203,6 +203,7 @@ const DashboardPage = () => {
   // ── Init from cache — shows instantly on re-visit, no spinner ────────────────
   const [profile,      setProfile]      = useState<Profile | null>(() => cache.dashProfile as Profile | null)
   const [botStats,     setBotStats]     = useState<BotStats | null>(() => cache.dashStats as BotStats | null)
+  const [jobStats,     setJobStats]     = useState<_JobStats | null>(() => cache.jobStats as _JobStats | null)
   const [news,         setNews]         = useState<NewsItem[]>(() => cache.dashNews?.news ?? [])
   const [newsCtx,      setNewsCtx]      = useState<{ country: string; role: string } | null>(() =>
     cache.dashNews ? { country: cache.dashNews.country, role: cache.dashNews.role } : null
@@ -279,6 +280,11 @@ const DashboardPage = () => {
       setStatsLoad(false)
     }).catch(() => setStatsLoad(false))
 
+    jobsApi.stats().then(s => {
+      setJobStats(s)
+      cache.setJobStats(s as any)
+    }).catch(() => {})
+
     apiFetch<{ news: NewsItem[]; country: string; role: string }>('/api/dashboard/news').then(r => {
       setNews(r.news); setNewsCtx({ country: r.country, role: r.role }); setNewsLoad(false)
       cache.setDashNews({ news: r.news, country: r.country, role: r.role })
@@ -307,6 +313,7 @@ const DashboardPage = () => {
             jobsApi.list({ limit: 50, offset: 0 }),
           ])
           cache2.setJobStats(statsData as any)
+          setJobStats(statsData as _JobStats)
           // Fetch remaining pages
           const total = (statsData as _JobStats).total ?? 0
           if (total > 50) {
@@ -412,9 +419,9 @@ const DashboardPage = () => {
           <div className="flex items-center gap-3 md:shrink-0">
             <div className="flex-1 md:flex-none md:w-32">
               <StatCard
-                count={botStats?.openings_count ?? null}
+                count={jobStats?.total ?? null}
                 sub={botStats?.new_jobs_count ? `${botStats.new_jobs_count} new` : undefined}
-                label="Openings" loading={statsLoad}
+                label="Openings" loading={statsLoad || jobStats === null}
                 accent="from-cyan-400 to-sky-500" textColor="text-cyan-600"
                 onClick={() => navigate('/app/pulled-jobs')} onSettings={() => navigate('/app/settings')} />
             </div>

@@ -67,7 +67,7 @@ const MobileDock = () => (
               <Home className="h-5 w-5 text-white" />
             </div>
             <span className={cn('text-[10px] font-semibold mt-0.5', isActive ? 'text-cyan-400' : 'text-slate-500')}>
-              Home
+              Dashboard
             </span>
           </>
         )}
