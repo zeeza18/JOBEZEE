@@ -8,7 +8,7 @@ import { SignOutModal } from '../common/SignOutModal'
 
 const menuItems = [
   { to: '/dashboard',       label: 'Dashboard', icon: Home,     end: true  },
-  { to: '/app/pulled-jobs', label: 'Jobs',      icon: Sparkles, end: false },
+  { to: '/jobs', label: 'Jobs',      icon: Sparkles, end: false },
   { to: '/app/tailor',      label: 'Tailor',    icon: Wand2,    end: false },
   { to: '/app/apply',       label: 'Auto',      icon: Zap,      end: false },
   { to: '/app/portfolio',   label: 'Portfolio', icon: Globe,    end: false },

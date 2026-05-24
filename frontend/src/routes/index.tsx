@@ -62,8 +62,9 @@ const AppRoutes = () => (
       <Route element={<AuthGuard><AppShell /></AuthGuard>}>
         <Route path="/dashboard"          element={<DashboardPage />} />
         <Route path="/app"                element={<Navigate to="/dashboard" replace />} />
-        <Route path="/app/search"         element={<CombinedJobsPage />} />
-        <Route path="/app/pulled-jobs"    element={<CombinedJobsPage />} />
+        <Route path="/jobs"               element={<CombinedJobsPage />} />
+        <Route path="/app/search"         element={<Navigate to="/jobs" replace />} />
+        <Route path="/app/pulled-jobs"    element={<Navigate to="/jobs" replace />} />
         <Route path="/app/tailor"         element={<TailorPage />} />
         <Route path="/app/apply"          element={<AutoApplyPage />} />
         <Route path="/app/linkedin">

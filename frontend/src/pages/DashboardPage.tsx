@@ -306,7 +306,7 @@ const DashboardPage = () => {
     loadTracker()
     scanEmails()
 
-    // Background-prefetch jobs list so navigating to /app/pulled-jobs is instant
+    // Background-prefetch jobs list so navigating to /jobs is instant
     if (useApiCache.getState().pulledJobs.length === 0) {
       ;(async () => {
         try {
@@ -429,14 +429,14 @@ const DashboardPage = () => {
                 sub={botStats?.new_jobs_count ? `${botStats.new_jobs_count} new` : undefined}
                 label="Openings" loading={statsLoad || jobStats === null}
                 accent="from-cyan-400 to-sky-500" textColor="text-cyan-600"
-                onClick={() => navigate('/app/pulled-jobs')} />
+                onClick={() => navigate('/jobs')} />
             </div>
             <div className="flex-1 md:flex-none md:w-32">
               <StatCard
                 count={botStats?.saved_count ?? null}
                 label="Saved" loading={statsLoad}
                 accent="from-violet-400 to-purple-500" textColor="text-violet-600"
-                onClick={() => navigate('/app/pulled-jobs')} />
+                onClick={() => navigate('/jobs')} />
             </div>
             <div className="flex-1 md:flex-none md:w-32 relative">
               <span data-ctx="applied-count" className="hidden">{botStats?.total_applied ?? 0}</span>

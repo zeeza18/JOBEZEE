@@ -8,7 +8,7 @@ import { SignOutModal } from '../common/SignOutModal'
 
 const mainNav = [
   { to: '/dashboard',        label: 'Dashboard', icon: Home,     end: true },
-  { to: '/app/pulled-jobs',  label: 'Jobs',      icon: Sparkles },
+  { to: '/jobs',  label: 'Jobs',      icon: Sparkles },
   { to: '/app/tailor',       label: 'Resume',    icon: Wand2 },
   { to: '/app/apply',        label: 'Apply',     icon: Send },
   { to: '/app/interview',    label: 'Interview',  icon: Mic2 },

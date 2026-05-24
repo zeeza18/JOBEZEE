@@ -679,7 +679,7 @@ export default function ProfilePage() {
                 Session <span className="font-mono font-bold text-cyan-600">{sessionId}</span>
               </p>
               <a
-                href="/app/pulled-jobs"
+                href="/jobs"
                 className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-cyan-600 hover:text-cyan-700"
               >
                 View Jobs <ChevronRight className="h-3 w-3" />

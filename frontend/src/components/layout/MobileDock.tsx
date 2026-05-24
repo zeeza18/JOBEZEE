@@ -10,7 +10,7 @@ const LI_DOCK = [
 ]
 
 const leftDock = [
-  { to: '/app/pulled-jobs', label: 'Jobs',   icon: Sparkles, end: false },
+  { to: '/jobs', label: 'Jobs',   icon: Sparkles, end: false },
   { to: '/app/tailor',      label: 'Resume',  icon: Wand2,    end: false },
 ]
 
