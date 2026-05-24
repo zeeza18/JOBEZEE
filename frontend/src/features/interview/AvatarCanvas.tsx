@@ -203,7 +203,12 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
   const toggleMic = () => {
     const m = !micMuted
     setMicMuted(m); micMutedRef.current = m
-    if (!m && phase === 'muted') startListening()
+    if (m) {
+      // Stop any active recording immediately when muting
+      try { if (recorderRef.current?.state === 'recording') recorderRef.current.stop() } catch {}
+    } else if (phase === 'muted') {
+      startListening()
+    }
   }
 
   const cycleView = () => {
@@ -315,14 +320,17 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
     const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'].find(m => MediaRecorder.isTypeSupported(m)) ?? ''
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
     const chunks: Blob[] = []
+    let skipped = false
     recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
     recorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop()); audioCtx.close()
+      if (micMutedRef.current) { setPhase('muted'); return }
+      if (skipped) { fetchNext(''); return }
       await submitAudio(new Blob(chunks, { type: mimeType || 'audio/webm' }))
     }
     recorderRef.current = recorder; recorder.start(100)
 
-    const THRESH = 0.009, MIN_SPEECH = 500, SILENCE_GAP = 1500, MAX_REC = 45_000
+    const THRESH = 0.009, MIN_SPEECH = 500, SILENCE_GAP = 1500, MAX_REC = 45_000, NO_SPEECH_TIMEOUT = 4000
     let hasSpeech = false, speechStart = 0, silenceStart = Date.now()
     const recStart = Date.now()
 
@@ -332,6 +340,7 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
       let rms = 0; for (let j = 0; j < pcm.length; j++) rms += pcm[j]*pcm[j]; rms = Math.sqrt(rms/pcm.length)
       const now = Date.now()
       if (rms > THRESH) { if (!hasSpeech) { hasSpeech = true; speechStart = now } silenceStart = now }
+      if (!hasSpeech && now - recStart > NO_SPEECH_TIMEOUT) { skipped = true; recorder.stop(); return }
       if ((hasSpeech && now - speechStart > MIN_SPEECH && now - silenceStart > SILENCE_GAP) || now - recStart > MAX_REC)
         { recorder.stop(); return }
       setTimeout(tick, 80)
