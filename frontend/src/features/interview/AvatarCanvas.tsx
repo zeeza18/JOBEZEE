@@ -94,6 +94,13 @@ const Icon = {
       <line x1="23" y1="1" x2="1" y2="23"/>
     </svg>
   ),
+  CC: () => (
+    <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2"/>
+      <path d="M8 12H6.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5H8"/>
+      <path d="M15 12h-1.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5H15"/>
+    </svg>
+  ),
 }
 
 // ── Waveform ──────────────────────────────────────────────────────────────────
@@ -165,6 +172,10 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
   const [sophiaHint,    setSophiaHint]    = useState<string | null>(null)
   const codingSubmittedRef = useRef(false)
 
+  // ── Video / captions state ─────────────────────────────────────────────────
+  const [camFullscreen, setCamFullscreen] = useState(false)
+  const [showCaptions,  setShowCaptions]  = useState(true)
+
   useEffect(() => () => {
     timerRef.current && clearInterval(timerRef.current)
     camStreamRef.current?.getTracks().forEach(t => t.stop())
@@ -189,13 +200,13 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
       camStreamRef.current?.getTracks().forEach(t => t.stop())
       camStreamRef.current = null
       if (cameraRef.current) cameraRef.current.srcObject = null
-      setCamOn(false)
+      setCamOn(false); setCamFullscreen(false)
     } else {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
         camStreamRef.current = s
         if (cameraRef.current) cameraRef.current.srcObject = s
-        setCamOn(true); setCamDenied(false)
+        setCamOn(true); setCamDenied(false); setCamFullscreen(true)
       } catch { setCamDenied(true) }
     }
   }
@@ -467,22 +478,51 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
         </div>
       )}
 
-      {/* Camera feed — hidden during coding */}
-      {!codingActive && (
-      <div className={`${camWrap} transition-all duration-500 bg-[#111128]`}>
+      {/* Camera feed pip — hidden during coding or fullscreen */}
+      {!codingActive && !camFullscreen && (
+      <div className={`${camWrap} transition-all duration-500 bg-[#040d18] ${camOn ? 'ring-1 ring-cyan-500/30' : 'border border-white/5'}`}>
         <video ref={cameraRef} autoPlay muted playsInline className={`w-full h-full object-cover scale-x-[-1] ${camOn?'block':'hidden'}`} />
         {!camOn && (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-2 border border-white/5">
-            <div className="w-14 h-14 rounded-full bg-white/8 flex items-center justify-center">
-              <svg className="w-6 h-6 text-white/25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+            <div className="w-14 h-14 rounded-full bg-cyan-500/8 border border-cyan-500/15 flex items-center justify-center">
+              <svg className="w-6 h-6 text-cyan-400/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
               </svg>
             </div>
-            <span className="text-white/25 text-[10px]">{camDenied?'Camera blocked':'Camera off'}</span>
+            <span className="text-cyan-400/30 text-[10px]">{camDenied?'Camera blocked':'Camera off'}</span>
           </div>
         )}
-        <div className="absolute bottom-2 left-3 text-white/40 text-[10px] font-medium tracking-wide">YOU</div>
+        <div className="absolute bottom-2 left-3 text-cyan-400/50 text-[10px] font-semibold tracking-widest uppercase">You</div>
       </div>
+      )}
+
+      {/* Fullscreen camera overlay — shown when camOn && camFullscreen */}
+      {camFullscreen && camOn && (
+        <div className="absolute inset-0 z-40 bg-black flex items-center justify-center">
+          <video ref={cameraRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
+          {/* Gradient overlay for controls visibility */}
+          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+          {/* Exit fullscreen button top-right */}
+          <button
+            onClick={() => setCamFullscreen(false)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/50 backdrop-blur border border-white/15 text-white/60 hover:text-white hover:bg-black/70 flex items-center justify-center transition-all text-sm"
+            title="Exit fullscreen"
+          >✕</button>
+          {/* YOU label */}
+          <div className="absolute top-4 left-4 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-cyan-400/80 text-[11px] font-semibold tracking-widest uppercase">You · Live</span>
+          </div>
+          {/* Bottom controls — just End */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3">
+            <button
+              onClick={() => setShowEndModal(true)}
+              className="flex items-center gap-2 h-11 px-5 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-sm font-medium shadow-[0_0_18px_rgba(220,38,38,0.45)] transition-all"
+            >
+              <Icon.PhoneOff /><span>End Interview</span>
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Top bar */}
@@ -507,9 +547,9 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 bg-black/70 backdrop-blur-xl border border-white/10 rounded-full px-4 py-1.5 text-white/70 text-xs font-medium">{viewToast}</div>
       )}
 
-      {/* Listening overlay */}
+      {/* Listening indicator (always shown while listening) */}
       {phase === 'listening' && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2.5">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20">
           <div className="flex items-center gap-3 bg-black/65 backdrop-blur-2xl border border-white/10 rounded-2xl px-5 py-3 shadow-xl">
             <Waveform />
             <div className="flex flex-col">
@@ -517,9 +557,37 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
               <span className="text-white/40 text-[11px]">Speak — stops automatically</span>
             </div>
           </div>
-          {liveText && (
-            <div className="max-w-sm bg-black/55 backdrop-blur-xl border border-white/8 rounded-xl px-4 py-2 text-center">
-              <p className="text-white/55 text-sm italic">"{liveText}"</p>
+        </div>
+      )}
+
+      {/* Captions overlay — live subtitles */}
+      {showCaptions && !codingActive && (
+        <div className="absolute bottom-[4.5rem] left-1/2 -translate-x-1/2 z-20 w-[min(620px,88vw)] pointer-events-none">
+          {/* Live speech while listening */}
+          {phase === 'listening' && liveText && (
+            <div className="mb-2 flex justify-end">
+              <div className="max-w-[80%] bg-cyan-500/10 backdrop-blur border border-cyan-500/20 rounded-xl px-4 py-2 text-right">
+                <span className="text-[10px] text-cyan-400/50 font-medium uppercase tracking-wide block mb-0.5">You</span>
+                <p className="text-white/70 text-[13px] leading-snug italic">"{liveText}"</p>
+              </div>
+            </div>
+          )}
+          {/* Last interviewer line */}
+          {history.length > 0 && history[history.length - 1].role === 'interviewer' && phase !== 'listening' && (
+            <div className="flex justify-start">
+              <div className="max-w-[80%] bg-white/5 backdrop-blur border border-white/8 rounded-xl px-4 py-2">
+                <span className="text-[10px] text-violet-400/50 font-medium uppercase tracking-wide block mb-0.5">Sophia</span>
+                <p className="text-white/60 text-[13px] leading-snug">{history[history.length - 1].text}</p>
+              </div>
+            </div>
+          )}
+          {/* Last candidate line when Sophia is responding */}
+          {history.length > 0 && history[history.length - 1].role === 'candidate' && (phase === 'processing' || phase === 'speaking') && (
+            <div className="flex justify-end">
+              <div className="max-w-[80%] bg-cyan-500/10 backdrop-blur border border-cyan-500/20 rounded-xl px-4 py-2 text-right">
+                <span className="text-[10px] text-cyan-400/50 font-medium uppercase tracking-wide block mb-0.5">You</span>
+                <p className="text-white/70 text-[13px] leading-snug">{history[history.length - 1].text}</p>
+              </div>
             </div>
           )}
         </div>
@@ -610,6 +678,10 @@ export default function AvatarCanvas({ interview, onFinish, onExit }: Props) {
           <CtrlBtn onClick={toggleMic} title={micMuted?'Unmute':'Mute'} active={micMuted}>{micMuted?<Icon.MicOff/>:<Icon.Mic/>}</CtrlBtn>
           <CtrlBtn onClick={toggleCamera} title={camOn?'Cam off':'Cam on'} active={!camOn}>{camOn?<Icon.Cam/>:<Icon.CamOff/>}</CtrlBtn>
           <CtrlBtn onClick={cycleView} title="Change layout"><Icon.Grid/></CtrlBtn>
+          <button onClick={() => setShowCaptions(v => !v)} title={showCaptions ? 'Hide captions' : 'Show captions'}
+            className={`w-11 h-11 rounded-full flex items-center justify-center border text-sm transition-all ${showCaptions?'bg-cyan-500/20 text-cyan-300/90 border-cyan-500/25':'bg-white/10 hover:bg-white/18 text-white/75 border-white/5'}`}>
+            <Icon.CC/>
+          </button>
           <button onClick={() => setShowTranscript(v => !v)} title="Transcript"
             className={`w-11 h-11 rounded-full flex items-center justify-center border text-sm transition-all ${showTranscript?'bg-blue-500/20 text-blue-300/90 border-blue-500/25':'bg-white/10 hover:bg-white/18 text-white/75 border-white/5'}`}>
             <Icon.Chat/>
