@@ -30,7 +30,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -181,6 +181,36 @@ def _scheduled_to_dict(s: ScheduledInterviewRecord) -> dict:
         "status":           s.status,
         "created_at":       s.created_at.isoformat() if s.created_at else None,
     }
+
+
+# ── AI response models ────────────────────────────────────────────────────────
+
+class _AICodingTestCase(BaseModel):
+    call: str
+    expected: str
+
+class _AICodingChallenge(BaseModel):
+    problem: str
+    starter_code: str = ""
+    language: str = "python"
+    test_cases: list[_AICodingTestCase] = Field(default_factory=list)
+    hints: list[str] = Field(default_factory=list)
+    solution_approach: str = ""
+
+class _AIQuestion(BaseModel):
+    id: int = 0
+    question: str
+    category: str = "technical"
+    estimated_time_seconds: int = 120
+    coding_challenge: _AICodingChallenge | None = None
+
+class _AIQuestionsResponse(BaseModel):
+    job_title: str = ""
+    company: str = ""
+    round: str = ""
+    round_label: str = ""
+    duration_minutes: int = 30
+    questions: list[_AIQuestion]
 
 
 # ── Question generation ────────────────────────────────────────────────────────
@@ -362,15 +392,14 @@ Rules:
         raw     = resp.json()
         content = raw["choices"][0]["message"]["content"]
 
-        data: dict[str, Any] = _extract_json(content)
-        if "questions" not in data or not isinstance(data["questions"], list):
-            raise ValueError("Response missing 'questions' array")
-        return data
+        data = _extract_json(content)
+        parsed = _AIQuestionsResponse.model_validate(data)
+        return parsed.model_dump()
 
     except httpx.HTTPStatusError as exc:
         log.error("[Interview] OpenAI error %s: %s", exc.response.status_code, exc.response.text[:300])
         raise HTTPException(502, f"OpenAI API error: {exc.response.status_code}")
-    except (json.JSONDecodeError, ValueError) as exc:
+    except (json.JSONDecodeError, ValueError, ValidationError) as exc:
         log.error("[Interview] JSON parse error: %s", exc)
         raise HTTPException(502, "Failed to parse AI response — please try again")
     except Exception as exc:
