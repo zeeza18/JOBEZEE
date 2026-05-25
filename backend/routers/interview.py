@@ -20,6 +20,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 import uuid
@@ -40,6 +41,37 @@ from ..config import get_settings
 from ..services.email_service import send_interview_scheduled_email
 
 log = logging.getLogger(__name__)
+
+
+def _extract_json(content: str) -> dict:
+    """Extract a JSON object from a model response, tolerating markdown fences and preamble text."""
+    content = content.strip()
+
+    # 1. Direct parse
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        pass
+
+    # 2. JSON inside a code fence (handles preamble text before the fence)
+    fence_match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", content)
+    if fence_match:
+        try:
+            return json.loads(fence_match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # 3. Outermost { … } in the raw text
+    start = content.find("{")
+    end = content.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return json.loads(content[start : end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"Could not extract JSON from response: {content[:300]}")
+
 
 router = APIRouter(prefix="/api/interview", tags=["interview"])
 
@@ -224,13 +256,8 @@ async def generate_questions(
                 },
             )
         r1.raise_for_status()
-        raw1 = r1.json()["choices"][0]["message"]["content"].strip()
-        if raw1.startswith("```"):
-            raw1 = raw1.split("```")[1]
-            if raw1.startswith("json"):
-                raw1 = raw1[4:]
-            raw1 = raw1.strip()
-        jd_extraction = json.loads(raw1)
+        raw1 = r1.json()["choices"][0]["message"]["content"]
+        jd_extraction = _extract_json(raw1)
         log.info("[Interview] JD extracted: title=%s company=%s keywords=%d",
                  jd_extraction.get("job_title"), jd_extraction.get("company_name"),
                  len(jd_extraction.get("keywords", [])))
@@ -333,15 +360,9 @@ Rules:
             )
         resp.raise_for_status()
         raw     = resp.json()
-        content = raw["choices"][0]["message"]["content"].strip()
+        content = raw["choices"][0]["message"]["content"]
 
-        if content.startswith("```"):
-            content = content.split("```")[1]
-            if content.startswith("json"):
-                content = content[4:]
-            content = content.strip()
-
-        data: dict[str, Any] = json.loads(content)
+        data: dict[str, Any] = _extract_json(content)
         if "questions" not in data or not isinstance(data["questions"], list):
             raise ValueError("Response missing 'questions' array")
         return data
