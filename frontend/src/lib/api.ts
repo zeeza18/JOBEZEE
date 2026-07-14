@@ -656,14 +656,14 @@ export interface ResumeDocumentContent {
 }
 
 export interface ResumeDocumentSettings {
-  template: 'classic' | 'modern' | 'clean'
+  template: 'classic' | 'modern' | 'clean' | 'two-column' | 'modern-two-column' | 'latex' | 'vivid'
   page_size: 'letter' | 'a4'
   margin_top: number; margin_bottom: number; margin_left: number; margin_right: number
   spacing_level: number
   font_size_level: number
   header_font: 'serif' | 'sans' | 'mono'
   body_font: 'serif' | 'sans' | 'mono'
-  accent_color: 'blue' | 'green' | 'orange' | 'red'
+  accent_color: 'blue' | 'navy' | 'teal' | 'green' | 'emerald' | 'purple' | 'orange' | 'amber' | 'red' | 'slate'
   compact: boolean
   show_contact_icons: boolean
 }
@@ -675,24 +675,52 @@ export interface ResumeDocumentOut {
   created_at: string; updated_at: string
 }
 
+export interface ResumeDocumentSummary {
+  id: string; title: string; template: string
+  created_at: string; updated_at: string
+}
+
+export interface ResumeScoreItemFeedback {
+  section: string; snippet: string; issue: string
+}
+
 export interface ResumeScoreResponse {
   score: number; matched: string[]; missing: string[]; suggestions: string[]
+  item_feedback: ResumeScoreItemFeedback[]
 }
 
 export const resumeBuilderApi = {
-  getDocument: () => get<ResumeDocumentOut>('/api/resume-builder/document'),
+  listDocuments: () => get<ResumeDocumentSummary[]>('/api/resume-builder/documents'),
 
-  updateDocument: (body: { title?: string; content?: ResumeDocumentContent; settings?: ResumeDocumentSettings }) =>
-    put<ResumeDocumentOut>('/api/resume-builder/document', body),
+  createDocument: (title = 'My Resume', seed_from_profile = false) =>
+    post<ResumeDocumentOut>('/api/resume-builder/documents', { title, seed_from_profile }),
+
+  getDocument: (id: string) => get<ResumeDocumentOut>(`/api/resume-builder/documents/${id}`),
+
+  updateDocument: (id: string, body: { title?: string; content?: ResumeDocumentContent; settings?: ResumeDocumentSettings }) =>
+    put<ResumeDocumentOut>(`/api/resume-builder/documents/${id}`, body),
+
+  deleteDocument: (id: string) => del<void>(`/api/resume-builder/documents/${id}`),
+
+  duplicateDocument: (id: string) => post<ResumeDocumentOut>(`/api/resume-builder/documents/${id}/duplicate`),
 
   importFromProfile: () =>
     post<{ content: ResumeDocumentContent; source: string }>('/api/resume-builder/import-from-profile'),
 
-  score: (job_description = '') =>
-    post<ResumeScoreResponse>('/api/resume-builder/score', { job_description }),
+  score: (id: string, job_description = '') =>
+    post<ResumeScoreResponse>(`/api/resume-builder/documents/${id}/score`, { job_description }),
 
-  exportPdfUrl: () => `${BASE}/api/resume-builder/export/pdf`,
-  exportDocxUrl: () => `${BASE}/api/resume-builder/export/docx`,
+  rewriteBullet: (bullet: string, context: string, other_bullets: string[] = [], job_description = '') =>
+    post<{ bullet: string }>('/api/resume-builder/rewrite-bullet', { bullet, context, other_bullets, job_description }),
+
+  bulletFromText: (text: string, context: string, other_bullets: string[] = [], job_description = '') =>
+    post<{ bullet: string }>('/api/resume-builder/bullet-from-text', { text, context, other_bullets, job_description }),
+
+  previewHtml: (content: ResumeDocumentContent, settings: ResumeDocumentSettings) =>
+    post<{ html: string }>('/api/resume-builder/preview-html', { content, settings }),
+
+  exportPdfUrl: (id: string) => `${BASE}/api/resume-builder/documents/${id}/export/pdf`,
+  exportDocxUrl: (id: string) => `${BASE}/api/resume-builder/documents/${id}/export/docx`,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

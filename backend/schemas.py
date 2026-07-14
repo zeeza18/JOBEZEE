@@ -395,13 +395,63 @@ class ResumeDocumentOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ResumeDocumentSummary(BaseModel):
+    """Lightweight listing — no content, for the "My Resumes" switcher."""
+    id         : UUID
+    title      : str
+    template   : str
+    created_at : datetime
+    updated_at : datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CreateResumeDocumentRequest(BaseModel):
+    title            : str = "My Resume"
+    seed_from_profile: bool = False
+
+
 class ResumeImportResponse(BaseModel):
     content : ResumeDocumentContent
     source  : str   # "profile" — where the text was pulled from
 
 
+class ResumeScoreItemFeedback(BaseModel):
+    section : str    # "summary" | "experience" | "education" | "skills" | "projects" | "certifications"
+    snippet : str    # short excerpt of the flagged bullet/line, so the UI can show where it came from
+    issue   : str    # what's wrong and how to fix it
+
+
 class ResumeScoreResponse(BaseModel):
-    score       : int
-    matched     : list[str] = Field(default_factory=list)
-    missing     : list[str] = Field(default_factory=list)
-    suggestions : list[str] = Field(default_factory=list)
+    score         : int
+    matched       : list[str] = Field(default_factory=list)
+    missing       : list[str] = Field(default_factory=list)
+    suggestions   : list[str] = Field(default_factory=list)
+    item_feedback : list[ResumeScoreItemFeedback] = Field(default_factory=list)
+
+
+class PreviewHtmlRequest(BaseModel):
+    content  : ResumeDocumentContent
+    settings : ResumeDocumentSettings
+
+
+class PreviewHtmlResponse(BaseModel):
+    html : str
+
+
+class RewriteBulletRequest(BaseModel):
+    bullet          : str
+    context         : str = ""              # e.g. "Senior Backend Engineer at Acme"
+    other_bullets   : list[str] = Field(default_factory=list)
+    job_description : str = ""
+
+
+class BulletFromTextRequest(BaseModel):
+    text            : str
+    context         : str = ""
+    other_bullets   : list[str] = Field(default_factory=list)
+    job_description : str = ""
+
+
+class BulletResponse(BaseModel):
+    bullet : str

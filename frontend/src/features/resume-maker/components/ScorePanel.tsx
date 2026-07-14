@@ -1,21 +1,28 @@
 import { useState } from 'react'
-import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { Button } from '../../../components/ui/Button'
 import { Input } from '../../../components/ui/Input'
 import { resumeBuilderApi } from '../../../lib/api'
 import type { ResumeScoreResponse } from '../../../lib/api'
+import { useResumeMaker } from '../store/useResumeMaker'
+
+const SECTION_LABELS: Record<string, string> = {
+  summary: 'Summary', experience: 'Experience', education: 'Education',
+  skills: 'Skills', projects: 'Projects', certifications: 'Certifications',
+}
 
 export function ScorePanel() {
-  const [jobDescription, setJobDescription] = useState('')
+  const { activeId, jobDescription, setJobDescription } = useResumeMaker()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ResumeScoreResponse | null>(null)
 
   const runScore = async () => {
+    if (!activeId) return
     setLoading(true)
     setError(null)
     try {
-      const res = await resumeBuilderApi.score(jobDescription)
+      const res = await resumeBuilderApi.score(activeId, jobDescription)
       setResult(res)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Scoring failed')
@@ -27,11 +34,11 @@ export function ScorePanel() {
   return (
     <div className="space-y-3">
       <Input
-        placeholder="Paste a job description for a fit score (optional)"
+        placeholder="Paste a job description (optional) — used for scoring and bullet suggestions"
         value={jobDescription}
         onChange={(e) => setJobDescription(e.target.value)}
       />
-      <Button size="sm" variant="secondary" onClick={runScore} disabled={loading}
+      <Button size="sm" variant="secondary" onClick={runScore} disabled={loading || !activeId}
         icon={loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : undefined}>
         {loading ? 'Scoring…' : 'Check ATS score'}
       </Button>
@@ -66,6 +73,21 @@ export function ScorePanel() {
             <ul className="list-disc space-y-0.5 pl-4 text-xs text-slate-600">
               {result.suggestions.map((s, i) => <li key={i}>{s}</li>)}
             </ul>
+          )}
+          {result.item_feedback.length > 0 && (
+            <div className="space-y-1.5 border-t border-slate-200 pt-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Specific fixes</p>
+              {result.item_feedback.map((item, i) => (
+                <div key={i} className="flex items-start gap-1.5 rounded-lg bg-white p-2 text-xs">
+                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
+                  <div>
+                    <span className="font-semibold text-slate-700">{SECTION_LABELS[item.section] ?? item.section}: </span>
+                    <span className="italic text-slate-500">"{item.snippet}"</span>
+                    <p className="text-slate-600">{item.issue}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

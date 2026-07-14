@@ -41,7 +41,11 @@ export function ProjectsForm() {
               value={proj.tech.join(', ')}
               onChange={(e) => patch(proj.id, { tech: e.target.value.split(',').map((x) => x.trim()).filter(Boolean) })}
             />
-            <BulletListEditor bullets={proj.bullets} onChange={(bullets) => patch(proj.id, { bullets })} />
+            <BulletListEditor
+              bullets={proj.bullets}
+              onChange={(bullets) => patch(proj.id, { bullets })}
+              context={proj.name ? `Project: ${proj.name}` : ''}
+            />
           </div>
         )}
       />

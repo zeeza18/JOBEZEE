@@ -11,6 +11,7 @@ export function ImportBar() {
 
   const handleImport = async () => {
     setImportError(null)
+    if (!confirm('Import from your uploaded resume? This replaces the content currently in this resume.')) return
     try {
       await importFromProfile()
     } catch (err: unknown) {

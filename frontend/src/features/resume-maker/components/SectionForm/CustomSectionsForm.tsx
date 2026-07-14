@@ -34,7 +34,11 @@ export function CustomSectionsForm() {
         renderItem={(section) => (
           <div className="space-y-2">
             <Input placeholder="Section title" value={section.title} onChange={(e) => patchTitle(section.id, e.target.value)} />
-            <BulletListEditor bullets={section.items} onChange={(items) => patchItems(section.id, items)} />
+            <BulletListEditor
+              bullets={section.items}
+              onChange={(items) => patchItems(section.id, items)}
+              context={section.title ? `Section: ${section.title}` : ''}
+            />
           </div>
         )}
       />

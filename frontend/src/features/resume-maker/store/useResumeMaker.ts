@@ -1,15 +1,18 @@
 /**
- * Resume Maker store — structured resume content + template settings.
- * Cloud-backed (resume_documents table) with a localStorage cache for instant
+ * Resume Maker store — a user can have multiple resumes (documents). Cloud-backed
+ * (resume_documents table) with a per-document localStorage cache for instant
  * reload, and a debounced autosave so typing doesn't hammer the API.
  */
 import { create } from 'zustand'
 import { resumeBuilderApi } from '../../../lib/api'
-import type { ResumeDocumentContent, ResumeDocumentSettings } from '../../../lib/api'
+import type { ResumeDocumentContent, ResumeDocumentSettings, ResumeDocumentSummary } from '../../../lib/api'
 import { useApiCache } from '../../../store/useApiCache'
 
-const LS_KEY = 'jz_resume_maker_cache'
+const LS_ACTIVE_ID_KEY = 'jz_resume_maker_active_id'
+const LS_CACHE_KEY = 'jz_resume_maker_cache_v2'
 const AUTOSAVE_MS = 1200
+
+type CachedDoc = { title: string; content: ResumeDocumentContent; settings: ResumeDocumentSettings }
 
 export const DEFAULT_CONTENT: ResumeDocumentContent = {
   contact: {
@@ -39,31 +42,48 @@ export const DEFAULT_SETTINGS: ResumeDocumentSettings = {
   show_contact_icons: true,
 }
 
-function readCache(): { content: ResumeDocumentContent; settings: ResumeDocumentSettings } | null {
+function readCacheMap(): Record<string, CachedDoc> {
   try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return null
-    return JSON.parse(raw)
-  } catch { return null }
+    const raw = localStorage.getItem(LS_CACHE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch { return {} }
 }
 
-function writeCache(content: ResumeDocumentContent, settings: ResumeDocumentSettings) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify({ content, settings })) } catch { /* ignore quota */ }
+function writeCacheEntry(id: string, entry: CachedDoc) {
+  try {
+    const map = readCacheMap()
+    map[id] = entry
+    localStorage.setItem(LS_CACHE_KEY, JSON.stringify(map))
+  } catch { /* ignore quota */ }
+}
+
+function summaryFromDoc(doc: { id: string; title: string; settings: ResumeDocumentSettings; created_at: string; updated_at: string }): ResumeDocumentSummary {
+  return { id: doc.id, title: doc.title, template: doc.settings.template, created_at: doc.created_at, updated_at: doc.updated_at }
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 interface ResumeMakerState {
+  documents: ResumeDocumentSummary[]
+  activeId: string | null
   loaded: boolean
-  loading: boolean
+  loadingList: boolean
+  loadingDoc: boolean
   saving: boolean
   importing: boolean
+  creating: boolean
   title: string
   content: ResumeDocumentContent
   settings: ResumeDocumentSettings
+  jobDescription: string
 
-  load: () => Promise<void>
+  loadAll: () => Promise<void>
+  selectDocument: (id: string) => Promise<void>
+  createDocument: (seedFromProfile?: boolean) => Promise<void>
+  duplicateDocument: (id: string) => Promise<void>
+  deleteDocument: (id: string) => Promise<void>
   setTitle: (title: string) => void
+  setJobDescription: (jd: string) => void
   updateContent: (updater: (c: ResumeDocumentContent) => ResumeDocumentContent) => void
   updateSettings: (updater: (s: ResumeDocumentSettings) => ResumeDocumentSettings) => void
   importFromProfile: () => Promise<void>
@@ -74,39 +94,97 @@ interface ResumeMakerState {
 function scheduleSave(get: () => ResumeMakerState, set: (partial: Partial<ResumeMakerState>) => void) {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(async () => {
-    const { title, content, settings } = get()
+    const { activeId, title, content, settings } = get()
+    if (!activeId) return
     set({ saving: true })
     try {
-      await resumeBuilderApi.updateDocument({ title, content, settings })
+      const doc = await resumeBuilderApi.updateDocument(activeId, { title, content, settings })
+      set({ documents: get().documents.map((d) => (d.id === activeId ? summaryFromDoc(doc) : d)) })
     } catch { /* keep local cache; retry on next edit */ }
     finally { set({ saving: false }) }
   }, AUTOSAVE_MS)
 }
 
 export const useResumeMaker = create<ResumeMakerState>((set, get) => {
-  const cached = readCache()
+  const cachedActiveId = (() => { try { return localStorage.getItem(LS_ACTIVE_ID_KEY) } catch { return null } })()
+  const cachedDoc = cachedActiveId ? readCacheMap()[cachedActiveId] : undefined
 
   return {
+    documents: [],
+    activeId: cachedActiveId,
     loaded: false,
-    loading: false,
+    loadingList: false,
+    loadingDoc: false,
     saving: false,
     importing: false,
-    title: 'My Resume',
-    content: cached?.content ?? DEFAULT_CONTENT,
-    settings: cached?.settings ?? DEFAULT_SETTINGS,
+    creating: false,
+    title: cachedDoc?.title ?? 'My Resume',
+    content: cachedDoc?.content ?? DEFAULT_CONTENT,
+    settings: cachedDoc?.settings ?? DEFAULT_SETTINGS,
+    jobDescription: '',
 
-    load: async () => {
-      if (get().loading) return
-      set({ loading: true })
+    loadAll: async () => {
+      if (get().loadingList || get().loaded) return
+      set({ loadingList: true })
       try {
-        const doc = await resumeBuilderApi.getDocument()
-        set({ title: doc.title, content: doc.content, settings: doc.settings, loaded: true })
-        writeCache(doc.content, doc.settings)
+        const docs = await resumeBuilderApi.listDocuments()
+        set({ documents: docs })
+        if (docs.length === 0) {
+          await get().createDocument(true)
+        } else {
+          const savedId = get().activeId
+          const targetId = savedId && docs.some((d) => d.id === savedId) ? savedId : docs[0].id
+          await get().selectDocument(targetId)
+        }
       } catch {
-        // Backend unreachable/unauthenticated yet — keep whatever's cached locally
-        set({ loaded: true })
+        // backend unreachable/unauthenticated — keep whatever's cached locally
       } finally {
-        set({ loading: false })
+        set({ loadingList: false, loaded: true })
+      }
+    },
+
+    selectDocument: async (id) => {
+      set({ loadingDoc: true, activeId: id })
+      try { localStorage.setItem(LS_ACTIVE_ID_KEY, id) } catch { /* ignore */ }
+      const cached = readCacheMap()[id]
+      if (cached) set({ title: cached.title, content: cached.content, settings: cached.settings })
+      try {
+        const doc = await resumeBuilderApi.getDocument(id)
+        set({ title: doc.title, content: doc.content, settings: doc.settings })
+        writeCacheEntry(id, { title: doc.title, content: doc.content, settings: doc.settings })
+      } catch {
+        // keep cached/local version if the fetch fails
+      } finally {
+        set({ loadingDoc: false })
+      }
+    },
+
+    createDocument: async (seedFromProfile = false) => {
+      set({ creating: true })
+      try {
+        const doc = await resumeBuilderApi.createDocument('My Resume', seedFromProfile)
+        set((s) => ({ documents: [summaryFromDoc(doc), ...s.documents] }))
+        set({ activeId: doc.id, title: doc.title, content: doc.content, settings: doc.settings })
+        try { localStorage.setItem(LS_ACTIVE_ID_KEY, doc.id) } catch { /* ignore */ }
+        writeCacheEntry(doc.id, { title: doc.title, content: doc.content, settings: doc.settings })
+      } finally {
+        set({ creating: false })
+      }
+    },
+
+    duplicateDocument: async (id) => {
+      const doc = await resumeBuilderApi.duplicateDocument(id)
+      set((s) => ({ documents: [summaryFromDoc(doc), ...s.documents] }))
+      await get().selectDocument(doc.id)
+    },
+
+    deleteDocument: async (id) => {
+      await resumeBuilderApi.deleteDocument(id)
+      const remaining = get().documents.filter((d) => d.id !== id)
+      set({ documents: remaining })
+      if (get().activeId === id) {
+        if (remaining.length > 0) await get().selectDocument(remaining[0].id)
+        else await get().createDocument(false)
       }
     },
 
@@ -115,17 +193,21 @@ export const useResumeMaker = create<ResumeMakerState>((set, get) => {
       scheduleSave(get, set)
     },
 
+    setJobDescription: (jd) => set({ jobDescription: jd }),
+
     updateContent: (updater) => {
       const next = updater(get().content)
       set({ content: next })
-      writeCache(next, get().settings)
+      const { activeId, title, settings } = get()
+      if (activeId) writeCacheEntry(activeId, { title, content: next, settings })
       scheduleSave(get, set)
     },
 
     updateSettings: (updater) => {
       const next = updater(get().settings)
       set({ settings: next })
-      writeCache(get().content, next)
+      const { activeId, title, content } = get()
+      if (activeId) writeCacheEntry(activeId, { title, content, settings: next })
       scheduleSave(get, set)
     },
 
@@ -134,7 +216,8 @@ export const useResumeMaker = create<ResumeMakerState>((set, get) => {
       try {
         const { content } = await resumeBuilderApi.importFromProfile()
         set({ content })
-        writeCache(content, get().settings)
+        const { activeId, title, settings } = get()
+        if (activeId) writeCacheEntry(activeId, { title, content, settings })
         scheduleSave(get, set)
       } finally {
         set({ importing: false })

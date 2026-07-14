@@ -53,7 +53,11 @@ export function ExperienceForm() {
               <input type="checkbox" checked={exp.current} onChange={(e) => patch(exp.id, { current: e.target.checked })} />
               Currently work here
             </label>
-            <BulletListEditor bullets={exp.bullets} onChange={(bullets) => patch(exp.id, { bullets })} />
+            <BulletListEditor
+              bullets={exp.bullets}
+              onChange={(bullets) => patch(exp.id, { bullets })}
+              context={[exp.title, exp.company].filter(Boolean).join(' at ')}
+            />
           </div>
         )}
       />

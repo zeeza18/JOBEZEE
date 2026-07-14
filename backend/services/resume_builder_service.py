@@ -25,6 +25,7 @@ from ..schemas import (
     ResumeDocumentContent,
     ResumeDocumentSettings,
     ResumeDocumentUpdate,
+    ResumeScoreItemFeedback,
     ResumeScoreResponse,
 )
 from .tailor_service import _extract_resume_text
@@ -34,27 +35,68 @@ OPENAI_MODEL    = "gpt-4o-mini"
 
 
 # ---------------------------------------------------------------------------
-# Document CRUD
+# Document CRUD — a user can have any number of resumes
 # ---------------------------------------------------------------------------
 
-async def get_or_create_document(db: AsyncSession, user_id: str) -> ResumeDocument:
-    """One active Maker document per user — created on first visit."""
-    result = await db.execute(select(ResumeDocument).where(ResumeDocument.user_id == user_id))
+async def list_documents(db: AsyncSession, user_id: str) -> list[ResumeDocument]:
+    result = await db.execute(
+        select(ResumeDocument)
+        .where(ResumeDocument.user_id == user_id)
+        .order_by(ResumeDocument.updated_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def get_document(db: AsyncSession, user_id: str, doc_id: str) -> ResumeDocument:
+    """Fetch a document, scoped to its owner. Raises LookupError if missing/not owned."""
+    result = await db.execute(
+        select(ResumeDocument).where(ResumeDocument.id == doc_id, ResumeDocument.user_id == user_id)
+    )
     doc = result.scalar_one_or_none()
     if doc is None:
-        doc = ResumeDocument(
-            user_id=user_id,
-            content=ResumeDocumentContent().model_dump(mode="json"),
-            settings=ResumeDocumentSettings().model_dump(mode="json"),
-        )
-        db.add(doc)
-        await db.commit()
-        await db.refresh(doc)
+        raise LookupError("Resume document not found")
     return doc
 
 
-async def upsert_document(db: AsyncSession, user_id: str, update: ResumeDocumentUpdate) -> ResumeDocument:
-    doc = await get_or_create_document(db, user_id)
+async def create_document(
+    db: AsyncSession, user_id: str, title: str = "My Resume", seed_from_profile: bool = False,
+) -> ResumeDocument:
+    """Create a new document. seed_from_profile pre-fills it from the user's uploaded
+    resume (used only for a user's very first document) — falls back to blank on failure."""
+    content = ResumeDocumentContent()
+    if seed_from_profile:
+        try:
+            content = await import_from_profile(db, user_id)
+        except Exception:
+            pass
+    doc = ResumeDocument(
+        user_id=user_id,
+        title=title,
+        content=content.model_dump(mode="json"),
+        settings=ResumeDocumentSettings().model_dump(mode="json"),
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+async def duplicate_document(db: AsyncSession, user_id: str, doc_id: str) -> ResumeDocument:
+    src = await get_document(db, user_id, doc_id)
+    doc = ResumeDocument(
+        user_id=user_id,
+        title=f"{src.title} (copy)",
+        content=src.content,
+        settings=src.settings,
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+async def update_document(db: AsyncSession, user_id: str, doc_id: str, update: ResumeDocumentUpdate) -> ResumeDocument:
+    doc = await get_document(db, user_id, doc_id)
     if update.title is not None:
         doc.title = update.title
     if update.content is not None:
@@ -64,6 +106,12 @@ async def upsert_document(db: AsyncSession, user_id: str, update: ResumeDocument
     await db.commit()
     await db.refresh(doc)
     return doc
+
+
+async def delete_document(db: AsyncSession, user_id: str, doc_id: str) -> None:
+    doc = await get_document(db, user_id, doc_id)
+    await db.delete(doc)
+    await db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -186,10 +234,20 @@ def _flatten_content(content: ResumeDocumentContent) -> str:
 
 _SCORE_SYSTEM_PROMPT = """You are a strict ATS (applicant tracking system) resume reviewer.
 Respond with JSON ONLY (no markdown fences), matching exactly this shape:
-{"score": 0, "matched": [""], "missing": [""], "suggestions": [""]}
+{
+  "score": 0,
+  "matched": [""],
+  "missing": [""],
+  "suggestions": [""],
+  "item_feedback": [{"section": "experience", "snippet": "first 6-10 words of the exact bullet/line", "issue": "what's wrong and how to fix it"}]
+}
 "score" is 0-100 overall resume quality/ATS-parseability (and job-fit if a job description is given).
 "matched" and "missing" are notable keywords/skills present vs absent (job description keywords if given,
-otherwise general strong-resume signals). "suggestions" is up to 5 short, concrete improvement tips."""
+otherwise general strong-resume signals). "suggestions" is up to 5 short, concrete improvement tips.
+"item_feedback" flags SPECIFIC weak bullets/lines (weak action verb, missing metric, vague, JD keyword
+missing from this exact bullet) — up to 6 items, "section" must be one of: summary, experience, education,
+skills, projects, certifications. "snippet" MUST be an exact short excerpt copied verbatim from that resume
+so the UI can locate it — never paraphrase the snippet."""
 
 
 async def score_document(content: ResumeDocumentContent, job_description: str = "") -> ResumeScoreResponse:
@@ -197,13 +255,82 @@ async def score_document(content: ResumeDocumentContent, job_description: str = 
     user_prompt = f"RESUME:\n{resume_text[:6000]}"
     if job_description.strip():
         user_prompt += f"\n\nJOB DESCRIPTION:\n{job_description.strip()[:3000]}"
-    data = await _openai_chat_json(_SCORE_SYSTEM_PROMPT, user_prompt, max_tokens=800)
+    data = await _openai_chat_json(_SCORE_SYSTEM_PROMPT, user_prompt, max_tokens=1200)
+    item_feedback = []
+    for item in (data.get("item_feedback") or [])[:6]:
+        if not isinstance(item, dict):
+            continue
+        section = str(item.get("section", "")).strip().lower()
+        snippet = str(item.get("snippet", "")).strip()
+        issue = str(item.get("issue", "")).strip()
+        if section and snippet and issue:
+            item_feedback.append(ResumeScoreItemFeedback(section=section, snippet=snippet, issue=issue))
     return ResumeScoreResponse(
         score=max(0, min(100, int(data.get("score", 0)))),
         matched=[str(x) for x in (data.get("matched") or [])][:20],
         missing=[str(x) for x in (data.get("missing") or [])][:20],
         suggestions=[str(x) for x in (data.get("suggestions") or [])][:5],
+        item_feedback=item_feedback,
     )
+
+
+# ---------------------------------------------------------------------------
+# Bullet writing (improve an existing bullet / turn free-text notes into one)
+# Rules adapted from tailor/prompt/tool2_prompt.txt's BULLET RULES + tool3's
+# scoring criteria (weak-verb / missing-metric deductions), so Maker bullets
+# meet the same bar the Tailor pipeline enforces.
+# ---------------------------------------------------------------------------
+
+_BULLET_BASE_RULES = """You are an expert resume bullet writer. Write ONE resume bullet point.
+
+RULES (matches the bar our resume-tailoring pipeline enforces):
+- Follow the STAR method internally (Situation/Task -> Action -> Result), but output ONE tight sentence — never three.
+- Start with a strong, specific action verb (e.g. "Architected", "Reduced", "Automated", "Shipped"). Never weak
+  openers like "Responsible for", "Worked on", "Helped with", "Tasked with".
+- Do NOT start with an action verb already used in these other bullets from the same section — pick a different one: {other_verbs}
+- Include a quantified metric (%, $, time saved, scale, count) if the input plausibly supports one. Never invent
+  a fake number — only quantify what's implied or stated.
+- One sentence, ideally under 25 words. Readable and concrete — no jargon-stuffing, no buzzword soup.
+- Preserve every concrete fact given (company names, technologies, numbers) verbatim — never invent achievements."""
+
+_BULLET_WITH_JD = """
+- A job description is provided below. Naturally weave in relevant keywords from it where truthful to the
+  input — never fabricate experience the input doesn't support just to match a keyword.
+
+JOB DESCRIPTION:
+{job_description}"""
+
+_BULLET_OUTPUT_FORMAT = """
+
+Respond with JSON ONLY (no markdown fences): {{"bullet": "<the single rewritten bullet>"}}"""
+
+
+def _bullet_system_prompt(other_bullets: list[str], job_description: str) -> str:
+    other_verbs = ", ".join(b.split()[0] for b in other_bullets if b.strip()) or "(none yet)"
+    prompt = _BULLET_BASE_RULES.format(other_verbs=other_verbs)
+    if job_description.strip():
+        prompt += _BULLET_WITH_JD.format(job_description=job_description.strip()[:3000])
+    return prompt + _BULLET_OUTPUT_FORMAT
+
+
+async def rewrite_bullet(
+    bullet: str, context: str = "", other_bullets: list[str] | None = None, job_description: str = "",
+) -> str:
+    """Improve one existing bullet — same STAR/action-verb/metric bar as Tailor."""
+    system = _bullet_system_prompt(other_bullets or [], job_description)
+    user = f"Role/context: {context}\n\nCurrent bullet to improve:\n{bullet.strip()[:500]}"
+    data = await _openai_chat_json(system, user, max_tokens=300)
+    return str(data.get("bullet", "")).strip() or bullet
+
+
+async def bullet_from_text(
+    text: str, context: str = "", other_bullets: list[str] | None = None, job_description: str = "",
+) -> str:
+    """Turn a candidate's own raw, informal notes into a polished bullet under the same rules."""
+    system = _bullet_system_prompt(other_bullets or [], job_description)
+    user = f"Role/context: {context}\n\nCandidate's raw notes on what they did (turn this into one bullet):\n{text.strip()[:1000]}"
+    data = await _openai_chat_json(system, user, max_tokens=300)
+    return str(data.get("bullet", "")).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -297,15 +424,29 @@ def generate_docx(content: ResumeDocumentContent, settings: ResumeDocumentSettin
 # ---------------------------------------------------------------------------
 
 _ACCENT_COLORS = {
-    "blue":   "#2563eb",
-    "green":  "#059669",
-    "orange": "#ea580c",
-    "red":    "#dc2626",
+    "blue":    "#2563eb",
+    "navy":    "#1e3a5f",
+    "teal":    "#0d9488",
+    "green":   "#059669",
+    "emerald": "#10b981",
+    "purple":  "#7c3aed",
+    "orange":  "#ea580c",
+    "amber":   "#d97706",
+    "red":     "#dc2626",
+    "slate":   "#475569",
 }
 _FONT_STACKS = {
     "serif": "'Georgia', 'Times New Roman', serif",
     "sans":  "'Helvetica Neue', Arial, sans-serif",
     "mono":  "'Courier New', monospace",
+}
+_ACCENT_TEMPLATES = {"modern", "modern-two-column", "vivid"}
+_TWO_COLUMN_TEMPLATES = {"two-column", "modern-two-column", "vivid"}
+_SIDEBAR_SECTIONS = {"education", "skills", "certifications"}
+_MAIN_SECTIONS = {"experience", "projects"}
+_SECTION_LABELS = {
+    "experience": "Experience", "education": "Education", "skills": "Skills",
+    "projects": "Projects", "certifications": "Certifications",
 }
 
 
@@ -313,7 +454,11 @@ def _esc(text: str) -> str:
     return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _render_html(content: ResumeDocumentContent, settings: ResumeDocumentSettings) -> str:
+def _render_body_html(content: ResumeDocumentContent, settings: ResumeDocumentSettings) -> str:
+    """The resume's inner HTML — shared by both the PDF export and the live
+    screen preview, so the two can never visually drift apart. Page chrome
+    (margins/size) is applied separately by each caller — see _wrap_pdf_html /
+    _wrap_preview_html — since print (@page) and screen need different mechanisms."""
     c = content.contact
     accent = _ACCENT_COLORS.get(settings.accent_color, _ACCENT_COLORS["blue"])
     header_font = _FONT_STACKS.get(settings.header_font, _FONT_STACKS["sans"])
@@ -322,10 +467,13 @@ def _render_html(content: ResumeDocumentContent, settings: ResumeDocumentSetting
     header_pt = base_pt + 4
     gap = 4 + settings.spacing_level * 2             # px between sections
     compact_mul = 0.75 if settings.compact else 1.0
-    page_size = "A4" if settings.page_size == "a4" else "Letter"
-    heading_color = accent if settings.template in ("modern",) else "#111827"
-    heading_border = f"2px solid {accent}" if settings.template == "modern" else \
+    use_accent = settings.template in _ACCENT_TEMPLATES
+    use_arrows = settings.template == "vivid"
+    two_column = settings.template in _TWO_COLUMN_TEMPLATES
+    heading_color = accent if use_accent else "#111827"
+    heading_border = f"2px solid {accent}" if use_accent else \
         ("1px solid #9ca3af" if settings.template == "clean" else "1px solid #111827")
+    heading_transform = "none" if settings.template == "latex" else "uppercase"
 
     contact_bits = [x for x in [c.email, c.phone, c.location, c.linkedin, c.github, c.portfolio, c.website] if x]
     contact_line = " &nbsp;|&nbsp; ".join(_esc(x) for x in contact_bits)
@@ -333,85 +481,118 @@ def _render_html(content: ResumeDocumentContent, settings: ResumeDocumentSetting
     def section_heading(label: str) -> str:
         return (
             f'<div style="font-family:{header_font};font-size:{base_pt+1}pt;font-weight:700;'
-            f'color:{heading_color};text-transform:uppercase;letter-spacing:0.05em;'
+            f'color:{heading_color};text-transform:{heading_transform};letter-spacing:0.05em;'
             f'border-bottom:{heading_border};padding-bottom:2px;margin-top:{gap}px;'
             f'margin-bottom:{gap*compact_mul}px;">{_esc(label)}</div>'
         )
 
-    parts: list[str] = []
-    parts.append(
+    def bullets_html(items: list[str]) -> str:
+        if not items:
+            return ""
+        if use_arrows:
+            rows = "".join(
+                f'<div style="font-size:{base_pt}pt;display:flex;gap:6px;">'
+                f'<span style="color:{accent};flex-shrink:0;">&#8594;</span><span>{_esc(b)}</span></div>'
+                for b in items
+            )
+            return f'<div style="margin-top:2px;">{rows}</div>'
+        items_html = "".join(f'<li style="font-size:{base_pt}pt;">{_esc(b)}</li>' for b in items)
+        return f'<ul style="margin:2px 0 0 16px;padding:0;">{items_html}</ul>'
+
+    def section_html(key: str) -> str:
+        label = _SECTION_LABELS.get(key)
+        if not label:
+            return ""
+        if key == "experience" and content.experience:
+            body = "".join(
+                f'<div style="margin-bottom:{gap*compact_mul}px;font-family:{body_font};">'
+                f'<div style="display:flex;justify-content:space-between;font-weight:700;font-size:{base_pt}pt;">'
+                f'<span>{_esc(exp.title)} — {_esc(exp.company)}</span>'
+                f'<span>{_esc(exp.start_date)} – {_esc("Present" if exp.current else exp.end_date)}</span></div>'
+                f'<div style="font-size:{base_pt-1}pt;color:#6b7280;">{_esc(exp.location)}</div>'
+                f'{bullets_html(exp.bullets)}</div>'
+                for exp in content.experience
+            )
+            return section_heading(label) + body
+        if key == "education" and content.education:
+            body = "".join(
+                f'<div style="margin-bottom:{gap*compact_mul}px;font-family:{body_font};font-size:{base_pt}pt;">'
+                f'<div style="font-weight:700;">{_esc(edu.degree)} {_esc(edu.field)}</div>'
+                f'<div>{_esc(edu.school)}</div>'
+                f'<div style="font-size:{base_pt-1}pt;color:#6b7280;">{_esc(edu.start_date)} – {_esc(edu.end_date)}'
+                f'{f"  |  GPA {_esc(edu.gpa)}" if edu.gpa else ""}</div></div>'
+                for edu in content.education
+            )
+            return section_heading(label) + body
+        if key == "skills" and content.skills:
+            body = "".join(
+                f'<div style="font-family:{body_font};font-size:{base_pt}pt;margin-bottom:4px;">'
+                f'<div style="font-weight:700;">{_esc(sk.label)}</div>'
+                f'<div style="color:#374151;">{_esc(", ".join(sk.items))}</div></div>'
+                for sk in content.skills
+            )
+            return section_heading(label) + body
+        if key == "projects" and content.projects:
+            body = "".join(
+                f'<div style="margin-bottom:{gap*compact_mul}px;font-family:{body_font};font-size:{base_pt}pt;">'
+                f'<b>{_esc(proj.name)}</b> {_esc(proj.description)}{bullets_html(proj.bullets)}</div>'
+                for proj in content.projects
+            )
+            return section_heading(label) + body
+        if key == "certifications" and content.certifications:
+            body = "".join(
+                f'<div style="font-family:{body_font};font-size:{base_pt}pt;margin-bottom:4px;">'
+                f'{_esc(cert.name)} — {_esc(cert.issuer)} ({_esc(cert.date)})</div>'
+                for cert in content.certifications
+            )
+            return section_heading(label) + body
+        return ""
+
+    header_html = (
         f'<div style="text-align:center;margin-bottom:{gap}px;">'
-        f'<div style="font-family:{header_font};font-size:{header_pt}pt;font-weight:700;color:{heading_color};">{_esc(c.full_name)}</div>'
+        f'<div style="font-family:{header_font};font-size:{header_pt}pt;font-weight:700;'
+        f'color:{accent if settings.template in ("modern", "modern-two-column") else "#111827"};">{_esc(c.full_name)}</div>'
         f'<div style="font-family:{body_font};font-size:{base_pt-1}pt;color:#4b5563;">{_esc(c.headline)}</div>'
         f'<div style="font-family:{body_font};font-size:{base_pt-2}pt;color:#4b5563;margin-top:2px;">{contact_line}</div>'
         f'</div>'
     )
 
+    summary_html = ""
     if content.summary:
-        parts.append(section_heading("Summary"))
-        parts.append(f'<div style="font-family:{body_font};font-size:{base_pt}pt;">{_esc(content.summary)}</div>')
+        summary_html = section_heading("Summary") + (
+            f'<div style="font-family:{body_font};font-size:{base_pt}pt;'
+            f'margin-bottom:{gap if two_column else 0}px;">{_esc(content.summary)}</div>'
+        )
 
-    section_map = {
-        "experience": "Experience", "education": "Education", "skills": "Skills",
-        "projects": "Projects", "certifications": "Certifications",
-    }
-    for key in content.section_order:
-        label = section_map.get(key)
-        if not label:
-            continue
-        if key == "experience" and content.experience:
-            parts.append(section_heading(label))
-            for exp in content.experience:
-                end = "Present" if exp.current else exp.end_date
-                bullets = "".join(f'<li style="font-size:{base_pt}pt;">{_esc(b)}</li>' for b in exp.bullets)
-                parts.append(
-                    f'<div style="margin-bottom:{gap*compact_mul}px;font-family:{body_font};">'
-                    f'<div style="display:flex;justify-content:space-between;font-weight:700;font-size:{base_pt}pt;">'
-                    f'<span>{_esc(exp.title)} — {_esc(exp.company)}</span><span>{_esc(exp.start_date)} – {_esc(end)}</span></div>'
-                    f'<div style="font-size:{base_pt-1}pt;color:#6b7280;">{_esc(exp.location)}</div>'
-                    f'<ul style="margin:2px 0 0 16px;padding:0;">{bullets}</ul></div>'
-                )
-        elif key == "education" and content.education:
-            parts.append(section_heading(label))
-            for edu in content.education:
-                extra = f"  |  GPA {_esc(edu.gpa)}" if edu.gpa else ""
-                parts.append(
-                    f'<div style="margin-bottom:{gap*compact_mul}px;font-family:{body_font};font-size:{base_pt}pt;">'
-                    f'<div style="display:flex;justify-content:space-between;font-weight:700;">'
-                    f'<span>{_esc(edu.degree)} {_esc(edu.field)} — {_esc(edu.school)}</span>'
-                    f'<span>{_esc(edu.start_date)} – {_esc(edu.end_date)}</span></div>'
-                    f'<div style="font-size:{base_pt-1}pt;color:#6b7280;">{_esc(edu.location)}{extra}</div></div>'
-                )
-        elif key == "skills" and content.skills:
-            parts.append(section_heading(label))
-            for sk in content.skills:
-                parts.append(
-                    f'<div style="font-family:{body_font};font-size:{base_pt}pt;margin-bottom:2px;">'
-                    f'<b>{_esc(sk.label)}:</b> {_esc(", ".join(sk.items))}</div>'
-                )
-        elif key == "projects" and content.projects:
-            parts.append(section_heading(label))
-            for proj in content.projects:
-                bullets = "".join(f'<li style="font-size:{base_pt}pt;">{_esc(b)}</li>' for b in proj.bullets)
-                parts.append(
-                    f'<div style="margin-bottom:{gap*compact_mul}px;font-family:{body_font};font-size:{base_pt}pt;">'
-                    f'<b>{_esc(proj.name)}</b> {_esc(proj.description)}'
-                    f'<ul style="margin:2px 0 0 16px;padding:0;">{bullets}</ul></div>'
-                )
-        elif key == "certifications" and content.certifications:
-            parts.append(section_heading(label))
-            for cert in content.certifications:
-                parts.append(
-                    f'<div style="font-family:{body_font};font-size:{base_pt}pt;">'
-                    f'{_esc(cert.name)} — {_esc(cert.issuer)} ({_esc(cert.date)})</div>'
-                )
+    custom_html = "".join(
+        section_heading(custom.title) + bullets_html(custom.items)
+        for custom in content.custom
+    )
 
-    for custom in content.custom:
-        parts.append(section_heading(custom.title))
-        items = "".join(f'<li style="font-size:{base_pt}pt;">{_esc(i)}</li>' for i in custom.items)
-        parts.append(f'<ul style="margin:2px 0 0 16px;padding:0;font-family:{body_font};">{items}</ul>')
+    if not two_column:
+        body_parts = [header_html, summary_html]
+        body_parts += [section_html(key) for key in content.section_order]
+        body_parts.append(custom_html)
+        body_html = "\n".join(body_parts)
+    else:
+        sidebar_keys = [k for k in content.section_order if k in _SIDEBAR_SECTIONS]
+        main_keys = [k for k in content.section_order if k in _MAIN_SECTIONS]
+        sidebar_html = "".join(section_html(key) for key in sidebar_keys)
+        main_html = "".join(section_html(key) for key in main_keys) + custom_html
+        body_html = (
+            header_html + summary_html +
+            f'<div style="display:flex;gap:16px;">'
+            f'<div style="flex:0 0 32%;">{sidebar_html}</div>'
+            f'<div style="flex:1 1 68%;">{main_html}</div>'
+            f'</div>'
+        )
 
-    body_html = "\n".join(parts)
+    return body_html
+
+
+def _wrap_pdf_html(body_html: str, settings: ResumeDocumentSettings) -> str:
+    """Full document for WeasyPrint — @page controls print margins/size."""
+    page_size = "A4" if settings.page_size == "a4" else "Letter"
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><style>
 @page {{ size: {page_size}; margin: {settings.margin_top}mm {settings.margin_right}mm {settings.margin_bottom}mm {settings.margin_left}mm; }}
@@ -420,9 +601,28 @@ ul {{ list-style: disc; }}
 </style></head><body>{body_html}</body></html>"""
 
 
+def _wrap_preview_html(body_html: str, settings: ResumeDocumentSettings) -> str:
+    """Full document for an in-browser <iframe> preview. @page is print-only and
+    invisible on screen, so page width/margins are applied here via ordinary CSS
+    on a centered "paper" div instead — same visual result, different mechanism."""
+    mm_to_px = lambda mm: round(mm / 25.4 * 96, 2)
+    width_mm = 210 if settings.page_size == "a4" else 215.9
+    width_px = mm_to_px(width_mm)
+    pad = f"{mm_to_px(settings.margin_top)}px {mm_to_px(settings.margin_right)}px {mm_to_px(settings.margin_bottom)}px {mm_to_px(settings.margin_left)}px"
+    return f"""<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html, body {{ margin: 0; background: #e2e8f0; }}
+body {{ display: flex; justify-content: center; padding: 16px 0; }}
+.page {{ width: {width_px}px; min-height: {mm_to_px(279.4 if settings.page_size != 'a4' else 297)}px;
+         background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.15); padding: {pad}; box-sizing: border-box;
+         color: #111827; }}
+ul {{ list-style: disc; }}
+</style></head><body><div class="page">{body_html}</div></body></html>"""
+
+
 def generate_pdf(content: ResumeDocumentContent, settings: ResumeDocumentSettings, out_path: Path) -> Path:
     from weasyprint import HTML
 
-    html = _render_html(content, settings)
+    html = _wrap_pdf_html(_render_body_html(content, settings), settings)
     HTML(string=html).write_pdf(str(out_path))
     return out_path

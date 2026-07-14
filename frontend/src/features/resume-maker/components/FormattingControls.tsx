@@ -85,18 +85,19 @@ export function FormattingControls() {
             <option value="mono">Mono</option>
           </Select>
         </div>
-        <div>
-          <p className="mb-1 text-xs font-medium text-slate-500">Accent color</p>
-          <div className="flex gap-1.5 pt-1.5">
-            {(Object.keys(ACCENT_COLORS) as ResumeDocumentSettings['accent_color'][]).map((color) => (
-              <button
-                key={color} type="button" onClick={() => set('accent_color', color)}
-                title={color}
-                className={cn('h-6 w-6 rounded-full border-2', settings.accent_color === color ? 'border-slate-800' : 'border-transparent')}
-                style={{ background: ACCENT_COLORS[color] }}
-              />
-            ))}
-          </div>
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs font-medium text-slate-500">Accent color</p>
+        <div className="flex flex-wrap gap-1.5 pt-1.5">
+          {(Object.keys(ACCENT_COLORS) as ResumeDocumentSettings['accent_color'][]).map((color) => (
+            <button
+              key={color} type="button" onClick={() => set('accent_color', color)}
+              title={color}
+              className={cn('h-6 w-6 rounded-full border-2', settings.accent_color === color ? 'border-slate-800' : 'border-transparent')}
+              style={{ background: ACCENT_COLORS[color] }}
+            />
+          ))}
         </div>
       </div>
 
