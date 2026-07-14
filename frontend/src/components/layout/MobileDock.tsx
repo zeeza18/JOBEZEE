@@ -11,7 +11,7 @@ const LI_DOCK = [
 
 const leftDock = [
   { to: '/jobs', label: 'Jobs',   icon: Sparkles, end: false },
-  { to: '/app/tailor',      label: 'Resume',  icon: Wand2,    end: false },
+  { to: '/app/resume/tailor', label: 'Resume', icon: Wand2, end: false },
 ]
 
 const rightDock = [

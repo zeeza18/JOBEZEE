@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Wand2, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight, CreditCard, Linkedin, Plug, Mic2 } from 'lucide-react'
+import { Home, Wand2, FileEdit, Send, User, Settings, Sparkles, LogOut, Globe, ChevronLeft, ChevronRight, CreditCard, Linkedin, Plug, Mic2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../store/useAuthStore'
 import LogoBrand from '../common/LogoBrand'
@@ -9,9 +9,13 @@ import { SignOutModal } from '../common/SignOutModal'
 const mainNav = [
   { to: '/dashboard',        label: 'Dashboard', icon: Home,     end: true },
   { to: '/jobs',  label: 'Jobs',      icon: Sparkles },
-  { to: '/app/tailor',       label: 'Resume',    icon: Wand2 },
   { to: '/app/apply',        label: 'Apply',     icon: Send },
   { to: '/app/interview',    label: 'Interview',  icon: Mic2 },
+]
+
+const resumeNav = [
+  { to: '/app/resume/tailor', label: 'Tailor', icon: Wand2,     end: true },
+  { to: '/app/resume/maker',  label: 'Maker',   icon: FileEdit, end: true },
 ]
 
 const linkedinNav = [
@@ -129,6 +133,13 @@ const SideNav = ({ open, onToggle }: SideNavProps) => {
           {open && <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Main</p>}
           <div className="space-y-0.5">
             {mainNav.map((item) => <NavItem key={item.to} {...item} collapsed={!open} />)}
+          </div>
+        </div>
+
+        <div>
+          {open && <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Resume</p>}
+          <div className="space-y-0.5">
+            {resumeNav.map((item) => <NavItem key={item.to} {...item} collapsed={!open} />)}
           </div>
         </div>
 

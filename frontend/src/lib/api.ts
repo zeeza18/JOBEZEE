@@ -614,6 +614,88 @@ export const linkedinApi = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Resume Maker
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ResumeContact {
+  full_name: string; headline: string; email: string; phone: string
+  location: string; linkedin: string; github: string; portfolio: string; website: string
+}
+
+export interface ResumeExperienceItem {
+  id: string; company: string; title: string; location: string
+  start_date: string; end_date: string; current: boolean; bullets: string[]
+}
+
+export interface ResumeEducationItem {
+  id: string; school: string; degree: string; field: string
+  location: string; start_date: string; end_date: string; gpa: string
+}
+
+export interface ResumeProjectItem {
+  id: string; name: string; description: string; bullets: string[]; link: string; tech: string[]
+}
+
+export interface ResumeCertificationItem {
+  id: string; name: string; issuer: string; date: string; link: string
+}
+
+export interface ResumeSkillCategory { id: string; label: string; items: string[] }
+export interface ResumeCustomSection { id: string; title: string; items: string[] }
+
+export interface ResumeDocumentContent {
+  contact: ResumeContact
+  summary: string
+  experience: ResumeExperienceItem[]
+  education: ResumeEducationItem[]
+  skills: ResumeSkillCategory[]
+  projects: ResumeProjectItem[]
+  certifications: ResumeCertificationItem[]
+  custom: ResumeCustomSection[]
+  section_order: string[]
+}
+
+export interface ResumeDocumentSettings {
+  template: 'classic' | 'modern' | 'clean'
+  page_size: 'letter' | 'a4'
+  margin_top: number; margin_bottom: number; margin_left: number; margin_right: number
+  spacing_level: number
+  font_size_level: number
+  header_font: 'serif' | 'sans' | 'mono'
+  body_font: 'serif' | 'sans' | 'mono'
+  accent_color: 'blue' | 'green' | 'orange' | 'red'
+  compact: boolean
+  show_contact_icons: boolean
+}
+
+export interface ResumeDocumentOut {
+  id: string; title: string
+  content: ResumeDocumentContent
+  settings: ResumeDocumentSettings
+  created_at: string; updated_at: string
+}
+
+export interface ResumeScoreResponse {
+  score: number; matched: string[]; missing: string[]; suggestions: string[]
+}
+
+export const resumeBuilderApi = {
+  getDocument: () => get<ResumeDocumentOut>('/api/resume-builder/document'),
+
+  updateDocument: (body: { title?: string; content?: ResumeDocumentContent; settings?: ResumeDocumentSettings }) =>
+    put<ResumeDocumentOut>('/api/resume-builder/document', body),
+
+  importFromProfile: () =>
+    post<{ content: ResumeDocumentContent; source: string }>('/api/resume-builder/import-from-profile'),
+
+  score: (job_description = '') =>
+    post<ResumeScoreResponse>('/api/resume-builder/score', { job_description }),
+
+  exportPdfUrl: () => `${BASE}/api/resume-builder/export/pdf`,
+  exportDocxUrl: () => `${BASE}/api/resume-builder/export/docx`,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Resume Analysis (Profile Boost)
 // ─────────────────────────────────────────────────────────────────────────────
 

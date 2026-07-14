@@ -1,11 +1,19 @@
 FROM python:3.11-slim
 
-# Install texlive for pdflatex PDF compilation
+# Install texlive for pdflatex PDF compilation, plus WeasyPrint's native deps
+# (Pango/Cairo/GDK-PixBuf) used by the Resume Maker's PDF export.
 RUN apt-get update -q && \
     apt-get install -y -q --no-install-recommends \
         texlive-latex-base \
         texlive-fonts-recommended \
         texlive-latex-extra \
+        libpango-1.0-0 \
+        libpangocairo-1.0-0 \
+        libpangoft2-1.0-0 \
+        libgdk-pixbuf2.0-0 \
+        libcairo2 \
+        libffi-dev \
+        shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

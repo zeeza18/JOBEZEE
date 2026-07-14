@@ -11,6 +11,7 @@ const AppShell          = lazy(() => import('../components/layout/AppShell'))
 const DashboardPage     = lazy(() => import('../pages/DashboardPage'))
 const CombinedJobsPage  = lazy(() => import('../features/jobs/PulledJobsPage'))
 const TailorPage        = lazy(() => import('../features/tailor/TailorPage'))
+const ResumeMakerPage   = lazy(() => import('../features/resume-maker/ResumeMakerPage'))
 const AutoApplyPage     = lazy(() => import('../features/apply/AutoApplyPage'))
 const LinkedInPage      = lazy(() => import('../features/linkedin/LinkedInPage'))
 const ProfileBoostPage = lazy(() => import('../features/linkedin/ProfileBoostPage'))
@@ -65,7 +66,11 @@ const AppRoutes = () => (
         <Route path="/jobs"               element={<CombinedJobsPage />} />
         <Route path="/app/search"         element={<Navigate to="/jobs" replace />} />
         <Route path="/app/pulled-jobs"    element={<Navigate to="/jobs" replace />} />
-        <Route path="/app/tailor"         element={<TailorPage />} />
+        <Route path="/app/resume">
+          <Route path="tailor"      element={<TailorPage />} />
+          <Route path="maker"       element={<ResumeMakerPage />} />
+        </Route>
+        <Route path="/app/tailor"         element={<Navigate to="/app/resume/tailor" replace />} />
         <Route path="/app/apply"          element={<AutoApplyPage />} />
         <Route path="/app/linkedin">
           <Route index              element={<LinkedInPage />} />

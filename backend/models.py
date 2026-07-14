@@ -343,6 +343,26 @@ class Resume(Base):
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class ResumeDocument(Base):
+    """A structured, template-driven resume built in the Resume Maker (distinct from
+    the flat-text/PDF versions tracked by Resume above, which the Tailor tool works on).
+    One active document per user for now — schema allows more later."""
+    __tablename__ = "resume_documents"
+
+    id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id    = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    title      = Column(String(200), default="My Resume")
+
+    # { contact, summary, experience[], education[], skills[], projects[], certifications[], custom[] }
+    content    = Column(JSON, default=dict)
+    # { template, page_size, margins, spacing, font_size, header_font, body_font,
+    #   accent_color, compact, show_contact_icons }
+    settings   = Column(JSON, default=dict)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 # ---------------------------------------------------------------------------
 # Jobs v2  (immutable listing + mutable user state separated)
 # ---------------------------------------------------------------------------

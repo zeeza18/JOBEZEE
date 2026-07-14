@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LogOut, User, Settings, Menu, X, Home, Sparkles, Wand2, Zap, Globe } from 'lucide-react'
+import { LogOut, User, Settings, Menu, X, Home, Sparkles, Wand2, FileEdit, Zap, Globe } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 import LogoBrand from '../common/LogoBrand'
 import { cn } from '../../lib/utils'
@@ -9,7 +9,8 @@ import { SignOutModal } from '../common/SignOutModal'
 const menuItems = [
   { to: '/dashboard',       label: 'Dashboard', icon: Home,     end: true  },
   { to: '/jobs', label: 'Jobs',      icon: Sparkles, end: false },
-  { to: '/app/tailor',      label: 'Tailor',    icon: Wand2,    end: false },
+  { to: '/app/resume/tailor', label: 'Tailor',  icon: Wand2,    end: false },
+  { to: '/app/resume/maker',  label: 'Maker',   icon: FileEdit, end: false },
   { to: '/app/apply',       label: 'Auto',      icon: Zap,      end: false },
   { to: '/app/portfolio',   label: 'Portfolio', icon: Globe,    end: false },
 ]

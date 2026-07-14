@@ -279,3 +279,129 @@ class SearchStatusResponse(BaseModel):
     finished_at : Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Resume Maker (ResumeDocument)
+# ---------------------------------------------------------------------------
+
+class ResumeContact(BaseModel):
+    full_name : str = ""
+    headline  : str = ""
+    email     : str = ""
+    phone     : str = ""
+    location  : str = ""
+    linkedin  : str = ""
+    github    : str = ""
+    portfolio : str = ""
+    website   : str = ""
+
+
+class ResumeExperienceItem(BaseModel):
+    id       : str = ""
+    company  : str = ""
+    title    : str = ""
+    location : str = ""
+    start_date : str = ""
+    end_date   : str = ""
+    current    : bool = False
+    bullets    : list[str] = Field(default_factory=list)
+
+
+class ResumeEducationItem(BaseModel):
+    id       : str = ""
+    school   : str = ""
+    degree   : str = ""
+    field    : str = ""
+    location : str = ""
+    start_date : str = ""
+    end_date   : str = ""
+    gpa        : str = ""
+
+
+class ResumeProjectItem(BaseModel):
+    id          : str = ""
+    name        : str = ""
+    description : str = ""
+    bullets     : list[str] = Field(default_factory=list)
+    link        : str = ""
+    tech        : list[str] = Field(default_factory=list)
+
+
+class ResumeCertificationItem(BaseModel):
+    id     : str = ""
+    name   : str = ""
+    issuer : str = ""
+    date   : str = ""
+    link   : str = ""
+
+
+class ResumeSkillCategory(BaseModel):
+    id    : str = ""
+    label : str = ""
+    items : list[str] = Field(default_factory=list)
+
+
+class ResumeCustomSection(BaseModel):
+    id    : str = ""
+    title : str = ""
+    items : list[str] = Field(default_factory=list)
+
+
+class ResumeDocumentContent(BaseModel):
+    contact       : ResumeContact = Field(default_factory=ResumeContact)
+    summary       : str = ""
+    experience    : list[ResumeExperienceItem] = Field(default_factory=list)
+    education     : list[ResumeEducationItem] = Field(default_factory=list)
+    skills        : list[ResumeSkillCategory] = Field(default_factory=list)
+    projects      : list[ResumeProjectItem] = Field(default_factory=list)
+    certifications: list[ResumeCertificationItem] = Field(default_factory=list)
+    custom        : list[ResumeCustomSection] = Field(default_factory=list)
+    section_order : list[str] = Field(
+        default_factory=lambda: ["summary", "experience", "education", "skills", "projects", "certifications"]
+    )
+
+
+class ResumeDocumentSettings(BaseModel):
+    template            : str = "classic"      # classic | modern | clean
+    page_size           : str = "letter"       # letter | a4
+    margin_top          : float = 15.0
+    margin_bottom       : float = 15.0
+    margin_left         : float = 15.0
+    margin_right        : float = 15.0
+    spacing_level       : int = 3              # 1-5
+    font_size_level     : int = 3              # 1-5
+    header_font         : str = "sans"         # serif | sans | mono
+    body_font           : str = "sans"
+    accent_color        : str = "blue"         # blue | green | orange | red
+    compact             : bool = False
+    show_contact_icons  : bool = True
+
+
+class ResumeDocumentUpdate(BaseModel):
+    title    : Optional[str] = None
+    content  : Optional[ResumeDocumentContent] = None
+    settings : Optional[ResumeDocumentSettings] = None
+
+
+class ResumeDocumentOut(BaseModel):
+    id         : UUID
+    title      : str
+    content    : ResumeDocumentContent
+    settings   : ResumeDocumentSettings
+    created_at : datetime
+    updated_at : datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ResumeImportResponse(BaseModel):
+    content : ResumeDocumentContent
+    source  : str   # "profile" — where the text was pulled from
+
+
+class ResumeScoreResponse(BaseModel):
+    score       : int
+    matched     : list[str] = Field(default_factory=list)
+    missing     : list[str] = Field(default_factory=list)
+    suggestions : list[str] = Field(default_factory=list)
