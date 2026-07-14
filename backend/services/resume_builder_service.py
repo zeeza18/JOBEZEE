@@ -436,10 +436,41 @@ _ACCENT_COLORS = {
     "slate":   "#475569",
 }
 _FONT_STACKS = {
-    "serif": "'Georgia', 'Times New Roman', serif",
-    "sans":  "'Helvetica Neue', Arial, sans-serif",
-    "mono":  "'Courier New', monospace",
+    "sans":           "'Helvetica Neue', Arial, sans-serif",
+    "inter":          "'Inter', sans-serif",
+    "roboto":         "'Roboto', sans-serif",
+    "ibm-plex-sans":  "'IBM Plex Sans', sans-serif",
+    "serif":          "'Georgia', 'Times New Roman', serif",
+    "lora":           "'Lora', serif",
+    "merriweather":   "'Merriweather', serif",
+    "source-serif":   "'Source Serif 4', serif",
+    "times-new-roman": "'Tinos', 'Times New Roman', serif",
+    "mono":           "'Courier New', monospace",
+    "jetbrains-mono": "'JetBrains Mono', monospace",
 }
+# Google Fonts params for the non-system font ids above — "sans"/"serif"/"mono"
+# use fonts already present on any OS/renderer, so they need no network fetch.
+_GOOGLE_FONTS = {
+    "inter":          "Inter:wght@400;600;700",
+    "roboto":         "Roboto:wght@400;500;700",
+    "ibm-plex-sans":  "IBM+Plex+Sans:wght@400;600;700",
+    "lora":           "Lora:wght@400;600;700",
+    "merriweather":   "Merriweather:wght@400;700",
+    "source-serif":   "Source+Serif+4:wght@400;600;700",
+    "times-new-roman": "Tinos:wght@400;700",   # Tinos = metric-compatible match for Times New Roman
+    "jetbrains-mono": "JetBrains+Mono:wght@400;700",
+}
+
+
+def _google_fonts_link(*font_ids: str) -> str:
+    """<link> tag for whichever of the given font ids need a Google Fonts fetch.
+    WeasyPrint fetches external stylesheets/fonts over HTTP same as a browser,
+    so this works identically for the PDF export and the screen preview."""
+    families = [_GOOGLE_FONTS[f] for f in dict.fromkeys(font_ids) if f in _GOOGLE_FONTS]
+    if not families:
+        return ""
+    href = "https://fonts.googleapis.com/css2?" + "&".join(f"family={f}" for f in families) + "&display=swap"
+    return f'<link rel="stylesheet" href="{href}">'
 _ACCENT_TEMPLATES = {"modern", "modern-two-column", "vivid"}
 _TWO_COLUMN_TEMPLATES = {"two-column", "modern-two-column", "vivid"}
 _SIDEBAR_SECTIONS = {"education", "skills", "certifications"}
@@ -593,8 +624,9 @@ def _render_body_html(content: ResumeDocumentContent, settings: ResumeDocumentSe
 def _wrap_pdf_html(body_html: str, settings: ResumeDocumentSettings) -> str:
     """Full document for WeasyPrint — @page controls print margins/size."""
     page_size = "A4" if settings.page_size == "a4" else "Letter"
+    font_link = _google_fonts_link(settings.header_font, settings.body_font)
     return f"""<!doctype html>
-<html><head><meta charset="utf-8"><style>
+<html><head><meta charset="utf-8">{font_link}<style>
 @page {{ size: {page_size}; margin: {settings.margin_top}mm {settings.margin_right}mm {settings.margin_bottom}mm {settings.margin_left}mm; }}
 body {{ margin: 0; color: #111827; }}
 ul {{ list-style: disc; }}
@@ -609,8 +641,9 @@ def _wrap_preview_html(body_html: str, settings: ResumeDocumentSettings) -> str:
     width_mm = 210 if settings.page_size == "a4" else 215.9
     width_px = mm_to_px(width_mm)
     pad = f"{mm_to_px(settings.margin_top)}px {mm_to_px(settings.margin_right)}px {mm_to_px(settings.margin_bottom)}px {mm_to_px(settings.margin_left)}px"
+    font_link = _google_fonts_link(settings.header_font, settings.body_font)
     return f"""<!doctype html>
-<html><head><meta charset="utf-8"><style>
+<html><head><meta charset="utf-8">{font_link}<style>
 html, body {{ margin: 0; background: #e2e8f0; }}
 body {{ display: flex; justify-content: center; padding: 16px 0; }}
 .page {{ width: {width_px}px; min-height: {mm_to_px(279.4 if settings.page_size != 'a4' else 297)}px;

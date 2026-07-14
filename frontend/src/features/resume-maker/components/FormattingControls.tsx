@@ -2,7 +2,7 @@ import { RotateCcw } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { Select } from '../../../components/ui/Select'
 import { useResumeMaker, DEFAULT_SETTINGS } from '../store/useResumeMaker'
-import { ACCENT_COLORS } from '../templates/styles'
+import { ACCENT_COLORS, FONT_OPTIONS } from '../templates/styles'
 import type { ResumeDocumentSettings } from '../../../lib/api'
 
 function LevelPicker({ value, onChange, label }: { value: number; onChange: (n: number) => void; label: string }) {
@@ -72,17 +72,13 @@ export function FormattingControls() {
         <div>
           <p className="mb-1 text-xs font-medium text-slate-500">Header font</p>
           <Select value={settings.header_font} onChange={(e) => set('header_font', e.target.value as ResumeDocumentSettings['header_font'])}>
-            <option value="sans">Sans</option>
-            <option value="serif">Serif</option>
-            <option value="mono">Mono</option>
+            {FONT_OPTIONS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
           </Select>
         </div>
         <div>
           <p className="mb-1 text-xs font-medium text-slate-500">Body font</p>
           <Select value={settings.body_font} onChange={(e) => set('body_font', e.target.value as ResumeDocumentSettings['body_font'])}>
-            <option value="sans">Sans</option>
-            <option value="serif">Serif</option>
-            <option value="mono">Mono</option>
+            {FONT_OPTIONS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
           </Select>
         </div>
       </div>

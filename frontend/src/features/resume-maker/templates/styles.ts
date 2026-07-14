@@ -17,11 +17,21 @@ export const ACCENT_COLORS: Record<ResumeDocumentSettings['accent_color'], strin
   slate: '#475569',
 }
 
-export const FONT_STACKS: Record<ResumeDocumentSettings['header_font'], string> = {
-  serif: "'Georgia', 'Times New Roman', serif",
-  sans: "'Helvetica Neue', Arial, sans-serif",
-  mono: "'Courier New', monospace",
-}
+// Actual font rendering happens server-side (PDF export + the live preview HTML
+// both come from the backend), so the frontend only needs id+label for the picker.
+export const FONT_OPTIONS: { id: ResumeDocumentSettings['header_font']; label: string }[] = [
+  { id: 'sans', label: 'Helvetica (System)' },
+  { id: 'inter', label: 'Inter' },
+  { id: 'roboto', label: 'Roboto' },
+  { id: 'ibm-plex-sans', label: 'IBM Plex Sans' },
+  { id: 'serif', label: 'Georgia (System)' },
+  { id: 'lora', label: 'Lora' },
+  { id: 'merriweather', label: 'Merriweather' },
+  { id: 'source-serif', label: 'Source Serif 4' },
+  { id: 'times-new-roman', label: 'Times New Roman' },
+  { id: 'mono', label: 'Courier (System)' },
+  { id: 'jetbrains-mono', label: 'JetBrains Mono' },
+]
 
 export const TEMPLATES: { id: ResumeDocumentSettings['template']; name: string; description: string; twoColumn: boolean }[] = [
   { id: 'classic', name: 'Classic', description: 'Traditional single-column layout, black rule under headings', twoColumn: false },

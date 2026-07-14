@@ -661,8 +661,8 @@ export interface ResumeDocumentSettings {
   margin_top: number; margin_bottom: number; margin_left: number; margin_right: number
   spacing_level: number
   font_size_level: number
-  header_font: 'serif' | 'sans' | 'mono'
-  body_font: 'serif' | 'sans' | 'mono'
+  header_font: 'sans' | 'inter' | 'roboto' | 'ibm-plex-sans' | 'serif' | 'lora' | 'merriweather' | 'source-serif' | 'times-new-roman' | 'mono' | 'jetbrains-mono'
+  body_font: 'sans' | 'inter' | 'roboto' | 'ibm-plex-sans' | 'serif' | 'lora' | 'merriweather' | 'source-serif' | 'times-new-roman' | 'mono' | 'jetbrains-mono'
   accent_color: 'blue' | 'navy' | 'teal' | 'green' | 'emerald' | 'purple' | 'orange' | 'amber' | 'red' | 'slate'
   compact: boolean
   show_contact_icons: boolean

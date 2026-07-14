@@ -450,7 +450,20 @@ def _extract_resume_text(file_path: Path) -> str:
             import pdfplumber
             with pdfplumber.open(file_path) as pdf:
                 pages = [p.extract_text() or "" for p in pdf.pages]
-            return "\n\n".join(p for p in pages if p.strip())
+                # Icon-only contact links (LinkedIn/GitHub/portfolio icons with no
+                # visible URL text) never show up in extract_text() — their target
+                # only exists as a PDF link annotation. Pull those separately so
+                # AI parsing (resume import, Tailor) doesn't lose them.
+                links: list[str] = []
+                for p in pdf.pages:
+                    for link in (p.hyperlinks or []):
+                        uri = (link.get("uri") or "").strip()
+                        if uri and uri not in links:
+                            links.append(uri)
+            text = "\n\n".join(p for p in pages if p.strip())
+            if links:
+                text += "\n\nLINKS FOUND IN DOCUMENT (from clickable icons/links):\n" + "\n".join(links)
+            return text
         except ImportError:
             print("[tailor_service] pdfplumber not installed — trying PyPDF2")
         try:

@@ -18,7 +18,8 @@ export function ContactSummaryForm() {
         <Input placeholder="Location" value={c.location} onChange={setField('location')} />
         <Input placeholder="LinkedIn URL" value={c.linkedin} onChange={setField('linkedin')} />
         <Input placeholder="GitHub URL" value={c.github} onChange={setField('github')} />
-        <Input placeholder="Portfolio / website" value={c.portfolio} onChange={setField('portfolio')} />
+        <Input placeholder="Portfolio URL" value={c.portfolio} onChange={setField('portfolio')} />
+        <Input placeholder="Website" value={c.website} onChange={setField('website')} />
       </div>
       <textarea
         value={content.summary}

@@ -228,7 +228,7 @@ export const useResumeMaker = create<ResumeMakerState>((set, get) => {
       const { contact, summary, experience, education, skills, projects, certifications } = get().content
       const lines: string[] = []
       if (contact.full_name) lines.push(contact.full_name)
-      const contactLine = [contact.email, contact.phone, contact.location, contact.linkedin, contact.github, contact.portfolio]
+      const contactLine = [contact.email, contact.phone, contact.location, contact.linkedin, contact.github, contact.portfolio, contact.website]
         .filter(Boolean).join(' | ')
       if (contactLine) lines.push(contactLine)
       if (summary) { lines.push('', 'SUMMARY', summary) }
