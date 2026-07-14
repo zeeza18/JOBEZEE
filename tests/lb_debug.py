@@ -1,16 +1,12 @@
 import sys, os
 sys.path.insert(0, ".")
-from backend.services.resume_analysis_service import _resolve_opusmax_key, OPUSMAX_BASE_URL
+from backend.services.resume_analysis_service import _resolve_claude_key
 import anthropic
 
-key = _resolve_opusmax_key()
+key = _resolve_claude_key()
 print("KEY:", key[:20] if key else "NONE")
-print("BASE_URL:", OPUSMAX_BASE_URL)
 
-kw = {}
-if key and key.startswith("sk-ant-opm"):
-    kw["base_url"] = OPUSMAX_BASE_URL
-c = anthropic.Anthropic(api_key=key, **kw)
+c = anthropic.Anthropic(api_key=key)
 try:
     r = c.messages.create(
         model="claude-opus-4-7",

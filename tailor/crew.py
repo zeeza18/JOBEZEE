@@ -33,8 +33,7 @@ class ResumeCrew:
             openai_api_key: Kept for legacy compatibility.
         """
         _anthropic_key = anthropic_api_key or (
-            os.getenv("OPUSMAX_API_KEY", "").strip()
-            or os.getenv("ANTHROPIC_API_KEY", "").strip()
+            os.getenv("ANTHROPIC_API_KEY", "").strip()
             or os.getenv("CLAUDE_API_KEY", "").strip()
         ) or None
         _fallback = (anthropic_fallback_key or "").strip() or None

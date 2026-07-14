@@ -13,16 +13,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_OPUSMAX_BASE = "https://api.opusmax.pro"
-
 def _make_client(api_key: str) -> Anthropic:
-    if api_key.startswith("sk-ant-opm"):
-        return Anthropic(api_key=api_key, base_url=_OPUSMAX_BASE)
     return Anthropic(api_key=api_key)
 
 def _resolve_key() -> str:
-    return (os.getenv("OPUSMAX_API_KEY", "").strip()
-            or os.getenv("ANTHROPIC_API_KEY", "").strip()
+    return (os.getenv("ANTHROPIC_API_KEY", "").strip()
             or os.getenv("CLAUDE_API_KEY", "").strip())
 
 def _extract_text(response) -> str:
@@ -50,7 +45,7 @@ class KeywordExtractor:
             return self.client.messages.create(**kwargs)
         except Exception as exc:
             if self._fallback_key:
-                print(f"[WARN] OpusMax key failed ({exc}), retrying with fallback credentials...")
+                print(f"[WARN] Primary Claude key failed ({exc}), retrying with fallback credentials...")
                 return _make_client(self._fallback_key).messages.create(**kwargs)
             raise
 

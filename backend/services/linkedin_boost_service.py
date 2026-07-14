@@ -9,16 +9,17 @@ import os
 import re
 from typing import Any
 
-from .resume_analysis_service import _make_anthropic_client, _resolve_opusmax_key
+from .resume_analysis_service import _make_anthropic_client, _resolve_claude_key
 from ..config import get_settings
 
 
 def _resolve_fallback_key() -> str:
-    """Return a standard Anthropic key (not OpusMax) for quota fallback."""
+    """Return a distinct Anthropic key for quota fallback, if one is configured."""
     cfg = get_settings()
+    primary = _resolve_claude_key()
     for key in [cfg.CLAUDE_API_KEY, cfg.ANTHROPIC_API_KEY]:
         k = (key or "").strip()
-        if k and not k.startswith("sk-ant-opm"):
+        if k and k != primary:
             return k
     return ""
 
@@ -687,9 +688,9 @@ def analyze_linkedin_profile(
             try: on_step(name)
             except Exception: pass
 
-    key = _resolve_opusmax_key()
+    key = _resolve_claude_key()
     if not key:
-        raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
+        raise RuntimeError("ANTHROPIC_API_KEY not configured")
 
     _step("scoring")
     parsed = _parse_sections(pdf_text)
@@ -701,7 +702,7 @@ def analyze_linkedin_profile(
     last_error: str = ""
     clients_to_try = [client]
     fallback_key = _resolve_fallback_key()
-    if fallback_key and not fallback_key.startswith("sk-ant-opm"):
+    if fallback_key:
         clients_to_try.append(_make_anthropic_client(fallback_key))
 
     for cl in clients_to_try:
@@ -716,7 +717,7 @@ def analyze_linkedin_profile(
                 )
                 raw = next((b.text for b in response.content if hasattr(b, "text")), "{}")
                 if "Usage limit reached" in raw or "usage limit" in raw.lower():
-                    last_error = f"OpusMax quota exceeded (model={LINKEDIN_MODEL})"
+                    last_error = f"Claude quota exceeded (model={LINKEDIN_MODEL})"
                     break  # try next client
                 data = _parse(raw)
                 if data:
@@ -750,9 +751,9 @@ def optimize_linkedin_profile(
     Generate optimized rewrites for all LinkedIn profile sections.
     Returns: headline, about, experience[], skills.
     """
-    key = _resolve_opusmax_key()
+    key = _resolve_claude_key()
     if not key:
-        raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
+        raise RuntimeError("ANTHROPIC_API_KEY not configured")
 
     client = _make_anthropic_client(key)
     prompt = _build_optimize_prompt(pdf_text, score_result, target_role)
@@ -760,7 +761,7 @@ def optimize_linkedin_profile(
     data: dict[str, Any] = {}
     clients_to_try = [client]
     fallback_key = _resolve_fallback_key()
-    if fallback_key and not fallback_key.startswith("sk-ant-opm"):
+    if fallback_key:
         clients_to_try.append(_make_anthropic_client(fallback_key))
 
     last_error: str = ""
@@ -776,7 +777,7 @@ def optimize_linkedin_profile(
                 )
                 raw = next((b.text for b in response.content if hasattr(b, "text")), "{}")
                 if "Usage limit reached" in raw or "usage limit" in raw.lower():
-                    last_error = f"OpusMax quota exceeded (model={LINKEDIN_MODEL})"
+                    last_error = f"Claude quota exceeded (model={LINKEDIN_MODEL})"
                     break
                 data = _parse(raw)
                 has_content = bool(

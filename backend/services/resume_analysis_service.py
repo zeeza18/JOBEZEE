@@ -1,6 +1,5 @@
 """
-Resume Analysis Service — scores sections and extracts structured data using Claude via OpusMax.
-Uses the same OpusMax /tools/understand_image API pattern as linkedin_scorer_step1.
+Resume Analysis Service — scores sections and extracts structured data using Claude.
 """
 from __future__ import annotations
 
@@ -11,24 +10,19 @@ import re
 import time
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 import threading
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
 
-OPUSMAX_BASE_URL                  = "https://api.opusmax.pro"
-OPUSMAX_UNDERSTAND_IMAGE_URL      = f"{OPUSMAX_BASE_URL}/tools/understand_image"
 DEFAULT_MODEL                    = os.getenv("CLAUDE_MODEL", "claude-opus-4-7")
 VISION_MODEL                     = os.getenv("VISION_MODEL", "claude-sonnet-4-6")
 CLAUDE_TIMEOUT_SECONDS            = float(os.getenv("CLAUDE_TIMEOUT_SECONDS", "120"))
 VISION_TIMEOUT_SECONDS            = float(os.getenv("VISION_TIMEOUT_SECONDS", "45"))
-_OPUSMAX_PREFIX                  = "sk-ant-opm"
 
 
-# ─── Token bucket — OpusMax hard limit is 1 req/sec ──────────────────────────
+# ─── Token bucket — keep vision calls to a safe rate ─────────────────────────
 _vision_lock     = threading.Lock()
 _vision_last_t   = 0.0
 _VISION_MIN_GAP  = 1.05   # seconds between vision API calls (slight buffer over 1.0)
@@ -51,26 +45,20 @@ def _vision_acquire() -> None:
         time.sleep(wait)
 
 
-def _resolve_opusmax_key() -> str:
+def _resolve_claude_key() -> str:
     cfg = get_settings()
     return (
-        (cfg.OPUSMAX_API_KEY  or "").strip()
-        or (cfg.ANTHROPIC_API_KEY or "").strip()
+        (cfg.ANTHROPIC_API_KEY or "").strip()
         or os.getenv("CLAUDE_API_KEY", "").strip()
-        or (cfg.OPENAI_API_KEY or "").strip()
     )
 
 
 def _make_vision_client(api_key: str):
     from anthropic import Anthropic
-    if api_key.startswith(_OPUSMAX_PREFIX):
-        return Anthropic(api_key=api_key, base_url=OPUSMAX_BASE_URL, timeout=VISION_TIMEOUT_SECONDS)
     return Anthropic(api_key=api_key, timeout=VISION_TIMEOUT_SECONDS)
 
 def _make_anthropic_client(api_key: str, timeout: float = CLAUDE_TIMEOUT_SECONDS):
     from anthropic import Anthropic
-    if api_key.startswith(_OPUSMAX_PREFIX):
-        return Anthropic(api_key=api_key, base_url=OPUSMAX_BASE_URL, timeout=timeout)
     return Anthropic(api_key=api_key, timeout=timeout)
 
 
@@ -100,109 +88,14 @@ class CoverObservations(BaseModel):
     evidence: list[str] = Field(default_factory=list)
 
 
-# ─── OpusMax understand_image ──────────────────────────────────────────────────
-
-_PROFILE_TOOL = {
-    "name": "score_profile_photo",
-    "description": "Score a LinkedIn profile photo by directly observing the image.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "face_visible": {
-                "type": "boolean",
-                "description": "true if a human face is present and facing the camera (even partially). false ONLY if no face is detectable at all."
-            },
-            "professional_attire": {
-                "type": "boolean",
-                "description": "true if person wears a blazer, dress shirt, suit, or formal/business-casual top. false ONLY if clearly casual (plain t-shirt, hoodie, shirtless). Default true if clothing is visible but ambiguous."
-            },
-            "watermark_or_ai_icon_visible": {
-                "type": "boolean",
-                "description": "true if you see any overlay badge, sparkle, star, logo, or watermark placed ON the image. false if image is clean."
-            },
-            "lighting_adequate": {
-                "type": "boolean",
-                "description": "true if the face is clearly lit and features are distinguishable. false ONLY if the face is silhouetted, severely underlit, or blown out so features are lost. Default true."
-            },
-            "background_clean": {
-                "type": "boolean",
-                "description": "true if background is plain, blurred, solid color, or minimal. false ONLY if background is visibly cluttered with competing elements. Default true for any uniform or blurred background."
-            },
-            "framing_professional": {
-                "type": "boolean",
-                "description": "true if subject fills the frame as a head/shoulder or chest-up portrait. false ONLY if person is tiny in frame, severely cropped at the face, or awkwardly angled. Default true for standard portrait composition."
-            },
-            "image_quality_issue_visible": {
-                "type": "boolean",
-                "description": "true if image is visibly pixelated, heavily compressed, blurry, or distorted. false if image appears clear. Default false."
-            },
-            "evidence": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "1-3 short factual observations about what you see. Empty array if nothing notable."
-            }
-        },
-        "required": ["face_visible", "professional_attire", "watermark_or_ai_icon_visible",
-                     "lighting_adequate", "background_clean", "framing_professional",
-                     "image_quality_issue_visible", "evidence"]
-    }
-}
-
-_COVER_TOOL = {
-    "name": "score_cover_banner",
-    "description": "Score a LinkedIn cover/banner image by directly observing the image.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "role_aligned_visual": {
-                "type": "boolean",
-                "description": "true if banner has imagery, colors, or visuals suggesting a professional context (tech, design, finance, abstract professional). false if it is a completely generic stock photo of nature/city with zero professional context, OR the LinkedIn default blue gradient."
-            },
-            "professional_branding_present": {
-                "type": "boolean",
-                "description": "true if banner has ANY deliberate personalization: custom color scheme, name, title, logo, or branded layout. false ONLY if it is a plain stock photo or default with zero custom elements."
-            },
-            "text_readability_issue": {
-                "type": "boolean",
-                "description": "true if text on the banner has poor contrast, is too small to comfortably read, or overlaps badly with the background. false if text is readable OR no text present. Default false."
-            },
-            "banner_has_small_text": {
-                "type": "boolean",
-                "description": "true if banner contains text so small it would be unreadable on a mobile screen. false if text is large enough to read or no text present. Default false."
-            },
-            "broken_url_or_typo_visible": {
-                "type": "boolean",
-                "description": "true if you can read a broken/malformed URL (missing http, incomplete domain), a malformed email (e.g. @com instead of @gmail.com, missing TLD), or an obvious spelling mistake. false if URLs and email addresses look correctly formatted or no text present. Default false — only mark true if you can clearly read a problem."
-            },
-            "email_on_banner_visible": {
-                "type": "boolean",
-                "description": "true if an email address (any format, even broken) is visibly printed anywhere on the banner. false if no email is present. Default false."
-            },
-            "clutter_or_distraction_visible": {
-                "type": "boolean",
-                "description": "true if banner is visually overwhelming with too many competing elements, clashing colors, or chaotic layout. false if banner looks organized. Default false."
-            },
-            "evidence": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "1-3 short factual observations about what you see. If email is visible, write the exact email text. If URL is broken, quote it."
-            }
-        },
-        "required": ["role_aligned_visual", "professional_branding_present", "text_readability_issue",
-                     "banner_has_small_text", "broken_url_or_typo_visible", "email_on_banner_visible",
-                     "clutter_or_distraction_visible", "evidence"]
-    }
-}
-
-
 def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, response_model):
     """Call Claude vision, parse JSON, validate through Pydantic model for safe defaults.
-    Token-bucket ensures ≤1 req/sec to OpusMax. Retries up to 3× on rate-limit errors.
+    Token-bucket keeps calls to ≤1 req/sec. Retries up to 3× on rate-limit errors.
     No third-party dependencies beyond anthropic + pydantic.
     """
-    key = _resolve_opusmax_key()
+    key = _resolve_claude_key()
     if not key:
-        raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
+        raise RuntimeError("ANTHROPIC_API_KEY not configured")
 
     client  = _make_vision_client(key)
     encoded = base64.b64encode(media_bytes).decode("utf-8")
@@ -240,57 +133,6 @@ def _call_vision_structured(media_bytes: bytes, media_type: str, prompt: str, re
                 continue
             raise
     raise RuntimeError(f"Vision API rate limited after 3 attempts: {last_exc}")
-
-
-def _extract_text_from_opusmax_response(raw_body: str) -> str:
-    try:
-        payload = json.loads(raw_body)
-    except json.JSONDecodeError:
-        return raw_body.strip()
-
-    if isinstance(payload, str):
-        return payload.strip()
-
-    if isinstance(payload, dict):
-        base_resp = payload.get("base_resp")
-        if isinstance(base_resp, dict):
-            code = base_resp.get("status_code")
-            msg  = base_resp.get("status_msg")
-            content = payload.get("content")
-            if code not in (0, 200, "0", "200") and not content:
-                raise RuntimeError(f"OpusMax understand_image status_code={code} status_msg={msg}")
-
-    for candidate in [
-        payload.get("output"),
-        payload.get("result"),
-        payload.get("text"),
-        payload.get("response"),
-        payload.get("content"),
-        payload.get("data"),
-    ]:
-        extracted = _coerce_text_candidate(candidate)
-        if extracted:
-            return extracted
-    return raw_body.strip()
-
-
-def _coerce_text_candidate(candidate: Any) -> str:
-    if isinstance(candidate, str):
-        return candidate.strip()
-    if isinstance(candidate, dict):
-        for key in ("text", "output", "result", "response", "content"):
-            value = candidate.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    if isinstance(candidate, list):
-        chunks = []
-        for item in candidate:
-            text = _coerce_text_candidate(item)
-            if text:
-                chunks.append(text)
-        if chunks:
-            return "\n".join(chunks).strip()
-    return ""
 
 
 def _extract_json(raw: str) -> dict[str, Any]:
@@ -746,10 +588,10 @@ RESUME TEXT:
 
 
 def analyze_resume(resume_text: str, job_description: str = "") -> dict[str, Any]:
-    """Analyze resume text — uses Claude via OpusMax messages API."""
-    key = _resolve_opusmax_key()
+    """Analyze resume text — uses Claude."""
+    key = _resolve_claude_key()
     if not key:
-        raise RuntimeError("OPUSMAX_API_KEY / ANTHROPIC_API_KEY not configured")
+        raise RuntimeError("ANTHROPIC_API_KEY not configured")
 
     client = _make_anthropic_client(key)
 

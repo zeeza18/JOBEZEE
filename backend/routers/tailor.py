@@ -77,8 +77,7 @@ async def start_tailor(
     _profile = _prof_res.scalar_one_or_none()
     openai_key = decrypt((getattr(_profile, "openai_api_key", "") or "")).strip()
     _user_anthropic = decrypt((getattr(_profile, "anthropic_api_key", "") or "")).strip()
-    _sys_key = (_os.getenv("OPUSMAX_API_KEY", "").strip()
-                or _os.getenv("ANTHROPIC_API_KEY", "").strip()
+    _sys_key = (_os.getenv("ANTHROPIC_API_KEY", "").strip()
                 or _os.getenv("CLAUDE_API_KEY", "").strip())
     anthropic_key = _sys_key or _user_anthropic
     anthropic_fallback = _user_anthropic if _sys_key else ""
@@ -198,8 +197,7 @@ async def start_tailor_for_job(
     openai_key = decrypt((getattr(profile, "openai_api_key", "") or "")).strip()
     _user_anthropic2 = decrypt((getattr(profile, "anthropic_api_key", "") or "")).strip()
     import os as _os2
-    _sys_key2 = (_os2.getenv("OPUSMAX_API_KEY", "").strip()
-                 or _os2.getenv("ANTHROPIC_API_KEY", "").strip()
+    _sys_key2 = (_os2.getenv("ANTHROPIC_API_KEY", "").strip()
                  or _os2.getenv("CLAUDE_API_KEY", "").strip())
     anthropic_key = _sys_key2 or _user_anthropic2
     anthropic_fallback2 = _user_anthropic2 if _sys_key2 else ""
@@ -391,8 +389,7 @@ async def rerun_tailor(
     openai_key = decrypt((getattr(profile, "openai_api_key", "") or "")).strip()
     _user_anthropic2 = decrypt((getattr(profile, "anthropic_api_key", "") or "")).strip()
     import os as _os2
-    _sys_key2 = (_os2.getenv("OPUSMAX_API_KEY", "").strip()
-                 or _os2.getenv("ANTHROPIC_API_KEY", "").strip()
+    _sys_key2 = (_os2.getenv("ANTHROPIC_API_KEY", "").strip()
                  or _os2.getenv("CLAUDE_API_KEY", "").strip())
     anthropic_key = _sys_key2 or _user_anthropic2
     anthropic_fallback2 = _user_anthropic2 if _sys_key2 else ""
