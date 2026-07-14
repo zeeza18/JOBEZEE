@@ -49,6 +49,32 @@ const LS_STATS_KEY = 'jz_stats_cache'
 // Without descriptions a job is ~300 bytes; 2000 jobs ≈ 600 KB, well under 5 MB.
 const MAX_CACHED_JOBS = 2000
 
+// Hard ceiling on the general/unfiltered in-memory job list (with full
+// descriptions). Without this, a full history reload (or repeated merges)
+// grows the heap unbounded as the hourly cron keeps adding jobs. Backend
+// already sorts by match_score desc, pulled_at desc, so the cap keeps the
+// most relevant/recent jobs rather than truncating arbitrarily. Curated
+// tabs (saved/hidden/applied) bypass this cap via their own server-filtered
+// fetch — see PulledJobsPage.tsx.
+export const MAX_INMEMORY_JOBS = 600
+
+export function sortJobsByRelevance(jobs: PulledJob[]): PulledJob[] {
+  return [...jobs].sort((a, b) => {
+    const aScore = a.match_score ?? -1
+    const bScore = b.match_score ?? -1
+    if (bScore !== aScore) return bScore - aScore
+    const aTime = a.pulled_at ? new Date(a.pulled_at).getTime() : 0
+    const bTime = b.pulled_at ? new Date(b.pulled_at).getTime() : 0
+    return bTime - aTime
+  })
+}
+
+function capJobs(jobs: PulledJob[]): PulledJob[] {
+  return jobs.length > MAX_INMEMORY_JOBS
+    ? sortJobsByRelevance(jobs).slice(0, MAX_INMEMORY_JOBS)
+    : jobs
+}
+
 type SlimJob = Omit<PulledJob, 'description'> & { description: string }
 
 function readJobsCache(): PulledJob[] {
@@ -131,8 +157,9 @@ export const useApiCache = create<ApiCacheState>((set) => ({
   profileForm   : null,
 
   setPulledJobs: (jobs) => {
-    writeJobsCache(jobs)
-    set({ pulledJobs: jobs })
+    const capped = capJobs(jobs)
+    writeJobsCache(capped)
+    set({ pulledJobs: capped })
   },
 
   setJobStats: (stats) => {
@@ -159,7 +186,7 @@ export const useApiCache = create<ApiCacheState>((set) => ({
     set((s) => {
       const map = new Map(s.pulledJobs.map((j) => [j.id, j]))
       for (const j of fresh) map.set(j.id, j)
-      const merged = [...map.values()]
+      const merged = capJobs([...map.values()])
       writeJobsCache(merged)
       return { pulledJobs: merged }
     }),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useApiCache } from '../../store/useApiCache'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -9,6 +9,7 @@ import {
 import { profileApi, portfolioApi } from '../../lib/api'
 import type { UserProfile, PortfolioConfig } from '../../lib/api'
 import { TEMPLATE_REGISTRY } from './templates'
+import TemplateSkeleton from './templates/TemplateSkeleton'
 import type { TextOverrides } from './types'
 
 // ── Section keys ──────────────────────────────────────────────────────────────
@@ -387,15 +388,17 @@ export default function PortfolioPage() {
 
               {/* Scaled template */}
               <div style={{ transform: 'scale(0.72)', transformOrigin: 'top left', width: '138.9%', pointerEvents: 'none' }}>
-                <TemplateComponent
-                  profile={previewProfile}
-                  primaryColor={primaryColor}
-                  accentColor={accentColor}
-                  showSections={showSections}
-                  heroGradient={heroGradient}
-                  profilePhoto={profilePhotoUrl ?? undefined}
-                  textOverrides={Object.keys(textOverrides).length ? textOverrides : undefined}
-                />
+                <Suspense fallback={<TemplateSkeleton />}>
+                  <TemplateComponent
+                    profile={previewProfile}
+                    primaryColor={primaryColor}
+                    accentColor={accentColor}
+                    showSections={showSections}
+                    heroGradient={heroGradient}
+                    profilePhoto={profilePhotoUrl ?? undefined}
+                    textOverrides={Object.keys(textOverrides).length ? textOverrides : undefined}
+                  />
+                </Suspense>
               </div>
             </div>
 

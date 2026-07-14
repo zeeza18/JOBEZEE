@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   ArrowUpRight, Ban, Bookmark, BookmarkCheck, Bot, Briefcase, Building2,
   CheckCircle2, ChevronRight, DollarSign, Download, Eye, EyeOff, Filter,
@@ -13,7 +14,7 @@ import {
 import { applyApi, jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
 import { useAppStore } from '../../store/useAppStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
-import { useApiCache } from '../../store/useApiCache'
+import { useApiCache, MAX_INMEMORY_JOBS, sortJobsByRelevance } from '../../store/useApiCache'
 // useApiCache.getState() reads store outside React without subscribing
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1416,10 +1417,22 @@ export default function PulledJobsPage() {
     }
   }, [])
 
+  // Merge a fresh batch into the existing in-memory list (dedupe by id, keep
+  // the most relevant/recent MAX_INMEMORY_JOBS) instead of accumulating the
+  // user's entire job history forever.
+  const mergeAndCap = useCallback((prev: PulledJob[], fresh: PulledJob[]) => {
+    const map = new Map(prev.map(j => [j.id, j]))
+    for (const j of fresh) map.set(j.id, j)
+    return sortJobsByRelevance([...map.values()]).slice(0, MAX_INMEMORY_JOBS)
+  }, [])
+
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
-      // First batch + stats in parallel
+      // Only ever fetch one page here — pagination beyond this is handled by
+      // loadMore() (infinite scroll). This keeps every reload (including the
+      // 60s/5s/hourly polls) cheap and bounded, instead of walking the user's
+      // entire job history on every trigger.
       const [firstBatch, statsData] = await Promise.all([
         jobsApi.list({ limit: BATCH, offset: 0 }),
         jobsApi.stats(),
@@ -1427,43 +1440,38 @@ export default function PulledJobsPage() {
       setStats(statsData)
       cache.setJobStats(statsData)
 
-      // On non-silent loads (first ever visit) show first batch immediately
       if (!silent) {
+        // Cold load — replace entirely
         setJobs(firstBatch)
+        cache.setPulledJobs(firstBatch)
         setLoading(false)
+      } else {
+        // Warm reload — merge the newest batch into whatever's already
+        // loaded (preserves pages fetched via loadMore/infinite scroll)
+        setJobs(prev => mergeAndCap(prev, firstBatch))
+        cache.mergeJobs(firstBatch)
       }
       prefetchDescs(firstBatch)
-
-      // Load all remaining batches
-      const allJobs = [...firstBatch]
-      if (firstBatch.length === BATCH) {
-        let offset = BATCH
-        while (true) {
-          const batch = await jobsApi.list({ limit: BATCH, offset })
-          if (batch.length === 0) break
-          allJobs.push(...batch)
-          if (!silent) {
-            // Progressive reveal on first load
-            setJobs(prev => {
-              const existing = new Set(prev.map(j => j.id))
-              const fresh = batch.filter(j => !existing.has(j.id))
-              return fresh.length > 0 ? [...prev, ...fresh] : prev
-            })
-          }
-          if (batch.length < BATCH) break
-          offset += BATCH
-        }
-      }
-
-      // Atomic update: on silent (cache-hit) reload, swap all-at-once so there's no flash
-      if (silent) setJobs(allJobs)
-      cache.setPulledJobs(allJobs)
-
     } catch {
       if (!silent) pushToast({ title: 'Could not load jobs', type: 'error' })
       if (!silent) setLoading(false)
     }
-  }, [pushToast, prefetchDescs, cache])
+  }, [pushToast, prefetchDescs, cache, mergeAndCap])
+
+  // ── Infinite scroll — fetch the next page on demand instead of eagerly ──────
+  const [loadingMore, setLoadingMore] = useState(false)
+  const loadMore = useCallback(async () => {
+    if (loadingMore || jobs.length >= MAX_INMEMORY_JOBS) return
+    setLoadingMore(true)
+    try {
+      const batch = await jobsApi.list({ limit: BATCH, offset: jobs.length })
+      if (batch.length > 0) {
+        setJobs(prev => mergeAndCap(prev, batch))
+        cache.mergeJobs(batch)
+      }
+    } catch { /* next scroll attempt will retry */ }
+    finally { setLoadingMore(false) }
+  }, [jobs.length, loadingMore, cache, mergeAndCap])
 
   // On mount: if cache has jobs, skip spinner and load silently in background
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1492,11 +1500,36 @@ export default function PulledJobsPage() {
     return () => clearInterval(id)
   }, [load, cache])
 
+  // ── Curated tabs (saved/hidden/applied) bypass the MAX_INMEMORY_JOBS cap ────
+  // These sets are naturally small (tens–low hundreds) but can contain jobs
+  // that fall outside the general list's relevance/recency cap — fetch them
+  // directly from the server instead of filtering the capped `jobs` array,
+  // so an older saved/hidden/applied job never silently disappears.
+  const [curatedJobs, setCuratedJobs] = useState<PulledJob[]>([])
+  const [curatedLoading, setCuratedLoading] = useState(false)
+  const isCuratedTab = activeTab === 'saved' || activeTab === 'hidden' || activeTab === 'applied'
+
+  useEffect(() => {
+    if (!isCuratedTab) return
+    let cancelled = false
+    setCuratedLoading(true)
+    const fetchCurated = activeTab === 'saved'
+      // "saved" covers both 'saved' and 'favourite' statuses — backend status filter is exact-match
+      ? Promise.all([
+          jobsApi.list({ status: 'saved', limit: 1000 }),
+          jobsApi.list({ status: 'favourite', limit: 1000 }),
+        ]).then(([a, b]) => [...a, ...b])
+      : jobsApi.list({ status: activeTab, limit: 1000 })
+    fetchCurated
+      .then(result => { if (!cancelled) setCuratedJobs(result) })
+      .catch(() => { /* leave stale data visible; user can retry via tab switch */ })
+      .finally(() => { if (!cancelled) setCuratedLoading(false) })
+    return () => { cancelled = true }
+  }, [activeTab, isCuratedTab])
 
   // ── Incremental poll during search ───────────────────────────────────────────
-  // New jobs land at position 0 (ordered by pulled_at desc), so offset-based
-  // incremental fetching won't work. Instead: on each new batch detected, do a
-  // silent full reload so the UI always reflects the DB state.
+  // New jobs land at position 0 (ordered by pulled_at desc). On each new batch
+  // detected, merge the newest page in (load(true) now merges, not replaces).
   const fetchNewBatch = useCallback(async (sid: string) => {
     try {
       const st = await searchApi.status(sid)
@@ -1568,6 +1601,7 @@ export default function PulledJobsPage() {
     try {
       const res = await jobsApi.clearAll()
       setJobs([])
+      setCuratedJobs([])
       setStats(null)
       sessionJobsCount.current = 0
       autoSearchFired.current = false
@@ -1601,10 +1635,24 @@ export default function PulledJobsPage() {
 
   // ── Status change ─────────────────────────────────────────────────────────────
   const handleStatusChange = (id: string, newStatus: string) => {
-    const oldStatus = jobs.find(j => j.id === id)?.status
+    const oldStatus = jobs.find(j => j.id === id)?.status ?? curatedJobs.find(j => j.id === id)?.status
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: newStatus } : j))
     cache.updateJobStatus(id, newStatus)   // keep global cache in sync
     setSelectedJob(prev => prev?.id === id ? { ...prev, status: newStatus } : prev)
+    // Keep the curated-tab list (which lives outside the capped `jobs` array)
+    // in sync so status changes reflect immediately without a refetch.
+    if (isCuratedTab) {
+      setCuratedJobs(prev => {
+        const stillBelongs =
+          (activeTab === 'saved'   && (newStatus === 'saved' || newStatus === 'favourite')) ||
+          (activeTab === 'hidden'  && newStatus === 'hidden') ||
+          (activeTab === 'applied' && newStatus === 'applied')
+        if (!prev.some(j => j.id === id)) return prev
+        return stillBelongs
+          ? prev.map(j => j.id === id ? { ...j, status: newStatus } : j)
+          : prev.filter(j => j.id !== id)
+      })
+    }
     if (oldStatus && oldStatus !== newStatus) {
       setStats(s => {
         if (!s) return s
@@ -2051,7 +2099,11 @@ export default function PulledJobsPage() {
     const userYears  = resolveUserYears(userProfile?.experience_level ?? '', userProfile?.years_experience ?? '')
     const prefLocs   = userProfile?.preferred_locations ?? []
 
-    return jobs.filter(j => {
+    // Curated tabs (saved/hidden/applied) read from their own server-filtered
+    // fetch so they aren't subject to the general list's relevance/recency cap.
+    const source = isCuratedTab ? curatedJobs : jobs
+
+    return source.filter(j => {
       // Tab filter
       if (activeTab === 'new')      return j.status !== 'hidden' && Date.now() - new Date(j.pulled_at).getTime() < 24 * 3_600_000
       if (activeTab === 'saved')    return j.status === 'saved' || j.status === 'favourite'
@@ -2166,7 +2218,7 @@ export default function PulledJobsPage() {
       const scoreB = salaryScore(b, userMin, userMax) + locationMatchScore(b, prefLocs) + expMatchScore(b, userYears)
       return scoreB - scoreA
     })
-  }, [jobs, activeTab, filters, userProfile, tailorJobs])
+  }, [jobs, curatedJobs, isCuratedTab, activeTab, filters, userProfile, tailorJobs])
 
   // ── Tab counts ───────────────────────────────────────────────────────────────
   const allCount = useMemo(
@@ -2205,6 +2257,16 @@ export default function PulledJobsPage() {
     filters.workMode !== 'any' || filters.jobType !== 'any' ||
     filters.expLevel !== 'any' || filters.sourceType !== 'any'
   )
+
+  // ── Virtualized list — only mount DOM/motion nodes for on-screen rows ───────
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const rowVirtualizer = useVirtualizer({
+    count            : visible.length,
+    getScrollElement : () => scrollRef.current,
+    estimateSize     : () => 150,
+    overscan         : 6,
+    getItemKey       : (index) => visible[index]?.id ?? index,
+  })
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -2310,8 +2372,16 @@ export default function PulledJobsPage() {
       </div>{/* end sticky top bar */}
 
       {/* ── Job list — scrolls independently ── */}
-      <div className="flex-1 overflow-y-auto w-full max-w-full px-4 py-4">
-        {loading ? (
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto w-full max-w-full px-4 py-4"
+        onScroll={(e) => {
+          if (isCuratedTab) return   // curated tabs fetch everything (capped at 1000) up front
+          const el = e.currentTarget
+          if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) loadMore()
+        }}
+      >
+        {(isCuratedTab ? curatedLoading && curatedJobs.length === 0 : loading) ? (
           <div className="grid grid-cols-1 gap-3">
             {[1,2,3,4,5,6].map(i => (
               <div key={i} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm animate-pulse">
@@ -2384,29 +2454,44 @@ export default function PulledJobsPage() {
             )}
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 gap-3">
-              <AnimatePresence initial={false}>
-                {visible.map(job => (
-                  <motion.div key={job.id}
-                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    <JobCard
-                      job={job}
-                      tailorState={tailorJobs.get(job.id)}
-                      applyState={applyJobs.get(job.id)}
-                      onStatusChange={handleStatusChange}
-                      onOpenDrawer={setSelectedJob}
-                      onTailor={handleTailor}
-                      onAutoApply={handleAutoApply}
-                      onDeleteTailor={handleDeleteTailor}
-                      convertHourly={jobSettings.convertHourlyToMonthly}
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          </>
+          <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }} className="w-full">
+            <AnimatePresence initial={false}>
+              {rowVirtualizer.getVirtualItems().map(virtualRow => {
+                const job = visible[virtualRow.index]
+                if (!job) return null
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
+                    className="pb-3"
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                      <JobCard
+                        job={job}
+                        tailorState={tailorJobs.get(job.id)}
+                        applyState={applyJobs.get(job.id)}
+                        onStatusChange={handleStatusChange}
+                        onOpenDrawer={setSelectedJob}
+                        onTailor={handleTailor}
+                        onAutoApply={handleAutoApply}
+                        onDeleteTailor={handleDeleteTailor}
+                        convertHourly={jobSettings.convertHourlyToMonthly}
+                      />
+                    </motion.div>
+                  </div>
+                )
+              })}
+            </AnimatePresence>
+            {loadingMore && !isCuratedTab && (
+              <div className="flex justify-center py-4 text-slate-400" style={{ position: 'absolute', top: rowVirtualizer.getTotalSize(), left: 0, width: '100%' }}>
+                <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
+              </div>
+            )}
+          </div>
         )}
       </div>
 

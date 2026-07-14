@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { SearchX } from 'lucide-react'
@@ -93,11 +93,13 @@ export default function PortfolioPublic() {
   }
 
   return (
-    <TemplateComponent
-      profile={profile}
-      primaryColor={primaryColor}
-      accentColor={accentColor}
-      showSections={showSections}
-    />
+    <Suspense fallback={<LoadingScreen />}>
+      <TemplateComponent
+        profile={profile}
+        primaryColor={primaryColor}
+        accentColor={accentColor}
+        showSections={showSections}
+      />
+    </Suspense>
   )
 }
