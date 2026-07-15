@@ -292,20 +292,38 @@ function jobInfoCount(job: PulledJob): number {
   return n
 }
 
-// Classic ellipsis pagination: 1 … 4 5 6 … 20 — always shows first/last page
-// plus a small window around the current page.
-function buildPageNumbers(current: number, total: number, windowSize = 1): (number | '…')[] {
-  if (total <= 1) return [1]
-  const mid: number[] = []
-  for (let i = Math.max(2, current - windowSize); i <= Math.min(total - 1, current + windowSize); i++) {
-    mid.push(i)
+// Editable "current page" box inside the pagination bar — type a number and
+// hit Enter (or blur) to jump straight there instead of clicking Next N times.
+function PageJumpBox({
+  page, totalPages, onJump, disabled,
+}: {
+  page       : number
+  totalPages : number
+  onJump     : (p: number) => void
+  disabled?  : boolean
+}) {
+  const [text, setText] = useState(String(page))
+  useEffect(() => { setText(String(page)) }, [page])
+
+  const commit = () => {
+    const n = parseInt(text, 10)
+    if (!isNaN(n) && n !== page) onJump(Math.min(totalPages, Math.max(1, n)))
+    else setText(String(page))
   }
-  const pages: (number | '…')[] = [1]
-  if (mid[0] > 2) pages.push('…')
-  pages.push(...mid)
-  if (mid[mid.length - 1] < total - 1) pages.push('…')
-  pages.push(total)
-  return pages
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={text}
+      disabled={disabled}
+      onChange={e => setText(e.target.value.replace(/[^0-9]/g, ''))}
+      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+      onBlur={commit}
+      title={`Jump to page (1–${totalPages})`}
+      className="shrink-0 w-10 rounded-lg border border-cyan-500 bg-cyan-50 px-1 py-1.5 text-center text-sm font-semibold text-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:opacity-40"
+    />
+  )
 }
 
 // ─── Lightweight markdown renderer ────────────────────────────────────────────
@@ -2594,13 +2612,19 @@ export default function PulledJobsPage() {
         )}
       </div>
 
-      {/* ── Pagination — ALL/NEW tabs page through the server in 100-job chunks ── */}
+      {/* ── Pagination — ALL/NEW tabs page through the server in 100-job chunks ──
+          Sliding window of 2 pages on each side of current, with the current
+          page rendered as an editable box — type a number + Enter to jump
+          straight there instead of clicking Next repeatedly. ── */}
       {(activeTab === 'all' || activeTab === 'new') && (() => {
         const total      = activeTab === 'all' ? allCount : newCount
         const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
         if (total <= PAGE_SIZE) return null
 
-        const pageNumbers = buildPageNumbers(page, totalPages)
+        const windowPages: number[] = []
+        for (let p = page - 2; p <= page + 2; p++) {
+          if (p >= 1 && p <= totalPages) windowPages.push(p)
+        }
 
         return (
           <div className="flex-shrink-0 flex items-center justify-center gap-1.5 border-t border-slate-100 bg-white px-4 py-2.5 overflow-x-auto">
@@ -2612,26 +2636,24 @@ export default function PulledJobsPage() {
               Prev
             </button>
 
-            {pageNumbers.map((n, i) =>
-              n === '…' ? (
-                <span key={`ellipsis-${i}`} className="shrink-0 px-1 text-sm text-slate-400 select-none">…</span>
+            {windowPages.map(p =>
+              p === page ? (
+                <PageJumpBox key="jump" page={page} totalPages={totalPages} onJump={setPage} disabled={pageFetching} />
               ) : (
                 <button
-                  key={n}
-                  onClick={() => setPage(n)}
+                  key={p}
+                  onClick={() => setPage(p)}
                   disabled={pageFetching}
-                  className={`shrink-0 min-w-[2rem] rounded-lg border px-2.5 py-1.5 text-sm font-medium transition disabled:opacity-40 ${
-                    n === page
-                      ? 'border-cyan-500 bg-cyan-50 text-cyan-700'
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                  }`}
+                  className="shrink-0 min-w-[2rem] rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
                 >
-                  {n}
+                  {p}
                 </button>
               )
             )}
 
             {pageFetching && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-cyan-500 mx-1" />}
+
+            <span className="shrink-0 text-xs text-slate-400 px-1">of {totalPages}</span>
 
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
