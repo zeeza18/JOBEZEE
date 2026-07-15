@@ -321,7 +321,7 @@ function PageJumpBox({
       onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
       onBlur={commit}
       title={`Jump to page (1–${totalPages})`}
-      className="shrink-0 w-10 rounded-lg border border-cyan-500 bg-cyan-50 px-1 py-1.5 text-center text-sm font-semibold text-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:opacity-40"
+      className="shrink-0 w-12 rounded-xl border-2 border-cyan-600 bg-cyan-600 px-1 py-1.5 text-center text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-1 disabled:opacity-40"
     />
   )
 }
@@ -2613,9 +2613,9 @@ export default function PulledJobsPage() {
       </div>
 
       {/* ── Pagination — ALL/NEW tabs page through the server in 100-job chunks ──
-          Fixed layout: Prev, first page, an editable jump box (the only place
-          to type a page number), last page, Next. Stays 5 elements wide no
-          matter how many pages there are. ── */}
+          Sliding trio: [page-1] [current — editable] [page+1], auto-shifting
+          as you move. Prev/Next only appear when there's actually somewhere
+          to go (no Prev on page 1, no Next on the last page). ── */}
       {(activeTab === 'all' || activeTab === 'new') && (() => {
         const total      = activeTab === 'all' ? allCount : newCount
         const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -2623,9 +2623,10 @@ export default function PulledJobsPage() {
 
         const PageBtn = (p: number) => (
           <button
+            key={p}
             onClick={() => setPage(p)}
             disabled={pageFetching}
-            className="shrink-0 min-w-[2rem] rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+            className="shrink-0 min-w-[2.25rem] rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-40"
           >
             {p}
           </button>
@@ -2633,27 +2634,32 @@ export default function PulledJobsPage() {
 
         return (
           <div className="flex-shrink-0 flex items-center justify-center gap-1.5 border-t border-slate-100 bg-white px-4 py-2.5 overflow-x-auto">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page <= 1 || pageFetching}
-              className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
-            >
-              Prev
-            </button>
+            {page > 1 && (
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={pageFetching}
+                className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+              >
+                Prev
+              </button>
+            )}
 
-            {PageBtn(1)}
+            {page - 1 >= 1 && PageBtn(page - 1)}
             <PageJumpBox key="jump" page={page} totalPages={totalPages} onJump={setPage} disabled={pageFetching} />
-            {totalPages > 1 && PageBtn(totalPages)}
+            {page + 1 <= totalPages && PageBtn(page + 1)}
 
             {pageFetching && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-cyan-500 mx-1" />}
+            <span className="shrink-0 text-xs text-slate-400 px-1">of {totalPages}</span>
 
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages || pageFetching}
-              className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
-            >
-              Next
-            </button>
+            {page < totalPages && (
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={pageFetching}
+                className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+              >
+                Next
+              </button>
+            )}
           </div>
         )
       })()}
