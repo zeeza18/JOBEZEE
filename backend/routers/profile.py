@@ -129,11 +129,19 @@ async def update_profile(
     await db.commit()
     await db.refresh(profile)
 
-    # If search preferences changed: wipe old jobs and kick off a fresh search
+    # If search preferences changed: clear un-acted-upon suggestions and kick off
+    # a fresh search. Only 'new' jobs are cleared — saved/hidden/applied/favourite
+    # jobs are the user's own decisions and must survive a preference tweak
+    # (e.g. adding one more desired role must not wipe an already-applied job).
     if search_changed and (profile.desired_roles or []):
-        # Wipe old per-user job states (global pool jobs stay, just remove this user's states)
-        await db.execute(delete(UserJobState).where(UserJobState.user_id == str(current_user.id)))
-        await db.execute(delete(PulledJob).where(PulledJob.user_profile_id == pid))
+        await db.execute(delete(UserJobState).where(
+            UserJobState.user_id == str(current_user.id),
+            UserJobState.status == "new",
+        ))
+        await db.execute(delete(PulledJob).where(
+            PulledJob.user_profile_id == pid,
+            PulledJob.status == "new",
+        ))
         await db.commit()
 
         # Only trigger if no search is already running
