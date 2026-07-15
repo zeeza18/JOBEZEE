@@ -14,7 +14,7 @@ import {
 import { applyApi, jobsApi, profileApi, searchApi, tailorApi, type JobStats, type PulledJob, type UserProfile } from '../../lib/api'
 import { useAppStore } from '../../store/useAppStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
-import { useApiCache, MAX_INMEMORY_JOBS, sortJobsByRelevance } from '../../store/useApiCache'
+import { useApiCache } from '../../store/useApiCache'
 // useApiCache.getState() reads store outside React without subscribing
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1354,9 +1354,8 @@ export default function PulledJobsPage() {
   const cache = useApiCache()
 
   // ── Data state — lazy-init from cache so re-visits show instantly ─────────────
-  const [jobs, setJobs]               = useState<PulledJob[]>(() => cache.pulledJobs)
+  const [jobs, setJobs]               = useState<PulledJob[]>(() => cache.pulledJobs.slice(0, 100))
   const [stats, setStats]             = useState<JobStats | null>(() => cache.jobStats)
-  const [loading, setLoading]         = useState(cache.pulledJobs.length === 0)
   const [searching, setSearching]     = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
 
@@ -1397,8 +1396,9 @@ export default function PulledJobsPage() {
   const autoSearchFired    = useRef(false) // fire auto-search only once per mount
   const descCache          = useRef<Map<string, string>>(new Map()) // pre-fetched JD cache
 
-  // ── Load jobs + stats — first batch shows immediately, rest load in background ─
-  const BATCH = 50
+  // ── Paginated ALL / NEW tabs — 100 jobs per page, server-filtered by time
+  // window + status so the page never has to hold the user's entire history.
+  const PAGE_SIZE = 100
 
   // ── Background pre-fetch job descriptions (top N, 3 at a time) ──────────────
   const prefetchDescs = useCallback(async (jobList: PulledJob[]) => {
@@ -1417,96 +1417,85 @@ export default function PulledJobsPage() {
     }
   }, [])
 
-  // Merge a fresh batch into the existing in-memory list (dedupe by id, keep
-  // the most relevant/recent MAX_INMEMORY_JOBS) instead of accumulating the
-  // user's entire job history forever.
-  const mergeAndCap = useCallback((prev: PulledJob[], fresh: PulledJob[]) => {
-    const map = new Map(prev.map(j => [j.id, j]))
-    for (const j of fresh) map.set(j.id, j)
-    return sortJobsByRelevance([...map.values()]).slice(0, MAX_INMEMORY_JOBS)
-  }, [])
+  const [page, setPage] = useState(1)
+  const [pageFetching, setPageFetching] = useState(false)
+  const activeTabRef = useRef(activeTab)
+  useEffect(() => { activeTabRef.current = activeTab }, [activeTab])
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
+  // Fetch one page (100 jobs) for the ALL or NEW tab. ALL = past 30 days,
+  // excluding hidden/saved/favourite (same scope as the dashboard's
+  // "Openings" stat — see stats.open_30d). NEW = past 24h, excluding hidden.
+  const loadPage = useCallback(async (tab: 'all' | 'new', pageNum: number, silent = false) => {
+    setPageFetching(true)
     try {
-      // Only ever fetch one page here — pagination beyond this is handled by
-      // loadMore() (infinite scroll). This keeps every reload (including the
-      // 60s/5s/hourly polls) cheap and bounded, instead of walking the user's
-      // entire job history on every trigger.
-      const [firstBatch, statsData] = await Promise.all([
-        jobsApi.list({ limit: BATCH, offset: 0 }),
+      const hours   = tab === 'all' ? 24 * 30 : 24
+      const exclude = tab === 'all' ? 'hidden,saved,favourite' : 'hidden'
+      const [batch, statsData] = await Promise.all([
+        jobsApi.list({ limit: PAGE_SIZE, offset: (pageNum - 1) * PAGE_SIZE, hours, exclude }),
         jobsApi.stats(),
       ])
       setStats(statsData)
       cache.setJobStats(statsData)
-
-      if (!silent) {
-        // Cold load — replace entirely
-        setJobs(firstBatch)
-        cache.setPulledJobs(firstBatch)
-        setLoading(false)
-      } else {
-        // Warm reload — merge the newest batch into whatever's already
-        // loaded (preserves pages fetched via loadMore/infinite scroll)
-        setJobs(prev => mergeAndCap(prev, firstBatch))
-        cache.mergeJobs(firstBatch)
+      // Guard against a stale response landing after the user already
+      // switched tabs (e.g. a background poll resolving late).
+      if (activeTabRef.current === tab) {
+        setJobs(batch)
+        if (pageNum === 1) cache.setPulledJobs(batch)
+        prefetchDescs(batch)
       }
-      prefetchDescs(firstBatch)
     } catch {
       if (!silent) pushToast({ title: 'Could not load jobs', type: 'error' })
-      if (!silent) setLoading(false)
+    } finally {
+      setPageFetching(false)
     }
-  }, [pushToast, prefetchDescs, cache, mergeAndCap])
+  }, [pushToast, prefetchDescs, cache])
 
-  // ── Infinite scroll — fetch the next page on demand instead of eagerly ──────
-  const [loadingMore, setLoadingMore] = useState(false)
-  const loadMore = useCallback(async () => {
-    if (loadingMore || jobs.length >= MAX_INMEMORY_JOBS) return
-    setLoadingMore(true)
-    try {
-      const batch = await jobsApi.list({ limit: BATCH, offset: jobs.length })
-      if (batch.length > 0) {
-        setJobs(prev => mergeAndCap(prev, batch))
-        cache.mergeJobs(batch)
-      }
-    } catch { /* next scroll attempt will retry */ }
-    finally { setLoadingMore(false) }
-  }, [jobs.length, loadingMore, cache, mergeAndCap])
+  // Fetch the current page whenever the ALL/NEW tab or page number changes
+  // (this also covers the very first mount, since activeTab/page start at
+  // 'all'/1). Curated tabs (saved/hidden/applied) have their own effect below.
+  useEffect(() => {
+    if (activeTab !== 'all' && activeTab !== 'new') return
+    loadPage(activeTab, page)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, page])
 
-  // On mount: if cache has jobs, skip spinner and load silently in background
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { load(cache.pulledJobs.length > 0) }, [])
+  // Background refresh: only touch the visible list if the user is on page 1
+  // of the ALL/NEW tab (don't yank them off whatever page they're reading).
+  // Otherwise just refresh the stat counts so tab badges stay current.
+  const refreshIfOnFirstPage = useCallback(async (silent = true) => {
+    if (page === 1 && (activeTab === 'all' || activeTab === 'new')) {
+      await loadPage(activeTab, 1, silent)
+    } else {
+      try {
+        const s = await jobsApi.stats()
+        setStats(s)
+        cache.setJobStats(s)
+      } catch { /* ignore — next tick will retry */ }
+    }
+  }, [page, activeTab, loadPage, cache])
 
   // ── Live background polling — check for new jobs every 60 s ─────────────────
-  // Poll stats only (1 tiny request). Only do a full silent reload when the
-  // total count actually changes (new jobs from the hourly background bot).
   useEffect(() => {
     const POLL_MS = 60_000
     const id = setInterval(async () => {
       try {
         const fresh = await jobsApi.stats()
         const cached = useApiCache.getState().jobStats
-        const prevTotal = cached?.total ?? 0
-        if (fresh.total !== prevTotal) {
-          // New jobs arrived — reload list silently
-          await load(true)
-        } else {
-          // No new jobs — just refresh counts in-place (instant, no list reload)
-          setStats(fresh)
-          cache.setJobStats(fresh)
-        }
+        const prevTotal = cached?.open_30d ?? 0
+        setStats(fresh)
+        cache.setJobStats(fresh)
+        if (fresh.open_30d !== prevTotal) await refreshIfOnFirstPage()
       } catch { /* ignore — next tick will retry */ }
     }, POLL_MS)
     return () => clearInterval(id)
-  }, [load, cache])
+  }, [cache, refreshIfOnFirstPage])
 
-  // ── Curated tabs (saved/hidden/applied) bypass the MAX_INMEMORY_JOBS cap ────
-  // These sets are naturally small (tens–low hundreds) but can contain jobs
-  // that fall outside the general list's relevance/recency cap — fetch them
-  // directly from the server instead of filtering the capped `jobs` array,
-  // so an older saved/hidden/applied job never silently disappears.
+  // ── Curated tabs (saved/hidden/applied) — small sets, fetched in full ───────
+  // directly from the server (uncapped) so an older saved/hidden/applied job
+  // never silently disappears behind the ALL/NEW tab's 30-day pagination.
   const [curatedJobs, setCuratedJobs] = useState<PulledJob[]>([])
   const [curatedLoading, setCuratedLoading] = useState(false)
+  const [curatedRefreshKey, setCuratedRefreshKey] = useState(0)
   const isCuratedTab = activeTab === 'saved' || activeTab === 'hidden' || activeTab === 'applied'
 
   useEffect(() => {
@@ -1525,22 +1514,24 @@ export default function PulledJobsPage() {
       .catch(() => { /* leave stale data visible; user can retry via tab switch */ })
       .finally(() => { if (!cancelled) setCuratedLoading(false) })
     return () => { cancelled = true }
-  }, [activeTab, isCuratedTab])
+  }, [activeTab, isCuratedTab, curatedRefreshKey])
 
   // ── Incremental poll during search ───────────────────────────────────────────
   // New jobs land at position 0 (ordered by pulled_at desc). On each new batch
-  // detected, merge the newest page in (load(true) now merges, not replaces).
+  // detected, refresh page 1 of whichever of ALL/NEW the user is viewing.
   const fetchNewBatch = useCallback(async (sid: string) => {
     try {
       const st = await searchApi.status(sid)
       if (st.jobs_found > sessionJobsCount.current) {
         sessionJobsCount.current = st.jobs_found
-        await load(true)
+        setPage(1)
+        await refreshIfOnFirstPage(true)
       }
       if (st.status !== 'running') {
         setPolling(false)
         if (pollTimer.current) clearInterval(pollTimer.current)
-        await load(true)   // final sync
+        setPage(1)
+        await refreshIfOnFirstPage(true)   // final sync
 
         // After boards complete, silently fire Workday as a second session
         // so board results are always visible first
@@ -1555,7 +1546,7 @@ export default function PulledJobsPage() {
       setPolling(false)
       if (pollTimer.current) clearInterval(pollTimer.current)
     }
-  }, [load])
+  }, [refreshIfOnFirstPage])
 
   useEffect(() => {
     if (!polling || !sessionId) return
@@ -1603,6 +1594,7 @@ export default function PulledJobsPage() {
       setJobs([])
       setCuratedJobs([])
       setStats(null)
+      setPage(1)
       sessionJobsCount.current = 0
       autoSearchFired.current = false
       pushToast({ title: `Cleared ${res.deleted} jobs — searching now…`, type: 'success' })
@@ -1613,25 +1605,28 @@ export default function PulledJobsPage() {
   }, [pushToast, triggerSearch])
 
   // ── Auto-search on first visit when DB is empty and profile has roles ─────────
+  // Uses stats.total (unaffected by the ALL/NEW tab's status/date filters) so a
+  // user whose only jobs are e.g. all "saved" doesn't get a spurious re-search.
   useEffect(() => {
     if (autoSearchFired.current) return
-    if (loading) return
+    if (pageFetching) return
     if (userProfile === null) return
     if ((userProfile.desired_roles ?? []).length === 0) return
-    if (jobs.length > 0) return
+    if (stats === null) return
+    if ((stats.total ?? 0) > 0) return
     autoSearchFired.current = true
     triggerSearch()
-  }, [loading, userProfile, jobs.length, triggerSearch])
+  }, [pageFetching, userProfile, stats, triggerSearch])
 
   // ── Silent reload every 1 hour to pick up cron-triggered jobs ───────────────
-  // Backend cron runs every hour for all users. Frontend just silently reloads
-  // the list so new jobs appear without user doing anything.
+  // Backend cron runs every hour for all users. Frontend just silently refreshes
+  // so new jobs appear without user doing anything.
   useEffect(() => {
     const id = setInterval(() => {
-      if (!polling && !searching) load(true)
+      if (!polling && !searching) refreshIfOnFirstPage()
     }, ONE_HOUR)
     return () => clearInterval(id)
-  }, [polling, searching, load])
+  }, [polling, searching, refreshIfOnFirstPage])
 
   // ── Status change ─────────────────────────────────────────────────────────────
   const handleStatusChange = (id: string, newStatus: string) => {
@@ -2221,26 +2216,26 @@ export default function PulledJobsPage() {
   }, [jobs, curatedJobs, isCuratedTab, activeTab, filters, userProfile, tailorJobs])
 
   // ── Tab counts ───────────────────────────────────────────────────────────────
-  const allCount = useMemo(
-    () => jobs.filter(j =>
-      j.status !== 'hidden' &&
-      j.status !== 'saved' &&
-      j.status !== 'favourite' &&
-      !(tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error')
-    ).length,
-    [jobs, tailorJobs],
-  )
-  const newCount = useMemo(
-    () => jobs.filter(j => j.status !== 'hidden' && Date.now() - new Date(j.pulled_at).getTime() < 24 * 3_600_000).length,
-    [jobs],
-  )
+  // ALL/NEW badges read straight from the server counts (stats.open_30d /
+  // stats.new_24h) — the same numbers the dashboard's "Openings" stat shows —
+  // instead of counting the current 100-job page, so the badge always
+  // reflects the true pagination total, not just what's currently loaded.
+  const allCount      = stats?.open_30d ?? 0
+  const newCount       = stats?.new_24h ?? 0
   const savedCount    = stats ? ((stats.saved || 0) + (stats.favourite || 0)) : 0
   const hiddenCount   = stats?.hidden ?? 0
   const appliedCount  = stats?.applied ?? 0
-  const tailoredCount = useMemo(
-    () => jobs.filter(j => (tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error') || j.status === 'applied').length,
-    [jobs, tailorJobs],
-  )
+  const tailoredCount = useMemo(() => {
+    const tailoredIds = new Set<string>()
+    let count = 0
+    for (const [id, v] of tailorJobs) {
+      if (v.status === 'error') continue
+      tailoredIds.add(id)
+      count++
+    }
+    for (const j of jobs) if (j.status === 'applied' && !tailoredIds.has(j.id)) count++
+    return count
+  }, [jobs, tailorJobs])
 
   const TABS = [
     { key: 'all'      as const, label: 'ALL',      count: allCount      },
@@ -2328,9 +2323,15 @@ export default function PulledJobsPage() {
           </button>
 
           {/* Refresh */}
-          <button onClick={() => load()} disabled={loading} title="Refresh job list"
+          <button
+            onClick={() => {
+              if (activeTab === 'all' || activeTab === 'new') loadPage(activeTab, page)
+              else if (isCuratedTab) setCuratedRefreshKey(k => k + 1)
+            }}
+            disabled={pageFetching || curatedLoading}
+            title="Refresh job list"
             className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-300 transition disabled:opacity-50 shrink-0">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${(pageFetching || curatedLoading) ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
@@ -2350,7 +2351,7 @@ export default function PulledJobsPage() {
             {TABS.map(tab => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => { setActiveTab(tab.key); setPage(1) }}
                 className={`flex items-center gap-1 px-2.5 md:px-4 py-2.5 text-[11px] md:text-sm font-semibold tracking-wide border-b-2 transition-colors shrink-0 whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'border-cyan-500 text-cyan-700'
@@ -2375,13 +2376,8 @@ export default function PulledJobsPage() {
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto w-full max-w-full px-4 py-4"
-        onScroll={(e) => {
-          if (isCuratedTab) return   // curated tabs fetch everything (capped at 1000) up front
-          const el = e.currentTarget
-          if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) loadMore()
-        }}
       >
-        {(isCuratedTab ? curatedLoading && curatedJobs.length === 0 : loading) ? (
+        {(isCuratedTab ? curatedLoading && curatedJobs.length === 0 : pageFetching && jobs.length === 0) ? (
           <div className="grid grid-cols-1 gap-3">
             {[1,2,3,4,5,6].map(i => (
               <div key={i} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm animate-pulse">
@@ -2486,14 +2482,37 @@ export default function PulledJobsPage() {
                 )
               })}
             </AnimatePresence>
-            {loadingMore && !isCuratedTab && (
-              <div className="flex justify-center py-4 text-slate-400" style={{ position: 'absolute', top: rowVirtualizer.getTotalSize(), left: 0, width: '100%' }}>
-                <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
-              </div>
-            )}
           </div>
         )}
       </div>
+
+      {/* ── Pagination — ALL/NEW tabs page through the server in 100-job chunks ── */}
+      {(activeTab === 'all' || activeTab === 'new') && (() => {
+        const total      = activeTab === 'all' ? allCount : newCount
+        const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+        return total > PAGE_SIZE ? (
+          <div className="flex-shrink-0 flex items-center justify-center gap-3 border-t border-slate-100 bg-white px-4 py-2.5">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1 || pageFetching}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span className="flex items-center gap-1.5 text-sm text-slate-500">
+              {pageFetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-500" />}
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages || pageFetching}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        ) : null
+      })()}
 
       {/* ── Modals / drawers ── */}
       <AnimatePresence>

@@ -147,6 +147,8 @@ export interface JobStats {
   favourite : number
   hidden    : number
   sources   : string[]
+  open_30d  : number
+  new_24h   : number
 }
 
 export interface SearchTriggerResponse {
@@ -322,15 +324,19 @@ export const jobsApi = {
     status?  : string
     source?  : string
     search?  : string
+    hours?   : number
+    exclude? : string
     limit?   : number
     offset?  : number
   }) => {
     const qs = new URLSearchParams()
-    if (params?.status) qs.set('status', params.status)
-    if (params?.source) qs.set('source', params.source)
-    if (params?.search) qs.set('search', params.search)
-    if (params?.limit  != null) qs.set('limit',  String(params.limit))
-    if (params?.offset != null) qs.set('offset', String(params.offset))
+    if (params?.status)  qs.set('status',  params.status)
+    if (params?.source)  qs.set('source',  params.source)
+    if (params?.search)  qs.set('search',  params.search)
+    if (params?.hours   != null) qs.set('hours',   String(params.hours))
+    if (params?.exclude) qs.set('exclude', params.exclude)
+    if (params?.limit   != null) qs.set('limit',  String(params.limit))
+    if (params?.offset  != null) qs.set('offset', String(params.offset))
     const q = qs.toString()
     return get<PulledJob[]>(`/api/jobs/${q ? `?${q}` : ''}`)
   },

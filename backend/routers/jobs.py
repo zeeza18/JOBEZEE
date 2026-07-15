@@ -128,19 +128,28 @@ async def get_full_description(
     return {"description": job.description or "", "source": "cached"}
 
 
-@router.get("/", response_model=list[PulledJobResponse])
-async def list_pulled_jobs(
-    status_filter : Optional[str] = Query(None, alias="status"),
-    source_filter : Optional[str] = Query(None, alias="source"),
-    search        : Optional[str] = Query(None),
-    limit         : int           = Query(200, le=1000),
-    offset        : int           = Query(0),
-    current_user  : User          = Depends(get_current_user),
-    db            : AsyncSession  = Depends(get_db),
-) -> list[dict]:
+_EXP_LEVEL_YEARS: dict[str, tuple[int, int]] = {
+    "intern":  (0, 1),
+    "junior":  (0, 3),
+    "mid":     (2, 6),
+    "senior":  (5, 20),
+}
+
+
+async def _build_pulled_jobs_query(
+    db            : AsyncSession,
+    current_user  : User,
+    *,
+    status_filter : Optional[str] = None,
+    source_filter : Optional[str] = None,
+    search        : Optional[str] = None,
+    hours         : Optional[int] = None,
+    exclude       : Optional[str] = None,
+):
     """
-    Return jobs for the current user, joined from job_listings + user_job_states.
-    Response shape matches PulledJobResponse exactly (frontend unchanged).
+    Build the filtered job_listings + user_job_states query shared by
+    list_pulled_jobs and job_stats — keeping the two in sync guarantees the
+    ALL/NEW tab pagination totals always match the dashboard's stat counts.
     """
     user_id = current_user.id
 
@@ -179,23 +188,22 @@ async def list_pulled_jobs(
 
     if status_filter:
         q = q.where(UserJobState.status == status_filter)
+    if exclude:
+        excluded = [s.strip() for s in exclude.split(",") if s.strip()]
+        if excluded:
+            q = q.where(UserJobState.status.notin_(excluded))
     if source_filter:
         q = q.where(JobListing.source == source_filter)
     if search:
         like = f"%{search}%"
         q = q.where(JobListing.title.ilike(like) | JobListing.company.ilike(like))
+    if hours:
+        q = q.where(UserJobState.created_at >= text(f"NOW() - INTERVAL '{int(hours)} hours'"))
 
     # ── Per-user preference filters (job_type + experience_level) ───────────
     # job_type field is empty for all jobs from jobspy, so we scan title+desc.
     # exp_years_min is parsed from title/desc at pull time (NULL = unknown).
     # 4 supported experience levels: intern / junior / mid / senior.
-    _EXP_LEVEL_YEARS: dict[str, tuple[int, int]] = {
-        "intern":  (0, 1),
-        "junior":  (0, 3),
-        "mid":     (2, 6),
-        "senior":  (5, 20),
-    }
-
     profile_res = await db.execute(
         select(UserProfile.job_types, UserProfile.job_type,
                UserProfile.experience_level, UserProfile.experience_levels)
@@ -261,6 +269,30 @@ async def list_pulled_jobs(
                     and_(JobListing.exp_years_min >= lo, JobListing.exp_years_min <= hi),
                 ))
 
+    return q
+
+
+@router.get("/", response_model=list[PulledJobResponse])
+async def list_pulled_jobs(
+    status_filter : Optional[str] = Query(None, alias="status"),
+    source_filter : Optional[str] = Query(None, alias="source"),
+    search        : Optional[str] = Query(None),
+    hours         : Optional[int] = Query(None, description="Only jobs pulled within the last N hours"),
+    exclude       : Optional[str] = Query(None, description="Comma-separated statuses to exclude"),
+    limit         : int           = Query(200, le=1000),
+    offset        : int           = Query(0),
+    current_user  : User          = Depends(get_current_user),
+    db            : AsyncSession  = Depends(get_db),
+) -> list[dict]:
+    """
+    Return jobs for the current user, joined from job_listings + user_job_states.
+    Response shape matches PulledJobResponse exactly (frontend unchanged).
+    """
+    q = await _build_pulled_jobs_query(
+        db, current_user,
+        status_filter=status_filter, source_filter=source_filter, search=search,
+        hours=hours, exclude=exclude,
+    )
     q = q.limit(limit).offset(offset)
 
     rows = (await db.execute(q)).mappings().all()
@@ -269,7 +301,7 @@ async def list_pulled_jobs(
     return [
         {
             "id"                : row["id"],
-            "user_profile_id"   : uuid.UUID(user_id) if user_id else None,
+            "user_profile_id"   : uuid.UUID(current_user.id) if current_user.id else None,
             "search_session_id" : "",
             "title"             : row["title"] or "",
             "company"           : row["company"] or "",
@@ -408,6 +440,21 @@ async def job_stats(
     )
     new_48h: int = new_48h_res.scalar() or 0
 
+    # open_30d / new_24h reuse the exact same filtered query the ALL/NEW tab
+    # pagination uses (list_pulled_jobs → _build_pulled_jobs_query), so these
+    # counts always match what the Jobs page can actually page through.
+    open_q = await _build_pulled_jobs_query(
+        db, current_user, hours=24 * 30, exclude="hidden,saved,favourite",
+    )
+    open_count_q = open_q.order_by(None).with_only_columns(sqlfunc.count(), maintain_column_froms=True)
+    open_30d: int = (await db.execute(open_count_q)).scalar() or 0
+
+    new_q = await _build_pulled_jobs_query(
+        db, current_user, hours=24, exclude="hidden",
+    )
+    new_count_q = new_q.order_by(None).with_only_columns(sqlfunc.count(), maintain_column_froms=True)
+    new_24h: int = (await db.execute(new_count_q)).scalar() or 0
+
     return {
         "total"     : sum(status_map.values()),
         "new"       : new_48h,
@@ -416,4 +463,6 @@ async def job_stats(
         "favourite" : status_map.get("favourite", 0),
         "hidden"    : status_map.get("hidden", 0),
         "sources"   : sources,
+        "open_30d"  : open_30d,
+        "new_24h"   : new_24h,
     }

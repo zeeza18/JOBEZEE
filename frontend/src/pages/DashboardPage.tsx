@@ -306,30 +306,21 @@ const DashboardPage = () => {
     loadTracker()
     scanEmails()
 
-    // Background-prefetch jobs list so navigating to /jobs is instant
+    // Background-prefetch just page 1 of the Jobs page's ALL tab (same scope
+    // it'll fetch itself: past 30 days, excluding hidden/saved/favourite) so
+    // navigating to /jobs shows something instantly. The Jobs page pages
+    // through the rest itself — no need to walk the user's entire history here.
     if (useApiCache.getState().pulledJobs.length === 0) {
       ;(async () => {
         try {
           const cache2 = useApiCache.getState()
           const [statsData, page1] = await Promise.all([
             jobsApi.stats(),
-            jobsApi.list({ limit: 50, offset: 0 }),
+            jobsApi.list({ limit: 100, offset: 0, hours: 24 * 30, exclude: 'hidden,saved,favourite' }),
           ])
-          cache2.setJobStats(statsData as any)
-          setJobStats(statsData as _JobStats)
-          // Fetch remaining pages
-          const total = (statsData as _JobStats).total ?? 0
-          if (total > 50) {
-            const pages = Math.ceil(total / 50)
-            const rest = await Promise.all(
-              Array.from({ length: pages - 1 }, (_, i) =>
-                jobsApi.list({ limit: 50, offset: (i + 1) * 50 })
-              )
-            )
-            cache2.setPulledJobs([...page1, ...rest.flat()])
-          } else {
-            cache2.setPulledJobs(page1)
-          }
+          cache2.setJobStats(statsData)
+          setJobStats(statsData)
+          cache2.setPulledJobs(page1)
         } catch { /* silent — jobs page will load normally */ }
       })()
     }
@@ -425,7 +416,7 @@ const DashboardPage = () => {
           <div className="flex items-center gap-3 md:shrink-0">
             <div className="flex-1 md:flex-none md:w-32">
               <StatCard
-                count={jobStats ? jobStats.total - (jobStats.saved ?? 0) - (jobStats.hidden ?? 0) - (jobStats.favourite ?? 0) : null}
+                count={jobStats ? jobStats.open_30d : null}
                 sub={botStats?.new_jobs_count ? `${botStats.new_jobs_count} new` : undefined}
                 label="Openings" loading={statsLoad || jobStats === null}
                 accent="from-cyan-400 to-sky-500" textColor="text-cyan-600"
