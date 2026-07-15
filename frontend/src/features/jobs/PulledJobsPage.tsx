@@ -399,7 +399,7 @@ function JobDescription({ text }: { text: string }) {
 // ─── Job Detail Drawer ────────────────────────────────────────────────────────
 
 function JobDetailDrawer({
-  job, onClose, onStatusChange, tailorState, onTailor, descCache, userProfile,
+  job, onClose, onStatusChange, tailorState, onTailor, descCache, userProfile, onOpenApplyLink,
 }: {
   job            : PulledJob
   onClose        : () => void
@@ -408,6 +408,7 @@ function JobDetailDrawer({
   onTailor       : (job: PulledJob) => void
   descCache      : React.RefObject<Map<string, string>>
   userProfile?   : UserProfile | null
+  onOpenApplyLink: (job: PulledJob) => void
 }) {
   const [updating, setUpdating]         = useState(false)
   const [fullDesc, setFullDesc]         = useState<string | null>(null)
@@ -625,6 +626,7 @@ function JobDetailDrawer({
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Job URL</p>
               <a href={job.url} target="_blank" rel="noreferrer"
+                onClick={() => onOpenApplyLink(job)}
                 className="flex items-start gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-700 hover:bg-cyan-100 transition break-all">
                 <ArrowUpRight className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 {job.url}
@@ -641,7 +643,7 @@ function JobDetailDrawer({
               }
               {job.url && (
                 <p className="mt-3 text-xs text-slate-400 italic">
-                  <a href={job.url} target="_blank" rel="noreferrer" className="text-brand underline">View full posting ↗</a>
+                  <a href={job.url} target="_blank" rel="noreferrer" onClick={() => onOpenApplyLink(job)} className="text-brand underline">View full posting ↗</a>
                 </p>
               )}
             </div>
@@ -720,7 +722,7 @@ function JobDetailDrawer({
 
                 {job.url && job.status !== 'applied' && (
                   <a href={job.url} target="_blank" rel="noreferrer"
-                    onClick={async () => { await jobsApi.setStatus(job.id, 'applied').catch(() => {}); onStatusChange(job.id, 'applied'); onClose() }}
+                    onClick={() => onOpenApplyLink(job)}
                     className="ml-auto flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition">
                     <ArrowUpRight className="h-4 w-4" /> Apply
                   </a>
@@ -863,7 +865,7 @@ function MatchScoreGauge({ score }: { score: number }) {
 
 function JobCard({
   job, tailorState, applyState, onStatusChange, onOpenDrawer, onTailor, onAutoApply,
-  onDeleteTailor, convertHourly,
+  onDeleteTailor, onOpenApplyLink, convertHourly,
 }: {
   job             : PulledJob
   tailorState?    : TailorJobState
@@ -873,6 +875,7 @@ function JobCard({
   onTailor        : (job: PulledJob) => void
   onAutoApply     : (job: PulledJob) => void
   onDeleteTailor  : (jobId: string) => void
+  onOpenApplyLink : (job: PulledJob) => void
   convertHourly?  : boolean
 }) {
   const [updating, setUpdating] = useState(false)
@@ -924,7 +927,7 @@ function JobCard({
             <div className="flex items-center gap-0.5 shrink-0">
               {job.url && (
                 <a href={job.url} target="_blank" rel="noreferrer"
-                  onClick={e => e.stopPropagation()}
+                  onClick={e => { e.stopPropagation(); onOpenApplyLink(job) }}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 transition"
                   title="Open job posting">
                   <ArrowUpRight className="h-4 w-4" />
@@ -1716,6 +1719,44 @@ export default function PulledJobsPage() {
         return n
       })
     }
+  }
+
+  // ── "Did you apply?" — ask when the user comes back after opening a job link ──
+  // Clicking a job's Apply/posting link opens it in a new tab; we can't know
+  // whether they actually applied, so instead of guessing we watch for the
+  // JobEzee tab regaining visibility and ask.
+  const pendingApplyJobRef  = useRef<PulledJob | null>(null)
+  const pendingOpenedAtRef  = useRef(0)
+  const [applyPromptJob, setApplyPromptJob] = useState<PulledJob | null>(null)
+
+  const markLinkOpened = useCallback((job: PulledJob) => {
+    if (job.status === 'applied') return
+    pendingApplyJobRef.current = job
+    pendingOpenedAtRef.current = Date.now()
+  }, [])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const job = pendingApplyJobRef.current
+      if (!job) return
+      const elapsed = Date.now() - pendingOpenedAtRef.current
+      pendingApplyJobRef.current = null   // one-shot — don't re-ask on the next tab switch
+      if (elapsed < 1500) return          // ignore instant refocus (e.g. accidental click)
+      if (elapsed > 45 * 60_000) return   // stale — opened too long ago to be this session
+      setApplyPromptJob(job)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
+  const confirmApplied = async () => {
+    const job = applyPromptJob
+    if (!job) return
+    setApplyPromptJob(null)
+    await jobsApi.setStatus(job.id, 'applied').catch(() => {})
+    handleStatusChange(job.id, 'applied')
+    pushToast({ title: `Marked as applied — ${job.company}`, type: 'success' })
   }
 
   // ── Tailor queue — max 2 simultaneous workers ────────────────────────────────
@@ -2541,6 +2582,7 @@ export default function PulledJobsPage() {
                         onTailor={handleTailor}
                         onAutoApply={handleAutoApply}
                         onDeleteTailor={handleDeleteTailor}
+                        onOpenApplyLink={markLinkOpened}
                         convertHourly={jobSettings.convertHourlyToMonthly}
                       />
                     </motion.div>
@@ -2614,7 +2656,45 @@ export default function PulledJobsPage() {
             onTailor={handleTailor}
             descCache={descCache}
             userProfile={userProfile}
+            onOpenApplyLink={markLinkOpened}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── "Did you apply?" prompt — shown when the tab regains focus after
+          opening a job's application link ── */}
+      <AnimatePresence>
+        {applyPromptJob && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-end md:items-center justify-center bg-black/40 px-4 pb-4 md:pb-0"
+            onClick={() => setApplyPromptJob(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+            >
+              <p className="text-base font-semibold text-slate-900">Did you apply?</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {applyPromptJob.title} at <span className="font-medium text-slate-700">{applyPromptJob.company}</span>
+              </p>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => setApplyPromptJob(null)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:border-slate-300 transition"
+                >
+                  Not yet
+                </button>
+                <button
+                  onClick={confirmApplied}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+                >
+                  <CheckCircle2 className="h-4 w-4" /> Applied
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
