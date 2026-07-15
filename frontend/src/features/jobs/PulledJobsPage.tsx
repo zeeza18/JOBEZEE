@@ -1571,16 +1571,13 @@ export default function PulledJobsPage() {
     if (activeTab !== 'tailored') return
     let cancelled = false
     setTailoredLoading(true)
-    Promise.all([
-      tailoredIdsKey ? jobsApi.list({ ids: tailoredIdsKey }) : Promise.resolve([]),
-      jobsApi.list({ status: 'applied', limit: 1000 }),
-    ])
-      .then(([byId, applied]) => {
+    // Only jobs actually tailored (present in tailorJobs) belong here — this
+    // used to also pull in every "applied" job regardless of whether it was
+    // ever tailored, which mislabeled plain applies as "tailored".
+    ;(tailoredIdsKey ? jobsApi.list({ ids: tailoredIdsKey }) : Promise.resolve([]))
+      .then(byId => {
         if (cancelled) return
-        const map = new Map<string, PulledJob>()
-        for (const j of byId) map.set(j.id, j)
-        for (const j of applied) map.set(j.id, j)
-        setTailoredDetailJobs([...map.values()])
+        setTailoredDetailJobs(byId)
       })
       .catch(() => { /* leave stale data visible; user can retry via tab switch */ })
       .finally(() => { if (!cancelled) setTailoredLoading(false) })
@@ -2218,7 +2215,7 @@ export default function PulledJobsPage() {
       if (activeTab === 'saved')    return j.status === 'saved' || j.status === 'favourite'
       if (activeTab === 'hidden')   return j.status === 'hidden'
       if (activeTab === 'applied')  return j.status === 'applied'
-      if (activeTab === 'tailored') return (tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error') || j.status === 'applied'
+      if (activeTab === 'tailored') return tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error'
       // ALL: exclude hidden, saved/favourite, applied, and any job with an active tailor state
       if (j.status === 'hidden') return false
       if (j.status === 'saved' || j.status === 'favourite') return false
@@ -2341,20 +2338,14 @@ export default function PulledJobsPage() {
   const hiddenCount   = stats?.hidden ?? 0
   const appliedCount  = stats?.applied ?? 0
   // Exact once the Tailored tab has been fetched this session (tailoredDetailJobs
-  // is the authoritative union of tailored-ids + applied jobs); before that,
-  // approximate from what's already in memory so the badge isn't blank.
+  // is the authoritative set of actually-tailored jobs); before that, approximate
+  // from tailorJobs already in memory so the badge isn't blank.
   const tailoredCount = useMemo(() => {
     if (activeTab === 'tailored' || tailoredDetailJobs.length > 0) return tailoredDetailJobs.length
-    const tailoredIds = new Set<string>()
     let count = 0
-    for (const [id, v] of tailorJobs) {
-      if (v.status === 'error') continue
-      tailoredIds.add(id)
-      count++
-    }
-    for (const j of jobs) if (j.status === 'applied' && !tailoredIds.has(j.id)) count++
+    for (const [, v] of tailorJobs) if (v.status !== 'error') count++
     return count
-  }, [jobs, tailorJobs, tailoredDetailJobs, activeTab])
+  }, [tailorJobs, tailoredDetailJobs, activeTab])
 
   const TABS = [
     { key: 'all'      as const, label: 'ALL',      count: allCount      },

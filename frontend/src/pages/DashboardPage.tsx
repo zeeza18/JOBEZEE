@@ -207,6 +207,8 @@ function EditTrackerModal({ job, onClose, onSaved }: {
   const [company,  setCompany]  = useState(job.company)
   const [salary,   setSalary]   = useState(job.salary)
   const [url,      setUrl]      = useState(job.url)
+  const [resumeUrl, setResumeUrl] = useState(job.resume_used_url ?? '')
+  const [status,   setStatus]   = useState(job.status)
   const [dateApplied, setDateApplied] = useState(job.date_applied_iso ?? '')
   const [saving,   setSaving]   = useState(false)
   const [error,    setError]    = useState('')
@@ -220,13 +222,15 @@ function EditTrackerModal({ job, onClose, onSaved }: {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title, company, salary, url,
+          title, company, salary, url, status,
+          resume_url: resumeUrl,
           date_applied: dateApplied || undefined,
         }),
       })
       if (!r.ok) throw new Error(await r.text())
       onSaved({
-        job_id: job.job_id, title, company, salary, url,
+        job_id: job.job_id, title, company, salary, url, status,
+        resume_used_url: resumeUrl,
         date_applied: dateApplied
           ? new Date(dateApplied + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           : job.date_applied,
@@ -241,7 +245,7 @@ function EditTrackerModal({ job, onClose, onSaved }: {
   return (
     <div className="fixed inset-0 z-[70] flex items-end md:items-center justify-center bg-black/40 px-4 pb-4 md:pb-0"
       onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl space-y-3">
+      <div onClick={e => e.stopPropagation()} className="w-full max-w-sm max-h-[85vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-slate-800">Edit tracked job</p>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
@@ -249,6 +253,15 @@ function EditTrackerModal({ job, onClose, onSaved }: {
           </button>
         </div>
 
+        <label className="block text-xs">
+          <span className="text-slate-500 font-medium">Status</span>
+          <select value={status} onChange={e => setStatus(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-400 bg-white">
+            {ALL_STATUSES.map(s => (
+              <option key={s} value={s}>{STATUS_CFG[s].label}</option>
+            ))}
+          </select>
+        </label>
         <label className="block text-xs">
           <span className="text-slate-500 font-medium">Company</span>
           <input value={company} onChange={e => setCompany(e.target.value)}
@@ -272,6 +285,11 @@ function EditTrackerModal({ job, onClose, onSaved }: {
         <label className="block text-xs">
           <span className="text-slate-500 font-medium">Job URL</span>
           <input value={url} onChange={e => setUrl(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+        </label>
+        <label className="block text-xs">
+          <span className="text-slate-500 font-medium">Tailored Resume URL</span>
+          <input value={resumeUrl} onChange={e => setResumeUrl(e.target.value)} placeholder="Link to the resume used for this job"
             className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-400" />
         </label>
 

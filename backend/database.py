@@ -188,6 +188,7 @@ async def run_column_migrations() -> None:
             ("company_override",   "VARCHAR(200)  DEFAULT NULL"),
             ("salary_override",    "VARCHAR(200)  DEFAULT NULL"),
             ("url_override",       "VARCHAR(1000) DEFAULT NULL"),
+            ("resume_url_override","VARCHAR(500)  DEFAULT NULL"),
             ("applied_at_override","TIMESTAMPTZ   DEFAULT NULL"),
         ]
         for col, defn in _ujs_cols:

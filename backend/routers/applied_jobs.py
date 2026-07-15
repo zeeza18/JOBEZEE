@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import get_current_user
 from ..config import get_settings
 from ..database import AsyncSessionLocal, get_db
-from ..models import PulledJob, JobListing, UserJobState
+from ..models import PulledJob, JobListing, UserJobState, TailorJobRecord
 
 router = APIRouter()
 
@@ -116,6 +116,34 @@ _TRACKER_STATUSES = {
 }
 
 
+async def _tailored_resume_links(db: AsyncSession, user_id: str, job_ids: list[str]) -> dict[str, str]:
+    """
+    Best tailored-resume download link per job, keyed by TailorJobRecord.pulled_job_id
+    (which holds a JobListing.id or legacy PulledJob.id — see start_tailor_for_job).
+    Picks the newest non-error record with an actual file per job.
+    """
+    if not job_ids:
+        return {}
+    res = await db.execute(
+        select(TailorJobRecord)
+        .where(
+            TailorJobRecord.user_id == user_id,
+            TailorJobRecord.pulled_job_id.in_(job_ids),
+            TailorJobRecord.status.notin_(["error", "stale"]),
+        )
+        .order_by(TailorJobRecord.created_at.desc())
+    )
+    links: dict[str, str] = {}
+    for rec in res.scalars().all():
+        if rec.pulled_job_id in links:
+            continue   # already have the newest one for this job
+        if rec.has_pdf:
+            links[rec.pulled_job_id] = f"/api/tailor/download/{rec.id}"
+        elif rec.has_docx:
+            links[rec.pulled_job_id] = f"/api/tailor/download-docx/{rec.id}"
+    return links
+
+
 @router.get("")
 async def list_applied_jobs(
     current_user=Depends(get_current_user),
@@ -146,6 +174,11 @@ async def list_applied_jobs(
     )
     ujs_rows = ujs_res.all()
 
+    tailored_links = await _tailored_resume_links(
+        db, str(current_user.id),
+        [str(j.id) for j in pulled_jobs] + [str(listing.id) for _state, listing in ujs_rows],
+    )
+
     # (sort_key, url_for_dedupe, row_dict) — PulledJob rows first so they win
     # dedupe ties (bot-verified / richer pipeline status beats a bare "applied").
     combined: list[tuple[datetime, str, dict]] = []
@@ -167,7 +200,7 @@ async def list_applied_jobs(
                 "platform":        j.site or j.source or "",
                 "work_style":      j.job_type or "",
                 "status":          j.status if j.status in VALID_STATUSES else "applied",
-                "resume_used_url": getattr(j, "resume_used_url", "") or "",
+                "resume_used_url": getattr(j, "resume_used_url", "") or tailored_links.get(str(j.id), ""),
             },
         ))
 
@@ -188,7 +221,7 @@ async def list_applied_jobs(
                 "platform":        listing.site or listing.source or "",
                 "work_style":      listing.job_type or "",
                 "status":          state.status if state.status in VALID_STATUSES else "applied",
-                "resume_used_url": "",
+                "resume_used_url": state.resume_url_override or tailored_links.get(str(listing.id), ""),
             },
         ))
 
@@ -254,6 +287,8 @@ class TrackerEdit(BaseModel):
     salary: str | None = None
     url: str | None = None
     date_applied: str | None = None   # "YYYY-MM-DD"
+    status: str | None = None
+    resume_url: str | None = None
 
 @router.patch("/{job_id}")
 async def edit_tracked_job(
@@ -262,6 +297,9 @@ async def edit_tracked_job(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if body.status is not None and body.status not in VALID_STATUSES:
+        raise HTTPException(400, f"Invalid status. Choose from: {VALID_STATUSES}")
+
     pid = uuid.UUID(current_user.id)
     jid = uuid.UUID(job_id)
 
@@ -285,6 +323,10 @@ async def edit_tracked_job(
             job.salary_text = body.salary
         if body.url is not None:
             job.url = body.url
+        if body.status is not None:
+            job.status = body.status
+        if body.resume_url is not None:
+            job.resume_used_url = body.resume_url
         if applied_dt is not None:
             job.pulled_at = applied_dt
         await db.commit()
@@ -305,6 +347,10 @@ async def edit_tracked_job(
         state.salary_override = body.salary
     if body.url is not None:
         state.url_override = body.url
+    if body.status is not None:
+        state.status = body.status
+    if body.resume_url is not None:
+        state.resume_url_override = body.resume_url
     if applied_dt is not None:
         state.applied_at_override = applied_dt
     await db.commit()
