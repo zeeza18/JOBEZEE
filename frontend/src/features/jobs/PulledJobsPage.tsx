@@ -292,6 +292,22 @@ function jobInfoCount(job: PulledJob): number {
   return n
 }
 
+// Classic ellipsis pagination: 1 … 4 5 6 … 20 — always shows first/last page
+// plus a small window around the current page.
+function buildPageNumbers(current: number, total: number, windowSize = 1): (number | '…')[] {
+  if (total <= 1) return [1]
+  const mid: number[] = []
+  for (let i = Math.max(2, current - windowSize); i <= Math.min(total - 1, current + windowSize); i++) {
+    mid.push(i)
+  }
+  const pages: (number | '…')[] = [1]
+  if (mid[0] > 2) pages.push('…')
+  pages.push(...mid)
+  if (mid[mid.length - 1] < total - 1) pages.push('…')
+  pages.push(total)
+  return pages
+}
+
 // ─── Lightweight markdown renderer ────────────────────────────────────────────
 
 function renderInline(text: string): React.ReactNode[] {
@@ -2540,28 +2556,50 @@ export default function PulledJobsPage() {
       {(activeTab === 'all' || activeTab === 'new') && (() => {
         const total      = activeTab === 'all' ? allCount : newCount
         const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-        return total > PAGE_SIZE ? (
-          <div className="flex-shrink-0 flex items-center justify-center gap-3 border-t border-slate-100 bg-white px-4 py-2.5">
+        if (total <= PAGE_SIZE) return null
+
+        const pageNumbers = buildPageNumbers(page, totalPages)
+
+        return (
+          <div className="flex-shrink-0 flex items-center justify-center gap-1.5 border-t border-slate-100 bg-white px-4 py-2.5 overflow-x-auto">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page <= 1 || pageFetching}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+              className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
             >
               Prev
             </button>
-            <span className="flex items-center gap-1.5 text-sm text-slate-500">
-              {pageFetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-500" />}
-              Page {page} of {totalPages}
-            </span>
+
+            {pageNumbers.map((n, i) =>
+              n === '…' ? (
+                <span key={`ellipsis-${i}`} className="shrink-0 px-1 text-sm text-slate-400 select-none">…</span>
+              ) : (
+                <button
+                  key={n}
+                  onClick={() => setPage(n)}
+                  disabled={pageFetching}
+                  className={`shrink-0 min-w-[2rem] rounded-lg border px-2.5 py-1.5 text-sm font-medium transition disabled:opacity-40 ${
+                    n === page
+                      ? 'border-cyan-500 bg-cyan-50 text-cyan-700'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  {n}
+                </button>
+              )
+            )}
+
+            {pageFetching && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-cyan-500 mx-1" />}
+
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages || pageFetching}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
+              className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 disabled:opacity-40"
             >
               Next
             </button>
           </div>
-        ) : null
+        )
       })()}
 
       {/* ── Modals / drawers ── */}
