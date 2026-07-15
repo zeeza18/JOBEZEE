@@ -145,11 +145,18 @@ async def _build_pulled_jobs_query(
     search        : Optional[str] = None,
     hours         : Optional[int] = None,
     exclude       : Optional[str] = None,
+    ids           : Optional[str] = None,
 ):
     """
     Build the filtered job_listings + user_job_states query shared by
     list_pulled_jobs and job_stats — keeping the two in sync guarantees the
     ALL/NEW tab pagination totals always match the dashboard's stat counts.
+
+    `ids` (comma-separated job_listing UUIDs) is an escape hatch for "give me
+    exactly these jobs" lookups (e.g. the Tailored tab, which needs job detail
+    for ids tracked client-side regardless of their current status/age/profile
+    match) — it bypasses hours/exclude/status and the profile-based filters
+    below entirely.
     """
     user_id = current_user.id
 
@@ -185,6 +192,23 @@ async def _build_pulled_jobs_query(
             UserJobState.created_at.desc(),
         )
     )
+
+    if ids is not None:
+        from sqlalchemy import false as sqlfalse
+
+        id_list: list[uuid.UUID] = []
+        for raw in ids.split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                id_list.append(uuid.UUID(raw))
+            except ValueError:
+                continue
+        # Explicit-id lookups skip every other filter below (status/exclude/
+        # source/search/hours/profile) — the caller already knows exactly
+        # which jobs it wants, regardless of their current status/age/match.
+        return q.where(JobListing.id.in_(id_list)) if id_list else q.where(sqlfalse())
 
     if status_filter:
         q = q.where(UserJobState.status == status_filter)
@@ -279,6 +303,7 @@ async def list_pulled_jobs(
     search        : Optional[str] = Query(None),
     hours         : Optional[int] = Query(None, description="Only jobs pulled within the last N hours"),
     exclude       : Optional[str] = Query(None, description="Comma-separated statuses to exclude"),
+    ids           : Optional[str] = Query(None, description="Comma-separated job_listing ids — bypasses all other filters"),
     limit         : int           = Query(200, le=1000),
     offset        : int           = Query(0),
     current_user  : User          = Depends(get_current_user),
@@ -291,7 +316,7 @@ async def list_pulled_jobs(
     q = await _build_pulled_jobs_query(
         db, current_user,
         status_filter=status_filter, source_filter=source_filter, search=search,
-        hours=hours, exclude=exclude,
+        hours=hours, exclude=exclude, ids=ids,
     )
     q = q.limit(limit).offset(offset)
 
@@ -444,13 +469,13 @@ async def job_stats(
     # pagination uses (list_pulled_jobs → _build_pulled_jobs_query), so these
     # counts always match what the Jobs page can actually page through.
     open_q = await _build_pulled_jobs_query(
-        db, current_user, hours=24 * 30, exclude="hidden,saved,favourite",
+        db, current_user, hours=24 * 30, exclude="hidden,saved,favourite,applied",
     )
     open_count_q = open_q.order_by(None).with_only_columns(sqlfunc.count(), maintain_column_froms=True)
     open_30d: int = (await db.execute(open_count_q)).scalar() or 0
 
     new_q = await _build_pulled_jobs_query(
-        db, current_user, hours=24, exclude="hidden",
+        db, current_user, hours=24, exclude="hidden,applied",
     )
     new_count_q = new_q.order_by(None).with_only_columns(sqlfunc.count(), maintain_column_froms=True)
     new_24h: int = (await db.execute(new_count_q)).scalar() or 0

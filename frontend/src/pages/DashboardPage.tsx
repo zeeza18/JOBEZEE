@@ -316,7 +316,7 @@ const DashboardPage = () => {
           const cache2 = useApiCache.getState()
           const [statsData, page1] = await Promise.all([
             jobsApi.stats(),
-            jobsApi.list({ limit: 100, offset: 0, hours: 24 * 30, exclude: 'hidden,saved,favourite' }),
+            jobsApi.list({ limit: 100, offset: 0, hours: 24 * 30, exclude: 'hidden,saved,favourite,applied' }),
           ])
           cache2.setJobStats(statsData)
           setJobStats(statsData)

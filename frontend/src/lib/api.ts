@@ -326,6 +326,7 @@ export const jobsApi = {
     search?  : string
     hours?   : number
     exclude? : string
+    ids?     : string
     limit?   : number
     offset?  : number
   }) => {
@@ -335,6 +336,7 @@ export const jobsApi = {
     if (params?.search)  qs.set('search',  params.search)
     if (params?.hours   != null) qs.set('hours',   String(params.hours))
     if (params?.exclude) qs.set('exclude', params.exclude)
+    if (params?.ids)     qs.set('ids',     params.ids)
     if (params?.limit   != null) qs.set('limit',  String(params.limit))
     if (params?.offset  != null) qs.set('offset', String(params.offset))
     const q = qs.toString()

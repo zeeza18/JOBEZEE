@@ -1429,7 +1429,7 @@ export default function PulledJobsPage() {
     setPageFetching(true)
     try {
       const hours   = tab === 'all' ? 24 * 30 : 24
-      const exclude = tab === 'all' ? 'hidden,saved,favourite' : 'hidden'
+      const exclude = tab === 'all' ? 'hidden,saved,favourite,applied' : 'hidden,applied'
       const [batch, statsData] = await Promise.all([
         jobsApi.list({ limit: PAGE_SIZE, offset: (pageNum - 1) * PAGE_SIZE, hours, exclude }),
         jobsApi.stats(),
@@ -1515,6 +1515,40 @@ export default function PulledJobsPage() {
       .finally(() => { if (!cancelled) setCuratedLoading(false) })
     return () => { cancelled = true }
   }, [activeTab, isCuratedTab, curatedRefreshKey])
+
+  // ── Tailored tab — its own server fetch, independent of the ALL/NEW page ────
+  // tailorJobs (localStorage-backed) only holds ids + tailor state, not job
+  // detail — fetch those exact ids by id, plus anything with status 'applied'
+  // (which counts as "tailored" even if it fell out of the tailorJobs map),
+  // so a tailored job never disappears just because it's not on the current
+  // ALL/NEW page.
+  const [tailoredDetailJobs, setTailoredDetailJobs] = useState<PulledJob[]>([])
+  const [tailoredLoading, setTailoredLoading] = useState(false)
+  const [tailoredRefreshKey, setTailoredRefreshKey] = useState(0)
+  const tailoredIdsKey = useMemo(
+    () => [...tailorJobs.keys()].sort().join(','),
+    [tailorJobs],
+  )
+
+  useEffect(() => {
+    if (activeTab !== 'tailored') return
+    let cancelled = false
+    setTailoredLoading(true)
+    Promise.all([
+      tailoredIdsKey ? jobsApi.list({ ids: tailoredIdsKey }) : Promise.resolve([]),
+      jobsApi.list({ status: 'applied', limit: 1000 }),
+    ])
+      .then(([byId, applied]) => {
+        if (cancelled) return
+        const map = new Map<string, PulledJob>()
+        for (const j of byId) map.set(j.id, j)
+        for (const j of applied) map.set(j.id, j)
+        setTailoredDetailJobs([...map.values()])
+      })
+      .catch(() => { /* leave stale data visible; user can retry via tab switch */ })
+      .finally(() => { if (!cancelled) setTailoredLoading(false) })
+    return () => { cancelled = true }
+  }, [activeTab, tailoredIdsKey, tailoredRefreshKey])
 
   // ── Incremental poll during search ───────────────────────────────────────────
   // New jobs land at position 0 (ordered by pulled_at desc). On each new batch
@@ -1630,8 +1664,11 @@ export default function PulledJobsPage() {
 
   // ── Status change ─────────────────────────────────────────────────────────────
   const handleStatusChange = (id: string, newStatus: string) => {
-    const oldStatus = jobs.find(j => j.id === id)?.status ?? curatedJobs.find(j => j.id === id)?.status
+    const oldStatus = jobs.find(j => j.id === id)?.status
+      ?? curatedJobs.find(j => j.id === id)?.status
+      ?? tailoredDetailJobs.find(j => j.id === id)?.status
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: newStatus } : j))
+    setTailoredDetailJobs(prev => prev.map(j => j.id === id ? { ...j, status: newStatus } : j))
     cache.updateJobStatus(id, newStatus)   // keep global cache in sync
     setSelectedJob(prev => prev?.id === id ? { ...prev, status: newStatus } : prev)
     // Keep the curated-tab list (which lives outside the capped `jobs` array)
@@ -1807,6 +1844,8 @@ export default function PulledJobsPage() {
                   roundsDone: 0,
                   onRetry: () => {
                     const fullJob = jobs.find(j => j.id === pulledJobId)
+                      ?? curatedJobs.find(j => j.id === pulledJobId)
+                      ?? tailoredDetailJobs.find(j => j.id === pulledJobId)
                     if (fullJob) {
                       setTailorJobs(prev2 => { const n = new Map(prev2); n.delete(pulledJobId); return n })
                       setTimeout(() => _startTailor(fullJob), 100)
@@ -2094,20 +2133,21 @@ export default function PulledJobsPage() {
     const userYears  = resolveUserYears(userProfile?.experience_level ?? '', userProfile?.years_experience ?? '')
     const prefLocs   = userProfile?.preferred_locations ?? []
 
-    // Curated tabs (saved/hidden/applied) read from their own server-filtered
-    // fetch so they aren't subject to the general list's relevance/recency cap.
-    const source = isCuratedTab ? curatedJobs : jobs
+    // Curated tabs (saved/hidden/applied) and Tailored each read from their own
+    // server-filtered fetch so they aren't subject to the ALL/NEW tab's pagination.
+    const source = isCuratedTab ? curatedJobs : activeTab === 'tailored' ? tailoredDetailJobs : jobs
 
     return source.filter(j => {
       // Tab filter
-      if (activeTab === 'new')      return j.status !== 'hidden' && Date.now() - new Date(j.pulled_at).getTime() < 24 * 3_600_000
+      if (activeTab === 'new')      return j.status !== 'hidden' && j.status !== 'applied' && Date.now() - new Date(j.pulled_at).getTime() < 24 * 3_600_000
       if (activeTab === 'saved')    return j.status === 'saved' || j.status === 'favourite'
       if (activeTab === 'hidden')   return j.status === 'hidden'
       if (activeTab === 'applied')  return j.status === 'applied'
       if (activeTab === 'tailored') return (tailorJobs.has(j.id) && tailorJobs.get(j.id)!.status !== 'error') || j.status === 'applied'
-      // ALL: exclude hidden, saved/favourite, and any job with an active tailor state
+      // ALL: exclude hidden, saved/favourite, applied, and any job with an active tailor state
       if (j.status === 'hidden') return false
       if (j.status === 'saved' || j.status === 'favourite') return false
+      if (j.status === 'applied') return false
       const _ts = tailorJobs.get(j.id)
       if (_ts && _ts.status !== 'error') return false
 
@@ -2213,7 +2253,7 @@ export default function PulledJobsPage() {
       const scoreB = salaryScore(b, userMin, userMax) + locationMatchScore(b, prefLocs) + expMatchScore(b, userYears)
       return scoreB - scoreA
     })
-  }, [jobs, curatedJobs, isCuratedTab, activeTab, filters, userProfile, tailorJobs])
+  }, [jobs, curatedJobs, tailoredDetailJobs, isCuratedTab, activeTab, filters, userProfile, tailorJobs])
 
   // ── Tab counts ───────────────────────────────────────────────────────────────
   // ALL/NEW badges read straight from the server counts (stats.open_30d /
@@ -2225,7 +2265,11 @@ export default function PulledJobsPage() {
   const savedCount    = stats ? ((stats.saved || 0) + (stats.favourite || 0)) : 0
   const hiddenCount   = stats?.hidden ?? 0
   const appliedCount  = stats?.applied ?? 0
+  // Exact once the Tailored tab has been fetched this session (tailoredDetailJobs
+  // is the authoritative union of tailored-ids + applied jobs); before that,
+  // approximate from what's already in memory so the badge isn't blank.
   const tailoredCount = useMemo(() => {
+    if (activeTab === 'tailored' || tailoredDetailJobs.length > 0) return tailoredDetailJobs.length
     const tailoredIds = new Set<string>()
     let count = 0
     for (const [id, v] of tailorJobs) {
@@ -2235,7 +2279,7 @@ export default function PulledJobsPage() {
     }
     for (const j of jobs) if (j.status === 'applied' && !tailoredIds.has(j.id)) count++
     return count
-  }, [jobs, tailorJobs])
+  }, [jobs, tailorJobs, tailoredDetailJobs, activeTab])
 
   const TABS = [
     { key: 'all'      as const, label: 'ALL',      count: allCount      },
@@ -2327,11 +2371,12 @@ export default function PulledJobsPage() {
             onClick={() => {
               if (activeTab === 'all' || activeTab === 'new') loadPage(activeTab, page)
               else if (isCuratedTab) setCuratedRefreshKey(k => k + 1)
+              else if (activeTab === 'tailored') setTailoredRefreshKey(k => k + 1)
             }}
-            disabled={pageFetching || curatedLoading}
+            disabled={pageFetching || curatedLoading || tailoredLoading}
             title="Refresh job list"
             className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:border-slate-300 transition disabled:opacity-50 shrink-0">
-            <RefreshCw className={`h-4 w-4 ${(pageFetching || curatedLoading) ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${(pageFetching || curatedLoading || tailoredLoading) ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
@@ -2377,7 +2422,12 @@ export default function PulledJobsPage() {
         ref={scrollRef}
         className="flex-1 overflow-y-auto w-full max-w-full px-4 py-4"
       >
-        {(isCuratedTab ? curatedLoading && curatedJobs.length === 0 : pageFetching && jobs.length === 0) ? (
+        {(isCuratedTab
+          ? curatedLoading && curatedJobs.length === 0
+          : activeTab === 'tailored'
+          ? tailoredLoading && tailoredDetailJobs.length === 0
+          : pageFetching && jobs.length === 0
+        ) ? (
           <div className="grid grid-cols-1 gap-3">
             {[1,2,3,4,5,6].map(i => (
               <div key={i} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm animate-pulse">
