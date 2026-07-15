@@ -598,6 +598,65 @@ async def _stale_jobs_cleanup_loop() -> None:
         await asyncio.sleep(24 * 3600)
 
 
+def _seconds_until_next_noon_ct() -> float:
+    """Seconds from now until the next 12:00 PM America/Chicago."""
+    from datetime import datetime as _dt, timedelta as _td
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("America/Chicago")
+    now = _dt.now(tz)
+    target = now.replace(hour=12, minute=0, second=0, microsecond=0)
+    if target <= now:
+        target += _td(days=1)
+    return (target - now).total_seconds()
+
+
+async def _news_refresh_loop() -> None:
+    """
+    Refresh job-market news once a day at 12:00 PM America/Chicago: pulls fresh
+    Google News RSS results for every distinct (country, role) combo seen among
+    user profiles, stores new items, and prunes anything older than 14 days —
+    so the dashboard always shows today's news through the last 2 weeks, never
+    stale leftovers.
+    """
+    from sqlalchemy import select as _sel
+    from .database import AsyncSessionLocal
+    from .models import UserProfile
+    from .routers.dashboard import fetch_news_items, store_news_items, prune_old_news
+
+    _log = logging.getLogger(__name__ + ".news_refresh")
+    _wait = _seconds_until_next_noon_ct()
+    _log.info("[NewsRefresh] loop started — first run in %.0f min (next 12:00 PM CT)", _wait / 60)
+    await asyncio.sleep(_wait)
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                rows = (await db.execute(
+                    _sel(UserProfile.country, UserProfile.desired_roles)
+                )).all()
+                combos: set[tuple[str, str]] = set()
+                for country, roles in rows:
+                    c = (country or "USA").strip() or "USA"
+                    r = (roles[0] if roles else "software engineer").strip() or "software engineer"
+                    combos.add((c, r))
+                if not combos:
+                    combos.add(("USA", "software engineer"))
+
+                total_added = 0
+                for country, role in combos:
+                    items = fetch_news_items(country, role)
+                    total_added += await store_news_items(db, items, country, role)
+
+                pruned = await prune_old_news(db)
+                _log.info(
+                    "[NewsRefresh] refreshed %d country/role combos, added %d items, pruned %d stale items",
+                    len(combos), total_added, pruned,
+                )
+        except Exception as exc:
+            _log.error("[NewsRefresh] Error: %s", exc)
+        await asyncio.sleep(24 * 3600)
+
+
 async def _run_startup_db() -> None:
     """
     All DB startup work runs in the background.
@@ -721,6 +780,7 @@ async def lifespan(app: FastAPI):
     _tailor_cleanup_task = asyncio.create_task(_tailor_cleanup_loop())
     _tailor_watchdog_task = asyncio.create_task(_tailor_watchdog_loop())
     _stale_jobs_task = asyncio.create_task(_stale_jobs_cleanup_loop())
+    _news_refresh_task = asyncio.create_task(_news_refresh_loop())
     yield
     _bg_task.cancel()
     _email_task.cancel()
@@ -728,10 +788,12 @@ async def lifespan(app: FastAPI):
     _tailor_cleanup_task.cancel()
     _tailor_watchdog_task.cancel()
     _stale_jobs_task.cancel()
+    _news_refresh_task.cancel()
     try:
         await asyncio.gather(
             _bg_task, _email_task, _digest_task, _tailor_cleanup_task,
-            _tailor_watchdog_task, _stale_jobs_task, return_exceptions=True,
+            _tailor_watchdog_task, _stale_jobs_task, _news_refresh_task,
+            return_exceptions=True,
         )
     except asyncio.CancelledError:
         pass

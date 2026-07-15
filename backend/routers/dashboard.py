@@ -1,65 +1,61 @@
 """
-Dashboard router — overview stats from DB + cached job-market news feed.
+Dashboard router — overview stats from DB + job-market news feed.
 
 GET /api/dashboard/stats  — applied job stats from pulled_jobs DB table
-GET /api/dashboard/news   — job market news from Google News RSS (cached 3h)
+GET /api/dashboard/news   — job market news from Google News RSS, persisted in
+                            news_items (kept: today through 14 days back).
+                            Refreshed daily at 12:00 PM America/Chicago by the
+                            _news_refresh_loop background task in main.py.
 """
 from __future__ import annotations
 
-import time
 import uuid
-import xml.etree.ElementTree as ET
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 import httpx
+import xml.etree.ElementTree as ET
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
 from ..database import get_db
-from ..models import UserJobState, UserProfile
+from ..models import UserJobState, UserProfile, NewsItem
 
 router = APIRouter()
 
-# ── News cache (keyed by "country|role") ──────────────────────────────────────
-_news_cache: dict[str, list[dict]] = {}
-_news_cache_ts: dict[str, float]   = {}
-
-def _clear_news_cache() -> None:
-    _news_cache.clear()
-    _news_cache_ts.clear()
-
-_clear_news_cache()  # force refresh on every server restart
-_NEWS_TTL = 3 * 60 * 60
+_NEWS_RETENTION = timedelta(days=14)
 
 
 def _build_queries(country: str, role: str) -> list[tuple[str, str]]:
-    """Return (query, category) pairs personalised to user's country + role."""
+    """Return (query, category) pairs personalised to user's country + role.
+
+    `when:14d` restricts Google News results to the last 14 days so we never
+    pull in stale articles — no hardcoded year here, it goes stale every Jan 1.
+    """
     c = country.strip() if country else "USA"
     r = role.strip()    if role    else "software engineer"
-    yr = "2025"
     return [
         # hiring / job match
-        (f"{r} jobs hiring {yr} {c}",            "hiring"),
-        (f"{r} new job openings {c}",             "new_posting"),
-        (f"companies hiring {r} {c} {yr}",        "hiring"),
-        (f"{r} remote jobs {yr}",                 "new_posting"),
-        (f"tech companies expanding {c} {yr}",    "hiring"),
-        (f"startup hiring {r} {yr}",              "hiring"),
+        (f"{r} jobs hiring {c} when:14d",            "hiring"),
+        (f"{r} new job openings {c} when:14d",       "new_posting"),
+        (f"companies hiring {r} {c} when:14d",       "hiring"),
+        (f"{r} remote jobs when:14d",                "new_posting"),
+        (f"tech companies expanding {c} when:14d",   "hiring"),
+        (f"startup hiring {r} when:14d",             "hiring"),
         # layoffs
-        (f"tech layoffs {yr} {c}",                "layoffs"),
-        (f"job cuts technology {c} {yr}",         "layoffs"),
-        (f"tech company layoffs {yr}",            "layoffs"),
+        (f"tech layoffs {c} when:14d",               "layoffs"),
+        (f"job cuts technology {c} when:14d",        "layoffs"),
+        (f"tech company layoffs when:14d",           "layoffs"),
         # salary
-        (f"{r} salary {yr} {c}",                  "salary"),
-        (f"tech salary trends {yr} {c}",          "salary"),
-        (f"{r} compensation benchmark {yr}",       "salary"),
+        (f"{r} salary {c} when:14d",                 "salary"),
+        (f"tech salary trends {c} when:14d",         "salary"),
+        (f"{r} compensation benchmark when:14d",     "salary"),
         # market
-        (f"job market outlook {yr} {c}",          "market"),
-        (f"unemployment rate tech {c} {yr}",      "market"),
-        (f"AI jobs future {yr} {c}",              "market"),
-        (f"tech industry trends {yr} {c}",        "market"),
+        (f"job market outlook {c} when:14d",         "market"),
+        (f"unemployment rate tech {c} when:14d",     "market"),
+        (f"AI jobs future {c} when:14d",              "market"),
+        (f"tech industry trends {c} when:14d",       "market"),
     ]
 
 
@@ -88,20 +84,17 @@ def _fetch_google_news(query: str, category: str, max_items: int = 5) -> list[di
         return []
 
 
-def _parse_pub_date(pub: str) -> float:
+def _parse_pub_datetime(pub: str) -> datetime | None:
     try:
         from email.utils import parsedate_to_datetime
-        return parsedate_to_datetime(pub).timestamp()
+        dt = parsedate_to_datetime(pub)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except Exception:
-        return 0.0
+        return None
 
 
-def _get_news(country: str = "USA", role: str = "software engineer") -> list[dict]:
-    cache_key = f"{country.lower()}|{role.lower()}"
-    now = time.time()
-    if _news_cache.get(cache_key) and (now - _news_cache_ts.get(cache_key, 0)) < _NEWS_TTL:
-        return _news_cache[cache_key]
-
+def fetch_news_items(country: str, role: str) -> list[dict]:
+    """Hit Google News RSS for every query variant for this country+role, deduped."""
     all_items: list[dict] = []
     seen: set[str] = set()
     for query, category in _build_queries(country, role):
@@ -110,12 +103,67 @@ def _get_news(country: str = "USA", role: str = "software engineer") -> list[dic
             if key not in seen:
                 seen.add(key)
                 all_items.append(item)
-
-    # Sort newest first
-    all_items.sort(key=lambda x: _parse_pub_date(x["published"]), reverse=True)
-    _news_cache[cache_key]    = all_items
-    _news_cache_ts[cache_key] = now
     return all_items
+
+
+async def store_news_items(db: AsyncSession, items: list[dict], country: str, role: str) -> int:
+    """Upsert fetched RSS items into news_items, skipping ones already stored by link."""
+    if not items:
+        return 0
+    links = [i["link"] for i in items]
+    existing_res = await db.execute(select(NewsItem.link).where(NewsItem.link.in_(links)))
+    existing = {row[0] for row in existing_res}
+    added = 0
+    for item in items:
+        if item["link"] in existing:
+            continue
+        db.add(NewsItem(
+            title=item["title"][:500],
+            link=item["link"][:1000],
+            source=(item.get("source") or "")[:200],
+            category=item.get("category", ""),
+            topic=(item.get("topic") or "")[:300],
+            country=country,
+            role=role,
+            published_at=_parse_pub_datetime(item.get("published", "")),
+        ))
+        existing.add(item["link"])
+        added += 1
+    if added:
+        await db.commit()
+    return added
+
+
+async def prune_old_news(db: AsyncSession) -> int:
+    """Delete news_items older than the 14-day retention window."""
+    from sqlalchemy import delete
+    cutoff = datetime.now(timezone.utc) - _NEWS_RETENTION
+    res = await db.execute(delete(NewsItem).where(NewsItem.published_at < cutoff))
+    await db.commit()
+    return res.rowcount
+
+
+async def _get_news(db: AsyncSession, country: str = "USA", role: str = "software engineer") -> list[NewsItem]:
+    cutoff = datetime.now(timezone.utc) - _NEWS_RETENTION
+    query = (
+        select(NewsItem)
+        .where(
+            func.lower(NewsItem.country) == country.lower(),
+            func.lower(NewsItem.role) == role.lower(),
+            NewsItem.published_at >= cutoff,
+        )
+        .order_by(NewsItem.published_at.desc())
+    )
+    rows = (await db.execute(query)).scalars().all()
+    if rows:
+        return list(rows)
+
+    # Nothing fresh in DB yet for this combo (first request ever, or the
+    # scheduled noon refresh hasn't covered this role/country) — fetch now.
+    items = fetch_news_items(country, role)
+    await store_news_items(db, items, country, role)
+    rows = (await db.execute(query)).scalars().all()
+    return list(rows)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -169,5 +217,13 @@ async def job_market_news(
     roles   = (profile.desired_roles or [])       if profile else []
     role    = roles[0] if roles else "software engineer"
 
-    news = _get_news(country=country, role=role)
+    rows = await _get_news(db, country=country, role=role)
+    news = [
+        {
+            "title": r.title, "link": r.link,
+            "published": r.published_at.isoformat() if r.published_at else "",
+            "source": r.source, "category": r.category, "topic": r.topic,
+        }
+        for r in rows
+    ]
     return {"news": news, "country": country, "role": role}

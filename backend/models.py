@@ -396,6 +396,23 @@ class JobListing(Base):
     llm_extracted_at = Column(DateTime(timezone=True), nullable=True)
 
 
+class NewsItem(Base):
+    """Job-market news item pulled from Google News RSS. Pruned after 14 days."""
+    __tablename__ = "news_items"
+    __table_args__ = (UniqueConstraint("link", name="uq_news_link"),)
+
+    id           = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title        = Column(String(500), default="")
+    link         = Column(String(1000), default="")
+    source       = Column(String(200), default="")
+    category     = Column(String(50), default="")
+    topic        = Column(String(300), default="")
+    country      = Column(String(100), default="", index=True)
+    role         = Column(String(200), default="", index=True)
+    published_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    fetched_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class UserJobState(Base):
     """Per-user mutable state on a job listing (saved / hidden / new)."""
     __tablename__ = "user_job_states"

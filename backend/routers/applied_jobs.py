@@ -13,6 +13,7 @@ import imaplib
 import os
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import get_current_user
 from ..config import get_settings
 from ..database import AsyncSessionLocal, get_db
-from ..models import PulledJob
+from ..models import PulledJob, JobListing, UserJobState
 
 router = APIRouter()
 
@@ -95,6 +96,26 @@ async def _gpt_detect_status(text: str) -> str | None:
 
 # ── GET /api/applied-jobs ─────────────────────────────────────────────────────
 
+def _salary_text(salary_text: str, salary_min: float | None, salary_max: float | None) -> str:
+    if salary_text:
+        return salary_text
+    if salary_min and salary_max:
+        return f"${int(salary_min):,} – ${int(salary_max):,}"
+    if salary_min:
+        return f"${int(salary_min):,}+"
+    return ""
+
+
+# Jobs the bot auto-applied to (PulledJob) AND jobs the user manually marked
+# "Applied" from the Jobs page (UserJobState) both belong on the tracker —
+# they're the two places "applied" status actually gets set in this app.
+_TRACKER_STATUSES = {
+    "applying", "applied",
+    "interview_r1", "interview_r2", "interview_r3",
+    "offer", "rejected", "ghosted", "failed",
+}
+
+
 @router.get("")
 async def list_applied_jobs(
     current_user=Depends(get_current_user),
@@ -102,14 +123,7 @@ async def list_applied_jobs(
 ):
     pid = uuid.UUID(current_user.id)
 
-    # Show only jobs that were explicitly acted on by the user/bot
-    _TRACKER_STATUSES = {
-        "applying", "applied",
-        "interview_r1", "interview_r2", "interview_r3",
-        "offer", "rejected", "ghosted", "failed",
-    }
-
-    res = await db.execute(
+    pulled_res = await db.execute(
         select(PulledJob)
         .where(
             PulledJob.user_profile_id == pid,
@@ -118,33 +132,75 @@ async def list_applied_jobs(
         .order_by(PulledJob.pulled_at.desc())
         .limit(200)
     )
-    jobs = res.scalars().all()
+    pulled_jobs = pulled_res.scalars().all()
 
-    def _salary(j: PulledJob) -> str:
-        if j.salary_text:
-            return j.salary_text
-        if j.salary_min and j.salary_max:
-            return f"${int(j.salary_min):,} – ${int(j.salary_max):,}"
-        if j.salary_min:
-            return f"${int(j.salary_min):,}+"
-        return ""
+    ujs_res = await db.execute(
+        select(UserJobState, JobListing)
+        .join(JobListing, JobListing.id == UserJobState.job_id)
+        .where(
+            UserJobState.user_id == str(current_user.id),
+            UserJobState.status.in_(list(_TRACKER_STATUSES)),
+        )
+        .order_by(UserJobState.updated_at.desc())
+        .limit(200)
+    )
+    ujs_rows = ujs_res.all()
 
-    result = [
-        {
-            "job_id":          str(j.id),
-            "title":           j.title or "",
-            "company":         j.company or "",
-            "url":             j.url or "",
-            "salary":          _salary(j),
-            "date_posted":     j.posted_at or "",
-            "date_applied":    j.pulled_at.strftime("%b %d, %Y") if j.pulled_at else "",
-            "platform":        j.site or j.source or "",
-            "work_style":      j.job_type or "",
-            "status":          j.status if j.status in VALID_STATUSES else "applied",
-            "resume_used_url": getattr(j, "resume_used_url", "") or "",
-        }
-        for j in jobs
-    ]
+    # (sort_key, url_for_dedupe, row_dict) — PulledJob rows first so they win
+    # dedupe ties (bot-verified / richer pipeline status beats a bare "applied").
+    combined: list[tuple[datetime, str, dict]] = []
+
+    for j in pulled_jobs:
+        combined.append((
+            j.pulled_at or datetime.min.replace(tzinfo=timezone.utc),
+            (j.url or "").strip().lower(),
+            {
+                "job_id":          str(j.id),
+                "title":           j.title or "",
+                "company":         j.company or "",
+                "url":             j.url or "",
+                "salary":          _salary_text(j.salary_text, j.salary_min, j.salary_max),
+                "date_posted":     j.posted_at or "",
+                "date_applied":    j.pulled_at.strftime("%b %d, %Y") if j.pulled_at else "",
+                "platform":        j.site or j.source or "",
+                "work_style":      j.job_type or "",
+                "status":          j.status if j.status in VALID_STATUSES else "applied",
+                "resume_used_url": getattr(j, "resume_used_url", "") or "",
+            },
+        ))
+
+    for state, listing in ujs_rows:
+        combined.append((
+            state.updated_at or datetime.min.replace(tzinfo=timezone.utc),
+            (listing.url or "").strip().lower(),
+            {
+                "job_id":          str(state.id),
+                "title":           listing.title or "",
+                "company":         listing.company or "",
+                "url":             listing.url or "",
+                "salary":          _salary_text(listing.salary_text, listing.salary_min, listing.salary_max),
+                "date_posted":     listing.posted_at or "",
+                "date_applied":    state.updated_at.strftime("%b %d, %Y") if state.updated_at else "",
+                "platform":        listing.site or listing.source or "",
+                "work_style":      listing.job_type or "",
+                "status":          state.status if state.status in VALID_STATUSES else "applied",
+                "resume_used_url": "",
+            },
+        ))
+
+    combined.sort(key=lambda row: row[0], reverse=True)
+
+    seen_urls: set[str] = set()
+    result: list[dict] = []
+    for _sort_key, url_key, row in combined:
+        if url_key and url_key in seen_urls:
+            continue
+        if url_key:
+            seen_urls.add(url_key)
+        result.append(row)
+        if len(result) >= 200:
+            break
+
     return {"total": len(result), "jobs": result}
 
 
@@ -164,13 +220,24 @@ async def update_status(
         raise HTTPException(400, f"Invalid status. Choose from: {VALID_STATUSES}")
     pid = uuid.UUID(current_user.id)
     jid = uuid.UUID(job_id)
+
     res = await db.execute(
         select(PulledJob).where(PulledJob.id == jid, PulledJob.user_profile_id == pid)
     )
     job = res.scalar_one_or_none()
-    if not job:
+    if job:
+        job.status = body.status
+        await db.commit()
+        return {"job_id": job_id, "status": body.status}
+
+    # Not a PulledJob (bot auto-apply) row — try the Jobs-page tracked state instead.
+    state_res = await db.execute(
+        select(UserJobState).where(UserJobState.id == jid, UserJobState.user_id == str(current_user.id))
+    )
+    state = state_res.scalar_one_or_none()
+    if not state:
         raise HTTPException(404, "Job not found")
-    job.status = body.status
+    state.status = body.status
     await db.commit()
     return {"job_id": job_id, "status": body.status}
 

@@ -982,6 +982,14 @@ def build_preferences(profile: Any) -> "UserPreferences":
     countries = _normalise_countries(list(profile.preferred_countries or []))
     if not countries and not (profile.preferred_regions or []):
         countries = _infer_countries_from_locations(profile.preferred_locations or [])
+    if not countries and not (profile.preferred_regions or []):
+        # Last resort: fall back to the user's own "Country" profile field so
+        # e.g. an India-based user actually gets India sources instead of the
+        # search silently defaulting to USA. Global sources are always
+        # included on top of this regardless (see discovery/config/sites.yaml).
+        _profile_country = (getattr(profile, "country", "") or "").strip()
+        if _profile_country:
+            countries = _normalise_countries([_profile_country])
 
     return UserPreferences(
         # ── What to search ─────────────────────────────────────────────────
