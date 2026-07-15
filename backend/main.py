@@ -560,6 +560,44 @@ async def _tailor_cleanup_loop() -> None:
         await asyncio.sleep(3600)
 
 
+async def _stale_jobs_cleanup_loop() -> None:
+    """
+    Delete job_listings older than 30 days, plus their orphaned 'new'
+    user_job_states — runs once a day. Never touches saved/hidden/applied/
+    favourite/submitted states (a user's own decisions must survive this),
+    matching the ALL/NEW tabs' 30-day pagination window — nothing older is
+    ever shown anyway, so this just keeps the DB from growing unbounded.
+    """
+    from sqlalchemy import select as _sel, delete as _del, text as _text
+    from .database import AsyncSessionLocal
+    from .models import JobListing, UserJobState
+
+    _log = logging.getLogger(__name__ + ".stale_jobs_cleanup")
+    await asyncio.sleep(300)   # let startup settle first
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                cutoff = _text("NOW() - INTERVAL '30 days'")
+                stale_ids = _sel(JobListing.id).where(JobListing.first_seen_at < cutoff)
+                deleted_states = await db.execute(
+                    _del(UserJobState).where(
+                        UserJobState.status == "new",
+                        UserJobState.job_id.in_(stale_ids),
+                    )
+                )
+                deleted_listings = await db.execute(
+                    _del(JobListing).where(JobListing.first_seen_at < cutoff)
+                )
+                await db.commit()
+                _log.info(
+                    "[StaleJobsCleanup] removed %d job_listings + %d orphaned 'new' states",
+                    deleted_listings.rowcount, deleted_states.rowcount,
+                )
+        except Exception as exc:
+            _log.error("[StaleJobsCleanup] Error: %s", exc)
+        await asyncio.sleep(24 * 3600)
+
+
 async def _run_startup_db() -> None:
     """
     All DB startup work runs in the background.
@@ -682,14 +720,19 @@ async def lifespan(app: FastAPI):
     _digest_task = asyncio.create_task(_digest_email_loop())
     _tailor_cleanup_task = asyncio.create_task(_tailor_cleanup_loop())
     _tailor_watchdog_task = asyncio.create_task(_tailor_watchdog_loop())
+    _stale_jobs_task = asyncio.create_task(_stale_jobs_cleanup_loop())
     yield
     _bg_task.cancel()
     _email_task.cancel()
     _digest_task.cancel()
     _tailor_cleanup_task.cancel()
     _tailor_watchdog_task.cancel()
+    _stale_jobs_task.cancel()
     try:
-        await asyncio.gather(_bg_task, _email_task, _digest_task, _tailor_cleanup_task, _tailor_watchdog_task, return_exceptions=True)
+        await asyncio.gather(
+            _bg_task, _email_task, _digest_task, _tailor_cleanup_task,
+            _tailor_watchdog_task, _stale_jobs_task, return_exceptions=True,
+        )
     except asyncio.CancelledError:
         pass
 
