@@ -429,6 +429,16 @@ class UserJobState(Base):
     missing_skills = Column(JSON,    nullable=True)
     scored_at      = Column(DateTime(timezone=True), nullable=True)
 
+    # ── Per-user tracker edits ────────────────────────────────────────────────
+    # job_listings is shared/deduped across all users, so a manual correction
+    # from one user's tracker (e.g. fixing a scraped salary) must live here
+    # rather than mutating the shared JobListing row.
+    title_override      = Column(String(300),  nullable=True)
+    company_override    = Column(String(200),  nullable=True)
+    salary_override      = Column(String(200),  nullable=True)
+    url_override         = Column(String(1000), nullable=True)
+    applied_at_override  = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

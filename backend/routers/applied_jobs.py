@@ -151,8 +151,9 @@ async def list_applied_jobs(
     combined: list[tuple[datetime, str, dict]] = []
 
     for j in pulled_jobs:
+        applied_dt = j.pulled_at
         combined.append((
-            j.pulled_at or datetime.min.replace(tzinfo=timezone.utc),
+            applied_dt or datetime.min.replace(tzinfo=timezone.utc),
             (j.url or "").strip().lower(),
             {
                 "job_id":          str(j.id),
@@ -161,7 +162,8 @@ async def list_applied_jobs(
                 "url":             j.url or "",
                 "salary":          _salary_text(j.salary_text, j.salary_min, j.salary_max),
                 "date_posted":     j.posted_at or "",
-                "date_applied":    j.pulled_at.strftime("%b %d, %Y") if j.pulled_at else "",
+                "date_applied":    applied_dt.strftime("%b %d, %Y") if applied_dt else "",
+                "date_applied_iso": applied_dt.strftime("%Y-%m-%d") if applied_dt else "",
                 "platform":        j.site or j.source or "",
                 "work_style":      j.job_type or "",
                 "status":          j.status if j.status in VALID_STATUSES else "applied",
@@ -170,17 +172,19 @@ async def list_applied_jobs(
         ))
 
     for state, listing in ujs_rows:
+        applied_dt = state.applied_at_override or state.updated_at
         combined.append((
-            state.updated_at or datetime.min.replace(tzinfo=timezone.utc),
+            applied_dt or datetime.min.replace(tzinfo=timezone.utc),
             (listing.url or "").strip().lower(),
             {
                 "job_id":          str(state.id),
-                "title":           listing.title or "",
-                "company":         listing.company or "",
-                "url":             listing.url or "",
-                "salary":          _salary_text(listing.salary_text, listing.salary_min, listing.salary_max),
+                "title":           state.title_override or listing.title or "",
+                "company":         state.company_override or listing.company or "",
+                "url":             state.url_override or listing.url or "",
+                "salary":          state.salary_override or _salary_text(listing.salary_text, listing.salary_min, listing.salary_max),
                 "date_posted":     listing.posted_at or "",
-                "date_applied":    state.updated_at.strftime("%b %d, %Y") if state.updated_at else "",
+                "date_applied":    applied_dt.strftime("%b %d, %Y") if applied_dt else "",
+                "date_applied_iso": applied_dt.strftime("%Y-%m-%d") if applied_dt else "",
                 "platform":        listing.site or listing.source or "",
                 "work_style":      listing.job_type or "",
                 "status":          state.status if state.status in VALID_STATUSES else "applied",
@@ -240,6 +244,71 @@ async def update_status(
     state.status = body.status
     await db.commit()
     return {"job_id": job_id, "status": body.status}
+
+
+# ── PATCH /{id} — full tracker row edit ──────────────────────────────────────
+
+class TrackerEdit(BaseModel):
+    title: str | None = None
+    company: str | None = None
+    salary: str | None = None
+    url: str | None = None
+    date_applied: str | None = None   # "YYYY-MM-DD"
+
+@router.patch("/{job_id}")
+async def edit_tracked_job(
+    job_id: str,
+    body: TrackerEdit,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    pid = uuid.UUID(current_user.id)
+    jid = uuid.UUID(job_id)
+
+    applied_dt: datetime | None = None
+    if body.date_applied:
+        try:
+            applied_dt = datetime.strptime(body.date_applied, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise HTTPException(400, "date_applied must be in YYYY-MM-DD format")
+
+    res = await db.execute(
+        select(PulledJob).where(PulledJob.id == jid, PulledJob.user_profile_id == pid)
+    )
+    job = res.scalar_one_or_none()
+    if job:
+        if body.title is not None:
+            job.title = body.title
+        if body.company is not None:
+            job.company = body.company
+        if body.salary is not None:
+            job.salary_text = body.salary
+        if body.url is not None:
+            job.url = body.url
+        if applied_dt is not None:
+            job.pulled_at = applied_dt
+        await db.commit()
+        return {"job_id": job_id, "ok": True}
+
+    state_res = await db.execute(
+        select(UserJobState).where(UserJobState.id == jid, UserJobState.user_id == str(current_user.id))
+    )
+    state = state_res.scalar_one_or_none()
+    if not state:
+        raise HTTPException(404, "Job not found")
+
+    if body.title is not None:
+        state.title_override = body.title
+    if body.company is not None:
+        state.company_override = body.company
+    if body.salary is not None:
+        state.salary_override = body.salary
+    if body.url is not None:
+        state.url_override = body.url
+    if applied_dt is not None:
+        state.applied_at_override = applied_dt
+    await db.commit()
+    return {"job_id": job_id, "ok": True}
 
 
 # ── IMAP Gmail helper ─────────────────────────────────────────────────────────

@@ -182,6 +182,23 @@ async def run_column_migrations() -> None:
             except Exception as exc:
                 log.warning("Migration skip tailor_jobs.%s: %s", col, exc)
 
+        # ── user_job_states — per-user tracker edit overrides ───────────────────
+        _ujs_cols: list[tuple[str, str]] = [
+            ("title_override",     "VARCHAR(300)  DEFAULT NULL"),
+            ("company_override",   "VARCHAR(200)  DEFAULT NULL"),
+            ("salary_override",    "VARCHAR(200)  DEFAULT NULL"),
+            ("url_override",       "VARCHAR(1000) DEFAULT NULL"),
+            ("applied_at_override","TIMESTAMPTZ   DEFAULT NULL"),
+        ]
+        for col, defn in _ujs_cols:
+            try:
+                await conn.execute(text(
+                    f"ALTER TABLE user_job_states ADD COLUMN IF NOT EXISTS {col} {defn}"
+                ))
+                added += 1
+            except Exception as exc:
+                log.warning("Migration skip user_job_states.%s: %s", col, exc)
+
     log.info("[DB] Column migration complete (%d statements run)", added)
 
 
